@@ -1,9 +1,9 @@
 package main
 
 import (
+	"crypto/tls"
 	"encoding/base64"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -25,6 +25,9 @@ type API struct {
 	wsClientsLock sync.RWMutex
 	authUser      string
 	authPassword  string
+	httpsEnabled  bool
+	httpsCertFile string
+	httpsKeyFile  string
 }
 
 // NewAPI creates a new API server instance
@@ -34,13 +37,21 @@ func NewAPI(mailServer *MailServer, port int, host string) *API {
 
 // NewAPIWithAuth creates a new API server instance with HTTP Basic Auth
 func NewAPIWithAuth(mailServer *MailServer, port int, host, user, password string) *API {
+	return NewAPIWithHTTPS(mailServer, port, host, user, password, false, "", "")
+}
+
+// NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
+func NewAPIWithHTTPS(mailServer *MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	api := &API{
-		mailServer:   mailServer,
-		port:         port,
-		host:         host,
-		wsClients:    make(map[*websocket.Conn]bool),
-		authUser:     user,
-		authPassword: password,
+		mailServer:    mailServer,
+		port:          port,
+		host:          host,
+		wsClients:     make(map[*websocket.Conn]bool),
+		authUser:      user,
+		authPassword:  password,
+		httpsEnabled:  httpsEnabled,
+		httpsCertFile: certFile,
+		httpsKeyFile:  keyFile,
 		wsUpgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true // Allow all origins
@@ -144,6 +155,26 @@ func (api *API) setupRoutes() {
 // Start starts the API server
 func (api *API) Start() error {
 	addr := fmt.Sprintf("%s:%d", api.host, api.port)
+
+	if api.httpsEnabled {
+		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
+			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
+		}
+
+		// Create HTTP server with TLS config
+		srv := &http.Server{
+			Addr:    addr,
+			Handler: api.router,
+			TLSConfig: &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			},
+		}
+
+		// Logging is handled in main.go
+		return srv.ListenAndServeTLS(api.httpsCertFile, api.httpsKeyFile)
+	}
+
+	// Logging is handled in main.go
 	return api.router.Run(addr)
 }
 
@@ -532,14 +563,14 @@ func (api *API) relayEmail(c *gin.Context) {
 		// Relay to specific address
 		relayErr = api.mailServer.RelayMailTo(email, relayTo, func(err error) {
 			if err != nil {
-				log.Printf("Error relaying email %s to %s: %v", id, relayTo, err)
+				Error("Error relaying email %s to %s: %v", id, relayTo, err)
 			}
 		})
 	} else {
 		// Relay to configured SMTP server
 		relayErr = api.mailServer.RelayMail(email, false, func(err error) {
 			if err != nil {
-				log.Printf("Error relaying email %s: %v", id, err)
+				Error("Error relaying email %s: %v", id, err)
 			}
 		})
 	}
@@ -593,7 +624,7 @@ func (api *API) setupEventListeners() {
 func (api *API) handleWebSocket(c *gin.Context) {
 	conn, err := api.wsUpgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		Verbose("WebSocket upgrade error: %v", err)
 		return
 	}
 	defer conn.Close()
@@ -621,7 +652,7 @@ func (api *API) handleWebSocket(c *gin.Context) {
 		var msg map[string]interface{}
 		if err := conn.ReadJSON(&msg); err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
+				Verbose("WebSocket error: %v", err)
 			}
 			break
 		}
@@ -640,7 +671,7 @@ func (api *API) broadcastMessage(message interface{}) {
 
 	for conn := range api.wsClients {
 		if err := conn.WriteJSON(message); err != nil {
-			log.Printf("WebSocket write error: %v", err)
+			Verbose("WebSocket write error: %v", err)
 			// Remove failed client
 			delete(api.wsClients, conn)
 			conn.Close()

@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"io"
-	"log"
 	"math/big"
 	"mime"
 	"net"
@@ -158,7 +157,7 @@ func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *Out
 		return nil, fmt.Errorf("failed to setup SMTP server: %w", err)
 	}
 
-	log.Printf("owlmail using directory %s", mailDir)
+	Log("owlmail using directory %s", mailDir)
 
 	// Load existing emails from directory
 	ms.LoadMailsFromDirectory()
@@ -198,7 +197,7 @@ func (ms *MailServer) setupSMTPServer() error {
 			}
 		} else {
 			// Generate self-signed certificate for testing
-			log.Println("Warning: No TLS certificate provided, generating self-signed certificate")
+			Log("Warning: No TLS certificate provided, generating self-signed certificate")
 			cert, err := generateSelfSignedCert()
 			if err != nil {
 				return fmt.Errorf("failed to generate self-signed certificate: %w", err)
@@ -245,25 +244,25 @@ func (ms *MailServer) Listen() error {
 	// Start SMTPS server (465) if configured
 	if ms.smtpsServer != nil {
 		go func() {
-			log.Printf("owlmail SMTPS Server running at %s:465", ms.host)
+			Log("owlmail SMTPS Server running at %s:465", ms.host)
 			ln, err := net.Listen("tcp", ms.smtpsServer.Addr)
 			if err != nil {
-				log.Printf("Failed to start SMTPS server: %v", err)
+				Error("Failed to start SMTPS server: %v", err)
 				return
 			}
 			tlsListener := tls.NewListener(ln, ms.smtpsServer.TLSConfig)
 			if err := ms.smtpsServer.Serve(tlsListener); err != nil {
-				log.Printf("SMTPS server error: %v", err)
+				Error("SMTPS server error: %v", err)
 			}
 		}()
 	}
 
-	log.Printf("owlmail SMTP Server running at %s:%d", ms.host, ms.port)
+	Log("owlmail SMTP Server running at %s:%d", ms.host, ms.port)
 	if ms.authConfig != nil && ms.authConfig.Enabled {
-		log.Printf("SMTP authentication enabled (PLAIN/LOGIN)")
+		Log("SMTP authentication enabled (PLAIN/LOGIN)")
 	}
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
-		log.Printf("SMTP TLS/STARTTLS enabled")
+		Log("SMTP TLS/STARTTLS enabled")
 	}
 	return ms.smtpServer.ListenAndServe()
 }
@@ -341,7 +340,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	ms.store = append(ms.store, parsedEmail)
 	ms.storeMutex.Unlock()
 
-	log.Printf("Saving email: %s, id: %s", parsedEmail.Subject, id)
+	Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
 	// Emit new email event
 	ms.emit("new", parsedEmail)
@@ -350,7 +349,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
 		ms.RelayMail(parsedEmail, true, func(err error) {
 			if err != nil {
-				log.Printf("Error when auto-relaying email: %v", err)
+				Error("Error when auto-relaying email: %v", err)
 			}
 		})
 	}
@@ -429,16 +428,16 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	// Delete raw email file
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
 	if err := os.Remove(emlPath); err != nil {
-		log.Printf("Error deleting email file: %v", err)
+		Verbose("Error deleting email file: %v", err)
 	}
 
 	// Delete attachments directory
 	attachmentDir := filepath.Join(ms.mailDir, id)
 	if err := os.RemoveAll(attachmentDir); err != nil {
-		log.Printf("Error deleting attachment directory: %v", err)
+		Verbose("Error deleting attachment directory: %v", err)
 	}
 
-	log.Printf("Deleting email - %s", email.Subject)
+	Log("Deleting email - %s", email.Subject)
 
 	// Remove from store
 	ms.store = append(ms.store[:emailIndex], ms.store[emailIndex+1:]...)
@@ -451,7 +450,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 
 // DeleteAllEmail deletes all emails
 func (ms *MailServer) DeleteAllEmail() error {
-	log.Printf("Deleting all email")
+	Log("Deleting all email")
 
 	ms.storeMutex.Lock()
 	defer ms.storeMutex.Unlock()
@@ -619,7 +618,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		// Read and parse email file
 		emailFile, err := os.Open(emlPath)
 		if err != nil {
-			log.Printf("Error opening email file %s: %v", emlPath, err)
+			Verbose("Error opening email file %s: %v", emlPath, err)
 			continue
 		}
 
@@ -627,7 +626,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		msg, err := message.Read(emailFile)
 		emailFile.Close()
 		if err != nil {
-			log.Printf("Error parsing email file %s: %v", emlPath, err)
+			Verbose("Error parsing email file %s: %v", emlPath, err)
 			continue
 		}
 
@@ -725,7 +724,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 						break
 					}
 					if err != nil {
-						log.Printf("Error reading multipart: %v", err)
+						Verbose("Error reading multipart: %v", err)
 						continue
 					}
 
@@ -792,11 +791,11 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Save email to store (mark as read since it's restored)
 		if err := ms.saveEmailToStore(id, true, envelope, email); err != nil {
-			log.Printf("Error saving restored email %s: %v", id, err)
+			Verbose("Error saving restored email %s: %v", id, err)
 			continue
 		}
 
-		log.Printf("Restored email: %s (id: %s)", email.Subject, id)
+		Verbose("Restored email: %s (id: %s)", email.Subject, id)
 	}
 
 	return nil
@@ -884,9 +883,9 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 	if s.mailServer.authConfig != nil && s.mailServer.authConfig.Enabled && !s.authenticated {
 		// Get remote address from connection if available
 		if conn := s.conn.Conn(); conn != nil {
-			log.Printf("Warning: Unauthenticated connection attempt from %s", conn.RemoteAddr())
+			Verbose("Warning: Unauthenticated connection attempt from %s", conn.RemoteAddr())
 		} else {
-			log.Printf("Warning: Unauthenticated connection attempt")
+			Verbose("Warning: Unauthenticated connection attempt")
 		}
 		// In a production system, you should return an error here
 		// return fmt.Errorf("535 5.7.8 Authentication required")
@@ -1018,7 +1017,7 @@ func (s *Session) Data(r io.Reader) error {
 					break
 				}
 				if err != nil {
-					log.Printf("Error reading multipart: %v", err)
+					Verbose("Error reading multipart: %v", err)
 					continue
 				}
 
@@ -1050,7 +1049,7 @@ func (s *Session) Data(r io.Reader) error {
 					}
 
 					if err := s.mailServer.saveAttachment(id, attachment, body); err != nil {
-						log.Printf("Error saving attachment: %v", err)
+						Verbose("Error saving attachment: %v", err)
 					} else {
 						email.Attachments = append(email.Attachments, attachment)
 					}

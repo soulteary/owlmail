@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
-	"log"
 	"net/smtp"
 	"os"
 	"strings"
@@ -135,7 +134,7 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 		return fmt.Errorf("failed to send email: %w", err)
 	}
 
-	log.Printf("Mail relayed successfully: %s (to: %v)", task.Email.Subject, recipients)
+	Log("Mail relayed successfully: %s (to: %v)", task.Email.Subject, recipients)
 	return nil
 }
 
