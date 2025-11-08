@@ -20,8 +20,9 @@ const (
 
 // Logger wraps the standard log package with level support
 type Logger struct {
-	level  LogLevel
-	logger *log.Logger
+	level        LogLevel
+	logger       *log.Logger
+	errorHandler ErrorHandler // Error handler for fatal errors
 }
 
 var globalLogger *Logger
@@ -80,8 +81,13 @@ func (l *Logger) Error(format string, v ...interface{}) {
 }
 
 // Fatal logs a fatal error and exits
-func (l *Logger) Fatal(format string, v ...interface{}) {
-	log.Fatalf("[FATAL] "+format, v...)
+// Uses the error handler to return an error instead of exiting in test environments
+func (l *Logger) Fatal(format string, v ...interface{}) error {
+	if l.errorHandler != nil {
+		return l.errorHandler.Fatal(format, v...)
+	}
+	// Fallback to global error handler
+	return globalErrorHandler.Fatal(format, v...)
 }
 
 // Convenience functions for global logger
@@ -97,6 +103,6 @@ func Error(format string, v ...interface{}) {
 	GetLogger().Error(format, v...)
 }
 
-func Fatal(format string, v ...interface{}) {
-	GetLogger().Fatal(format, v...)
+func Fatal(format string, v ...interface{}) error {
+	return GetLogger().Fatal(format, v...)
 }

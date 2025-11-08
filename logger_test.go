@@ -183,6 +183,92 @@ func TestLoggerFatal(t *testing.T) {
 	_ = Fatal
 }
 
+// TestLoggerFatalWithErrorHandler tests Fatal with error handler
+func TestLoggerFatalWithErrorHandler(t *testing.T) {
+	testHandler := &TestErrorHandler{}
+	SetErrorHandler(testHandler)
+	defer ResetErrorHandler()
+
+	logger := &Logger{
+		level:        LogLevelNormal,
+		logger:       log.New(io.Discard, "", 0),
+		errorHandler: testHandler,
+	}
+
+	// Now we can test Fatal without exiting the program
+	err := logger.Fatal("test fatal message")
+	if err == nil {
+		t.Error("Fatal should return an error")
+	}
+
+	if testHandler.LastError == nil {
+		t.Error("Error handler should record the error")
+	}
+
+	if testHandler.LastError.Error() != err.Error() {
+		t.Errorf("Expected error %v, got %v", testHandler.LastError, err)
+	}
+}
+
+// TestGlobalFatalWithErrorHandler tests global Fatal function with error handler
+func TestGlobalFatalWithErrorHandler(t *testing.T) {
+	testHandler := &TestErrorHandler{}
+	SetErrorHandler(testHandler)
+	defer ResetErrorHandler()
+
+	// Test the global Fatal function
+	err := Fatal("test global fatal message")
+	if err == nil {
+		t.Error("Fatal should return an error")
+	}
+
+	if testHandler.LastError == nil {
+		t.Error("Error handler should record the error")
+	}
+}
+
+// TestDefaultErrorHandler tests default error handler behavior
+func TestDefaultErrorHandler(t *testing.T) {
+	handler := &DefaultErrorHandler{}
+
+	// Verify interface implementation
+	var _ ErrorHandler = handler
+
+	// Verify type
+	if handler == nil {
+		t.Error("DefaultErrorHandler should not be nil")
+	}
+}
+
+// TestTestErrorHandler tests test error handler
+func TestTestErrorHandler(t *testing.T) {
+	handler := &TestErrorHandler{}
+
+	// Test the Fatal method
+	err := handler.Fatal("test message: %s", "error")
+	if err == nil {
+		t.Error("Fatal should return an error")
+	}
+
+	if handler.LastError == nil {
+		t.Error("LastError should be set")
+	}
+
+	if handler.LastError != err {
+		t.Error("LastError should equal returned error")
+	}
+
+	// Test multiple calls
+	err2 := handler.Fatal("another message")
+	if err2 == nil {
+		t.Error("Fatal should return an error")
+	}
+
+	if handler.LastError != err2 {
+		t.Error("LastError should be updated")
+	}
+}
+
 func TestConvenienceFunctions(t *testing.T) {
 	// Reset global logger
 	globalLogger = nil

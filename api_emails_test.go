@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -2082,5 +2083,148 @@ func TestApplyEmailFilters(t *testing.T) {
 	filtered = applyEmailFilters(emails3, "", "", "", "", now.Add(-48*time.Hour).Format("2006-01-02"), "")
 	if len(filtered) != 0 {
 		t.Errorf("Expected 0 emails (after date), got %d", len(filtered))
+	}
+}
+
+// TestAPIDeleteAllEmailsError tests the error path in deleteAllEmails
+// Note: DeleteAllEmail() currently doesn't return errors in normal cases,
+// but we test the API endpoint structure
+func TestAPIDeleteAllEmailsError(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Test with empty server (should still work)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("DELETE", "/api/v1/emails", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 200 even with no emails
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+// TestAPIGetEmailPreviewsBoundaryConditions tests boundary conditions in getEmailPreviews
+func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add only 2 emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Text: "Content 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Text: "Content 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	emlPath2 := filepath.Join(tmpDir, "id2.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	// Test with offset > total (start > total case)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=100&limit=10", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	previews := response["previews"].([]interface{})
+	if len(previews) != 0 {
+		t.Errorf("Expected 0 previews (offset > total), got %d", len(previews))
+	}
+
+	// Test with offset + limit > total (end > total case)
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=1&limit=10", nil)
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w2.Code)
+	}
+
+	var response2 map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &response2)
+	previews2 := response2["previews"].([]interface{})
+	// Should return 1 email (total is 2, offset is 1, so end would be 11 but capped at 2)
+	if len(previews2) != 1 {
+		t.Errorf("Expected 1 preview (end > total case), got %d", len(previews2))
+	}
+}
+
+// TestAPIGetEmailPreviewsMultipleSpaces tests text processing with multiple spaces
+func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add email with HTML containing multiple spaces
+	email := &Email{
+		ID:      "test-id",
+		Subject: "Test Subject",
+		HTML:    "<html><body>Text   with    multiple     spaces</body></html>",
+		Time:    time.Now(),
+		Read:    false,
+		From:    []*mail.Address{{Address: "from@example.com"}},
+		To:      []*mail.Address{{Address: "to@example.com"}},
+	}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath := filepath.Join(tmpDir, "test-id.eml")
+	os.WriteFile(emlPath, []byte("content"), 0644)
+	server.saveEmailToStore("test-id", false, envelope, email)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	previews := response["previews"].([]interface{})
+	if len(previews) > 0 {
+		preview := previews[0].(map[string]interface{})
+		previewText := preview["preview"].(string)
+		// Check that multiple spaces are collapsed
+		if strings.Contains(previewText, "     ") {
+			t.Errorf("Multiple spaces should be collapsed, got: %s", previewText)
+		}
+	}
+}
+
+// TestAPIGetEmailPreviewsStartEqualsEnd tests the case where start == end
+func TestAPIGetEmailPreviewsStartEqualsEnd(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add only 1 email
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Text: "Content 1", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+
+	// Test with offset=1, limit=1 (start == end == 1)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=1&limit=1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	previews := response["previews"].([]interface{})
+	// When start == end, should return empty array
+	if len(previews) != 0 {
+		t.Errorf("Expected 0 previews (start == end), got %d", len(previews))
 	}
 }

@@ -79,13 +79,13 @@ func (api *API) setupRoutes() {
 	router.StaticFile("/app.js", "./web/app.js")
 
 	// ============================================================================
-	// MailDev 兼容 API 路由（保持向后兼容）
-	// 所有 MailDev 兼容代码都在 maildev.go 中
+	// MailDev-compatible API routes (maintains backward compatibility)
+	// All MailDev compatibility code is in maildev.go
 	// ============================================================================
 	setupMailDevCompatibleRoutes(api, router)
 
 	// ============================================================================
-	// 新的改进的 RESTful API 路由
+	// New improved RESTful API routes
 	// ============================================================================
 	api.setupImprovedAPIRoutes(router)
 

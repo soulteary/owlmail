@@ -125,7 +125,10 @@ func main() {
 		if *autoRelayRules != "" {
 			allowRules, denyRules, err := loadAutoRelayRules(*autoRelayRules)
 			if err != nil {
-				Fatal("Failed to load auto relay rules: %v", err)
+				if fatalErr := Fatal("Failed to load auto relay rules: %v", err); fatalErr != nil {
+					// In test environments, this will return an error instead of exiting
+					return
+				}
 			}
 			outgoingConfig.AllowRules = allowRules
 			outgoingConfig.DenyRules = denyRules
@@ -158,7 +161,10 @@ func main() {
 	// Create mail server
 	server, err := NewMailServerWithConfig(*smtpPort, *smtpHost, *mailDir, outgoingConfig, authConfig, tlsConfig)
 	if err != nil {
-		Fatal("Failed to create mail server: %v", err)
+		if fatalErr := Fatal("Failed to create mail server: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
 	}
 
 	// Register event handlers
@@ -191,7 +197,10 @@ func main() {
 			Log("HTTPS enabled with certificate: %s", *httpsCertFile)
 		}
 		if err := api.Start(); err != nil {
-			Fatal("Failed to start API server: %v", err)
+			if fatalErr := Fatal("Failed to start API server: %v", err); fatalErr != nil {
+				// In test environments, this will return an error instead of exiting
+				return
+			}
 		}
 	}()
 
@@ -217,7 +226,10 @@ func main() {
 		Verbose("TLS certificate: %s, Key: %s", *tlsCertFile, *tlsKeyFile)
 	}
 	if err := server.Listen(); err != nil {
-		Fatal("Failed to start server: %v", err)
+		if fatalErr := Fatal("Failed to start server: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
 	}
 }
 
