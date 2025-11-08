@@ -179,3 +179,63 @@ func getMailDevLogLevel(defaultValue string) string {
 	// 如果没有设置，使用 OwlMail 的日志级别环境变量
 	return getEnvString("OWLMAIL_LOG_LEVEL", defaultValue)
 }
+
+// ============================================================================
+// MailDev API 兼容层
+// ============================================================================
+//
+// 此部分提供与 MailDev 完全兼容的 API 路由，保持向后兼容性
+// 新的 API 设计在 api.go 中实现，使用更合理的 RESTful 设计
+//
+// MailDev 原始 API 端点（保持兼容）：
+//   - GET    /email                    - 获取所有邮件
+//   - GET    /email/:id                - 获取单个邮件
+//   - GET    /email/:id/html           - 获取邮件 HTML
+//   - GET    /email/:id/attachment/:filename - 下载附件
+//   - GET    /email/:id/download        - 下载原始 .eml 文件
+//   - GET    /email/:id/source         - 获取邮件原始源码
+//   - DELETE /email/:id                - 删除单个邮件
+//   - DELETE /email/all                 - 删除所有邮件
+//   - PATCH  /email/read-all            - 标记所有邮件为已读
+//   - POST   /email/:id/relay/:relayTo? - 转发邮件
+//   - GET    /config                    - 获取配置
+//   - GET    /healthz                   - 健康检查
+//   - GET    /reloadMailsFromDirectory  - 重新加载邮件
+//   - GET    /socket.io                 - WebSocket 连接
+//
+// 新的 API 设计（更合理）：
+//   - GET    /api/v1/emails             - 获取所有邮件（复数资源）
+//   - GET    /api/v1/emails/:id         - 获取单个邮件
+//   - GET    /api/v1/emails/:id/html    - 获取邮件 HTML
+//   - GET    /api/v1/emails/:id/attachments/:filename - 下载附件（复数）
+//   - GET    /api/v1/emails/:id/raw     - 获取原始邮件（更清晰的命名）
+//   - GET    /api/v1/emails/:id/source  - 获取邮件源码
+//   - DELETE /api/v1/emails/:id         - 删除单个邮件
+//   - DELETE /api/v1/emails              - 删除所有邮件（批量操作）
+//   - PATCH  /api/v1/emails/read         - 标记所有邮件为已读（更清晰）
+//   - PATCH  /api/v1/emails/:id/read    - 标记单个邮件为已读
+//   - POST   /api/v1/emails/:id/actions/relay - 转发邮件（动作更清晰）
+//   - GET    /api/v1/emails/stats       - 邮件统计
+//   - GET    /api/v1/emails/preview     - 邮件预览
+//   - DELETE /api/v1/emails/batch      - 批量删除（更 RESTful）
+//   - PATCH  /api/v1/emails/batch/read  - 批量标记已读
+//   - GET    /api/v1/emails/export      - 导出邮件
+//   - GET    /api/v1/settings           - 获取所有设置
+//   - GET    /api/v1/settings/outgoing - 获取出站配置
+//   - PUT    /api/v1/settings/outgoing - 更新出站配置
+//   - PATCH  /api/v1/settings/outgoing - 部分更新出站配置
+//   - GET    /api/v1/health             - 健康检查（更标准）
+//   - POST   /api/v1/emails/reload     - 重新加载邮件（POST 更合理）
+//   - GET    /api/v1/ws                 - WebSocket 连接（更清晰）
+//
+// API 设计改进说明：
+// 1. 资源命名统一使用复数：/emails 而不是 /email
+// 2. RESTful 设计更规范：DELETE /emails 表示批量删除
+// 3. 动作命名更清晰：/actions/relay 明确表示这是一个动作
+// 4. 子资源命名更规范：/attachments 使用复数
+// 5. 配置 API 更清晰：/settings 比 /config 更语义化
+// 6. 健康检查更标准：/health 比 /healthz 更常见
+// 7. 重新加载使用 POST：POST /emails/reload 比 GET 更合理
+// 8. WebSocket 路径更清晰：/ws 比 /socket.io 更简洁
+// 9. API 版本化：/api/v1/ 提供版本控制
+// 10. 批量操作更 RESTful：DELETE /emails/batch 而不是 POST /email/batch/delete

@@ -68,6 +68,8 @@ func NewAPIWithHTTPS(mailServer *MailServer, port int, host, user, password stri
 }
 
 // setupRoutes configures all API routes
+// This function sets up both MailDev-compatible routes (for backward compatibility)
+// and new improved RESTful API routes
 func (api *API) setupRoutes() {
 	router := gin.Default()
 
@@ -83,6 +85,16 @@ func (api *API) setupRoutes() {
 	router.StaticFile("/style.css", "./web/style.css")
 	router.StaticFile("/app.js", "./web/app.js")
 
+	// ============================================================================
+	// MailDev 兼容 API 路由（保持向后兼容）
+	// ============================================================================
+	api.setupMailDevCompatibleRoutes(router)
+
+	// ============================================================================
+	// 新的改进的 RESTful API 路由
+	// ============================================================================
+	api.setupImprovedAPIRoutes(router)
+
 	// Serve index.html for root and all non-API routes
 	router.NoRoute(func(c *gin.Context) {
 		// Check if it's an API route
@@ -90,6 +102,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(c.Request.URL.Path, "/config") ||
 			strings.HasPrefix(c.Request.URL.Path, "/healthz") ||
 			strings.HasPrefix(c.Request.URL.Path, "/socket.io") ||
+			strings.HasPrefix(c.Request.URL.Path, "/api/") ||
 			strings.HasPrefix(c.Request.URL.Path, "/style.css") ||
 			strings.HasPrefix(c.Request.URL.Path, "/app.js") {
 			c.Next()
@@ -99,7 +112,18 @@ func (api *API) setupRoutes() {
 		c.File("./web/index.html")
 	})
 
-	// Email routes
+	// Root route - serve index.html
+	router.GET("/", func(c *gin.Context) {
+		c.File("./web/index.html")
+	})
+
+	api.router = router
+}
+
+// setupMailDevCompatibleRoutes sets up MailDev-compatible API routes
+// These routes maintain backward compatibility with MailDev
+func (api *API) setupMailDevCompatibleRoutes(router *gin.Engine) {
+	// Email routes (MailDev compatible)
 	emailGroup := router.Group("/email")
 	{
 		// GET /email - Get all emails with pagination and filtering
@@ -154,10 +178,10 @@ func (api *API) setupRoutes() {
 		emailGroup.GET("/export", api.exportEmails)
 	}
 
-	// WebSocket route
+	// WebSocket route (MailDev compatible)
 	router.GET("/socket.io", api.handleWebSocket)
 
-	// Config routes
+	// Config routes (MailDev compatible)
 	configGroup := router.Group("/config")
 	{
 		// GET /config - Get all configuration
@@ -173,18 +197,85 @@ func (api *API) setupRoutes() {
 		configGroup.PATCH("/outgoing", api.patchOutgoingConfig)
 	}
 
-	// Health check route
+	// Health check route (MailDev compatible)
 	router.GET("/healthz", api.healthCheck)
 
-	// Reload mails from directory route
+	// Reload mails from directory route (MailDev compatible)
 	router.GET("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
+}
 
-	// Root route - serve index.html
-	router.GET("/", func(c *gin.Context) {
-		c.File("./web/index.html")
-	})
+// setupImprovedAPIRoutes sets up improved RESTful API routes
+// These routes follow better RESTful design principles
+func (api *API) setupImprovedAPIRoutes(router *gin.Engine) {
+	// API v1 routes
+	v1 := router.Group("/api/v1")
+	{
+		// Emails resource (plural, more RESTful)
+		emailsGroup := v1.Group("/emails")
+		{
+			// GET /api/v1/emails - Get all emails with pagination and filtering
+			emailsGroup.GET("", api.getAllEmails)
 
-	api.router = router
+			// GET /api/v1/emails/stats - Get email statistics
+			emailsGroup.GET("/stats", api.getEmailStats)
+
+			// GET /api/v1/emails/preview - Get email previews (lightweight)
+			emailsGroup.GET("/preview", api.getEmailPreviews)
+
+			// GET /api/v1/emails/export - Export emails as ZIP
+			emailsGroup.GET("/export", api.exportEmails)
+
+			// DELETE /api/v1/emails - Delete all emails (more RESTful than /email/all)
+			emailsGroup.DELETE("", api.deleteAllEmails)
+
+			// PATCH /api/v1/emails/read - Mark all emails as read (clearer than /read-all)
+			emailsGroup.PATCH("/read", api.readAllEmails)
+
+			// DELETE /api/v1/emails/batch - Batch delete emails (more RESTful)
+			emailsGroup.DELETE("/batch", api.batchDeleteEmails)
+
+			// PATCH /api/v1/emails/batch/read - Batch mark emails as read
+			emailsGroup.PATCH("/batch/read", api.batchReadEmails)
+
+			// POST /api/v1/emails/reload - Reload emails from directory (POST is more appropriate)
+			emailsGroup.POST("/reload", api.reloadMailsFromDirectory)
+
+			// Individual email routes
+			emailsGroup.GET("/:id", api.getEmailByID)
+			emailsGroup.DELETE("/:id", api.deleteEmail)
+			emailsGroup.PATCH("/:id/read", api.readEmail)
+
+			// Email content routes
+			emailsGroup.GET("/:id/html", api.getEmailHTML)
+			emailsGroup.GET("/:id/source", api.getEmailSource)
+			emailsGroup.GET("/:id/raw", api.downloadEmail) // More semantic than /download
+
+			// Email attachments (plural, more RESTful)
+			emailsGroup.GET("/:id/attachments/:filename", api.getAttachment)
+
+			// Email actions
+			emailsGroup.POST("/:id/actions/relay", api.relayEmail)
+			emailsGroup.POST("/:id/actions/relay/:relayTo", api.relayEmailWithParam)
+		}
+
+		// Settings resource (more semantic than /config)
+		settingsGroup := v1.Group("/settings")
+		{
+			// GET /api/v1/settings - Get all settings
+			settingsGroup.GET("", api.getConfig)
+
+			// Outgoing mail settings
+			settingsGroup.GET("/outgoing", api.getOutgoingConfig)
+			settingsGroup.PUT("/outgoing", api.updateOutgoingConfig)
+			settingsGroup.PATCH("/outgoing", api.patchOutgoingConfig)
+		}
+
+		// Health check (more standard than /healthz)
+		v1.GET("/health", api.healthCheck)
+
+		// WebSocket (clearer path)
+		v1.GET("/ws", api.handleWebSocket)
+	}
 }
 
 // Start starts the API server
