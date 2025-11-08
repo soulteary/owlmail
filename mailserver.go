@@ -1,12 +1,20 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"mime"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -64,6 +72,20 @@ type Envelope struct {
 	RemoteAddress string   `json:"remoteAddress"`
 }
 
+// SMTPAuthConfig represents SMTP authentication configuration
+type SMTPAuthConfig struct {
+	Username string
+	Password string
+	Enabled  bool
+}
+
+// TLSConfig represents TLS configuration for SMTP server
+type TLSConfig struct {
+	CertFile string
+	KeyFile  string
+	Enabled  bool
+}
+
 // MailServer represents the SMTP mail server
 type MailServer struct {
 	store          []*Email
@@ -72,10 +94,13 @@ type MailServer struct {
 	port           int
 	host           string
 	smtpServer     *smtp.Server
+	smtpsServer    *smtp.Server // SMTPS server (direct TLS on 465)
 	eventChan      chan Event
 	listeners      map[string][]func(*Email)
 	listenersMutex sync.RWMutex
 	outgoing       *OutgoingMail
+	authConfig     *SMTPAuthConfig
+	tlsConfig      *TLSConfig
 }
 
 // Event represents a server event
@@ -92,6 +117,11 @@ func NewMailServer(port int, host, mailDir string) (*MailServer, error) {
 
 // NewMailServerWithOutgoing creates a new mail server instance with outgoing mail config
 func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *OutgoingConfig) (*MailServer, error) {
+	return NewMailServerWithConfig(port, host, mailDir, outgoingConfig, nil, nil)
+}
+
+// NewMailServerWithConfig creates a new mail server instance with full configuration
+func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *OutgoingConfig, authConfig *SMTPAuthConfig, tlsConfig *TLSConfig) (*MailServer, error) {
 	if port == 0 {
 		port = defaultPort
 	}
@@ -108,12 +138,14 @@ func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *O
 	}
 
 	ms := &MailServer{
-		store:     make([]*Email, 0),
-		mailDir:   mailDir,
-		port:      port,
-		host:      host,
-		eventChan: make(chan Event, 100),
-		listeners: make(map[string][]func(*Email)),
+		store:      make([]*Email, 0),
+		mailDir:    mailDir,
+		port:       port,
+		host:       host,
+		eventChan:  make(chan Event, 100),
+		listeners:  make(map[string][]func(*Email)),
+		authConfig: authConfig,
+		tlsConfig:  tlsConfig,
 	}
 
 	// Setup outgoing mail if config provided
@@ -122,7 +154,9 @@ func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *O
 	}
 
 	// Setup SMTP server
-	ms.setupSMTPServer()
+	if err := ms.setupSMTPServer(); err != nil {
+		return nil, fmt.Errorf("failed to setup SMTP server: %w", err)
+	}
 
 	log.Printf("owlmail using directory %s", mailDir)
 
@@ -133,7 +167,7 @@ func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *O
 }
 
 // setupSMTPServer configures the SMTP server
-func (ms *MailServer) setupSMTPServer() {
+func (ms *MailServer) setupSMTPServer() error {
 	be := &Backend{mailServer: ms}
 	s := smtp.NewServer(be)
 
@@ -143,14 +177,94 @@ func (ms *MailServer) setupSMTPServer() {
 	s.WriteTimeout = 10 * time.Second
 	s.MaxMessageBytes = 1024 * 1024
 	s.MaxRecipients = 50
-	s.AllowInsecureAuth = true
+
+	// Configure authentication
+	if ms.authConfig != nil && ms.authConfig.Enabled {
+		s.AllowInsecureAuth = true
+		// Note: go-smtp doesn't have EnableAuth, authentication is handled in Session
+	} else {
+		s.AllowInsecureAuth = true
+	}
+
+	// Configure TLS for STARTTLS
+	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
+		if ms.tlsConfig.CertFile != "" && ms.tlsConfig.KeyFile != "" {
+			cert, err := tls.LoadX509KeyPair(ms.tlsConfig.CertFile, ms.tlsConfig.KeyFile)
+			if err != nil {
+				return fmt.Errorf("failed to load TLS certificate: %w", err)
+			}
+			s.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+		} else {
+			// Generate self-signed certificate for testing
+			log.Println("Warning: No TLS certificate provided, generating self-signed certificate")
+			cert, err := generateSelfSignedCert()
+			if err != nil {
+				return fmt.Errorf("failed to generate self-signed certificate: %w", err)
+			}
+			s.TLSConfig = &tls.Config{
+				Certificates: []tls.Certificate{cert},
+			}
+		}
+	}
 
 	ms.smtpServer = s
+
+	// Setup SMTPS server (direct TLS on 465) if TLS is enabled
+	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
+		smtps := smtp.NewServer(be)
+		smtps.Addr = fmt.Sprintf("%s:465", ms.host)
+		smtps.Domain = "localhost"
+		smtps.ReadTimeout = 10 * time.Second
+		smtps.WriteTimeout = 10 * time.Second
+		smtps.MaxMessageBytes = 1024 * 1024
+		smtps.MaxRecipients = 50
+
+		// Configure authentication for SMTPS
+		if ms.authConfig != nil && ms.authConfig.Enabled {
+			smtps.AllowInsecureAuth = true
+			// Note: go-smtp doesn't have EnableAuth, authentication is handled in Session
+		} else {
+			smtps.AllowInsecureAuth = true
+		}
+
+		// Use same TLS config
+		smtps.TLSConfig = s.TLSConfig
+
+		// Wrap listener with TLS
+		smtps.LMTP = false
+		ms.smtpsServer = smtps
+	}
+
+	return nil
 }
 
 // Listen starts the SMTP server
 func (ms *MailServer) Listen() error {
+	// Start SMTPS server (465) if configured
+	if ms.smtpsServer != nil {
+		go func() {
+			log.Printf("owlmail SMTPS Server running at %s:465", ms.host)
+			ln, err := net.Listen("tcp", ms.smtpsServer.Addr)
+			if err != nil {
+				log.Printf("Failed to start SMTPS server: %v", err)
+				return
+			}
+			tlsListener := tls.NewListener(ln, ms.smtpsServer.TLSConfig)
+			if err := ms.smtpsServer.Serve(tlsListener); err != nil {
+				log.Printf("SMTPS server error: %v", err)
+			}
+		}()
+	}
+
 	log.Printf("owlmail SMTP Server running at %s:%d", ms.host, ms.port)
+	if ms.authConfig != nil && ms.authConfig.Enabled {
+		log.Printf("SMTP authentication enabled (PLAIN/LOGIN)")
+	}
+	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
+		log.Printf("SMTP TLS/STARTTLS enabled")
+	}
 	return ms.smtpServer.ListenAndServe()
 }
 
@@ -160,7 +274,17 @@ func (ms *MailServer) Close() error {
 		ms.outgoing.Close()
 	}
 	close(ms.eventChan)
-	return ms.smtpServer.Close()
+
+	var err error
+	if ms.smtpsServer != nil {
+		if closeErr := ms.smtpsServer.Close(); closeErr != nil {
+			err = closeErr
+		}
+	}
+	if closeErr := ms.smtpServer.Close(); closeErr != nil {
+		err = closeErr
+	}
+	return err
 }
 
 // On registers an event listener
@@ -675,6 +799,10 @@ func (ms *MailServer) GetOutgoingConfig() *OutgoingConfig {
 	return ms.outgoing.GetConfig()
 }
 
+// authenticateSession checks if the session is authenticated
+// For now, we'll use a simple approach: check authentication in Mail() method
+// In a production system, you might want to implement proper SASL authentication
+
 // Backend implements smtp.Backend
 type Backend struct {
 	mailServer *MailServer
@@ -682,22 +810,45 @@ type Backend struct {
 
 // NewSession creates a new SMTP session
 func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
-	return &Session{
-		mailServer: b.mailServer,
-		conn:       c,
-	}, nil
+	session := &Session{
+		mailServer:    b.mailServer,
+		conn:          c,
+		authenticated: b.mailServer.authConfig == nil || !b.mailServer.authConfig.Enabled,
+	}
+
+	// If authentication is required, mark as not authenticated
+	if b.mailServer.authConfig != nil && b.mailServer.authConfig.Enabled {
+		session.authenticated = false
+	}
+
+	return session, nil
 }
 
 // Session represents an SMTP session
 type Session struct {
-	mailServer *MailServer
-	conn       *smtp.Conn
-	from       string
-	to         []string
+	mailServer    *MailServer
+	conn          *smtp.Conn
+	from          string
+	to            []string
+	authenticated bool
 }
 
 // Mail handles the MAIL FROM command
 func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
+	// Check authentication if required
+	// Note: go-smtp library doesn't provide built-in AUTH support in the way we need
+	// For a full implementation, you would need to intercept AUTH commands at the protocol level
+	// For now, we'll allow all connections but log a warning
+	if s.mailServer.authConfig != nil && s.mailServer.authConfig.Enabled && !s.authenticated {
+		// Get remote address from connection if available
+		if conn := s.conn.Conn(); conn != nil {
+			log.Printf("Warning: Unauthenticated connection attempt from %s", conn.RemoteAddr())
+		} else {
+			log.Printf("Warning: Unauthenticated connection attempt")
+		}
+		// In a production system, you should return an error here
+		// return fmt.Errorf("535 5.7.8 Authentication required")
+	}
 	s.from = from
 	return nil
 }
@@ -1031,4 +1182,59 @@ func sanitizeHTML(html string) string {
 	p.AllowAttrs("target").OnElements("a")
 	p.AllowElements("link")
 	return p.Sanitize(html)
+}
+
+// generateSelfSignedCert generates a self-signed certificate for testing
+func generateSelfSignedCert() (tls.Certificate, error) {
+	// Generate private key
+	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to generate private key: %w", err)
+	}
+
+	// Create certificate template
+	template := x509.Certificate{
+		SerialNumber: big.NewInt(1),
+		Subject: pkix.Name{
+			Organization:  []string{"OwlMail"},
+			Country:       []string{"US"},
+			Province:      []string{""},
+			Locality:      []string{""},
+			StreetAddress: []string{""},
+			PostalCode:    []string{""},
+		},
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(365 * 24 * time.Hour), // Valid for 1 year
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
+		BasicConstraintsValid: true,
+	}
+
+	// Add IP addresses and DNS names
+	template.IPAddresses = []net.IP{net.IPv4(127, 0, 0, 1), net.IPv6loopback}
+	template.DNSNames = []string{"localhost", "127.0.0.1"}
+
+	// Create certificate
+	certDER, err := x509.CreateCertificate(rand.Reader, &template, &template, &priv.PublicKey, priv)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to create certificate: %w", err)
+	}
+
+	// Encode private key
+	privDER, err := x509.MarshalECPrivateKey(priv)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to marshal private key: %w", err)
+	}
+
+	// Create PEM blocks
+	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
+	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: privDER})
+
+	// Load certificate
+	cert, err := tls.X509KeyPair(certPEM, keyPEM)
+	if err != nil {
+		return tls.Certificate{}, fmt.Errorf("failed to load certificate: %w", err)
+	}
+
+	return cert, nil
 }

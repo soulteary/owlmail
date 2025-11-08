@@ -24,6 +24,13 @@ func main() {
 		autoRelayAddr  = flag.String("auto-relay-addr", "", "Auto relay to specific address")
 		webUser        = flag.String("web-user", "", "HTTP Basic Auth username")
 		webPassword    = flag.String("web-password", "", "HTTP Basic Auth password")
+		// SMTP authentication
+		smtpUser     = flag.String("smtp-user", "", "SMTP server username for authentication")
+		smtpPassword = flag.String("smtp-password", "", "SMTP server password for authentication")
+		// TLS configuration
+		tlsEnabled  = flag.Bool("tls", false, "Enable TLS/STARTTLS for SMTP server")
+		tlsCertFile = flag.String("tls-cert", "", "TLS certificate file path")
+		tlsKeyFile  = flag.String("tls-key", "", "TLS private key file path")
 	)
 	flag.Parse()
 
@@ -41,8 +48,28 @@ func main() {
 		}
 	}
 
+	// Setup SMTP authentication config
+	var authConfig *SMTPAuthConfig
+	if *smtpUser != "" && *smtpPassword != "" {
+		authConfig = &SMTPAuthConfig{
+			Username: *smtpUser,
+			Password: *smtpPassword,
+			Enabled:  true,
+		}
+	}
+
+	// Setup TLS config
+	var tlsConfig *TLSConfig
+	if *tlsEnabled {
+		tlsConfig = &TLSConfig{
+			CertFile: *tlsCertFile,
+			KeyFile:  *tlsKeyFile,
+			Enabled:  true,
+		}
+	}
+
 	// Create mail server
-	server, err := NewMailServerWithOutgoing(*smtpPort, *smtpHost, *mailDir, outgoingConfig)
+	server, err := NewMailServerWithConfig(*smtpPort, *smtpHost, *mailDir, outgoingConfig, authConfig, tlsConfig)
 	if err != nil {
 		log.Fatalf("Failed to create mail server: %v", err)
 	}
