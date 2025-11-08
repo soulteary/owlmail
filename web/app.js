@@ -1,6 +1,6 @@
 // OwlMail Web Application
-// API Base URL
-const API_BASE = window.location.origin;
+// API Base URL - 使用新的 API v1 端点
+const API_BASE = `${window.location.origin}/api/v1`;
 
 // Global State
 let state = {
@@ -13,7 +13,7 @@ let state = {
     ws: null
 };
 
-// API Functions
+// API Functions - 使用新的 RESTful API 设计
 const API = {
     async getEmails(offset = 0, limit = 50, query = '') {
         const params = new URLSearchParams({
@@ -23,25 +23,25 @@ const API = {
         if (query) {
             params.append('q', query);
         }
-        const response = await fetch(`${API_BASE}/email?${params}`);
+        const response = await fetch(`${API_BASE}/emails?${params}`);
         if (!response.ok) throw new Error('Failed to fetch emails');
         return await response.json();
     },
 
     async getEmail(id) {
-        const response = await fetch(`${API_BASE}/email/${id}`);
+        const response = await fetch(`${API_BASE}/emails/${id}`);
         if (!response.ok) throw new Error('Failed to fetch email');
         return await response.json();
     },
 
     async getEmailHTML(id) {
-        const response = await fetch(`${API_BASE}/email/${id}/html`);
+        const response = await fetch(`${API_BASE}/emails/${id}/html`);
         if (!response.ok) throw new Error('Failed to fetch email HTML');
         return await response.text();
     },
 
     async deleteEmail(id) {
-        const response = await fetch(`${API_BASE}/email/${id}`, {
+        const response = await fetch(`${API_BASE}/emails/${id}`, {
             method: 'DELETE'
         });
         if (!response.ok) throw new Error('Failed to delete email');
@@ -49,7 +49,7 @@ const API = {
     },
 
     async deleteAllEmails() {
-        const response = await fetch(`${API_BASE}/email/all`, {
+        const response = await fetch(`${API_BASE}/emails`, {
             method: 'DELETE'
         });
         if (!response.ok) throw new Error('Failed to delete all emails');
@@ -57,7 +57,7 @@ const API = {
     },
 
     async markAllRead() {
-        const response = await fetch(`${API_BASE}/email/read-all`, {
+        const response = await fetch(`${API_BASE}/emails/read`, {
             method: 'PATCH'
         });
         if (!response.ok) throw new Error('Failed to mark all as read');
@@ -66,8 +66,8 @@ const API = {
 
     async relayEmail(id, relayTo = '') {
         const url = relayTo 
-            ? `${API_BASE}/email/${id}/relay?relayTo=${encodeURIComponent(relayTo)}`
-            : `${API_BASE}/email/${id}/relay`;
+            ? `${API_BASE}/emails/${id}/actions/relay/${encodeURIComponent(relayTo)}`
+            : `${API_BASE}/emails/${id}/actions/relay`;
         const response = await fetch(url, {
             method: 'POST'
         });
@@ -76,12 +76,12 @@ const API = {
     }
 };
 
-// WebSocket Connection
+// WebSocket Connection - 使用新的 API v1 WebSocket 端点
 function connectWebSocket() {
     try {
         // Use ws:// or wss:// based on current protocol
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/socket.io`;
+        const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`;
         const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {
@@ -249,7 +249,8 @@ function renderAttachments(attachments, emailId) {
         <div class="email-detail-attachments">
             <h3>附件 (${attachments.length})</h3>
             ${attachments.map(att => {
-                const url = `${API_BASE}/email/${emailId}/attachment/${encodeURIComponent(att.generatedFileName)}`;
+                // 使用新的 API v1 端点：/api/v1/emails/:id/attachments/:filename
+                const url = `${API_BASE}/emails/${emailId}/attachments/${encodeURIComponent(att.generatedFileName)}`;
                 return `
                     <div class="attachment-item">
                         <div class="attachment-item-info">
@@ -360,11 +361,13 @@ async function markAllRead() {
 }
 
 function downloadEmail(id) {
-    window.open(`${API_BASE}/email/${id}/download`, '_blank');
+    // 使用新的 API v1 端点：/api/v1/emails/:id/raw (替代 /download)
+    window.open(`${API_BASE}/emails/${id}/raw`, '_blank');
 }
 
 function viewEmailSource(id) {
-    window.open(`${API_BASE}/email/${id}/source`, '_blank');
+    // 使用新的 API v1 端点：/api/v1/emails/:id/source
+    window.open(`${API_BASE}/emails/${id}/source`, '_blank');
 }
 
 function searchEmails() {
