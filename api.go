@@ -1,31 +1,53 @@
 package main
 
 import (
+	"encoding/base64"
 	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 // API represents the REST API server
 type API struct {
-	mailServer *MailServer
-	router     *gin.Engine
-	port       int
-	host       string
+	mailServer    *MailServer
+	router        *gin.Engine
+	port          int
+	host          string
+	wsUpgrader    websocket.Upgrader
+	wsClients     map[*websocket.Conn]bool
+	wsClientsLock sync.RWMutex
+	authUser      string
+	authPassword  string
 }
 
 // NewAPI creates a new API server instance
 func NewAPI(mailServer *MailServer, port int, host string) *API {
+	return NewAPIWithAuth(mailServer, port, host, "", "")
+}
+
+// NewAPIWithAuth creates a new API server instance with HTTP Basic Auth
+func NewAPIWithAuth(mailServer *MailServer, port int, host, user, password string) *API {
 	api := &API{
-		mailServer: mailServer,
-		port:       port,
-		host:       host,
+		mailServer:   mailServer,
+		port:         port,
+		host:         host,
+		wsClients:    make(map[*websocket.Conn]bool),
+		authUser:     user,
+		authPassword: password,
+		wsUpgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool {
+				return true // Allow all origins
+			},
+		},
 	}
 	api.setupRoutes()
+	api.setupEventListeners()
 	return api
 }
 
@@ -35,6 +57,11 @@ func (api *API) setupRoutes() {
 
 	// Enable CORS
 	router.Use(corsMiddleware())
+
+	// HTTP Basic Auth middleware if configured
+	if api.authUser != "" && api.authPassword != "" {
+		router.Use(basicAuthMiddleware(api.authUser, api.authPassword))
+	}
 
 	// Email routes
 	emailGroup := router.Group("/email")
@@ -69,6 +96,9 @@ func (api *API) setupRoutes() {
 		// POST /email/:id/relay - Relay email to SMTP server
 		emailGroup.POST("/:id/relay", api.relayEmail)
 	}
+
+	// WebSocket route
+	router.GET("/socket.io", api.handleWebSocket)
 
 	// Config route
 	router.GET("/config", api.getConfig)
@@ -337,6 +367,120 @@ func corsMiddleware() gin.HandlerFunc {
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+// setupEventListeners sets up event listeners for WebSocket broadcasting
+func (api *API) setupEventListeners() {
+	api.mailServer.On("new", func(email *Email) {
+		api.broadcastMessage(gin.H{
+			"type":  "new",
+			"email": email,
+		})
+	})
+
+	api.mailServer.On("delete", func(email *Email) {
+		api.broadcastMessage(gin.H{
+			"type": "delete",
+			"id":   email.ID,
+		})
+	})
+}
+
+// handleWebSocket handles WebSocket connections
+func (api *API) handleWebSocket(c *gin.Context) {
+	conn, err := api.wsUpgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
+	}
+	defer conn.Close()
+
+	// Add client
+	api.wsClientsLock.Lock()
+	api.wsClients[conn] = true
+	api.wsClientsLock.Unlock()
+
+	// Remove client on disconnect
+	defer func() {
+		api.wsClientsLock.Lock()
+		delete(api.wsClients, conn)
+		api.wsClientsLock.Unlock()
+	}()
+
+	// Send initial connection message
+	conn.WriteJSON(gin.H{
+		"type":    "connected",
+		"message": "WebSocket connection established",
+	})
+
+	// Keep connection alive and handle incoming messages
+	for {
+		var msg map[string]interface{}
+		if err := conn.ReadJSON(&msg); err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error: %v", err)
+			}
+			break
+		}
+
+		// Handle ping/pong
+		if msgType, ok := msg["type"].(string); ok && msgType == "ping" {
+			conn.WriteJSON(gin.H{"type": "pong"})
+		}
+	}
+}
+
+// broadcastMessage broadcasts a message to all connected WebSocket clients
+func (api *API) broadcastMessage(message interface{}) {
+	api.wsClientsLock.RLock()
+	defer api.wsClientsLock.RUnlock()
+
+	for conn := range api.wsClients {
+		if err := conn.WriteJSON(message); err != nil {
+			log.Printf("WebSocket write error: %v", err)
+			// Remove failed client
+			delete(api.wsClients, conn)
+			conn.Close()
+		}
+	}
+}
+
+// basicAuthMiddleware creates HTTP Basic Auth middleware
+func basicAuthMiddleware(username, password string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		auth := c.GetHeader("Authorization")
+		if auth == "" {
+			c.Header("WWW-Authenticate", `Basic realm="OwlMail"`)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		// Parse Basic Auth
+		const prefix = "Basic "
+		if !strings.HasPrefix(auth, prefix) {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		decoded, err := base64.StdEncoding.DecodeString(auth[len(prefix):])
+		if err != nil {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		credentials := strings.SplitN(string(decoded), ":", 2)
+		if len(credentials) != 2 {
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+
+		if credentials[0] != username || credentials[1] != password {
+			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
 

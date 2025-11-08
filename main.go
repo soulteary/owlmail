@@ -22,6 +22,8 @@ func main() {
 		outgoingSecure = flag.Bool("outgoing-secure", false, "Use TLS for outgoing SMTP")
 		autoRelay      = flag.Bool("auto-relay", false, "Automatically relay all emails")
 		autoRelayAddr  = flag.String("auto-relay-addr", "", "Auto relay to specific address")
+		webUser        = flag.String("web-user", "", "HTTP Basic Auth username")
+		webPassword    = flag.String("web-password", "", "HTTP Basic Auth password")
 	)
 	flag.Parse()
 
@@ -59,9 +61,12 @@ func main() {
 	})
 
 	// Create and start API server
-	api := NewAPI(server, *webPort, *webHost)
+	api := NewAPIWithAuth(server, *webPort, *webHost, *webUser, *webPassword)
 	go func() {
 		log.Printf("Starting OwlMail Web API on %s:%d", *webHost, *webPort)
+		if *webUser != "" && *webPassword != "" {
+			log.Printf("HTTP Basic Auth enabled for user: %s", *webUser)
+		}
 		if err := api.Start(); err != nil {
 			log.Fatalf("Failed to start API server: %v", err)
 		}

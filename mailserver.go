@@ -125,6 +125,10 @@ func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *O
 	ms.setupSMTPServer()
 
 	log.Printf("owlmail using directory %s", mailDir)
+
+	// Load existing emails from directory
+	ms.LoadMailsFromDirectory()
+
 	return ms, nil
 }
 
@@ -186,7 +190,10 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 
 	parsedEmail.ID = id
-	parsedEmail.Time = time.Now()
+	// Only set time if not already set (from header parsing)
+	if parsedEmail.Time.IsZero() {
+		parsedEmail.Time = time.Now()
+	}
 	parsedEmail.Read = isRead
 	parsedEmail.Envelope = envelope
 	parsedEmail.Source = emlPath
@@ -407,6 +414,228 @@ func (ms *MailServer) ReadAllEmail() int {
 	return count
 }
 
+// LoadMailsFromDirectory loads emails from the mail directory
+func (ms *MailServer) LoadMailsFromDirectory() error {
+	files, err := os.ReadDir(ms.mailDir)
+	if err != nil {
+		return fmt.Errorf("failed to read mail directory: %w", err)
+	}
+
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+
+		// Only process .eml files
+		if !strings.HasSuffix(file.Name(), ".eml") {
+			continue
+		}
+
+		// Extract ID from filename
+		id := strings.TrimSuffix(file.Name(), ".eml")
+		emlPath := filepath.Join(ms.mailDir, file.Name())
+
+		// Check if email already loaded
+		ms.storeMutex.RLock()
+		alreadyLoaded := false
+		for _, email := range ms.store {
+			if email.ID == id {
+				alreadyLoaded = true
+				break
+			}
+		}
+		ms.storeMutex.RUnlock()
+
+		if alreadyLoaded {
+			continue
+		}
+
+		// Read and parse email file
+		emailFile, err := os.Open(emlPath)
+		if err != nil {
+			log.Printf("Error opening email file %s: %v", emlPath, err)
+			continue
+		}
+
+		// Parse email
+		msg, err := message.Read(emailFile)
+		emailFile.Close()
+		if err != nil {
+			log.Printf("Error parsing email file %s: %v", emlPath, err)
+			continue
+		}
+
+		// Parse email content (similar to Session.Data)
+		email := &Email{
+			Attachments: make([]*Attachment, 0),
+			Headers:     make(map[string]interface{}),
+		}
+
+		// Extract headers
+		headers := msg.Header
+		email.Subject = headers.Get("Subject")
+
+		// Parse all headers
+		email.Headers = make(map[string]interface{})
+		// Common headers to parse
+		commonHeaders := []string{
+			"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
+			"Reply-To", "In-Reply-To", "References", "Content-Type",
+			"Content-Transfer-Encoding", "MIME-Version", "X-Mailer",
+			"X-Priority", "Priority", "Importance",
+		}
+		for _, headerName := range commonHeaders {
+			if headerValue := headers.Get(headerName); headerValue != "" {
+				if headerValues := headers.Values(headerName); len(headerValues) > 1 {
+					email.Headers[headerName] = headerValues
+				} else {
+					email.Headers[headerName] = headerValue
+				}
+			}
+		}
+		// Note: Additional custom headers can be added here if needed
+		// For now, we parse the most common headers listed above
+
+		// Parse date from headers
+		if dateStr := headers.Get("Date"); dateStr != "" {
+			// Try multiple date formats
+			dateFormats := []string{
+				time.RFC1123Z,
+				time.RFC1123,
+				time.RFC822Z,
+				time.RFC822,
+				"Mon, 2 Jan 2006 15:04:05 -0700",
+				"Mon, 2 Jan 2006 15:04:05 MST",
+			}
+			parsed := false
+			for _, format := range dateFormats {
+				if date, err := time.Parse(format, dateStr); err == nil {
+					email.Time = date
+					parsed = true
+					break
+				}
+			}
+			if !parsed {
+				email.Time = time.Now()
+			}
+		} else {
+			email.Time = time.Now()
+		}
+
+		// Parse addresses
+		if fromStr := headers.Get("From"); fromStr != "" {
+			if from, err := mail.ParseAddressList(fromStr); err == nil {
+				email.From = from
+			}
+		}
+		if toStr := headers.Get("To"); toStr != "" {
+			if to, err := mail.ParseAddressList(toStr); err == nil {
+				email.To = to
+			}
+		}
+		if ccStr := headers.Get("Cc"); ccStr != "" {
+			if cc, err := mail.ParseAddressList(ccStr); err == nil {
+				email.CC = cc
+			}
+		}
+		if bccStr := headers.Get("Bcc"); bccStr != "" {
+			if bcc, err := mail.ParseAddressList(bccStr); err == nil {
+				email.BCC = bcc
+			}
+		}
+
+		// Parse body
+		mediaType, _, err := msg.Header.ContentType()
+		if err != nil {
+			mediaType = "text/plain"
+		}
+
+		if strings.HasPrefix(mediaType, "multipart/") {
+			mr := msg.MultipartReader()
+			if mr != nil {
+				for {
+					p, err := mr.NextPart()
+					if err == io.EOF {
+						break
+					}
+					if err != nil {
+						log.Printf("Error reading multipart: %v", err)
+						continue
+					}
+
+					partMediaType, _, _ := p.Header.ContentType()
+					if partMediaType == "" {
+						partMediaType = "text/plain"
+					}
+
+					disposition, params, _ := p.Header.ContentDisposition()
+					contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
+
+					body, _ := io.ReadAll(p.Body)
+
+					if partMediaType == "text/plain" && disposition != "attachment" {
+						email.Text = string(body)
+					} else if partMediaType == "text/html" && disposition != "attachment" {
+						email.HTML = string(body)
+					} else if disposition == "attachment" || contentID != "" {
+						// Handle attachment
+						filename := params["filename"]
+						if filename == "" {
+							filename = p.Header.Get("Content-Type")
+						}
+
+						attachment := &Attachment{
+							ContentType: partMediaType,
+							FileName:    filename,
+							ContentID:   contentID,
+						}
+
+						// Check if attachment file exists
+						attachmentDir := filepath.Join(ms.mailDir, id)
+						attachment = transformAttachment(attachment)
+						attachmentPath := filepath.Join(attachmentDir, attachment.GeneratedFileName)
+						if stat, err := os.Stat(attachmentPath); err == nil {
+							attachment.Size = stat.Size()
+							email.Attachments = append(email.Attachments, attachment)
+						}
+					}
+				}
+			}
+		} else {
+			// Simple message
+			body, _ := io.ReadAll(msg.Body)
+			if strings.HasPrefix(mediaType, "text/html") {
+				email.HTML = string(body)
+			} else {
+				email.Text = string(body)
+			}
+		}
+
+		// Create envelope (minimal, since we don't have SMTP session info)
+		envelope := &Envelope{
+			From:          "",
+			To:            addressListToStrings(email.To),
+			Host:          "unknown",
+			RemoteAddress: "unknown",
+		}
+
+		// Try to get From from headers
+		if len(email.From) > 0 {
+			envelope.From = email.From[0].Address
+		}
+
+		// Save email to store (mark as read since it's restored)
+		if err := ms.saveEmailToStore(id, true, envelope, email); err != nil {
+			log.Printf("Error saving restored email %s: %v", id, err)
+			continue
+		}
+
+		log.Printf("Restored email: %s (id: %s)", email.Subject, id)
+	}
+
+	return nil
+}
+
 // RelayMail relays an email to the configured SMTP server
 func (ms *MailServer) RelayMail(email *Email, isAutoRelay bool, callback func(error)) error {
 	if ms.outgoing == nil {
@@ -510,6 +739,54 @@ func (s *Session) Data(r io.Reader) error {
 	// Extract headers
 	headers := msg.Header
 	email.Subject = headers.Get("Subject")
+
+	// Parse all headers into Headers map
+	email.Headers = make(map[string]interface{})
+	// Common headers to parse
+	commonHeaders := []string{
+		"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
+		"Reply-To", "In-Reply-To", "References", "Content-Type",
+		"Content-Transfer-Encoding", "MIME-Version", "X-Mailer",
+		"X-Priority", "Priority", "Importance",
+	}
+	for _, headerName := range commonHeaders {
+		if headerValue := headers.Get(headerName); headerValue != "" {
+			if headerValues := headers.Values(headerName); len(headerValues) > 1 {
+				email.Headers[headerName] = headerValues
+			} else {
+				email.Headers[headerName] = headerValue
+			}
+		}
+	}
+	// Note: Additional custom headers can be added here if needed
+	// For now, we parse the most common headers listed above
+
+	// Parse date from headers
+	if dateStr := headers.Get("Date"); dateStr != "" {
+		// Try multiple date formats
+		dateFormats := []string{
+			time.RFC1123Z,
+			time.RFC1123,
+			time.RFC822Z,
+			time.RFC822,
+			"Mon, 2 Jan 2006 15:04:05 -0700",
+			"Mon, 2 Jan 2006 15:04:05 MST",
+		}
+		parsed := false
+		for _, format := range dateFormats {
+			if date, err := time.Parse(format, dateStr); err == nil {
+				email.Time = date
+				parsed = true
+				break
+			}
+		}
+		if !parsed {
+			// Fallback to current time if parsing fails
+			email.Time = time.Now()
+		}
+	} else {
+		email.Time = time.Now()
+	}
 
 	// Parse addresses
 	if fromStr := headers.Get("From"); fromStr != "" {
