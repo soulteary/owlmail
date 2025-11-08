@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OwlMail - 邮件开发测试工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-content">
+                <h1>🦉 OwlMail</h1>
+                <div class="header-actions">
+                    <button id="refreshBtn" class="btn btn-primary">刷新</button>
+                    <button id="markAllReadBtn" class="btn btn-secondary">标记全部已读</button>
+                    <button id="deleteAllBtn" class="btn btn-danger">删除全部</button>
+                </div>
+            </div>
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="搜索邮件..." class="search-input">
+                <button id="searchBtn" class="btn btn-primary">搜索</button>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Email List -->
+            <aside class="email-list-container">
+                <div class="email-list-header">
+                    <h2>邮件列表</h2>
+                    <span id="emailCount" class="email-count">0 封邮件</span>
+                </div>
+                <div id="emailList" class="email-list">
+                    <div class="loading">加载中...</div>
+                </div>
+                <div class="pagination">
+                    <button id="prevPage" class="btn btn-secondary">上一页</button>
+                    <span id="pageInfo" class="page-info">第 1 页</span>
+                    <button id="nextPage" class="btn btn-secondary">下一页</button>
+                </div>
+            </aside>
+
+            <!-- Email Detail -->
+            <main class="email-detail-container">
+                <div id="emailDetail" class="email-detail">
+                    <div class="empty-state">
+                        <p>选择一个邮件查看详情</p>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3 id="confirmTitle">确认操作</h3>
+            <p id="confirmMessage"></p>
+            <div class="modal-actions">
+                <button id="confirmYes" class="btn btn-danger">确认</button>
+                <button id="confirmNo" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

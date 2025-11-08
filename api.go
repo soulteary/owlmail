@@ -63,6 +63,26 @@ func (api *API) setupRoutes() {
 		router.Use(basicAuthMiddleware(api.authUser, api.authPassword))
 	}
 
+	// Static files (web UI)
+	router.StaticFile("/style.css", "./web/style.css")
+	router.StaticFile("/app.js", "./web/app.js")
+
+	// Serve index.html for root and all non-API routes
+	router.NoRoute(func(c *gin.Context) {
+		// Check if it's an API route
+		if strings.HasPrefix(c.Request.URL.Path, "/email") ||
+			strings.HasPrefix(c.Request.URL.Path, "/config") ||
+			strings.HasPrefix(c.Request.URL.Path, "/healthz") ||
+			strings.HasPrefix(c.Request.URL.Path, "/socket.io") ||
+			strings.HasPrefix(c.Request.URL.Path, "/style.css") ||
+			strings.HasPrefix(c.Request.URL.Path, "/app.js") {
+			c.Next()
+			return
+		}
+		// Serve index.html for all other routes
+		c.File("./web/index.html")
+	})
+
 	// Email routes
 	emailGroup := router.Group("/email")
 	{
@@ -105,6 +125,11 @@ func (api *API) setupRoutes() {
 
 	// Health check route
 	router.GET("/healthz", api.healthCheck)
+
+	// Root route - serve index.html
+	router.GET("/", func(c *gin.Context) {
+		c.File("./web/index.html")
+	})
 
 	api.router = router
 }
