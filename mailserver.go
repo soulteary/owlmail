@@ -538,6 +538,48 @@ func (ms *MailServer) ReadAllEmail() int {
 	return count
 }
 
+// ReadEmail marks a single email as read
+func (ms *MailServer) ReadEmail(id string) error {
+	ms.storeMutex.Lock()
+	defer ms.storeMutex.Unlock()
+
+	for _, email := range ms.store {
+		if email.ID == id {
+			email.Read = true
+			return nil
+		}
+	}
+	return fmt.Errorf("email not found")
+}
+
+// GetEmailStats returns email statistics
+func (ms *MailServer) GetEmailStats() map[string]interface{} {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+
+	stats := make(map[string]interface{})
+	total := len(ms.store)
+	unread := 0
+	byDate := make(map[string]int)
+
+	for _, email := range ms.store {
+		if !email.Read {
+			unread++
+		}
+
+		// Group by date (YYYY-MM-DD)
+		dateKey := email.Time.Format("2006-01-02")
+		byDate[dateKey]++
+	}
+
+	stats["total"] = total
+	stats["unread"] = unread
+	stats["read"] = total - unread
+	stats["byDate"] = byDate
+
+	return stats
+}
+
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
 	files, err := os.ReadDir(ms.mailDir)

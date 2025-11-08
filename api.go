@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -113,8 +114,14 @@ func (api *API) setupRoutes() {
 		// PATCH /email/read-all - Mark all emails as read
 		emailGroup.PATCH("/read-all", api.readAllEmails)
 
+		// PATCH /email/:id/read - Mark single email as read
+		emailGroup.PATCH("/:id/read", api.readEmail)
+
 		// POST /email/:id/relay - Relay email to SMTP server
 		emailGroup.POST("/:id/relay", api.relayEmail)
+
+		// GET /email/stats - Get email statistics
+		emailGroup.GET("/stats", api.getEmailStats)
 	}
 
 	// WebSocket route
@@ -145,7 +152,14 @@ func (api *API) getAllEmails(c *gin.Context) {
 	// Get query parameters
 	limitStr := c.DefaultQuery("limit", "50")
 	offsetStr := c.DefaultQuery("offset", "0")
-	query := c.Query("q") // Search query
+	query := c.Query("q")                            // Full text search query
+	from := c.Query("from")                          // Filter by sender
+	to := c.Query("to")                              // Filter by recipient
+	dateFrom := c.Query("dateFrom")                  // Filter by date from (YYYY-MM-DD)
+	dateTo := c.Query("dateTo")                      // Filter by date to (YYYY-MM-DD)
+	read := c.Query("read")                          // Filter by read status (true/false)
+	sortBy := c.DefaultQuery("sortBy", "")           // Sort by: time, subject
+	sortOrder := c.DefaultQuery("sortOrder", "desc") // Sort order: asc, desc
 
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 {
@@ -163,18 +177,158 @@ func (api *API) getAllEmails(c *gin.Context) {
 	// Get all emails
 	emails := api.mailServer.GetAllEmail()
 
-	// Apply search filter if provided
-	if query != "" {
-		filtered := make([]*Email, 0)
-		queryLower := strings.ToLower(query)
-		for _, email := range emails {
-			if strings.Contains(strings.ToLower(email.Subject), queryLower) ||
+	// Apply filters
+	filtered := make([]*Email, 0)
+	for _, email := range emails {
+		// Full text search
+		if query != "" {
+			queryLower := strings.ToLower(query)
+			matched := strings.Contains(strings.ToLower(email.Subject), queryLower) ||
 				strings.Contains(strings.ToLower(email.Text), queryLower) ||
-				strings.Contains(strings.ToLower(email.HTML), queryLower) {
-				filtered = append(filtered, email)
+				strings.Contains(strings.ToLower(email.HTML), queryLower)
+			if !matched {
+				continue
 			}
 		}
-		emails = filtered
+
+		// Filter by sender
+		if from != "" {
+			fromLower := strings.ToLower(from)
+			matched := false
+			for _, addr := range email.From {
+				if strings.Contains(strings.ToLower(addr.Address), fromLower) ||
+					strings.Contains(strings.ToLower(addr.Name), fromLower) {
+					matched = true
+					break
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Filter by recipient
+		if to != "" {
+			toLower := strings.ToLower(to)
+			matched := false
+			// Check To addresses
+			for _, addr := range email.To {
+				if strings.Contains(strings.ToLower(addr.Address), toLower) ||
+					strings.Contains(strings.ToLower(addr.Name), toLower) {
+					matched = true
+					break
+				}
+			}
+			// Check CC addresses
+			if !matched {
+				for _, addr := range email.CC {
+					if strings.Contains(strings.ToLower(addr.Address), toLower) ||
+						strings.Contains(strings.ToLower(addr.Name), toLower) {
+						matched = true
+						break
+					}
+				}
+			}
+			// Check BCC addresses
+			if !matched {
+				for _, addr := range email.CalculatedBCC {
+					if strings.Contains(strings.ToLower(addr.Address), toLower) {
+						matched = true
+						break
+					}
+				}
+			}
+			if !matched {
+				continue
+			}
+		}
+
+		// Filter by date range
+		if dateFrom != "" {
+			dateFromTime, err := time.Parse("2006-01-02", dateFrom)
+			if err == nil {
+				if email.Time.Before(dateFromTime) {
+					continue
+				}
+			}
+		}
+		if dateTo != "" {
+			dateToTime, err := time.Parse("2006-01-02", dateTo)
+			if err == nil {
+				// Add one day to include the end date
+				dateToTime = dateToTime.Add(24 * time.Hour)
+				if email.Time.After(dateToTime) {
+					continue
+				}
+			}
+		}
+
+		// Filter by read status
+		if read != "" {
+			readBool := read == "true"
+			if email.Read != readBool {
+				continue
+			}
+		}
+
+		filtered = append(filtered, email)
+	}
+
+	emails = filtered
+
+	// Apply sorting
+	if sortBy != "" {
+		switch sortBy {
+		case "time":
+			if sortOrder == "asc" {
+				// Sort by time ascending
+				for i := 0; i < len(emails)-1; i++ {
+					for j := i + 1; j < len(emails); j++ {
+						if emails[i].Time.After(emails[j].Time) {
+							emails[i], emails[j] = emails[j], emails[i]
+						}
+					}
+				}
+			} else {
+				// Sort by time descending (default)
+				for i := 0; i < len(emails)-1; i++ {
+					for j := i + 1; j < len(emails); j++ {
+						if emails[i].Time.Before(emails[j].Time) {
+							emails[i], emails[j] = emails[j], emails[i]
+						}
+					}
+				}
+			}
+		case "subject":
+			if sortOrder == "asc" {
+				// Sort by subject ascending
+				for i := 0; i < len(emails)-1; i++ {
+					for j := i + 1; j < len(emails); j++ {
+						if strings.ToLower(emails[i].Subject) > strings.ToLower(emails[j].Subject) {
+							emails[i], emails[j] = emails[j], emails[i]
+						}
+					}
+				}
+			} else {
+				// Sort by subject descending
+				for i := 0; i < len(emails)-1; i++ {
+					for j := i + 1; j < len(emails); j++ {
+						if strings.ToLower(emails[i].Subject) < strings.ToLower(emails[j].Subject) {
+							emails[i], emails[j] = emails[j], emails[i]
+						}
+					}
+				}
+			}
+		}
+	} else {
+		// Default: sort by time descending
+		for i := 0; i < len(emails)-1; i++ {
+			for j := i + 1; j < len(emails); j++ {
+				if emails[i].Time.Before(emails[j].Time) {
+					emails[i], emails[j] = emails[j], emails[i]
+				}
+			}
+		}
 	}
 
 	// Apply pagination
@@ -306,6 +460,25 @@ func (api *API) readAllEmails(c *gin.Context) {
 		"message": "All emails marked as read",
 		"count":   count,
 	})
+}
+
+// readEmail handles PATCH /email/:id/read
+func (api *API) readEmail(c *gin.Context) {
+	id := c.Param("id")
+	if err := api.mailServer.ReadEmail(id); err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email marked as read",
+		"id":      id,
+	})
+}
+
+// getEmailStats handles GET /email/stats
+func (api *API) getEmailStats(c *gin.Context) {
+	stats := api.mailServer.GetEmailStats()
+	c.JSON(http.StatusOK, stats)
 }
 
 // getConfig handles GET /config
