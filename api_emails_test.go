@@ -1359,3 +1359,62 @@ func TestAPIExportEmailsNoEmails(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
 }
+
+func TestApplyEmailSorting(t *testing.T) {
+	now := time.Now()
+	emails := []*Email{
+		{ID: "1", Subject: "B Subject", Time: now.Add(-2 * time.Hour), Size: 200, From: []*mail.Address{{Address: "b@example.com"}}},
+		{ID: "2", Subject: "A Subject", Time: now.Add(-1 * time.Hour), Size: 100, From: []*mail.Address{{Address: "a@example.com"}}},
+		{ID: "3", Subject: "C Subject", Time: now, Size: 300, From: []*mail.Address{{Address: "c@example.com"}}},
+	}
+
+	// Test sorting by time (desc)
+	applyEmailSorting(emails, "time", "desc")
+	if emails[0].ID != "3" {
+		t.Errorf("Expected first email ID '3', got '%s'", emails[0].ID)
+	}
+
+	// Test sorting by time (asc)
+	applyEmailSorting(emails, "time", "asc")
+	if emails[0].ID != "1" {
+		t.Errorf("Expected first email ID '1', got '%s'", emails[0].ID)
+	}
+
+	// Test sorting by subject (asc)
+	applyEmailSorting(emails, "subject", "asc")
+	if emails[0].Subject != "A Subject" {
+		t.Errorf("Expected first email subject 'A Subject', got '%s'", emails[0].Subject)
+	}
+
+	// Test sorting by subject (desc)
+	applyEmailSorting(emails, "subject", "desc")
+	if emails[0].Subject != "C Subject" {
+		t.Errorf("Expected first email subject 'C Subject', got '%s'", emails[0].Subject)
+	}
+
+	// Test sorting by from (asc)
+	applyEmailSorting(emails, "from", "asc")
+	if emails[0].From[0].Address != "a@example.com" {
+		t.Errorf("Expected first email from 'a@example.com', got '%s'", emails[0].From[0].Address)
+	}
+
+	// Test sorting by size (asc)
+	applyEmailSorting(emails, "size", "asc")
+	if emails[0].Size != 100 {
+		t.Errorf("Expected first email size 100, got %d", emails[0].Size)
+	}
+
+	// Test sorting by size (desc)
+	applyEmailSorting(emails, "size", "desc")
+	if emails[0].Size != 300 {
+		t.Errorf("Expected first email size 300, got %d", emails[0].Size)
+	}
+
+	// Test with empty from
+	emails2 := []*Email{
+		{ID: "1", Subject: "A", From: []*mail.Address{}},
+		{ID: "2", Subject: "B", From: []*mail.Address{{Address: "b@example.com"}}},
+	}
+	applyEmailSorting(emails2, "from", "asc")
+	// Should not panic
+}

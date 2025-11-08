@@ -859,8 +859,12 @@ func (s *Session) Mail(from string, opts *smtp.MailOptions) error {
 	// For now, we'll allow all connections but log a warning
 	if s.mailServer.authConfig != nil && s.mailServer.authConfig.Enabled && !s.authenticated {
 		// Get remote address from connection if available
-		if conn := s.conn.Conn(); conn != nil {
-			Verbose("Warning: Unauthenticated connection attempt from %s", conn.RemoteAddr())
+		if s.conn != nil {
+			if conn := s.conn.Conn(); conn != nil {
+				Verbose("Warning: Unauthenticated connection attempt from %s", conn.RemoteAddr())
+			} else {
+				Verbose("Warning: Unauthenticated connection attempt")
+			}
 		} else {
 			Verbose("Warning: Unauthenticated connection attempt")
 		}
@@ -1021,13 +1025,17 @@ func (s *Session) Data(r io.Reader) error {
 
 	// Create envelope
 	remoteAddr := ""
-	if conn := s.conn.Conn(); conn != nil {
-		remoteAddr = conn.RemoteAddr().String()
+	hostname := ""
+	if s.conn != nil {
+		if conn := s.conn.Conn(); conn != nil {
+			remoteAddr = conn.RemoteAddr().String()
+		}
+		hostname = s.conn.Hostname()
 	}
 	envelope := &Envelope{
 		From:          s.from,
 		To:            s.to,
-		Host:          s.conn.Hostname(),
+		Host:          hostname,
 		RemoteAddress: remoteAddr,
 	}
 

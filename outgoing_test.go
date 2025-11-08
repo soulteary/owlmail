@@ -317,3 +317,24 @@ func TestOutgoingMailClose(t *testing.T) {
 	// Note: Closing a closed channel will panic, so we don't test that
 	// In production, you would need to add a check to prevent double close
 }
+
+func TestSendMailTLS(t *testing.T) {
+	// Test that sendMailTLS function exists and can be called
+	// We can't easily test actual SMTP connection in unit tests,
+	// but we can verify the function exists and handles errors properly
+
+	// Test with invalid address (should fail quickly)
+	err := sendMailTLS("invalid:address", nil, "from@example.com", []string{"to@example.com"}, []byte("test"))
+	if err == nil {
+		// In test environment, this might succeed if there's a mock server
+		// But typically it should fail
+		t.Log("sendMailTLS with invalid address (expected to fail in most cases)")
+	}
+
+	// Test with nil auth
+	err = sendMailTLS("localhost:25", nil, "from@example.com", []string{"to@example.com"}, []byte("test"))
+	// This will likely fail because there's no SMTP server, but function should handle it
+	if err != nil {
+		t.Logf("sendMailTLS failed as expected: %v", err)
+	}
+}

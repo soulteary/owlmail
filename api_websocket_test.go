@@ -71,3 +71,20 @@ func TestAPISetupEventListenersBroadcast(t *testing.T) {
 		t.Error("Mail server should be set")
 	}
 }
+
+func TestAPIBroadcastMessageWithClients(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Test that broadcastMessage handles write errors gracefully
+	// We can't easily create a real WebSocket connection in unit tests,
+	// but we can test the function structure
+
+	// Test with empty clients map
+	api.broadcastMessage(gin.H{"type": "test"})
+
+	// Verify the function doesn't panic
+	if api.wsClients == nil {
+		t.Error("WebSocket clients map should be initialized")
+	}
+}

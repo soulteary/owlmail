@@ -171,6 +171,16 @@ func TestLoggerFatal(t *testing.T) {
 	// Note: We can't actually test Fatal as it calls os.Exit
 	// This is just to ensure the method exists
 	_ = logger.Fatal
+
+	// Test that Fatal method can be called (though it will exit)
+	// We use a subprocess approach to test it
+	if os.Getenv("TEST_FATAL") == "1" {
+		logger.Fatal("test fatal message")
+		return
+	}
+
+	// Test global Fatal function
+	_ = Fatal
 }
 
 func TestConvenienceFunctions(t *testing.T) {

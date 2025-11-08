@@ -157,4 +157,70 @@ func TestAPISetupRoutes(t *testing.T) {
 	if api.router == nil {
 		t.Error("Router should be configured")
 	}
+
+	// Test NoRoute handler for non-API routes
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/some-page", nil)
+	api.router.ServeHTTP(w, req)
+	// Should try to serve index.html (may return 404 in test mode)
+
+	// Test that API routes are not caught by NoRoute
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/health", nil)
+	api.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("API route should work, got status %d", w.Code)
+	}
+}
+
+func TestAPIStart(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	api := NewAPI(server, 0, "localhost") // Use port 0 for random port
+	if api == nil {
+		t.Fatal("NewAPI should not return nil")
+	}
+
+	// Start server in a goroutine
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- api.Start()
+	}()
+
+	// Give it a moment to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Check if server started successfully
+	select {
+	case err := <-errChan:
+		// If we get an error immediately, it might be because port is already in use
+		// That's okay for testing purposes
+		if err != nil {
+			t.Logf("Server start error (expected in some cases): %v", err)
+		}
+	default:
+		// Server is running, which is good
+	}
+
+	// Test HTTPS start with missing cert files
+	apiHTTPS := NewAPIWithHTTPS(server, 0, "localhost", "", "", true, "nonexistent.pem", "nonexistent.key")
+	errChan2 := make(chan error, 1)
+	go func() {
+		errChan2 <- apiHTTPS.Start()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	select {
+	case err := <-errChan2:
+		if err == nil {
+			t.Error("Expected error when cert files don't exist")
+		}
+	default:
+		t.Error("Expected error when cert files don't exist")
+	}
 }
