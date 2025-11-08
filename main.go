@@ -39,8 +39,9 @@ func getEnvBool(key string, defaultValue bool) bool {
 }
 
 // getLogLevelFromEnv returns log level from environment variable
+// Supports both MailDev (MAILDEV_VERBOSE/MAILDEV_SILENT) and OwlMail (OWLMAIL_LOG_LEVEL) environment variables
 func getLogLevelFromEnv() LogLevel {
-	levelStr := getEnvString("OWLMAIL_LOG_LEVEL", "normal")
+	levelStr := getMailDevLogLevel("normal")
 	switch levelStr {
 	case "silent":
 		return LogLevelSilent
@@ -54,42 +55,44 @@ func getLogLevelFromEnv() LogLevel {
 func main() {
 	var (
 		// SMTP server configuration
-		smtpPort = flag.Int("smtp", getEnvInt("OWLMAIL_SMTP_PORT", 1025), "SMTP port to catch emails")
-		smtpHost = flag.String("ip", getEnvString("OWLMAIL_SMTP_HOST", "localhost"), "IP address to bind SMTP service to")
-		mailDir  = flag.String("mail-directory", getEnvString("OWLMAIL_MAIL_DIR", ""), "Directory for persisting mails")
+		// Supports both MAILDEV_* and OWLMAIL_* environment variables
+		smtpPort = flag.Int("smtp", getMailDevEnvInt("OWLMAIL_SMTP_PORT", 1025), "SMTP port to catch emails")
+		smtpHost = flag.String("ip", getMailDevEnvString("OWLMAIL_SMTP_HOST", "localhost"), "IP address to bind SMTP service to")
+		mailDir  = flag.String("mail-directory", getMailDevEnvString("OWLMAIL_MAIL_DIR", ""), "Directory for persisting mails")
 
 		// Web API configuration
-		webPort     = flag.Int("web", getEnvInt("OWLMAIL_WEB_PORT", 1080), "Web API port")
-		webHost     = flag.String("web-ip", getEnvString("OWLMAIL_WEB_HOST", "localhost"), "IP address to bind Web API to")
-		webUser     = flag.String("web-user", getEnvString("OWLMAIL_WEB_USER", ""), "HTTP Basic Auth username")
-		webPassword = flag.String("web-password", getEnvString("OWLMAIL_WEB_PASSWORD", ""), "HTTP Basic Auth password")
+		webPort     = flag.Int("web", getMailDevEnvInt("OWLMAIL_WEB_PORT", 1080), "Web API port")
+		webHost     = flag.String("web-ip", getMailDevEnvString("OWLMAIL_WEB_HOST", "localhost"), "IP address to bind Web API to")
+		webUser     = flag.String("web-user", getMailDevEnvString("OWLMAIL_WEB_USER", ""), "HTTP Basic Auth username")
+		webPassword = flag.String("web-password", getMailDevEnvString("OWLMAIL_WEB_PASSWORD", ""), "HTTP Basic Auth password")
 
 		// HTTPS configuration
-		httpsEnabled  = flag.Bool("https", getEnvBool("OWLMAIL_HTTPS_ENABLED", false), "Enable HTTPS for Web API")
-		httpsCertFile = flag.String("https-cert", getEnvString("OWLMAIL_HTTPS_CERT", ""), "HTTPS certificate file path")
-		httpsKeyFile  = flag.String("https-key", getEnvString("OWLMAIL_HTTPS_KEY", ""), "HTTPS private key file path")
+		httpsEnabled  = flag.Bool("https", getMailDevEnvBool("OWLMAIL_HTTPS_ENABLED", false), "Enable HTTPS for Web API")
+		httpsCertFile = flag.String("https-cert", getMailDevEnvString("OWLMAIL_HTTPS_CERT", ""), "HTTPS certificate file path")
+		httpsKeyFile  = flag.String("https-key", getMailDevEnvString("OWLMAIL_HTTPS_KEY", ""), "HTTPS private key file path")
 
 		// Outgoing mail configuration
-		outgoingHost   = flag.String("outgoing-host", getEnvString("OWLMAIL_OUTGOING_HOST", ""), "Outgoing SMTP server host")
-		outgoingPort   = flag.Int("outgoing-port", getEnvInt("OWLMAIL_OUTGOING_PORT", 587), "Outgoing SMTP server port")
-		outgoingUser   = flag.String("outgoing-user", getEnvString("OWLMAIL_OUTGOING_USER", ""), "Outgoing SMTP server username")
-		outgoingPass   = flag.String("outgoing-pass", getEnvString("OWLMAIL_OUTGOING_PASSWORD", ""), "Outgoing SMTP server password")
-		outgoingSecure = flag.Bool("outgoing-secure", getEnvBool("OWLMAIL_OUTGOING_SECURE", false), "Use TLS for outgoing SMTP")
-		autoRelay      = flag.Bool("auto-relay", getEnvBool("OWLMAIL_AUTO_RELAY", false), "Automatically relay all emails")
-		autoRelayAddr  = flag.String("auto-relay-addr", getEnvString("OWLMAIL_AUTO_RELAY_ADDR", ""), "Auto relay to specific address")
-		autoRelayRules = flag.String("auto-relay-rules", getEnvString("OWLMAIL_AUTO_RELAY_RULES", ""), "JSON file path for auto relay rules")
+		outgoingHost   = flag.String("outgoing-host", getMailDevEnvString("OWLMAIL_OUTGOING_HOST", ""), "Outgoing SMTP server host")
+		outgoingPort   = flag.Int("outgoing-port", getMailDevEnvInt("OWLMAIL_OUTGOING_PORT", 587), "Outgoing SMTP server port")
+		outgoingUser   = flag.String("outgoing-user", getMailDevEnvString("OWLMAIL_OUTGOING_USER", ""), "Outgoing SMTP server username")
+		outgoingPass   = flag.String("outgoing-pass", getMailDevEnvString("OWLMAIL_OUTGOING_PASSWORD", ""), "Outgoing SMTP server password")
+		outgoingSecure = flag.Bool("outgoing-secure", getMailDevEnvBool("OWLMAIL_OUTGOING_SECURE", false), "Use TLS for outgoing SMTP")
+		autoRelay      = flag.Bool("auto-relay", getMailDevEnvBool("OWLMAIL_AUTO_RELAY", false), "Automatically relay all emails")
+		autoRelayAddr  = flag.String("auto-relay-addr", getMailDevEnvString("OWLMAIL_AUTO_RELAY_ADDR", ""), "Auto relay to specific address")
+		autoRelayRules = flag.String("auto-relay-rules", getMailDevEnvString("OWLMAIL_AUTO_RELAY_RULES", ""), "JSON file path for auto relay rules")
 
 		// SMTP authentication
-		smtpUser     = flag.String("smtp-user", getEnvString("OWLMAIL_SMTP_USER", ""), "SMTP server username for authentication")
-		smtpPassword = flag.String("smtp-password", getEnvString("OWLMAIL_SMTP_PASSWORD", ""), "SMTP server password for authentication")
+		smtpUser     = flag.String("smtp-user", getMailDevEnvString("OWLMAIL_SMTP_USER", ""), "SMTP server username for authentication")
+		smtpPassword = flag.String("smtp-password", getMailDevEnvString("OWLMAIL_SMTP_PASSWORD", ""), "SMTP server password for authentication")
 
 		// TLS configuration for SMTP
-		tlsEnabled  = flag.Bool("tls", getEnvBool("OWLMAIL_TLS_ENABLED", false), "Enable TLS/STARTTLS for SMTP server")
-		tlsCertFile = flag.String("tls-cert", getEnvString("OWLMAIL_TLS_CERT", ""), "TLS certificate file path")
-		tlsKeyFile  = flag.String("tls-key", getEnvString("OWLMAIL_TLS_KEY", ""), "TLS private key file path")
+		tlsEnabled  = flag.Bool("tls", getMailDevEnvBool("OWLMAIL_TLS_ENABLED", false), "Enable TLS/STARTTLS for SMTP server")
+		tlsCertFile = flag.String("tls-cert", getMailDevEnvString("OWLMAIL_TLS_CERT", ""), "TLS certificate file path")
+		tlsKeyFile  = flag.String("tls-key", getMailDevEnvString("OWLMAIL_TLS_KEY", ""), "TLS private key file path")
 
 		// Logging configuration
-		logLevel = flag.String("log-level", getEnvString("OWLMAIL_LOG_LEVEL", "normal"), "Log level: silent, normal, or verbose")
+		// Supports both MAILDEV_VERBOSE/MAILDEV_SILENT and OWLMAIL_LOG_LEVEL
+		logLevel = flag.String("log-level", getMailDevLogLevel("normal"), "Log level: silent, normal, or verbose")
 	)
 	flag.Parse()
 
