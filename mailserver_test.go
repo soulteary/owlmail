@@ -140,7 +140,7 @@ func TestMailServerGetEmail(t *testing.T) {
 		ID:      "test-id",
 		Subject: "Test Subject",
 		Time:    time.Now(),
-		Read:   false,
+		Read:    false,
 	}
 
 	envelope := &Envelope{
@@ -467,9 +467,9 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 
 	// Set outgoing config
 	config := &OutgoingConfig{
-		Host: "smtp.example.com",
-		Port: 587,
-		User: "user",
+		Host:     "smtp.example.com",
+		Port:     587,
+		User:     "user",
 		Password: "pass",
 	}
 
@@ -593,8 +593,8 @@ func TestTransformAttachment(t *testing.T) {
 
 	// Test already transformed
 	attachment4 := &Attachment{
-		FileName:    "test.pdf",
-		transformed: true,
+		FileName:          "test.pdf",
+		transformed:       true,
 		GeneratedFileName: "already-generated.pdf",
 	}
 
@@ -656,4 +656,3 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 		t.Error("Certificate should have private key")
 	}
 }
-

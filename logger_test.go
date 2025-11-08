@@ -216,4 +216,3 @@ func TestInitLoggerSilentMode(t *testing.T) {
 		t.Error("Silent mode should not write to buffer")
 	}
 }
-

@@ -250,4 +250,3 @@ func TestMailDevEnvMapping(t *testing.T) {
 		}
 	}
 }
-

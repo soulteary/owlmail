@@ -292,4 +292,3 @@ func TestLoadAutoRelayRulesOrder(t *testing.T) {
 		t.Errorf("Expected third allow rule 'ok@test.com', got '%s'", allowRules[2])
 	}
 }
-
