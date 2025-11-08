@@ -10,14 +10,16 @@ import (
 
 func main() {
 	var (
-		port    = flag.Int("smtp", 1025, "SMTP port to catch emails")
-		host    = flag.String("ip", "localhost", "IP address to bind SMTP service to")
-		mailDir = flag.String("mail-directory", "", "Directory for persisting mails")
+		smtpPort = flag.Int("smtp", 1025, "SMTP port to catch emails")
+		smtpHost = flag.String("ip", "localhost", "IP address to bind SMTP service to")
+		webPort  = flag.Int("web", 1080, "Web API port")
+		webHost  = flag.String("web-ip", "localhost", "IP address to bind Web API to")
+		mailDir  = flag.String("mail-directory", "", "Directory for persisting mails")
 	)
 	flag.Parse()
 
 	// Create mail server
-	server, err := NewMailServer(*port, *host, *mailDir)
+	server, err := NewMailServer(*smtpPort, *smtpHost, *mailDir)
 	if err != nil {
 		log.Fatalf("Failed to create mail server: %v", err)
 	}
@@ -35,6 +37,15 @@ func main() {
 		log.Printf("Email deleted: %s", email.Subject)
 	})
 
+	// Create and start API server
+	api := NewAPI(server, *webPort, *webHost)
+	go func() {
+		log.Printf("Starting OwlMail Web API on %s:%d", *webHost, *webPort)
+		if err := api.Start(); err != nil {
+			log.Fatalf("Failed to start API server: %v", err)
+		}
+	}()
+
 	// Handle graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -48,8 +59,8 @@ func main() {
 		os.Exit(0)
 	}()
 
-	// Start server
-	log.Printf("Starting OwlMail SMTP Server on %s:%d", *host, *port)
+	// Start SMTP server
+	log.Printf("Starting OwlMail SMTP Server on %s:%d", *smtpHost, *smtpPort)
 	if err := server.Listen(); err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

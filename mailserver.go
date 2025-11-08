@@ -323,6 +323,25 @@ func (ms *MailServer) GetRawEmail(id string) (string, error) {
 	return emlPath, nil
 }
 
+// GetRawEmailContent returns the raw email file content
+func (ms *MailServer) GetRawEmailContent(id string) ([]byte, error) {
+	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	content, err := os.ReadFile(emlPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read email file: %w", err)
+	}
+	return content, nil
+}
+
+// GetEmailHTML returns the HTML content of an email
+func (ms *MailServer) GetEmailHTML(id string) (string, error) {
+	email, err := ms.GetEmail(id)
+	if err != nil {
+		return "", err
+	}
+	return email.HTML, nil
+}
+
 // GetEmailAttachment returns attachment file path
 func (ms *MailServer) GetEmailAttachment(id, filename string) (string, string, error) {
 	email, err := ms.GetEmail(id)
