@@ -662,30 +662,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		// For now, we parse the most common headers listed above
 
 		// Parse date from headers
-		if dateStr := headers.Get("Date"); dateStr != "" {
-			// Try multiple date formats
-			dateFormats := []string{
-				time.RFC1123Z,
-				time.RFC1123,
-				time.RFC822Z,
-				time.RFC822,
-				"Mon, 2 Jan 2006 15:04:05 -0700",
-				"Mon, 2 Jan 2006 15:04:05 MST",
-			}
-			parsed := false
-			for _, format := range dateFormats {
-				if date, err := time.Parse(format, dateStr); err == nil {
-					email.Time = date
-					parsed = true
-					break
-				}
-			}
-			if !parsed {
-				email.Time = time.Now()
-			}
-		} else {
-			email.Time = time.Now()
-		}
+		email.Time = parseEmailDate(headers)
 
 		// Parse addresses
 		if fromStr := headers.Get("From"); fromStr != "" {
@@ -954,31 +931,7 @@ func (s *Session) Data(r io.Reader) error {
 	// For now, we parse the most common headers listed above
 
 	// Parse date from headers
-	if dateStr := headers.Get("Date"); dateStr != "" {
-		// Try multiple date formats
-		dateFormats := []string{
-			time.RFC1123Z,
-			time.RFC1123,
-			time.RFC822Z,
-			time.RFC822,
-			"Mon, 2 Jan 2006 15:04:05 -0700",
-			"Mon, 2 Jan 2006 15:04:05 MST",
-		}
-		parsed := false
-		for _, format := range dateFormats {
-			if date, err := time.Parse(format, dateStr); err == nil {
-				email.Time = date
-				parsed = true
-				break
-			}
-		}
-		if !parsed {
-			// Fallback to current time if parsing fails
-			email.Time = time.Now()
-		}
-	} else {
-		email.Time = time.Now()
-	}
+	email.Time = parseEmailDate(headers)
 
 	// Parse addresses
 	if fromStr := headers.Get("From"); fromStr != "" {
@@ -1223,6 +1176,70 @@ func sanitizeHTML(html string) string {
 	p.AllowAttrs("target").OnElements("a")
 	p.AllowElements("link")
 	return p.Sanitize(html)
+}
+
+// parseEmailDate parses the Date header from email headers
+func parseEmailDate(headers message.Header) time.Time {
+	dateStr := headers.Get("Date")
+	if dateStr == "" {
+		return time.Now()
+	}
+
+	// Try multiple date formats commonly used in email
+	dateFormats := []string{
+		time.RFC1123Z,    // Mon, 02 Jan 2006 15:04:05 -0700
+		time.RFC1123,     // Mon, 02 Jan 2006 15:04:05 MST
+		time.RFC822Z,     // 02 Jan 06 15:04 -0700
+		time.RFC822,      // 02 Jan 06 15:04 MST
+		time.RFC3339,     // 2006-01-02T15:04:05Z07:00
+		time.RFC3339Nano, // 2006-01-02T15:04:05.999999999Z07:00
+		"Mon, 2 Jan 2006 15:04:05 -0700",
+		"Mon, 2 Jan 2006 15:04:05 MST",
+		"Mon, 02 Jan 2006 15:04:05 -0700",
+		"Mon, 02 Jan 2006 15:04:05 MST",
+		"2 Jan 2006 15:04:05 -0700",
+		"2 Jan 2006 15:04:05 MST",
+		"02 Jan 2006 15:04:05 -0700",
+		"02 Jan 2006 15:04:05 MST",
+		"Mon, 2 Jan 2006 15:04:05",
+		"Mon, 02 Jan 2006 15:04:05",
+		"2 Jan 2006 15:04:05",
+		"02 Jan 2006 15:04:05",
+	}
+
+	// Try parsing with each format
+	for _, format := range dateFormats {
+		if date, err := time.Parse(format, dateStr); err == nil {
+			return date
+		}
+	}
+
+	// Try parsing with time.ParseInLocation for timezone-aware parsing
+	if date, err := time.ParseInLocation(time.RFC1123Z, dateStr, time.UTC); err == nil {
+		return date
+	}
+	if date, err := time.ParseInLocation(time.RFC1123, dateStr, time.UTC); err == nil {
+		return date
+	}
+
+	// Fallback: try to parse with a more lenient approach
+	// Remove common timezone abbreviations and try again
+	cleanedDate := strings.TrimSpace(dateStr)
+	// Remove timezone abbreviations like (GMT), (UTC), etc.
+	cleanedDate = strings.TrimSuffix(cleanedDate, " (GMT)")
+	cleanedDate = strings.TrimSuffix(cleanedDate, " (UTC)")
+	cleanedDate = strings.TrimSuffix(cleanedDate, " GMT")
+	cleanedDate = strings.TrimSuffix(cleanedDate, " UTC")
+
+	for _, format := range dateFormats {
+		if date, err := time.Parse(format, cleanedDate); err == nil {
+			return date
+		}
+	}
+
+	// If all parsing attempts fail, return current time
+	Verbose("Failed to parse email date: %s, using current time", dateStr)
+	return time.Now()
 }
 
 // generateSelfSignedCert generates a self-signed certificate for testing
