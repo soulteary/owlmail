@@ -10,16 +10,37 @@ import (
 
 func main() {
 	var (
-		smtpPort = flag.Int("smtp", 1025, "SMTP port to catch emails")
-		smtpHost = flag.String("ip", "localhost", "IP address to bind SMTP service to")
-		webPort  = flag.Int("web", 1080, "Web API port")
-		webHost  = flag.String("web-ip", "localhost", "IP address to bind Web API to")
-		mailDir  = flag.String("mail-directory", "", "Directory for persisting mails")
+		smtpPort       = flag.Int("smtp", 1025, "SMTP port to catch emails")
+		smtpHost       = flag.String("ip", "localhost", "IP address to bind SMTP service to")
+		webPort        = flag.Int("web", 1080, "Web API port")
+		webHost        = flag.String("web-ip", "localhost", "IP address to bind Web API to")
+		mailDir        = flag.String("mail-directory", "", "Directory for persisting mails")
+		outgoingHost   = flag.String("outgoing-host", "", "Outgoing SMTP server host")
+		outgoingPort   = flag.Int("outgoing-port", 587, "Outgoing SMTP server port")
+		outgoingUser   = flag.String("outgoing-user", "", "Outgoing SMTP server username")
+		outgoingPass   = flag.String("outgoing-pass", "", "Outgoing SMTP server password")
+		outgoingSecure = flag.Bool("outgoing-secure", false, "Use TLS for outgoing SMTP")
+		autoRelay      = flag.Bool("auto-relay", false, "Automatically relay all emails")
+		autoRelayAddr  = flag.String("auto-relay-addr", "", "Auto relay to specific address")
 	)
 	flag.Parse()
 
+	// Setup outgoing mail config if provided
+	var outgoingConfig *OutgoingConfig
+	if *outgoingHost != "" {
+		outgoingConfig = &OutgoingConfig{
+			Host:          *outgoingHost,
+			Port:          *outgoingPort,
+			User:          *outgoingUser,
+			Password:      *outgoingPass,
+			Secure:        *outgoingSecure,
+			AutoRelay:     *autoRelay,
+			AutoRelayAddr: *autoRelayAddr,
+		}
+	}
+
 	// Create mail server
-	server, err := NewMailServer(*smtpPort, *smtpHost, *mailDir)
+	server, err := NewMailServerWithOutgoing(*smtpPort, *smtpHost, *mailDir, outgoingConfig)
 	if err != nil {
 		log.Fatalf("Failed to create mail server: %v", err)
 	}

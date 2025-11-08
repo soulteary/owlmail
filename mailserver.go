@@ -75,6 +75,7 @@ type MailServer struct {
 	eventChan      chan Event
 	listeners      map[string][]func(*Email)
 	listenersMutex sync.RWMutex
+	outgoing       *OutgoingMail
 }
 
 // Event represents a server event
@@ -86,6 +87,11 @@ type Event struct {
 
 // NewMailServer creates a new mail server instance
 func NewMailServer(port int, host, mailDir string) (*MailServer, error) {
+	return NewMailServerWithOutgoing(port, host, mailDir, nil)
+}
+
+// NewMailServerWithOutgoing creates a new mail server instance with outgoing mail config
+func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *OutgoingConfig) (*MailServer, error) {
 	if port == 0 {
 		port = defaultPort
 	}
@@ -108,6 +114,11 @@ func NewMailServer(port int, host, mailDir string) (*MailServer, error) {
 		host:      host,
 		eventChan: make(chan Event, 100),
 		listeners: make(map[string][]func(*Email)),
+	}
+
+	// Setup outgoing mail if config provided
+	if outgoingConfig != nil {
+		ms.outgoing = NewOutgoingMail(outgoingConfig)
 	}
 
 	// Setup SMTP server
@@ -141,6 +152,9 @@ func (ms *MailServer) Listen() error {
 
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
+	if ms.outgoing != nil {
+		ms.outgoing.Close()
+	}
 	close(ms.eventChan)
 	return ms.smtpServer.Close()
 }
@@ -200,6 +214,15 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	// Emit new email event
 	ms.emit("new", parsedEmail)
+
+	// Auto relay if enabled
+	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
+		ms.RelayMail(parsedEmail, true, func(err error) {
+			if err != nil {
+				log.Printf("Error when auto-relaying email: %v", err)
+			}
+		})
+	}
 
 	return nil
 }
@@ -382,6 +405,45 @@ func (ms *MailServer) ReadAllEmail() int {
 		}
 	}
 	return count
+}
+
+// RelayMail relays an email to the configured SMTP server
+func (ms *MailServer) RelayMail(email *Email, isAutoRelay bool, callback func(error)) error {
+	if ms.outgoing == nil {
+		return fmt.Errorf("outgoing mail not configured")
+	}
+
+	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
+	ms.outgoing.RelayMail(email, emlPath, "", isAutoRelay, callback)
+	return nil
+}
+
+// RelayMailTo relays an email to a specific address
+func (ms *MailServer) RelayMailTo(email *Email, relayTo string, callback func(error)) error {
+	if ms.outgoing == nil {
+		return fmt.Errorf("outgoing mail not configured")
+	}
+
+	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
+	ms.outgoing.RelayMail(email, emlPath, relayTo, false, callback)
+	return nil
+}
+
+// SetOutgoingConfig sets the outgoing mail configuration
+func (ms *MailServer) SetOutgoingConfig(config *OutgoingConfig) {
+	if ms.outgoing == nil {
+		ms.outgoing = NewOutgoingMail(config)
+	} else {
+		ms.outgoing.UpdateConfig(config)
+	}
+}
+
+// GetOutgoingConfig returns the outgoing mail configuration
+func (ms *MailServer) GetOutgoingConfig() *OutgoingConfig {
+	if ms.outgoing == nil {
+		return nil
+	}
+	return ms.outgoing.GetConfig()
 }
 
 // Backend implements smtp.Backend
