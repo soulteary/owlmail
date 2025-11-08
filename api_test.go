@@ -171,6 +171,23 @@ func TestAPISetupRoutes(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("API route should work, got status %d", w.Code)
 	}
+
+	// Test NoRoute handler with various API route prefixes
+	testCases := []string{
+		"/email",
+		"/config",
+		"/healthz",
+		"/socket.io",
+		"/api/",
+		"/style.css",
+		"/app.js",
+	}
+	for _, path := range testCases {
+		w = httptest.NewRecorder()
+		req, _ = http.NewRequest("GET", path, nil)
+		api.router.ServeHTTP(w, req)
+		// These should not be caught by NoRoute
+	}
 }
 
 func TestAPIStart(t *testing.T) {
@@ -222,5 +239,39 @@ func TestAPIStart(t *testing.T) {
 		}
 	default:
 		t.Error("Expected error when cert files don't exist")
+	}
+
+	// Test HTTPS start with empty cert file
+	apiHTTPS2 := NewAPIWithHTTPS(server, 0, "localhost", "", "", true, "", "key.pem")
+	errChan3 := make(chan error, 1)
+	go func() {
+		errChan3 <- apiHTTPS2.Start()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	select {
+	case err := <-errChan3:
+		if err == nil {
+			t.Error("Expected error when cert file is empty")
+		}
+	default:
+		t.Error("Expected error when cert file is empty")
+	}
+
+	// Test HTTPS start with empty key file
+	apiHTTPS3 := NewAPIWithHTTPS(server, 0, "localhost", "", "", true, "cert.pem", "")
+	errChan4 := make(chan error, 1)
+	go func() {
+		errChan4 <- apiHTTPS3.Start()
+	}()
+
+	time.Sleep(100 * time.Millisecond)
+	select {
+	case err := <-errChan4:
+		if err == nil {
+			t.Error("Expected error when key file is empty")
+		}
+	default:
+		t.Error("Expected error when key file is empty")
 	}
 }

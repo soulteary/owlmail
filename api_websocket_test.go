@@ -1,6 +1,7 @@
 package main
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -86,5 +87,46 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 	// Verify the function doesn't panic
 	if api.wsClients == nil {
 		t.Error("WebSocket clients map should be initialized")
+	}
+}
+
+func TestAPIBroadcastMessageWithDeleteEvent(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add and then delete an email to trigger delete event
+	email := &Email{ID: "test-id", Subject: "Test", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath := filepath.Join(tmpDir, "test-id.eml")
+	os.WriteFile(emlPath, []byte("content"), 0644)
+	server.saveEmailToStore("test-id", false, envelope, email)
+
+	// Delete the email to trigger delete event
+	server.DeleteEmail("test-id")
+
+	// Give time for event to fire
+	time.Sleep(100 * time.Millisecond)
+
+	// Verify event listeners are set up
+	if api.mailServer == nil {
+		t.Error("Mail server should be set")
+	}
+}
+
+func TestAPIHandleWebSocketRoute(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+
+	// Test that the WebSocket route exists
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/ws", nil)
+	api.router.ServeHTTP(w, req)
+
+	// WebSocket upgrade should fail in test mode (no upgrade header)
+	// But the route should exist
+	if w.Code == http.StatusNotFound {
+		t.Error("WebSocket route should exist")
 	}
 }

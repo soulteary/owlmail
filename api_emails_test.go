@@ -582,6 +582,33 @@ func TestAPIReloadMailsFromDirectory(t *testing.T) {
 	}
 }
 
+func TestAPIReloadMailsFromDirectoryError(t *testing.T) {
+	// Create a server with an invalid/non-existent directory to trigger error
+	tmpDir := t.TempDir()
+	invalidDir := filepath.Join(tmpDir, "nonexistent")
+
+	server, err := NewMailServer(1025, "localhost", invalidDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	api := NewAPI(server, 1080, "localhost")
+
+	// Remove the directory to make it inaccessible
+	os.RemoveAll(invalidDir)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("POST", "/api/v1/emails/reload", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 500 error when reload fails
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("Expected status 500, got %d", w.Code)
+	}
+}
+
 func TestAPISanitizeFilename(t *testing.T) {
 	testCases := []struct {
 		input    string
@@ -681,6 +708,352 @@ func TestAPIDownloadEmailWithoutSubject(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIDownloadEmailWithRawEmailNotFound(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Add email but don't create the .eml file
+	email := &Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	// Don't create eml file
+	server.saveEmailToStore("test-id", false, envelope, email)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/raw", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("Expected status 404, got %d", w.Code)
+	}
+}
+
+func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{
+		ID:      "id1",
+		Subject: "Test Subject 1",
+		Text:    "Test content 1",
+		Time:    time.Now(),
+		Read:    false,
+		From:    []*mail.Address{{Address: "from1@example.com"}},
+		To:      []*mail.Address{{Address: "to1@example.com"}},
+	}
+	email2 := &Email{
+		ID:      "id2",
+		Subject: "Test Subject 2",
+		Text:    "Test content 2",
+		Time:    time.Now().Add(-24 * time.Hour),
+		Read:    true,
+		From:    []*mail.Address{{Address: "from2@example.com"}},
+		To:      []*mail.Address{{Address: "to2@example.com"}},
+	}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	emlPath2 := filepath.Join(tmpDir, "id2.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	os.WriteFile(emlPath2, []byte("content2"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", true, envelope, email2)
+
+	// Test with query filter
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?q=Subject&limit=10&offset=0", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with from filter
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?from=from1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with to filter
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?to=to1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with read filter
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?read=false", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with dateFrom filter
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?dateFrom="+time.Now().Add(-48*time.Hour).Format("2006-01-02"), nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with dateTo filter
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?dateTo="+time.Now().Format("2006-01-02"), nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	// Test with sortBy
+	w = httptest.NewRecorder()
+	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?sortBy=subject&sortOrder=asc", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add multiple test emails
+	for i := 0; i < 5; i++ {
+		email := &Email{
+			ID:      fmt.Sprintf("id%d", i),
+			Subject: fmt.Sprintf("Subject %d", i),
+			Time:    time.Now().Add(-time.Duration(i) * time.Hour),
+		}
+		envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+		emlPath := filepath.Join(tmpDir, fmt.Sprintf("id%d.eml", i))
+		os.WriteFile(emlPath, []byte("content"), 0644)
+		server.saveEmailToStore(fmt.Sprintf("id%d", i), false, envelope, email)
+	}
+
+	// Test with limit and offset
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=2&offset=1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["limit"] != float64(2) {
+		t.Errorf("Expected limit 2, got %v", response["limit"])
+	}
+	if response["offset"] != float64(1) {
+		t.Errorf("Expected offset 1, got %v", response["offset"])
+	}
+}
+
+func TestAPIGetEmailPreviewsWithInvalidLimit(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=invalid", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIGetEmailPreviewsWithInvalidOffset(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=invalid", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=2000", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["limit"] != float64(1000) {
+		t.Errorf("Expected limit 1000 (max), got %v", response["limit"])
+	}
+}
+
+func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=-1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["offset"] != float64(0) {
+		t.Errorf("Expected offset 0 (min), got %v", response["offset"])
+	}
+}
+
+func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add only 2 emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	emlPath2 := filepath.Join(tmpDir, "id2.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	// Test with offset beyond total
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=100&limit=10", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	emails := response["emails"].([]interface{})
+	if len(emails) != 0 {
+		t.Errorf("Expected 0 emails (offset beyond total), got %d", len(emails))
+	}
+}
+
+func TestAPIGetAllEmailsWithStartEqualsEnd(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add only 1 email
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+
+	// Test with offset=1, limit=1 (start == end == 1)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=1&limit=1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	emails := response["emails"].([]interface{})
+	if len(emails) != 0 {
+		t.Errorf("Expected 0 emails (start == end), got %d", len(emails))
+	}
+}
+
+func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+
+	// Test with limit=0 (should default to 50)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=0", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["limit"] != float64(50) {
+		t.Errorf("Expected limit 50 (default), got %v", response["limit"])
+	}
+}
+
+func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	emlPath2 := filepath.Join(tmpDir, "id2.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	// Test with limit=1
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=1", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	emails := response["emails"].([]interface{})
+	if len(emails) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(emails))
 	}
 }
 
@@ -1360,6 +1733,139 @@ func TestAPIExportEmailsNoEmails(t *testing.T) {
 	}
 }
 
+func TestAPIExportEmailsWithMissingFiles(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	// Create only one eml file
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/export", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 200 (ZIP created with available files, missing files are skipped)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIExportEmailsWithIDsAndMissingFiles(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	// Create only one eml file
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=id1,id2", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 200 (ZIP created with available files)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIExportEmailsWithIDsWithSpaces(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	email2 := &Email{ID: "id2", Subject: "Subject 2", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	emlPath2 := filepath.Join(tmpDir, "id2.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	os.WriteFile(emlPath2, []byte("content2"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+	server.saveEmailToStore("id2", false, envelope, email2)
+
+	// Test with IDs containing spaces
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=id1, id2 , id3", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 200 (spaces are trimmed)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIExportEmailsWithEmptyIDs(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+
+	// Test with empty IDs list (should use filter instead, which returns all emails)
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 200 (empty ids param means use filter, which returns all emails)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIExportEmailsWithNonExistentIDs(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer server.Close()
+
+	// Add test emails
+	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
+	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
+
+	emlPath1 := filepath.Join(tmpDir, "id1.eml")
+	os.WriteFile(emlPath1, []byte("content1"), 0644)
+
+	server.saveEmailToStore("id1", false, envelope, email1)
+
+	// Test with non-existent IDs
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=nonexistent1,nonexistent2", nil)
+	api.router.ServeHTTP(w, req)
+
+	// Should return 400 (no emails found)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
 func TestApplyEmailSorting(t *testing.T) {
 	now := time.Now()
 	emails := []*Email{
@@ -1417,4 +1923,164 @@ func TestApplyEmailSorting(t *testing.T) {
 	}
 	applyEmailSorting(emails2, "from", "asc")
 	// Should not panic
+
+	// Test with empty from (desc)
+	applyEmailSorting(emails2, "from", "desc")
+	// Should not panic
+
+	// Test with unknown sortBy (should not panic)
+	emails3 := []*Email{
+		{ID: "1", Subject: "A", Time: now},
+		{ID: "2", Subject: "B", Time: now.Add(-time.Hour)},
+	}
+	applyEmailSorting(emails3, "unknown", "asc")
+	// Should not panic, should not change order
+}
+
+func TestApplyEmailFilters(t *testing.T) {
+	now := time.Now()
+	emails := []*Email{
+		{
+			ID:            "1",
+			Subject:       "Test Subject 1",
+			Text:          "Test content 1",
+			HTML:          "<html>Test HTML 1</html>",
+			Time:          now,
+			Read:          false,
+			From:          []*mail.Address{{Address: "from1@example.com", Name: "From One"}},
+			To:            []*mail.Address{{Address: "to1@example.com"}},
+			CC:            []*mail.Address{{Address: "cc1@example.com"}},
+			CalculatedBCC: []*mail.Address{{Address: "bcc1@example.com"}},
+		},
+		{
+			ID:      "2",
+			Subject: "Other Subject",
+			Text:    "Other content",
+			Time:    now.Add(-24 * time.Hour),
+			Read:    true,
+			From:    []*mail.Address{{Address: "from2@example.com"}},
+			To:      []*mail.Address{{Address: "to2@example.com"}},
+		},
+	}
+
+	// Test with query filter
+	filtered := applyEmailFilters(emails, "Test", "", "", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with from filter
+	filtered = applyEmailFilters(emails, "", "from1", "", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with from filter by name
+	filtered = applyEmailFilters(emails, "", "From One", "", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with to filter
+	filtered = applyEmailFilters(emails, "", "", "to1", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with to filter by CC
+	filtered = applyEmailFilters(emails, "", "", "cc1", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with to filter by BCC
+	filtered = applyEmailFilters(emails, "", "", "bcc1", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with dateFrom filter
+	filtered = applyEmailFilters(emails, "", "", "", now.Add(-48*time.Hour).Format("2006-01-02"), "", "")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 emails, got %d", len(filtered))
+	}
+
+	// Test with dateTo filter
+	filtered = applyEmailFilters(emails, "", "", "", "", now.Format("2006-01-02"), "")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 emails, got %d", len(filtered))
+	}
+
+	// Test with read filter (false)
+	filtered = applyEmailFilters(emails, "", "", "", "", "", "false")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with read filter (true)
+	filtered = applyEmailFilters(emails, "", "", "", "", "", "true")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test with invalid dateFrom
+	filtered = applyEmailFilters(emails, "", "", "", "invalid-date", "", "")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 emails (no filter applied), got %d", len(filtered))
+	}
+
+	// Test with invalid dateTo
+	filtered = applyEmailFilters(emails, "", "", "", "", "invalid-date", "")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 emails (no filter applied), got %d", len(filtered))
+	}
+
+	// Test with no filters
+	filtered = applyEmailFilters(emails, "", "", "", "", "", "")
+	if len(filtered) != 2 {
+		t.Errorf("Expected 2 emails, got %d", len(filtered))
+	}
+
+	// Test with empty email (no From, To, etc.)
+	emails3 := []*Email{
+		{
+			ID:      "3",
+			Subject: "Empty Email",
+			Text:    "Content",
+			Time:    now,
+			Read:    false,
+			From:    []*mail.Address{},
+			To:      []*mail.Address{},
+		},
+	}
+
+	// Test query filter with empty email
+	filtered = applyEmailFilters(emails3, "Content", "", "", "", "", "")
+	if len(filtered) != 1 {
+		t.Errorf("Expected 1 email, got %d", len(filtered))
+	}
+
+	// Test from filter with empty From
+	filtered = applyEmailFilters(emails3, "", "test", "", "", "", "")
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 emails (no match), got %d", len(filtered))
+	}
+
+	// Test to filter with empty To
+	filtered = applyEmailFilters(emails3, "", "", "test", "", "", "")
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 emails (no match), got %d", len(filtered))
+	}
+
+	// Test dateFrom filter with email before date
+	filtered = applyEmailFilters(emails3, "", "", "", now.Add(24*time.Hour).Format("2006-01-02"), "", "")
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 emails (before date), got %d", len(filtered))
+	}
+
+	// Test dateTo filter with email after date
+	filtered = applyEmailFilters(emails3, "", "", "", "", now.Add(-48*time.Hour).Format("2006-01-02"), "")
+	if len(filtered) != 0 {
+		t.Errorf("Expected 0 emails (after date), got %d", len(filtered))
+	}
 }

@@ -44,6 +44,48 @@ func TestAPIGetOutgoingConfig(t *testing.T) {
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["enabled"] != false {
+		t.Error("Expected enabled false when no config")
+	}
+}
+
+func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Set outgoing config
+	outgoingConfig := &OutgoingConfig{
+		Host:          "smtp.example.com",
+		Port:          587,
+		User:          "user",
+		Secure:        true,
+		AutoRelay:     true,
+		AutoRelayAddr: "relay@example.com",
+		AllowRules:    []string{"allow@example.com"},
+		DenyRules:     []string{"deny@example.com"},
+	}
+	server.SetOutgoingConfig(outgoingConfig)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["enabled"] != true {
+		t.Error("Expected enabled true when config exists")
+	}
+	if response["host"] != "smtp.example.com" {
+		t.Errorf("Expected host smtp.example.com, got %v", response["host"])
+	}
 }
 
 func TestAPIUpdateOutgoingConfig(t *testing.T) {
@@ -335,5 +377,155 @@ func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+		"user": "user",
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch it
+	patch := map[string]interface{}{
+		"port":   465,
+		"secure": true,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w2.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &response)
+	configResp := response["config"].(map[string]interface{})
+	if configResp["port"] != float64(465) {
+		t.Errorf("Expected port 465, got %v", configResp["port"])
+	}
+	if configResp["secure"] != true {
+		t.Errorf("Expected secure true, got %v", configResp["secure"])
+	}
+	if configResp["host"] != "smtp.example.com" {
+		t.Errorf("Expected host to remain smtp.example.com, got %v", configResp["host"])
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch with invalid port
+	patch := map[string]interface{}{
+		"port": 0,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w2.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch with port too large
+	patch := map[string]interface{}{
+		"port": 70000,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w2.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Patch with non-string rules (should be ignored)
+	patch := map[string]interface{}{
+		"host":       "smtp.example.com",
+		"port":       587,
+		"allowRules": []interface{}{"allow@example.com", 123}, // mixed types
+		"denyRules":  []interface{}{"deny@example.com", true}, // mixed types
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	configResp := response["config"].(map[string]interface{})
+	allowRules := configResp["allowRules"].([]interface{})
+	if len(allowRules) != 1 {
+		t.Errorf("Expected 1 allow rule (non-string filtered), got %d", len(allowRules))
+	}
+	denyRules := configResp["denyRules"].([]interface{})
+	if len(denyRules) != 1 {
+		t.Errorf("Expected 1 deny rule (non-string filtered), got %d", len(denyRules))
 	}
 }
