@@ -87,8 +87,9 @@ func (api *API) setupRoutes() {
 
 	// ============================================================================
 	// MailDev 兼容 API 路由（保持向后兼容）
+	// 所有 MailDev 兼容代码都在 maildev.go 中
 	// ============================================================================
-	api.setupMailDevCompatibleRoutes(router)
+	setupMailDevCompatibleRoutes(api, router)
 
 	// ============================================================================
 	// 新的改进的 RESTful API 路由
@@ -118,90 +119,6 @@ func (api *API) setupRoutes() {
 	})
 
 	api.router = router
-}
-
-// setupMailDevCompatibleRoutes sets up MailDev-compatible API routes
-// These routes maintain backward compatibility with MailDev
-func (api *API) setupMailDevCompatibleRoutes(router *gin.Engine) {
-	// Email routes (MailDev compatible)
-	emailGroup := router.Group("/email")
-	{
-		// GET /email - Get all emails with pagination and filtering
-		emailGroup.GET("", api.getAllEmails)
-
-		// GET /email/:id - Get single email by ID
-		emailGroup.GET("/:id", api.getEmailByID)
-
-		// GET /email/:id/html - Get email HTML content
-		emailGroup.GET("/:id/html", api.getEmailHTML)
-
-		// GET /email/:id/attachment/:filename - Download attachment
-		emailGroup.GET("/:id/attachment/:filename", api.getAttachment)
-
-		// GET /email/:id/download - Download raw .eml file
-		emailGroup.GET("/:id/download", api.downloadEmail)
-
-		// GET /email/:id/source - Get email raw source
-		emailGroup.GET("/:id/source", api.getEmailSource)
-
-		// DELETE /email/:id - Delete single email
-		emailGroup.DELETE("/:id", api.deleteEmail)
-
-		// DELETE /email/all - Delete all emails
-		emailGroup.DELETE("/all", api.deleteAllEmails)
-
-		// PATCH /email/read-all - Mark all emails as read
-		emailGroup.PATCH("/read-all", api.readAllEmails)
-
-		// PATCH /email/:id/read - Mark single email as read
-		emailGroup.PATCH("/:id/read", api.readEmail)
-
-		// POST /email/:id/relay - Relay email to SMTP server
-		emailGroup.POST("/:id/relay", api.relayEmail)
-
-		// POST /email/:id/relay/:relayTo - Relay email to SMTP server with specific recipient
-		emailGroup.POST("/:id/relay/:relayTo", api.relayEmailWithParam)
-
-		// GET /email/stats - Get email statistics
-		emailGroup.GET("/stats", api.getEmailStats)
-
-		// GET /email/preview - Get email previews (lightweight)
-		emailGroup.GET("/preview", api.getEmailPreviews)
-
-		// POST /email/batch/delete - Batch delete emails
-		emailGroup.POST("/batch/delete", api.batchDeleteEmails)
-
-		// POST /email/batch/read - Batch mark emails as read
-		emailGroup.POST("/batch/read", api.batchReadEmails)
-
-		// GET /email/export - Export emails as ZIP
-		emailGroup.GET("/export", api.exportEmails)
-	}
-
-	// WebSocket route (MailDev compatible)
-	router.GET("/socket.io", api.handleWebSocket)
-
-	// Config routes (MailDev compatible)
-	configGroup := router.Group("/config")
-	{
-		// GET /config - Get all configuration
-		configGroup.GET("", api.getConfig)
-
-		// GET /config/outgoing - Get outgoing mail configuration
-		configGroup.GET("/outgoing", api.getOutgoingConfig)
-
-		// PUT /config/outgoing - Update outgoing mail configuration
-		configGroup.PUT("/outgoing", api.updateOutgoingConfig)
-
-		// PATCH /config/outgoing - Partially update outgoing mail configuration
-		configGroup.PATCH("/outgoing", api.patchOutgoingConfig)
-	}
-
-	// Health check route (MailDev compatible)
-	router.GET("/healthz", api.healthCheck)
-
-	// Reload mails from directory route (MailDev compatible)
-	router.GET("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
 }
 
 // setupImprovedAPIRoutes sets up improved RESTful API routes

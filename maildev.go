@@ -3,11 +3,19 @@ package main
 import (
 	"os"
 	"strconv"
+
+	"github.com/gin-gonic/gin"
 )
 
-// MailDev 环境变量兼容层
+// ============================================================================
+// MailDev 兼容层
+// ============================================================================
 //
-// 此文件提供 MailDev 环境变量到 OwlMail 环境变量的兼容性映射
+// 此文件包含所有与 MailDev 兼容相关的代码，包括：
+// 1. 环境变量兼容层：提供 MailDev 环境变量到 OwlMail 环境变量的映射
+// 2. API 路由兼容层：提供与 MailDev 完全兼容的 API 路由
+//
+// 环境变量兼容层：
 // 优先使用 MailDev 环境变量，如果不存在则使用 OwlMail 环境变量
 //
 // 支持的 MailDev 环境变量映射：
@@ -181,11 +189,14 @@ func getMailDevLogLevel(defaultValue string) string {
 }
 
 // ============================================================================
-// MailDev API 兼容层
+// MailDev API 路由兼容层
 // ============================================================================
 //
 // 此部分提供与 MailDev 完全兼容的 API 路由，保持向后兼容性
+// 所有 MailDev 兼容的 API 路由都在此文件中定义
 // 新的 API 设计在 api.go 中实现，使用更合理的 RESTful 设计
+//
+// 注意：此函数在 api.go 的 setupRoutes() 中被调用
 //
 // MailDev 原始 API 端点（保持兼容）：
 //   - GET    /email                    - 获取所有邮件
@@ -239,3 +250,88 @@ func getMailDevLogLevel(defaultValue string) string {
 // 8. WebSocket 路径更清晰：/ws 比 /socket.io 更简洁
 // 9. API 版本化：/api/v1/ 提供版本控制
 // 10. 批量操作更 RESTful：DELETE /emails/batch 而不是 POST /email/batch/delete
+
+// setupMailDevCompatibleRoutes sets up MailDev-compatible API routes
+// These routes maintain backward compatibility with MailDev
+// This function is moved to maildev.go to keep all MailDev compatibility code together
+func setupMailDevCompatibleRoutes(api *API, router *gin.Engine) {
+	// Email routes (MailDev compatible)
+	emailGroup := router.Group("/email")
+	{
+		// GET /email - Get all emails with pagination and filtering
+		emailGroup.GET("", api.getAllEmails)
+
+		// GET /email/:id - Get single email by ID
+		emailGroup.GET("/:id", api.getEmailByID)
+
+		// GET /email/:id/html - Get email HTML content
+		emailGroup.GET("/:id/html", api.getEmailHTML)
+
+		// GET /email/:id/attachment/:filename - Download attachment
+		emailGroup.GET("/:id/attachment/:filename", api.getAttachment)
+
+		// GET /email/:id/download - Download raw .eml file
+		emailGroup.GET("/:id/download", api.downloadEmail)
+
+		// GET /email/:id/source - Get email raw source
+		emailGroup.GET("/:id/source", api.getEmailSource)
+
+		// DELETE /email/:id - Delete single email
+		emailGroup.DELETE("/:id", api.deleteEmail)
+
+		// DELETE /email/all - Delete all emails
+		emailGroup.DELETE("/all", api.deleteAllEmails)
+
+		// PATCH /email/read-all - Mark all emails as read
+		emailGroup.PATCH("/read-all", api.readAllEmails)
+
+		// PATCH /email/:id/read - Mark single email as read
+		emailGroup.PATCH("/:id/read", api.readEmail)
+
+		// POST /email/:id/relay - Relay email to SMTP server
+		emailGroup.POST("/:id/relay", api.relayEmail)
+
+		// POST /email/:id/relay/:relayTo - Relay email to SMTP server with specific recipient
+		emailGroup.POST("/:id/relay/:relayTo", api.relayEmailWithParam)
+
+		// GET /email/stats - Get email statistics
+		emailGroup.GET("/stats", api.getEmailStats)
+
+		// GET /email/preview - Get email previews (lightweight)
+		emailGroup.GET("/preview", api.getEmailPreviews)
+
+		// POST /email/batch/delete - Batch delete emails
+		emailGroup.POST("/batch/delete", api.batchDeleteEmails)
+
+		// POST /email/batch/read - Batch mark emails as read
+		emailGroup.POST("/batch/read", api.batchReadEmails)
+
+		// GET /email/export - Export emails as ZIP
+		emailGroup.GET("/export", api.exportEmails)
+	}
+
+	// WebSocket route (MailDev compatible)
+	router.GET("/socket.io", api.handleWebSocket)
+
+	// Config routes (MailDev compatible)
+	configGroup := router.Group("/config")
+	{
+		// GET /config - Get all configuration
+		configGroup.GET("", api.getConfig)
+
+		// GET /config/outgoing - Get outgoing mail configuration
+		configGroup.GET("/outgoing", api.getOutgoingConfig)
+
+		// PUT /config/outgoing - Update outgoing mail configuration
+		configGroup.PUT("/outgoing", api.updateOutgoingConfig)
+
+		// PATCH /config/outgoing - Partially update outgoing mail configuration
+		configGroup.PATCH("/outgoing", api.patchOutgoingConfig)
+	}
+
+	// Health check route (MailDev compatible)
+	router.GET("/healthz", api.healthCheck)
+
+	// Reload mails from directory route (MailDev compatible)
+	router.GET("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
+}
