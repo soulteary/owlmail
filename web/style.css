@@ -459,3 +459,173 @@ body {
     background: #555;
 }
 
+/* Dark Theme */
+body.dark-theme {
+    background-color: #1a1a1a;
+    color: #e0e0e0;
+}
+
+body.dark-theme .header {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+body.dark-theme .header h1 {
+    color: #e0e0e0;
+}
+
+body.dark-theme .search-input {
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body.dark-theme .email-list-container {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+body.dark-theme .email-list-header {
+    border-bottom-color: #444;
+}
+
+body.dark-theme .email-list-header h2 {
+    color: #e0e0e0;
+}
+
+body.dark-theme .email-count {
+    color: #aaa;
+}
+
+body.dark-theme .email-item {
+    border-bottom-color: #444;
+}
+
+body.dark-theme .email-item:hover {
+    background-color: #3d3d3d;
+}
+
+body.dark-theme .email-item.selected {
+    background-color: #2a4a5a;
+    border-left-color: #3498db;
+}
+
+body.dark-theme .email-item.unread {
+    background-color: #3d3a2a;
+}
+
+body.dark-theme .email-item.unread.selected {
+    background-color: #4a4530;
+}
+
+body.dark-theme .email-item-from {
+    color: #e0e0e0;
+}
+
+body.dark-theme .email-item-time {
+    color: #aaa;
+}
+
+body.dark-theme .email-item-subject {
+    color: #d0d0d0;
+}
+
+body.dark-theme .email-item-preview {
+    color: #aaa;
+}
+
+body.dark-theme .email-detail-container {
+    background: #2d2d2d;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+body.dark-theme .email-detail-header {
+    border-bottom-color: #444;
+}
+
+body.dark-theme .email-detail-actions {
+    border-bottom-color: #444;
+}
+
+body.dark-theme .email-detail-subject {
+    color: #e0e0e0;
+}
+
+body.dark-theme .email-detail-meta-label {
+    color: #d0d0d0;
+}
+
+body.dark-theme .email-detail-meta {
+    color: #aaa;
+}
+
+body.dark-theme .email-detail-text {
+    color: #e0e0e0;
+}
+
+body.dark-theme .email-detail-html {
+    background: #1a1a1a;
+    border-color: #444;
+}
+
+body.dark-theme .email-detail-attachments {
+    border-top-color: #444;
+}
+
+body.dark-theme .email-detail-attachments h3 {
+    color: #e0e0e0;
+}
+
+body.dark-theme .attachment-item {
+    background: #3d3d3d;
+    border-color: #444;
+}
+
+body.dark-theme .attachment-item-name {
+    color: #e0e0e0;
+}
+
+body.dark-theme .attachment-item-size {
+    color: #aaa;
+}
+
+body.dark-theme .pagination {
+    border-top-color: #444;
+}
+
+body.dark-theme .page-info {
+    color: #aaa;
+}
+
+body.dark-theme .empty-state {
+    color: #aaa;
+}
+
+body.dark-theme .loading {
+    color: #aaa;
+}
+
+body.dark-theme .modal-content {
+    background: #2d2d2d;
+}
+
+body.dark-theme .modal-content h3 {
+    color: #e0e0e0;
+}
+
+body.dark-theme .modal-content p {
+    color: #aaa;
+}
+
+body.dark-theme ::-webkit-scrollbar-track {
+    background: #2d2d2d;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb {
+    background: #555;
+}
+
+body.dark-theme ::-webkit-scrollbar-thumb:hover {
+    background: #777;
+}
+

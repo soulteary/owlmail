@@ -166,37 +166,32 @@ func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
 }
 
 // filterRecipients applies allow/deny rules to recipients
+// Rules are processed in order, and the last matching rule wins (like MailDev)
 func (om *OutgoingMail) filterRecipients(recipients []string) []string {
 	filtered := make([]string, 0)
 
 	for _, recipient := range recipients {
-		// Check deny rules first
-		denied := false
+		// Process all rules in order to find the last matching rule
+		// Start with default: allow if no allow rules, deny if allow rules exist
+		result := len(om.config.AllowRules) == 0
+
+		// Process deny rules
 		for _, rule := range om.config.DenyRules {
 			if om.matchesRule(recipient, rule) {
-				denied = true
-				break
-			}
-		}
-		if denied {
-			continue
-		}
-
-		// If allow rules exist, check them
-		if len(om.config.AllowRules) > 0 {
-			allowed := false
-			for _, rule := range om.config.AllowRules {
-				if om.matchesRule(recipient, rule) {
-					allowed = true
-					break
-				}
-			}
-			if !allowed {
-				continue
+				result = false // Deny if matched
 			}
 		}
 
-		filtered = append(filtered, recipient)
+		// Process allow rules (can override deny)
+		for _, rule := range om.config.AllowRules {
+			if om.matchesRule(recipient, rule) {
+				result = true // Allow if matched
+			}
+		}
+
+		if result {
+			filtered = append(filtered, recipient)
+		}
 	}
 
 	return filtered

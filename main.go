@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"strconv"
@@ -75,6 +77,7 @@ func main() {
 		outgoingSecure = flag.Bool("outgoing-secure", getEnvBool("OWLMAIL_OUTGOING_SECURE", false), "Use TLS for outgoing SMTP")
 		autoRelay      = flag.Bool("auto-relay", getEnvBool("OWLMAIL_AUTO_RELAY", false), "Automatically relay all emails")
 		autoRelayAddr  = flag.String("auto-relay-addr", getEnvString("OWLMAIL_AUTO_RELAY_ADDR", ""), "Auto relay to specific address")
+		autoRelayRules = flag.String("auto-relay-rules", getEnvString("OWLMAIL_AUTO_RELAY_RULES", ""), "JSON file path for auto relay rules")
 
 		// SMTP authentication
 		smtpUser     = flag.String("smtp-user", getEnvString("OWLMAIL_SMTP_USER", ""), "SMTP server username for authentication")
@@ -113,6 +116,19 @@ func main() {
 			Secure:        *outgoingSecure,
 			AutoRelay:     *autoRelay,
 			AutoRelayAddr: *autoRelayAddr,
+		}
+
+		// Load auto relay rules from JSON file if provided
+		if *autoRelayRules != "" {
+			allowRules, denyRules, err := loadAutoRelayRules(*autoRelayRules)
+			if err != nil {
+				Fatal("Failed to load auto relay rules: %v", err)
+			}
+			outgoingConfig.AllowRules = allowRules
+			outgoingConfig.DenyRules = denyRules
+			if len(allowRules) > 0 || len(denyRules) > 0 {
+				Log("Loaded auto relay rules: %d allow rules, %d deny rules", len(allowRules), len(denyRules))
+			}
 		}
 	}
 
@@ -200,4 +216,46 @@ func main() {
 	if err := server.Listen(); err != nil {
 		Fatal("Failed to start server: %v", err)
 	}
+}
+
+// AutoRelayRule represents a single rule in the JSON file
+type AutoRelayRule struct {
+	Allow string `json:"allow,omitempty"`
+	Deny  string `json:"deny,omitempty"`
+}
+
+// loadAutoRelayRules loads auto relay rules from a JSON file
+// The JSON file format matches MailDev's format:
+// [
+//
+//	{ "allow": "*" },
+//	{ "deny": "*@test.com" },
+//	{ "allow": "ok@test.com" }
+//
+// ]
+func loadAutoRelayRules(filePath string) ([]string, []string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to read rules file: %w", err)
+	}
+
+	var rules []AutoRelayRule
+	if err := json.Unmarshal(data, &rules); err != nil {
+		return nil, nil, fmt.Errorf("failed to parse rules JSON: %w", err)
+	}
+
+	var allowRules []string
+	var denyRules []string
+
+	// Process rules in order (last matching rule wins, like MailDev)
+	for _, rule := range rules {
+		if rule.Allow != "" {
+			allowRules = append(allowRules, rule.Allow)
+		}
+		if rule.Deny != "" {
+			denyRules = append(denyRules, rule.Deny)
+		}
+	}
+
+	return allowRules, denyRules, nil
 }

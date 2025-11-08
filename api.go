@@ -135,6 +135,9 @@ func (api *API) setupRoutes() {
 		// POST /email/:id/relay - Relay email to SMTP server
 		emailGroup.POST("/:id/relay", api.relayEmail)
 
+		// POST /email/:id/relay/:relayTo - Relay email to SMTP server with specific recipient
+		emailGroup.POST("/:id/relay/:relayTo", api.relayEmailWithParam)
+
 		// GET /email/stats - Get email statistics
 		emailGroup.GET("/stats", api.getEmailStats)
 
@@ -172,6 +175,9 @@ func (api *API) setupRoutes() {
 
 	// Health check route
 	router.GET("/healthz", api.healthCheck)
+
+	// Reload mails from directory route
+	router.GET("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
 
 	// Root route - serve index.html
 	router.GET("/", func(c *gin.Context) {
@@ -743,6 +749,20 @@ func (api *API) healthCheck(c *gin.Context) {
 	})
 }
 
+// reloadMailsFromDirectory handles GET /reloadMailsFromDirectory
+func (api *API) reloadMailsFromDirectory(c *gin.Context) {
+	if err := api.mailServer.LoadMailsFromDirectory(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to reload mails from directory: " + err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Mails reloaded from directory successfully",
+	})
+}
+
 // relayEmail handles POST /email/:id/relay
 func (api *API) relayEmail(c *gin.Context) {
 	id := c.Param("id")
@@ -782,6 +802,42 @@ func (api *API) relayEmail(c *gin.Context) {
 			}
 		})
 	}
+
+	if relayErr != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": relayErr.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Email relayed successfully",
+		"relayTo": relayTo,
+	})
+}
+
+// relayEmailWithParam handles POST /email/:id/relay/:relayTo
+func (api *API) relayEmailWithParam(c *gin.Context) {
+	id := c.Param("id")
+	relayTo := c.Param("relayTo")
+
+	// Validate email address format (simple check)
+	if relayTo == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address provided"})
+		return
+	}
+
+	// Get email
+	email, err := api.mailServer.GetEmail(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		return
+	}
+
+	// Relay email to specific address
+	relayErr := api.mailServer.RelayMailTo(email, relayTo, func(err error) {
+		if err != nil {
+			Error("Error relaying email %s to %s: %v", id, relayTo, err)
+		}
+	})
 
 	if relayErr != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": relayErr.Error()})

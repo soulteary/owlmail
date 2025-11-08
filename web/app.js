@@ -464,8 +464,40 @@ function hideLoading() {
     if (overlay) overlay.style.display = 'none';
 }
 
+// Theme Management
+function initTheme() {
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    setTheme(savedTheme);
+}
+
+function setTheme(theme) {
+    const body = document.body;
+    const themeToggle = document.getElementById('themeToggle');
+    
+    if (theme === 'dark') {
+        body.classList.remove('light-theme');
+        body.classList.add('dark-theme');
+        if (themeToggle) themeToggle.textContent = '☀️';
+    } else {
+        body.classList.remove('dark-theme');
+        body.classList.add('light-theme');
+        if (themeToggle) themeToggle.textContent = '🌙';
+    }
+    
+    localStorage.setItem('theme', theme);
+}
+
+function toggleTheme() {
+    const currentTheme = localStorage.getItem('theme') || 'light';
+    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize theme
+    initTheme();
+
     // Load initial emails
     loadEmails();
 
@@ -479,6 +511,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('searchBtn').addEventListener('click', searchEmails);
     document.getElementById('prevPage').addEventListener('click', prevPage);
     document.getElementById('nextPage').addEventListener('click', nextPage);
+    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
 
     // Search input enter key
     document.getElementById('searchInput').addEventListener('keypress', (e) => {
