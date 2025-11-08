@@ -479,7 +479,7 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 	// Get config
 	retrieved := server.GetOutgoingConfig()
 	if retrieved == nil {
-		t.Error("Outgoing config should be set")
+		t.Fatal("Outgoing config should be set")
 	}
 	if retrieved.Host != config.Host {
 		t.Errorf("Expected host %s, got %s", config.Host, retrieved.Host)
@@ -658,7 +658,7 @@ func TestGenerateSelfSignedCert(t *testing.T) {
 	}
 }
 
-func TestBackendNewSession(t *testing.T) {
+func TestBackendNewSessionBasic(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", tmpDir)
 	if err != nil {
@@ -820,5 +820,405 @@ func TestSessionLogout(t *testing.T) {
 	err = session.Logout()
 	if err != nil {
 		t.Errorf("Logout should succeed, got error: %v", err)
+	}
+}
+
+func TestSaveAttachment(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Test saveAttachment
+	attachment := &Attachment{
+		FileName:    "test.pdf",
+		ContentType: "application/pdf",
+	}
+	data := []byte("test attachment data")
+
+	err = server.saveAttachment("test-id", attachment, data)
+	if err != nil {
+		t.Fatalf("Failed to save attachment: %v", err)
+	}
+
+	// Verify attachment was saved
+	attachmentDir := filepath.Join(tmpDir, "test-id")
+	attachmentPath := filepath.Join(attachmentDir, attachment.GeneratedFileName)
+
+	if _, err := os.Stat(attachmentPath); err != nil {
+		t.Errorf("Attachment file should exist: %v", err)
+	}
+
+	// Verify attachment size
+	if attachment.Size != int64(len(data)) {
+		t.Errorf("Expected attachment size %d, got %d", len(data), attachment.Size)
+	}
+
+	// Test with ContentID
+	attachment2 := &Attachment{
+		FileName:    "test2.pdf",
+		ContentType: "application/pdf",
+		ContentID:   "test-content-id",
+	}
+	data2 := []byte("test attachment data 2")
+
+	err = server.saveAttachment("test-id-2", attachment2, data2)
+	if err != nil {
+		t.Fatalf("Failed to save attachment with ContentID: %v", err)
+	}
+
+	// Verify attachment was saved
+	attachmentDir2 := filepath.Join(tmpDir, "test-id-2")
+	attachmentPath2 := filepath.Join(attachmentDir2, attachment2.GeneratedFileName)
+
+	if _, err := os.Stat(attachmentPath2); err != nil {
+		t.Errorf("Attachment file with ContentID should exist: %v", err)
+	}
+}
+
+func TestLoadMailsFromDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Create a simple email file
+	emailContent := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: Test Email\r\n" +
+		"Date: Mon, 02 Jan 2006 15:04:05 -0700\r\n" +
+		"\r\n" +
+		"Test body")
+
+	emlPath := filepath.Join(tmpDir, "test-id.eml")
+	if err := os.WriteFile(emlPath, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+
+	// Load emails from directory
+	err = server.LoadMailsFromDirectory()
+	if err != nil {
+		t.Fatalf("Failed to load emails from directory: %v", err)
+	}
+
+	// Verify email was loaded
+	emails := server.GetAllEmail()
+	if len(emails) == 0 {
+		t.Error("Email should be loaded from directory")
+	}
+
+	// Verify email content
+	if len(emails) > 0 {
+		email := emails[0]
+		if email.Subject != "Test Email" {
+			t.Errorf("Expected subject 'Test Email', got '%s'", email.Subject)
+		}
+	}
+
+	// Test with invalid email file
+	invalidPath := filepath.Join(tmpDir, "invalid.eml")
+	if err := os.WriteFile(invalidPath, []byte("invalid email content"), 0644); err != nil {
+		t.Fatalf("Failed to create invalid email file: %v", err)
+	}
+
+	// Load should continue even with invalid files
+	err = server.LoadMailsFromDirectory()
+	if err != nil {
+		t.Fatalf("LoadMailsFromDirectory should handle invalid files gracefully: %v", err)
+	}
+
+	// Test with non-.eml file (should be skipped)
+	nonEmlPath := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(nonEmlPath, []byte("not an email"), 0644); err != nil {
+		t.Fatalf("Failed to create non-email file: %v", err)
+	}
+
+	// Load should skip non-.eml files
+	err = server.LoadMailsFromDirectory()
+	if err != nil {
+		t.Fatalf("LoadMailsFromDirectory should skip non-.eml files: %v", err)
+	}
+
+	// Test with already loaded email (should be skipped)
+	err = server.LoadMailsFromDirectory()
+	if err != nil {
+		t.Fatalf("LoadMailsFromDirectory should handle already loaded emails: %v", err)
+	}
+}
+
+func TestLoadMailsFromDirectoryWithMultipart(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Create a multipart email file
+	emailContent := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: Multipart Test\r\n" +
+		"Date: Mon, 02 Jan 2006 15:04:05 -0700\r\n" +
+		"Content-Type: multipart/alternative; boundary=\"boundary123\"\r\n" +
+		"\r\n" +
+		"--boundary123\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"\r\n" +
+		"Plain text body\r\n" +
+		"--boundary123\r\n" +
+		"Content-Type: text/html\r\n" +
+		"\r\n" +
+		"<html><body>HTML body</body></html>\r\n" +
+		"--boundary123--\r\n")
+
+	emlPath := filepath.Join(tmpDir, "multipart-id.eml")
+	if err := os.WriteFile(emlPath, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create multipart email file: %v", err)
+	}
+
+	// Load emails from directory
+	err = server.LoadMailsFromDirectory()
+	if err != nil {
+		t.Fatalf("Failed to load multipart email from directory: %v", err)
+	}
+
+	// Verify email was loaded
+	emails := server.GetAllEmail()
+	if len(emails) == 0 {
+		t.Error("Multipart email should be loaded from directory")
+	}
+}
+
+func TestBackendNewSession(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	backend := &Backend{mailServer: server}
+
+	// Test NewSession without auth
+	session, err := backend.NewSession(nil)
+	if err != nil {
+		t.Fatalf("NewSession should succeed: %v", err)
+	}
+	if session == nil {
+		t.Error("Session should not be nil")
+	}
+
+	// Test NewSession with auth enabled
+	server.authConfig = &SMTPAuthConfig{
+		Username: "user",
+		Password: "pass",
+		Enabled:  true,
+	}
+
+	session2, err := backend.NewSession(nil)
+	if err != nil {
+		t.Fatalf("NewSession with auth should succeed: %v", err)
+	}
+	if session2 == nil {
+		t.Error("Session should not be nil")
+	}
+}
+
+func TestRelayMail(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create server without outgoing config
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Test RelayMail without outgoing config
+	email := &Email{
+		ID:      "test-id",
+		Subject: "Test",
+		Envelope: &Envelope{
+			From: "from@example.com",
+			To:   []string{"to@example.com"},
+		},
+	}
+
+	emlPath := filepath.Join(tmpDir, "test-id.eml")
+	os.WriteFile(emlPath, []byte("test email"), 0644)
+
+	err = server.RelayMail(email, false, func(err error) {
+		if err == nil {
+			t.Error("RelayMail should fail without outgoing config")
+		}
+	})
+	if err == nil {
+		t.Error("RelayMail should return error without outgoing config")
+	}
+
+	// Test RelayMail with outgoing config
+	outgoingConfig := &OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	}
+	server.SetOutgoingConfig(outgoingConfig)
+
+	// RelayMail will queue the task, but actual relay will fail in test
+	// We can test that it doesn't panic
+	err = server.RelayMail(email, true, func(err error) {
+		// Callback will be called with error in test environment
+	})
+	if err != nil {
+		// Error is expected in test environment
+	}
+}
+
+func TestRelayMailTo(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create server without outgoing config
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Test RelayMailTo without outgoing config
+	email := &Email{
+		ID:      "test-id",
+		Subject: "Test",
+		Envelope: &Envelope{
+			From: "from@example.com",
+			To:   []string{"to@example.com"},
+		},
+	}
+
+	emlPath := filepath.Join(tmpDir, "test-id.eml")
+	os.WriteFile(emlPath, []byte("test email"), 0644)
+
+	err = server.RelayMailTo(email, "relay@example.com", func(err error) {
+		if err == nil {
+			t.Error("RelayMailTo should fail without outgoing config")
+		}
+	})
+	if err == nil {
+		t.Error("RelayMailTo should return error without outgoing config")
+	}
+
+	// Test RelayMailTo with outgoing config
+	outgoingConfig := &OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	}
+	server.SetOutgoingConfig(outgoingConfig)
+
+	// RelayMailTo will queue the task, but actual relay will fail in test
+	// We can test that it doesn't panic
+	err = server.RelayMailTo(email, "relay@example.com", func(err error) {
+		// Callback will be called with error in test environment
+	})
+	if err != nil {
+		// Error is expected in test environment
+	}
+}
+
+func TestSessionDataWithAttachment(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	session := &Session{
+		mailServer: server,
+		from:       "from@example.com",
+		to:         []string{"to@example.com"},
+		conn:       nil,
+	}
+
+	// Create a multipart email with attachment
+	emailData := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: Test with Attachment\r\n" +
+		"Content-Type: multipart/mixed; boundary=\"boundary123\"\r\n" +
+		"\r\n" +
+		"--boundary123\r\n" +
+		"Content-Type: text/plain\r\n" +
+		"\r\n" +
+		"Test body\r\n" +
+		"--boundary123\r\n" +
+		"Content-Type: application/pdf\r\n" +
+		"Content-Disposition: attachment; filename=\"test.pdf\"\r\n" +
+		"\r\n" +
+		"PDF content\r\n" +
+		"--boundary123--\r\n")
+
+	reader := bytes.NewReader(emailData)
+	err = session.Data(reader)
+	if err != nil {
+		t.Errorf("Data should succeed with attachment, got error: %v", err)
+	}
+
+	// Verify email was saved
+	emails := server.GetAllEmail()
+	if len(emails) == 0 {
+		t.Error("Email with attachment should be saved")
+	}
+
+	// Verify attachment was saved
+	if len(emails) > 0 {
+		email := emails[0]
+		if len(email.Attachments) == 0 {
+			t.Error("Email should have attachment")
+		}
+	}
+}
+
+func TestSessionDataWithHTML(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	session := &Session{
+		mailServer: server,
+		from:       "from@example.com",
+		to:         []string{"to@example.com"},
+		conn:       nil,
+	}
+
+	// Create an HTML email
+	emailData := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: HTML Test\r\n" +
+		"Content-Type: text/html\r\n" +
+		"\r\n" +
+		"<html><body><h1>Test</h1></body></html>")
+
+	reader := bytes.NewReader(emailData)
+	err = session.Data(reader)
+	if err != nil {
+		t.Errorf("Data should succeed with HTML, got error: %v", err)
+	}
+
+	// Verify email was saved
+	emails := server.GetAllEmail()
+	if len(emails) == 0 {
+		t.Error("HTML email should be saved")
+	}
+
+	// Verify HTML was saved
+	if len(emails) > 0 {
+		email := emails[0]
+		if email.HTML == "" {
+			t.Error("Email should have HTML content")
+		}
 	}
 }
