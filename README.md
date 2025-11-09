@@ -6,6 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
+[![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
 OwlMail is an SMTP server and web interface for development and testing environments that captures and displays all sent emails. It's a Go implementation of [MailDev](https://github.com/maildev/maildev) with 100% API compatibility, while providing better performance, lower resource usage, and richer features.
 
