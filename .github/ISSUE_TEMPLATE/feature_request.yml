@@ -12,8 +12,8 @@ body:
     id: problem
     attributes:
       label: Problem Description
-      description: Clearly and concisely describe the problem or need you want to solve
-      placeholder: For example: When..., I hope to be able to...
+      description: "Clearly and concisely describe the problem or need you want to solve"
+      placeholder: "For example: When..., I hope to be able to..."
     validations:
       required: true
 
