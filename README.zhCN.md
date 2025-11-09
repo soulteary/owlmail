@@ -5,6 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 
 OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，可以捕获和查看所有发送的邮件。它是 [MailDev](https://github.com/maildev/maildev) 的 Go 语言实现，提供 100% API 兼容性，同时带来更好的性能、更低的资源占用和更丰富的功能。
 
