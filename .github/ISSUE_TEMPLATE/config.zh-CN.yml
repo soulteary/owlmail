@@ -1,0 +1,12 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 讨论
+    url: https://github.com/soulteary/owlmail/discussions
+    about: 提出一般性问题或开始讨论
+  - name: 📚 文档问题
+    url: https://github.com/soulteary/owlmail/issues/new?labels=documentation
+    about: 报告文档问题或建议改进
+  - name: 🔒 安全问题
+    url: https://github.com/soulteary/owlmail/security/advisories/new
+    about: 报告安全漏洞（请勿在公开 Issue 中报告）
+

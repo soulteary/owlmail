@@ -1,0 +1,99 @@
+name: 🐛 Bug 报告
+description: 报告一个 bug 以帮助我们改进
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您报告 bug！请填写以下信息以帮助我们更好地理解和修复问题。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 清晰简洁地描述这个 bug
+      placeholder: 描述您遇到的问题...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 描述如何复现这个问题
+      placeholder: |
+        1. 执行 '...'
+        2. 点击 '...'
+        3. 滚动到 '...'
+        4. 看到错误
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+      description: 描述您期望发生什么
+      placeholder: 应该发生什么...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为
+      description: 描述实际发生了什么
+      placeholder: 实际发生了什么...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志输出
+      description: 如果有相关日志，请粘贴在这里
+      placeholder: 粘贴日志输出...
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: 环境信息
+      description: 请提供您的环境信息
+      placeholder: |
+        - 操作系统: [例如 macOS 14.0, Linux Ubuntu 22.04, Windows 11]
+        - Go 版本: [例如 go1.24.0]
+        - OwlMail 版本: [例如 v1.0.0 或 commit hash]
+        - 安装方式: [例如 源码编译、go install]
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: 配置信息
+      description: 相关的配置信息（请隐藏敏感信息）
+      placeholder: |
+        命令行参数或环境变量配置...
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他有助于理解问题的信息
+      placeholder: 截图、错误堆栈、相关链接等...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 检查清单
+      options:
+        - label: 我已经搜索了现有的 Issues，确认这是一个新问题
+          required: true
+        - label: 我已经检查了文档，没有找到相关说明
+          required: false
+        - label: 我可以提供复现步骤
+          required: true
+

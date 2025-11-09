@@ -1,0 +1,98 @@
+name: 🐛 Bug Report
+description: File a bug report to help us improve
+title: "[Bug] "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill in the information below to help us better understand and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem Description
+      description: A clear and concise description of the bug
+      placeholder: Describe the issue you encountered...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Describe how to reproduce this issue
+      placeholder: |
+        1. Execute '...'
+        2. Click '...'
+        3. Scroll to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: Describe what you expected to happen
+      placeholder: What should happen...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: Describe what actually happened
+      placeholder: What actually happened...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log Output
+      description: If there are relevant logs, please paste them here
+      placeholder: Paste log output...
+      render: shell
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Information
+      description: Please provide your environment information
+      placeholder: |
+        - OS: [e.g., macOS 14.0, Linux Ubuntu 22.04, Windows 11]
+        - Go Version: [e.g., go1.24.0]
+        - OwlMail Version: [e.g., v1.0.0 or commit hash]
+        - Installation Method: [e.g., build from source, go install]
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration Information
+      description: Relevant configuration information (please hide sensitive information)
+      placeholder: |
+        Command line arguments or environment variables...
+      render: shell
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that helps understand the issue
+      placeholder: Screenshots, error stack traces, related links, etc...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing Issues and confirmed this is a new issue
+          required: true
+        - label: I have checked the documentation and found no relevant information
+          required: false
+        - label: I can provide steps to reproduce
+          required: true

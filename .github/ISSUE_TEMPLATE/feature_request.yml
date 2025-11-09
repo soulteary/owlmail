@@ -1,0 +1,91 @@
+name: ✨ Feature Request
+description: Suggest a new feature or improvement for OwlMail
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature! Please fill in the information below to help us better understand your needs.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Description
+      description: Clearly and concisely describe the problem or need you want to solve
+      placeholder: For example: When..., I hope to be able to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: Clearly and concisely describe how you hope to implement this feature
+      placeholder: I suggest...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered
+      description: Describe other alternative solutions or features you have considered
+      placeholder: I also considered..., but...
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Feature Category
+      description: Which category does this feature belong to?
+      options:
+        - Core Features (SMTP server, email storage, etc.)
+        - Web Interface
+        - API Features
+        - Configuration and Deployment
+        - Performance and Optimization
+        - Documentation and Examples
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: Use Cases
+      description: Describe the use cases and users who would benefit from this feature
+      placeholder: |
+        This feature would be useful in the following scenarios:
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: MailDev Compatibility
+      description: Will this feature affect MailDev compatibility?
+      placeholder: |
+        - Is it compatible with MailDev?
+        - Does it need to maintain backward compatibility?
+        - Does it require new configuration options?
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Information
+      description: Any other information that helps understand the requirements (screenshots, examples, related links, etc.)
+      placeholder: Add any other context or screenshots...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I have searched existing Issues and confirmed this is a new requirement
+          required: true
+        - label: I have checked the documentation and confirmed this feature is not yet implemented
+          required: false
+        - label: I am willing to help implement this feature (if needed)
+          required: false

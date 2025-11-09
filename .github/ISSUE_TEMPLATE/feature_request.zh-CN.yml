@@ -1,0 +1,92 @@
+name: ✨ 功能请求
+description: 为 OwlMail 提出新功能或改进建议
+title: "[Feature] "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您提出功能请求！请填写以下信息以帮助我们更好地理解您的需求。
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: 问题描述
+      description: 清晰简洁地描述您想要解决的问题或需求
+      placeholder: 例如：当...时，我希望能够...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: 建议的解决方案
+      description: 清晰简洁地描述您希望如何实现这个功能
+      placeholder: 我建议...
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 替代方案
+      description: 描述您考虑过的其他替代方案或功能
+      placeholder: 我也考虑过...，但是...
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: 功能类别
+      description: 这个功能属于哪个类别？
+      options:
+        - 核心功能（SMTP 服务器、邮件存储等）
+        - Web 界面
+        - API 功能
+        - 配置和部署
+        - 性能和优化
+        - 文档和示例
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: usecase
+    attributes:
+      label: 使用场景
+      description: 描述这个功能的使用场景和受益用户
+      placeholder: |
+        这个功能在以下场景中很有用：
+        1. ...
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: MailDev 兼容性
+      description: 这个功能是否会影响 MailDev 兼容性？
+      placeholder: |
+        - 是否与 MailDev 兼容？
+        - 是否需要保持向后兼容？
+        - 是否需要新的配置选项？
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 附加信息
+      description: 任何其他有助于理解需求的信息（截图、示例、相关链接等）
+      placeholder: 添加任何其他上下文或截图...
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 检查清单
+      options:
+        - label: 我已经搜索了现有的 Issues，确认这是一个新需求
+          required: true
+        - label: 我已经检查了文档，确认这个功能尚未实现
+          required: false
+        - label: 我愿意帮助实现这个功能（如果需要）
+          required: false
+
