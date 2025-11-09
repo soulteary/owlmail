@@ -250,3 +250,96 @@ func TestMailDevEnvMapping(t *testing.T) {
 		}
 	}
 }
+
+func TestGetMailDevEnvStringUnmapped(t *testing.T) {
+	// Test with unmapped environment variable
+	os.Setenv("OWLMAIL_UNMAPPED_VAR", "test-value")
+	defer os.Unsetenv("OWLMAIL_UNMAPPED_VAR")
+
+	result := GetMailDevEnvString("OWLMAIL_UNMAPPED_VAR", "default")
+	if result != "test-value" {
+		t.Errorf("Expected 'test-value', got '%s'", result)
+	}
+
+	// Test with unmapped variable not set
+	os.Unsetenv("OWLMAIL_UNMAPPED_VAR")
+	result = GetMailDevEnvString("OWLMAIL_UNMAPPED_VAR", "default")
+	if result != "default" {
+		t.Errorf("Expected 'default', got '%s'", result)
+	}
+}
+
+func TestGetMailDevEnvIntUnmapped(t *testing.T) {
+	// Test with unmapped environment variable
+	os.Setenv("OWLMAIL_UNMAPPED_INT", "123")
+	defer os.Unsetenv("OWLMAIL_UNMAPPED_INT")
+
+	result := GetMailDevEnvInt("OWLMAIL_UNMAPPED_INT", 0)
+	if result != 123 {
+		t.Errorf("Expected 123, got %d", result)
+	}
+
+	// Test with invalid integer
+	os.Setenv("OWLMAIL_UNMAPPED_INT", "invalid")
+	result = GetMailDevEnvInt("OWLMAIL_UNMAPPED_INT", 456)
+	if result != 456 {
+		t.Errorf("Expected default 456 for invalid int, got %d", result)
+	}
+}
+
+func TestGetMailDevEnvBoolUnmapped(t *testing.T) {
+	// Test with unmapped environment variable
+	os.Setenv("OWLMAIL_UNMAPPED_BOOL", "true")
+	defer os.Unsetenv("OWLMAIL_UNMAPPED_BOOL")
+
+	result := GetMailDevEnvBool("OWLMAIL_UNMAPPED_BOOL", false)
+	if !result {
+		t.Errorf("Expected true, got %v", result)
+	}
+
+	// Test with invalid boolean
+	os.Setenv("OWLMAIL_UNMAPPED_BOOL", "invalid")
+	result = GetMailDevEnvBool("OWLMAIL_UNMAPPED_BOOL", false)
+	if result {
+		t.Errorf("Expected default false for invalid bool, got %v", result)
+	}
+}
+
+func TestGetEnvStringWithMailDevCompatEmpty(t *testing.T) {
+	// Test with empty MailDev env var
+	os.Setenv("MAILDEV_TEST", "")
+	defer os.Unsetenv("MAILDEV_TEST")
+	os.Setenv("OWLMAIL_TEST", "owlmail-value")
+	defer os.Unsetenv("OWLMAIL_TEST")
+
+	result := getEnvStringWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", "default")
+	if result != "owlmail-value" {
+		t.Errorf("Expected 'owlmail-value', got '%s'", result)
+	}
+}
+
+func TestGetEnvIntWithMailDevCompatInvalid(t *testing.T) {
+	// Test with invalid MailDev int, should fallback to OwlMail
+	os.Setenv("MAILDEV_TEST", "invalid")
+	defer os.Unsetenv("MAILDEV_TEST")
+	os.Setenv("OWLMAIL_TEST", "123")
+	defer os.Unsetenv("OWLMAIL_TEST")
+
+	result := getEnvIntWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", 0)
+	if result != 123 {
+		t.Errorf("Expected 123, got %d", result)
+	}
+}
+
+func TestGetEnvBoolWithMailDevCompatInvalid(t *testing.T) {
+	// Test with invalid MailDev bool, should fallback to OwlMail
+	os.Setenv("MAILDEV_TEST", "invalid")
+	defer os.Unsetenv("MAILDEV_TEST")
+	os.Setenv("OWLMAIL_TEST", "true")
+	defer os.Unsetenv("OWLMAIL_TEST")
+
+	result := getEnvBoolWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", false)
+	if !result {
+		t.Errorf("Expected true, got %v", result)
+	}
+}

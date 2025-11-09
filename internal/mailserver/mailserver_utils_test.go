@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/emersion/go-message"
@@ -70,6 +71,42 @@ func TestCalculateBCC(t *testing.T) {
 	}
 	if bcc[0].Address != "bcc1@example.com" {
 		t.Errorf("Expected 'bcc1@example.com', got '%s'", bcc[0].Address)
+	}
+}
+
+func TestTransformAttachmentEdgeCases(t *testing.T) {
+	// Test with empty filename
+	attachment := &Attachment{
+		ContentType: "text/plain",
+		FileName:    "",
+		Size:        100,
+	}
+	transformed := transformAttachment(attachment)
+	if transformed.GeneratedFileName == "" {
+		t.Error("Transformed attachment should have a generated filename")
+	}
+
+	// Test with very long filename
+	longFilename := strings.Repeat("a", 300) + ".txt"
+	attachment2 := &Attachment{
+		ContentType: "text/plain",
+		FileName:    longFilename,
+		Size:        100,
+	}
+	transformed2 := transformAttachment(attachment2)
+	if transformed2.GeneratedFileName == "" {
+		t.Error("Transformed attachment should have a generated filename even for long filenames")
+	}
+
+	// Test with special characters in filename
+	attachment3 := &Attachment{
+		ContentType: "text/plain",
+		FileName:    "test file with spaces & special chars.txt",
+		Size:        100,
+	}
+	transformed3 := transformAttachment(attachment3)
+	if transformed3.GeneratedFileName == "" {
+		t.Error("Transformed attachment should handle special characters")
 	}
 }
 
@@ -163,6 +200,58 @@ func TestParseEmailDate(t *testing.T) {
 	date3 := parseEmailDate(header3)
 	if date3.IsZero() {
 		t.Error("Date should default to current time for invalid date")
+	}
+
+	// Test with different date formats
+	testCases := []string{
+		"Mon, 02 Jan 2006 15:04:05 MST",
+		"02 Jan 06 15:04 -0700",
+		"02 Jan 06 15:04 MST",
+		"2006-01-02T15:04:05Z07:00",
+		"Mon, 2 Jan 2006 15:04:05 -0700",
+		"Mon, 2 Jan 2006 15:04:05 MST",
+		"2 Jan 2006 15:04:05 -0700",
+		"2 Jan 2006 15:04:05 MST",
+		"Mon, 2 Jan 2006 15:04:05",
+		"2 Jan 2006 15:04:05",
+	}
+
+	for _, dateStr := range testCases {
+		header4 := message.Header{}
+		header4.Set("Date", dateStr)
+		date4 := parseEmailDate(header4)
+		if date4.IsZero() {
+			t.Errorf("Date should not be zero for format: %s", dateStr)
+		}
+	}
+
+	// Test with timezone abbreviations
+	header5 := message.Header{}
+	header5.Set("Date", "Mon, 02 Jan 2006 15:04:05 -0700 (GMT)")
+	date5 := parseEmailDate(header5)
+	if date5.IsZero() {
+		t.Error("Date should parse with timezone abbreviation")
+	}
+
+	header6 := message.Header{}
+	header6.Set("Date", "Mon, 02 Jan 2006 15:04:05 -0700 GMT")
+	date6 := parseEmailDate(header6)
+	if date6.IsZero() {
+		t.Error("Date should parse with GMT suffix")
+	}
+
+	header7 := message.Header{}
+	header7.Set("Date", "Mon, 02 Jan 2006 15:04:05 -0700 (UTC)")
+	date7 := parseEmailDate(header7)
+	if date7.IsZero() {
+		t.Error("Date should parse with UTC abbreviation")
+	}
+
+	header8 := message.Header{}
+	header8.Set("Date", "Mon, 02 Jan 2006 15:04:05 -0700 UTC")
+	date8 := parseEmailDate(header8)
+	if date8.IsZero() {
+		t.Error("Date should parse with UTC suffix")
 	}
 }
 

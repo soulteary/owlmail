@@ -150,7 +150,10 @@ func GetMailDevEnvString(owlmailKey string, defaultValue string) string {
 		}
 	}
 	// If no mapping found, use OwlMail environment variable directly
-	return os.Getenv(owlmailKey)
+	if value := os.Getenv(owlmailKey); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // GetMailDevEnvInt gets environment variable integer value with MailDev compatibility support
