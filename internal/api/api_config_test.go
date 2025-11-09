@@ -1,0 +1,564 @@
+package api
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/outgoing"
+)
+
+func TestAPIGetConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to parse response: %v", err)
+	}
+	if response["version"] == nil {
+		t.Error("Response should have version field")
+	}
+}
+
+func TestAPIGetOutgoingConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["enabled"] != false {
+		t.Error("Expected enabled false when no config")
+	}
+}
+
+func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Set outgoing config
+	outgoingConfig := &outgoing.OutgoingConfig{
+		Host:          "smtp.example.com",
+		Port:          587,
+		User:          "user",
+		Secure:        true,
+		AutoRelay:     true,
+		AutoRelayAddr: "relay@example.com",
+		AllowRules:    []string{"allow@example.com"},
+		DenyRules:     []string{"deny@example.com"},
+	}
+	server.SetOutgoingConfig(outgoingConfig)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["enabled"] != true {
+		t.Error("Expected enabled true when config exists")
+	}
+	if response["host"] != "smtp.example.com" {
+		t.Errorf("Expected host smtp.example.com, got %v", response["host"])
+	}
+}
+
+func TestAPIUpdateOutgoingConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	config := map[string]interface{}{
+		"host":   "smtp.example.com",
+		"port":   587,
+		"user":   "user",
+		"secure": true,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch it
+	patch := map[string]interface{}{
+		"port": 465,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w2.Code)
+	}
+}
+
+func TestAPIGetConfigWithOutgoing(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Set outgoing config
+	outgoingConfig := &outgoing.OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	}
+	server.SetOutgoingConfig(outgoingConfig)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["outgoing"] == nil {
+		t.Error("Response should have outgoing field")
+	}
+}
+
+func TestAPIGetConfigWithAuth(t *testing.T) {
+	tmpDir := t.TempDir()
+	authConfig := &mailserver.SMTPAuthConfig{
+		Enabled:  true,
+		Username: "user",
+	}
+	server, err := mailserver.NewMailServerWithConfig(1025, "localhost", tmpDir, nil, authConfig, nil)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	api := NewAPI(server, 1080, "localhost")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["smtpAuth"] == nil {
+		t.Error("Response should have smtpAuth field")
+	}
+
+	// Test getter methods
+	if server.GetAuthConfig() == nil {
+		t.Error("Expected auth config to be set")
+	}
+	if server.GetAuthConfig().Enabled != true {
+		t.Error("Expected auth to be enabled")
+	}
+	if server.GetAuthConfig().Username != "user" {
+		t.Errorf("Expected username 'user', got '%s'", server.GetAuthConfig().Username)
+	}
+	if server.GetHost() != "localhost" {
+		t.Errorf("Expected host 'localhost', got '%s'", server.GetHost())
+	}
+	if server.GetPort() != 1025 {
+		t.Errorf("Expected port 1025, got %d", server.GetPort())
+	}
+	if server.GetMailDir() != tmpDir {
+		t.Errorf("Expected mailDir '%s', got '%s'", tmpDir, server.GetMailDir())
+	}
+}
+
+func TestAPIGetConfigWithTLS(t *testing.T) {
+	tmpDir := t.TempDir()
+	tlsConfig := &mailserver.TLSConfig{
+		Enabled:  true,
+		CertFile: "", // Empty to generate self-signed certificate
+		KeyFile:  "",
+	}
+	server, err := mailserver.NewMailServerWithConfig(1025, "localhost", tmpDir, nil, nil, tlsConfig)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	api := NewAPI(server, 1080, "localhost")
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	if response["tls"] == nil {
+		t.Error("Response should have tls field")
+	}
+
+	// Test getter methods
+	if server.GetHost() != "localhost" {
+		t.Errorf("Expected host 'localhost', got '%s'", server.GetHost())
+	}
+	if server.GetPort() != 1025 {
+		t.Errorf("Expected port 1025, got %d", server.GetPort())
+	}
+	if server.GetMailDir() != tmpDir {
+		t.Errorf("Expected mailDir '%s', got '%s'", tmpDir, server.GetMailDir())
+	}
+	if server.GetTLSConfig() == nil {
+		t.Error("Expected TLS config to be set")
+	}
+	if server.GetTLSConfig().Enabled != true {
+		t.Error("Expected TLS to be enabled")
+	}
+}
+
+func TestAPIUpdateOutgoingConfigInvalidRequest(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIUpdateOutgoingConfigMissingHost(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	config := map[string]interface{}{
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIUpdateOutgoingConfigInvalidPort(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 0,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIUpdateOutgoingConfigPortTooLarge(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 70000,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigInvalidRequest(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer([]byte("invalid json")))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigAllFields(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Patch with all fields
+	patch := map[string]interface{}{
+		"host":          "smtp.example.com",
+		"port":          587,
+		"user":          "user",
+		"password":      "pass",
+		"secure":        true,
+		"autoRelay":     true,
+		"autoRelayAddr": "relay@example.com",
+		"allowRules":    []interface{}{"allow@example.com"},
+		"denyRules":     []interface{}{"deny@example.com"},
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Patch without host
+	patch := map[string]interface{}{
+		"port": 587,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+		"user": "user",
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch it
+	patch := map[string]interface{}{
+		"port":   465,
+		"secure": true,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w2.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w2.Body.Bytes(), &response)
+	configResp := response["config"].(map[string]interface{})
+	if configResp["port"] != float64(465) {
+		t.Errorf("Expected port 465, got %v", configResp["port"])
+	}
+	if configResp["secure"] != true {
+		t.Errorf("Expected secure true, got %v", configResp["secure"])
+	}
+	if configResp["host"] != "smtp.example.com" {
+		t.Errorf("Expected host to remain smtp.example.com, got %v", configResp["host"])
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch with invalid port
+	patch := map[string]interface{}{
+		"port": 0,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w2.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// First set a config
+	config := map[string]interface{}{
+		"host": "smtp.example.com",
+		"port": 587,
+	}
+	jsonBody, _ := json.Marshal(config)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	// Then patch with port too large
+	patch := map[string]interface{}{
+		"port": 70000,
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	w2 := httptest.NewRecorder()
+	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req2.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w2, req2)
+
+	if w2.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", w2.Code)
+	}
+}
+
+func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer server.Close()
+
+	// Patch with non-string rules (should be ignored)
+	patch := map[string]interface{}{
+		"host":       "smtp.example.com",
+		"port":       587,
+		"allowRules": []interface{}{"allow@example.com", 123}, // mixed types
+		"denyRules":  []interface{}{"deny@example.com", true}, // mixed types
+	}
+	patchBody, _ := json.Marshal(patch)
+
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
+	req.Header.Set("Content-Type", "application/json")
+	api.router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+	configResp := response["config"].(map[string]interface{})
+	allowRules := configResp["allowRules"].([]interface{})
+	if len(allowRules) != 1 {
+		t.Errorf("Expected 1 allow rule (non-string filtered), got %d", len(allowRules))
+	}
+	denyRules := configResp["denyRules"].([]interface{})
+	if len(denyRules) != 1 {
+		t.Errorf("Expected 1 deny rule (non-string filtered), got %d", len(denyRules))
+	}
+}
