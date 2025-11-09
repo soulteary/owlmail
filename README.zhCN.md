@@ -226,7 +226,7 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/health` - 健康检查
 - `GET /api/v1/ws` - WebSocket 连接
 
-详细 API 文档请参考：[API设计改进.md](./API设计改进.md)
+详细 API 文档请参考：[API 重构记录](./docs/internal/API_重构记录.md)
 
 ## 🔧 使用示例
 
@@ -351,7 +351,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-详细迁移指南请参考：[与MailDev功能对比完整报告.md](./与MailDev功能对比完整报告.md)
+详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/OwlMail%20×%20MailDev%20-%20功能与%20API%20完整对比与迁移白皮书.md)
 
 ## 🧪 测试
 
@@ -409,9 +409,8 @@ OwlMail/
 
 ## 📚 相关文档
 
+- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/OwlMail%20×%20MailDev%20-%20功能与%20API%20完整对比与迁移白皮书.md)
 - [API 重构记录](./docs/internal/API_重构记录.md)
-- [与MailDev功能对比完整报告.md](./与MailDev功能对比完整报告.md) - 详细的功能对比分析
-- [功能与API详细对比分析.md](./功能与API详细对比分析.md) - API 端点详细对比
 
 ## 🐛 问题反馈
 
