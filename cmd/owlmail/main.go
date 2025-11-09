@@ -16,6 +16,47 @@ import (
 	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
+// Config holds all application configuration
+type Config struct {
+	// SMTP server configuration
+	SMTPPort int
+	SMTPHost string
+	MailDir  string
+
+	// Web API configuration
+	WebPort     int
+	WebHost     string
+	WebUser     string
+	WebPassword string
+
+	// HTTPS configuration
+	HTTPSEnabled  bool
+	HTTPSCertFile string
+	HTTPSKeyFile  string
+
+	// Outgoing mail configuration
+	OutgoingHost   string
+	OutgoingPort   int
+	OutgoingUser   string
+	OutgoingPass   string
+	OutgoingSecure bool
+	AutoRelay      bool
+	AutoRelayAddr  string
+	AutoRelayRules string
+
+	// SMTP authentication
+	SMTPUser     string
+	SMTPPassword string
+
+	// TLS configuration for SMTP
+	TLSEnabled  bool
+	TLSCertFile string
+	TLSKeyFile  string
+
+	// Logging configuration
+	LogLevel string
+}
+
 // getEnvString returns environment variable value or default
 func getEnvString(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -58,10 +99,10 @@ func getLogLevelFromEnv() common.LogLevel {
 	}
 }
 
-func main() {
+// parseConfig parses command line flags and returns a Config struct
+func parseConfig() *Config {
 	var (
 		// SMTP server configuration
-		// Supports both MAILDEV_* and OWLMAIL_* environment variables
 		smtpPort = flag.Int("smtp", maildev.GetMailDevEnvInt("OWLMAIL_SMTP_PORT", 1025), "SMTP port to catch emails")
 		smtpHost = flag.String("ip", maildev.GetMailDevEnvString("OWLMAIL_SMTP_HOST", "localhost"), "IP address to bind SMTP service to")
 		mailDir  = flag.String("mail-directory", maildev.GetMailDevEnvString("OWLMAIL_MAIL_DIR", ""), "Directory for persisting mails")
@@ -97,83 +138,108 @@ func main() {
 		tlsKeyFile  = flag.String("tls-key", maildev.GetMailDevEnvString("OWLMAIL_TLS_KEY", ""), "TLS private key file path")
 
 		// Logging configuration
-		// Supports both MAILDEV_VERBOSE/MAILDEV_SILENT and OWLMAIL_LOG_LEVEL
 		logLevel = flag.String("log-level", maildev.GetMailDevLogLevel("normal"), "Log level: silent, normal, or verbose")
 	)
 	flag.Parse()
 
-	// Initialize logger based on log level
-	var level common.LogLevel
-	switch *logLevel {
+	return &Config{
+		SMTPPort:       *smtpPort,
+		SMTPHost:       *smtpHost,
+		MailDir:        *mailDir,
+		WebPort:        *webPort,
+		WebHost:        *webHost,
+		WebUser:        *webUser,
+		WebPassword:    *webPassword,
+		HTTPSEnabled:   *httpsEnabled,
+		HTTPSCertFile:  *httpsCertFile,
+		HTTPSKeyFile:   *httpsKeyFile,
+		OutgoingHost:   *outgoingHost,
+		OutgoingPort:   *outgoingPort,
+		OutgoingUser:   *outgoingUser,
+		OutgoingPass:   *outgoingPass,
+		OutgoingSecure: *outgoingSecure,
+		AutoRelay:      *autoRelay,
+		AutoRelayAddr:  *autoRelayAddr,
+		AutoRelayRules: *autoRelayRules,
+		SMTPUser:       *smtpUser,
+		SMTPPassword:   *smtpPassword,
+		TLSEnabled:     *tlsEnabled,
+		TLSCertFile:    *tlsCertFile,
+		TLSKeyFile:     *tlsKeyFile,
+		LogLevel:       *logLevel,
+	}
+}
+
+// parseLogLevel parses log level string and returns LogLevel
+func parseLogLevel(levelStr string) common.LogLevel {
+	switch levelStr {
 	case "silent":
-		level = common.LogLevelSilent
+		return common.LogLevelSilent
 	case "verbose":
-		level = common.LogLevelVerbose
+		return common.LogLevelVerbose
 	default:
-		level = common.LogLevelNormal
+		return common.LogLevelNormal
 	}
-	common.InitLogger(level)
+}
 
-	// Setup outgoing mail config if provided
-	var outgoingConfig *outgoing.OutgoingConfig
-	if *outgoingHost != "" {
-		outgoingConfig = &outgoing.OutgoingConfig{
-			Host:          *outgoingHost,
-			Port:          *outgoingPort,
-			User:          *outgoingUser,
-			Password:      *outgoingPass,
-			Secure:        *outgoingSecure,
-			AutoRelay:     *autoRelay,
-			AutoRelayAddr: *autoRelayAddr,
-		}
-
-		// Load auto relay rules from JSON file if provided
-		if *autoRelayRules != "" {
-			allowRules, denyRules, err := loadAutoRelayRules(*autoRelayRules)
-			if err != nil {
-				if fatalErr := common.Fatal("Failed to load auto relay rules: %v", err); fatalErr != nil {
-					// In test environments, this will return an error instead of exiting
-					return
-				}
-			}
-			outgoingConfig.AllowRules = allowRules
-			outgoingConfig.DenyRules = denyRules
-			if len(allowRules) > 0 || len(denyRules) > 0 {
-				common.Log("Loaded auto relay rules: %d allow rules, %d deny rules", len(allowRules), len(denyRules))
-			}
-		}
+// setupOutgoingConfig creates outgoing mail configuration from config
+func setupOutgoingConfig(cfg *Config) (*outgoing.OutgoingConfig, error) {
+	if cfg.OutgoingHost == "" {
+		return nil, nil
 	}
 
-	// Setup SMTP authentication config
-	var authConfig *mailserver.SMTPAuthConfig
-	if *smtpUser != "" && *smtpPassword != "" {
-		authConfig = &mailserver.SMTPAuthConfig{
-			Username: *smtpUser,
-			Password: *smtpPassword,
-			Enabled:  true,
+	outgoingConfig := &outgoing.OutgoingConfig{
+		Host:          cfg.OutgoingHost,
+		Port:          cfg.OutgoingPort,
+		User:          cfg.OutgoingUser,
+		Password:      cfg.OutgoingPass,
+		Secure:        cfg.OutgoingSecure,
+		AutoRelay:     cfg.AutoRelay,
+		AutoRelayAddr: cfg.AutoRelayAddr,
+	}
+
+	// Load auto relay rules from JSON file if provided
+	if cfg.AutoRelayRules != "" {
+		allowRules, denyRules, err := loadAutoRelayRules(cfg.AutoRelayRules)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load auto relay rules: %w", err)
+		}
+		outgoingConfig.AllowRules = allowRules
+		outgoingConfig.DenyRules = denyRules
+		if len(allowRules) > 0 || len(denyRules) > 0 {
+			common.Log("Loaded auto relay rules: %d allow rules, %d deny rules", len(allowRules), len(denyRules))
 		}
 	}
 
-	// Setup TLS config
-	var tlsConfig *mailserver.TLSConfig
-	if *tlsEnabled {
-		tlsConfig = &mailserver.TLSConfig{
-			CertFile: *tlsCertFile,
-			KeyFile:  *tlsKeyFile,
-			Enabled:  true,
-		}
-	}
+	return outgoingConfig, nil
+}
 
-	// Create mail server
-	server, err := mailserver.NewMailServerWithConfig(*smtpPort, *smtpHost, *mailDir, outgoingConfig, authConfig, tlsConfig)
-	if err != nil {
-		if fatalErr := common.Fatal("Failed to create mail server: %v", err); fatalErr != nil {
-			// In test environments, this will return an error instead of exiting
-			return
-		}
+// setupAuthConfig creates SMTP authentication configuration from config
+func setupAuthConfig(cfg *Config) *mailserver.SMTPAuthConfig {
+	if cfg.SMTPUser == "" || cfg.SMTPPassword == "" {
+		return nil
 	}
+	return &mailserver.SMTPAuthConfig{
+		Username: cfg.SMTPUser,
+		Password: cfg.SMTPPassword,
+		Enabled:  true,
+	}
+}
 
-	// Register event handlers
+// setupTLSConfig creates TLS configuration from config
+func setupTLSConfig(cfg *Config) *mailserver.TLSConfig {
+	if !cfg.TLSEnabled {
+		return nil
+	}
+	return &mailserver.TLSConfig{
+		CertFile: cfg.TLSCertFile,
+		KeyFile:  cfg.TLSKeyFile,
+		Enabled:  true,
+	}
+}
+
+// registerEventHandlers registers event handlers for the mail server
+func registerEventHandlers(server *mailserver.MailServer) {
 	server.On("new", func(email *mailserver.Email) {
 		fromAddr := "unknown"
 		if len(email.From) > 0 {
@@ -187,30 +253,33 @@ func main() {
 		common.Log("Email deleted: %s", email.Subject)
 		common.Verbose("Deleted email ID: %s", email.ID)
 	})
+}
 
-	// Create and start API server with HTTPS support
-	apiServer := api.NewAPIWithHTTPS(server, *webPort, *webHost, *webUser, *webPassword, *httpsEnabled, *httpsCertFile, *httpsKeyFile)
-	go func() {
-		protocol := "http"
-		if *httpsEnabled {
-			protocol = "https"
-		}
-		common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, *webHost, *webPort)
-		if *webUser != "" && *webPassword != "" {
-			common.Log("HTTP Basic Auth enabled for user: %s", *webUser)
-		}
-		if *httpsEnabled {
-			common.Log("HTTPS enabled with certificate: %s", *httpsCertFile)
-		}
-		if err := apiServer.Start(); err != nil {
-			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
-				// In test environments, this will return an error instead of exiting
-				return
-			}
-		}
-	}()
+// startAPIServer creates and starts the API server
+func startAPIServer(server *mailserver.MailServer, cfg *Config) (*api.API, error) {
+	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 
-	// Handle graceful shutdown
+	protocol := "http"
+	if cfg.HTTPSEnabled {
+		protocol = "https"
+	}
+	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
+	if cfg.WebUser != "" && cfg.WebPassword != "" {
+		common.Log("HTTP Basic Auth enabled for user: %s", cfg.WebUser)
+	}
+	if cfg.HTTPSEnabled {
+		common.Log("HTTPS enabled with certificate: %s", cfg.HTTPSCertFile)
+	}
+
+	if err := apiServer.Start(); err != nil {
+		return nil, fmt.Errorf("failed to start API server: %w", err)
+	}
+
+	return apiServer, nil
+}
+
+// setupGracefulShutdown sets up signal handling for graceful shutdown
+func setupGracefulShutdown(server *mailserver.MailServer) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
@@ -223,13 +292,62 @@ func main() {
 		}
 		os.Exit(0)
 	}()
+}
+
+func main() {
+	// Parse configuration
+	cfg := parseConfig()
+
+	// Initialize logger based on log level
+	level := parseLogLevel(cfg.LogLevel)
+	common.InitLogger(level)
+
+	// Setup outgoing mail config if provided
+	outgoingConfig, err := setupOutgoingConfig(cfg)
+	if err != nil {
+		if fatalErr := common.Fatal("Failed to setup outgoing config: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
+	}
+
+	// Setup SMTP authentication config
+	authConfig := setupAuthConfig(cfg)
+
+	// Setup TLS config
+	tlsConfig := setupTLSConfig(cfg)
+
+	// Create mail server
+	server, err := mailserver.NewMailServerWithConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig)
+	if err != nil {
+		if fatalErr := common.Fatal("Failed to create mail server: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
+	}
+
+	// Register event handlers
+	registerEventHandlers(server)
+
+	// Create and start API server with HTTPS support
+	go func() {
+		if _, err := startAPIServer(server, cfg); err != nil {
+			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
+				// In test environments, this will return an error instead of exiting
+				return
+			}
+		}
+	}()
+
+	// Handle graceful shutdown
+	setupGracefulShutdown(server)
 
 	// Start SMTP server
-	common.Log("Starting OwlMail SMTP Server on %s:%d", *smtpHost, *smtpPort)
-	common.Verbose("SMTP server configuration - Host: %s, Port: %d, MailDir: %s", *smtpHost, *smtpPort, *mailDir)
-	if *tlsEnabled {
+	common.Log("Starting OwlMail SMTP Server on %s:%d", cfg.SMTPHost, cfg.SMTPPort)
+	common.Verbose("SMTP server configuration - Host: %s, Port: %d, MailDir: %s", cfg.SMTPHost, cfg.SMTPPort, cfg.MailDir)
+	if cfg.TLSEnabled {
 		common.Log("TLS enabled for SMTP server")
-		common.Verbose("TLS certificate: %s, Key: %s", *tlsCertFile, *tlsKeyFile)
+		common.Verbose("TLS certificate: %s, Key: %s", cfg.TLSCertFile, cfg.TLSKeyFile)
 	}
 	if err := server.Listen(); err != nil {
 		if fatalErr := common.Fatal("Failed to start server: %v", err); fatalErr != nil {

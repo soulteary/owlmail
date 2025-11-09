@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/mailserver"
 )
 
 func TestGetEnvString(t *testing.T) {
@@ -383,4 +384,219 @@ func TestLoadAutoRelayRulesOrder(t *testing.T) {
 	if allowRules[2] != "ok@test.com" {
 		t.Errorf("Expected third allow rule 'ok@test.com', got '%s'", allowRules[2])
 	}
+}
+
+func TestParseLogLevel(t *testing.T) {
+	tests := []struct {
+		name     string
+		levelStr string
+		expected common.LogLevel
+	}{
+		{"silent", "silent", common.LogLevelSilent},
+		{"verbose", "verbose", common.LogLevelVerbose},
+		{"normal", "normal", common.LogLevelNormal},
+		{"default", "", common.LogLevelNormal},
+		{"invalid", "invalid", common.LogLevelNormal},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseLogLevel(tt.levelStr)
+			if result != tt.expected {
+				t.Errorf("parseLogLevel(%q) = %d, want %d", tt.levelStr, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestSetupOutgoingConfig(t *testing.T) {
+	// Test with empty outgoing host (should return nil)
+	cfg := &Config{
+		OutgoingHost: "",
+	}
+	result, err := setupOutgoingConfig(cfg)
+	if err != nil {
+		t.Errorf("setupOutgoingConfig() error = %v, want nil", err)
+	}
+	if result != nil {
+		t.Errorf("setupOutgoingConfig() = %v, want nil", result)
+	}
+
+	// Test with outgoing host set
+	cfg = &Config{
+		OutgoingHost:   "smtp.example.com",
+		OutgoingPort:   587,
+		OutgoingUser:   "user",
+		OutgoingPass:   "pass",
+		OutgoingSecure: true,
+		AutoRelay:      true,
+		AutoRelayAddr:  "relay@example.com",
+	}
+	result, err = setupOutgoingConfig(cfg)
+	if err != nil {
+		t.Errorf("setupOutgoingConfig() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("setupOutgoingConfig() = nil, want non-nil")
+	}
+	if result.Host != "smtp.example.com" {
+		t.Errorf("setupOutgoingConfig().Host = %q, want %q", result.Host, "smtp.example.com")
+	}
+	if result.Port != 587 {
+		t.Errorf("setupOutgoingConfig().Port = %d, want %d", result.Port, 587)
+	}
+	if result.User != "user" {
+		t.Errorf("setupOutgoingConfig().User = %q, want %q", result.User, "user")
+	}
+	if result.Password != "pass" {
+		t.Errorf("setupOutgoingConfig().Password = %q, want %q", result.Password, "pass")
+	}
+	if result.Secure != true {
+		t.Errorf("setupOutgoingConfig().Secure = %v, want %v", result.Secure, true)
+	}
+	if result.AutoRelay != true {
+		t.Errorf("setupOutgoingConfig().AutoRelay = %v, want %v", result.AutoRelay, true)
+	}
+	if result.AutoRelayAddr != "relay@example.com" {
+		t.Errorf("setupOutgoingConfig().AutoRelayAddr = %q, want %q", result.AutoRelayAddr, "relay@example.com")
+	}
+
+	// Test with auto relay rules file
+	tmpDir := t.TempDir()
+	rules := []AutoRelayRule{
+		{Allow: "*"},
+		{Deny: "*@test.com"},
+	}
+	jsonData, _ := json.Marshal(rules)
+	filePath := filepath.Join(tmpDir, "rules.json")
+	if err := os.WriteFile(filePath, jsonData, 0644); err != nil {
+		t.Fatalf("Failed to write rules file: %v", err)
+	}
+
+	cfg = &Config{
+		OutgoingHost:   "smtp.example.com",
+		AutoRelayRules: filePath,
+	}
+	result, err = setupOutgoingConfig(cfg)
+	if err != nil {
+		t.Errorf("setupOutgoingConfig() error = %v, want nil", err)
+	}
+	if result == nil {
+		t.Fatal("setupOutgoingConfig() = nil, want non-nil")
+	}
+	if len(result.AllowRules) != 1 {
+		t.Errorf("setupOutgoingConfig().AllowRules = %v, want 1 rule", result.AllowRules)
+	}
+	if len(result.DenyRules) != 1 {
+		t.Errorf("setupOutgoingConfig().DenyRules = %v, want 1 rule", result.DenyRules)
+	}
+
+	// Test with invalid rules file
+	cfg = &Config{
+		OutgoingHost:   "smtp.example.com",
+		AutoRelayRules: filepath.Join(tmpDir, "nonexistent.json"),
+	}
+	_, err = setupOutgoingConfig(cfg)
+	if err == nil {
+		t.Error("setupOutgoingConfig() error = nil, want error")
+	}
+}
+
+func TestSetupAuthConfig(t *testing.T) {
+	// Test with empty user and password (should return nil)
+	cfg := &Config{
+		SMTPUser:     "",
+		SMTPPassword: "",
+	}
+	result := setupAuthConfig(cfg)
+	if result != nil {
+		t.Errorf("setupAuthConfig() = %v, want nil", result)
+	}
+
+	// Test with empty user (should return nil)
+	cfg = &Config{
+		SMTPUser:     "",
+		SMTPPassword: "pass",
+	}
+	result = setupAuthConfig(cfg)
+	if result != nil {
+		t.Errorf("setupAuthConfig() = %v, want nil", result)
+	}
+
+	// Test with empty password (should return nil)
+	cfg = &Config{
+		SMTPUser:     "user",
+		SMTPPassword: "",
+	}
+	result = setupAuthConfig(cfg)
+	if result != nil {
+		t.Errorf("setupAuthConfig() = %v, want nil", result)
+	}
+
+	// Test with both user and password set
+	cfg = &Config{
+		SMTPUser:     "user",
+		SMTPPassword: "pass",
+	}
+	result = setupAuthConfig(cfg)
+	if result == nil {
+		t.Fatal("setupAuthConfig() = nil, want non-nil")
+	}
+	if result.Username != "user" {
+		t.Errorf("setupAuthConfig().Username = %q, want %q", result.Username, "user")
+	}
+	if result.Password != "pass" {
+		t.Errorf("setupAuthConfig().Password = %q, want %q", result.Password, "pass")
+	}
+	if result.Enabled != true {
+		t.Errorf("setupAuthConfig().Enabled = %v, want %v", result.Enabled, true)
+	}
+}
+
+func TestSetupTLSConfig(t *testing.T) {
+	// Test with TLS disabled (should return nil)
+	cfg := &Config{
+		TLSEnabled: false,
+	}
+	result := setupTLSConfig(cfg)
+	if result != nil {
+		t.Errorf("setupTLSConfig() = %v, want nil", result)
+	}
+
+	// Test with TLS enabled
+	cfg = &Config{
+		TLSEnabled:  true,
+		TLSCertFile: "/path/to/cert.pem",
+		TLSKeyFile:  "/path/to/key.pem",
+	}
+	result = setupTLSConfig(cfg)
+	if result == nil {
+		t.Fatal("setupTLSConfig() = nil, want non-nil")
+	}
+	if result.CertFile != "/path/to/cert.pem" {
+		t.Errorf("setupTLSConfig().CertFile = %q, want %q", result.CertFile, "/path/to/cert.pem")
+	}
+	if result.KeyFile != "/path/to/key.pem" {
+		t.Errorf("setupTLSConfig().KeyFile = %q, want %q", result.KeyFile, "/path/to/key.pem")
+	}
+	if result.Enabled != true {
+		t.Errorf("setupTLSConfig().Enabled = %v, want %v", result.Enabled, true)
+	}
+}
+
+func TestRegisterEventHandlers(t *testing.T) {
+	// Create a test mail server
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer server.Close()
+
+	// Register event handlers
+	registerEventHandlers(server)
+
+	// Verify handlers are registered by checking that On can be called without error
+	// The actual event triggering is tested in mailserver package
+	// Here we just verify that registerEventHandlers doesn't panic
 }
