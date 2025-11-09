@@ -409,10 +409,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
+- [API Refactoring Record](./docs/internal/API_Refactoring_Record.md)
 - [与MailDev功能对比完整报告.md](./与MailDev功能对比完整报告.md) - Detailed feature comparison analysis
 - [功能与API详细对比分析.md](./功能与API详细对比分析.md) - API endpoint detailed comparison
-- [API设计改进.md](./API设计改进.md) - API design documentation
-- [前端API迁移说明.md](./前端API迁移说明.md) - Frontend migration guide
 
 ## 🐛 Issue Reporting
 

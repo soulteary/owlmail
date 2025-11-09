@@ -409,10 +409,9 @@ OwlMail/
 
 ## 📚 相关文档
 
+- [API 重构记录](./docs/internal/API_重构记录.md)
 - [与MailDev功能对比完整报告.md](./与MailDev功能对比完整报告.md) - 详细的功能对比分析
 - [功能与API详细对比分析.md](./功能与API详细对比分析.md) - API 端点详细对比
-- [API设计改进.md](./API设计改进.md) - API 设计说明
-- [前端API迁移说明.md](./前端API迁移说明.md) - 前端迁移指南
 
 ## 🐛 问题反馈
 
