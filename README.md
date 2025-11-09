@@ -9,6 +9,8 @@
 
 OwlMail is an SMTP server and web interface for development and testing environments that captures and displays all sent emails. It's a Go implementation of [MailDev](https://github.com/maildev/maildev) with 100% API compatibility, while providing better performance, lower resource usage, and richer features.
 
+![](.github/assets/owlmail-banner.jpg)
+
 ## ✨ Features
 
 ### Core Features
