@@ -141,14 +141,27 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		return fmt.Errorf("email not found")
 	}
 
+	// Validate email ID to prevent path traversal
+	if err := validateEmailID(id); err != nil {
+		return fmt.Errorf("invalid email ID: %w", err)
+	}
+
 	// Delete raw email file
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	// Validate path is within mail directory
+	if err := validatePath(ms.mailDir, emlPath); err != nil {
+		return fmt.Errorf("path validation failed: %w", err)
+	}
 	if err := os.Remove(emlPath); err != nil {
 		common.Verbose("Error deleting email file: %v", err)
 	}
 
 	// Delete attachments directory
 	attachmentDir := filepath.Join(ms.mailDir, id)
+	// Validate path is within mail directory
+	if err := validatePath(ms.mailDir, attachmentDir); err != nil {
+		return fmt.Errorf("path validation failed: %w", err)
+	}
 	if err := os.RemoveAll(attachmentDir); err != nil {
 		common.Verbose("Error deleting attachment directory: %v", err)
 	}
@@ -187,7 +200,15 @@ func (ms *MailServer) DeleteAllEmail() error {
 
 // GetRawEmail returns the raw email file path
 func (ms *MailServer) GetRawEmail(id string) (string, error) {
+	// Validate email ID to prevent path traversal
+	if err := validateEmailID(id); err != nil {
+		return "", fmt.Errorf("invalid email ID: %w", err)
+	}
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	// Validate path is within mail directory
+	if err := validatePath(ms.mailDir, emlPath); err != nil {
+		return "", fmt.Errorf("path validation failed: %w", err)
+	}
 	if _, err := os.Stat(emlPath); err != nil {
 		return "", fmt.Errorf("email file not found")
 	}
@@ -196,7 +217,15 @@ func (ms *MailServer) GetRawEmail(id string) (string, error) {
 
 // GetRawEmailContent returns the raw email file content
 func (ms *MailServer) GetRawEmailContent(id string) ([]byte, error) {
+	// Validate email ID to prevent path traversal
+	if err := validateEmailID(id); err != nil {
+		return nil, fmt.Errorf("invalid email ID: %w", err)
+	}
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	// Validate path is within mail directory
+	if err := validatePath(ms.mailDir, emlPath); err != nil {
+		return nil, fmt.Errorf("path validation failed: %w", err)
+	}
 	content, err := os.ReadFile(emlPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read email file: %w", err)
@@ -215,6 +244,15 @@ func (ms *MailServer) GetEmailHTML(id string) (string, error) {
 
 // GetEmailAttachment returns attachment file path
 func (ms *MailServer) GetEmailAttachment(id, filename string) (string, string, error) {
+	// Validate email ID to prevent path traversal
+	if err := validateEmailID(id); err != nil {
+		return "", "", fmt.Errorf("invalid email ID: %w", err)
+	}
+	// Validate filename to prevent path traversal
+	if filename == "" || strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
+		return "", "", fmt.Errorf("invalid filename: contains path traversal characters")
+	}
+
 	email, err := ms.GetEmail(id)
 	if err != nil {
 		return "", "", err
@@ -237,6 +275,10 @@ func (ms *MailServer) GetEmailAttachment(id, filename string) (string, string, e
 	}
 
 	attachmentPath := filepath.Join(ms.mailDir, id, attachment.GeneratedFileName)
+	// Validate path is within mail directory
+	if err := validatePath(ms.mailDir, attachmentPath); err != nil {
+		return "", "", fmt.Errorf("path validation failed: %w", err)
+	}
 	return attachmentPath, attachment.ContentType, nil
 }
 

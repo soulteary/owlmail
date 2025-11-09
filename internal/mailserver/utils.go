@@ -141,6 +141,53 @@ func transformAttachment(attachment *Attachment) *Attachment {
 	return attachment
 }
 
+// validateEmailID validates and sanitizes an email ID to prevent path traversal attacks
+// It ensures the ID doesn't contain path traversal characters and is not empty
+func validateEmailID(id string) error {
+	if id == "" {
+		return fmt.Errorf("email ID cannot be empty")
+	}
+	// Check for path traversal characters
+	if strings.Contains(id, "..") || strings.Contains(id, "/") || strings.Contains(id, "\\") {
+		return fmt.Errorf("invalid email ID: contains path traversal characters")
+	}
+	// Check for null bytes
+	if strings.Contains(id, "\x00") {
+		return fmt.Errorf("invalid email ID: contains null byte")
+	}
+	// Validate that ID only contains safe characters (alphanumeric, hyphen, underscore)
+	// This allows test IDs like "test-id" while preventing path traversal
+	for _, r := range id {
+		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+			return fmt.Errorf("invalid email ID: contains invalid characters")
+		}
+	}
+	return nil
+}
+
+// validatePath ensures the resolved path is within the base directory to prevent path traversal
+func validatePath(baseDir, resolvedPath string) error {
+	// Get absolute paths
+	absBase, err := filepath.Abs(baseDir)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for base directory: %w", err)
+	}
+	absResolved, err := filepath.Abs(resolvedPath)
+	if err != nil {
+		return fmt.Errorf("failed to get absolute path for resolved path: %w", err)
+	}
+	// Check if resolved path is within base directory
+	rel, err := filepath.Rel(absBase, absResolved)
+	if err != nil {
+		return fmt.Errorf("failed to compute relative path: %w", err)
+	}
+	// If relative path starts with "..", it's outside the base directory
+	if strings.HasPrefix(rel, "..") {
+		return fmt.Errorf("path traversal detected: path is outside base directory")
+	}
+	return nil
+}
+
 // sanitizeHTML sanitizes HTML content
 func sanitizeHTML(html string) string {
 	p := bluemonday.UGCPolicy()
