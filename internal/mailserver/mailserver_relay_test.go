@@ -14,7 +14,11 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Set outgoing config
 	config := &outgoing.OutgoingConfig{
@@ -44,7 +48,11 @@ func TestRelayMail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test RelayMail without outgoing config
 	email := &Email{
@@ -57,7 +65,9 @@ func TestRelayMail(t *testing.T) {
 	}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("test email"), 0644)
+	if err := os.WriteFile(emlPath, []byte("test email"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	err = server.RelayMail(email, false, func(err error) {
 		if err == nil {
@@ -80,9 +90,8 @@ func TestRelayMail(t *testing.T) {
 	err = server.RelayMail(email, true, func(err error) {
 		// Callback will be called with error in test environment
 	})
-	if err != nil {
-		// Error is expected in test environment
-	}
+	// Error is expected in test environment, but we just want to verify it doesn't panic
+	_ = err
 }
 
 func TestRelayMailTo(t *testing.T) {
@@ -93,7 +102,11 @@ func TestRelayMailTo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test RelayMailTo without outgoing config
 	email := &Email{
@@ -106,7 +119,9 @@ func TestRelayMailTo(t *testing.T) {
 	}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("test email"), 0644)
+	if err := os.WriteFile(emlPath, []byte("test email"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	err = server.RelayMailTo(email, "relay@example.com", func(err error) {
 		if err == nil {
@@ -129,7 +144,6 @@ func TestRelayMailTo(t *testing.T) {
 	err = server.RelayMailTo(email, "relay@example.com", func(err error) {
 		// Callback will be called with error in test environment
 	})
-	if err != nil {
-		// Error is expected in test environment
-	}
+	// Error is expected in test environment, but we just want to verify it doesn't panic
+	_ = err
 }

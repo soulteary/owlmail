@@ -7,9 +7,17 @@ import (
 
 func TestGetEnvStringWithMailDevCompat(t *testing.T) {
 	// Test MailDev environment variable priority
-	os.Setenv("MAILDEV_SMTP_PORT", "test-maildev")
-	defer os.Unsetenv("MAILDEV_SMTP_PORT")
-	os.Unsetenv("OWLMAIL_SMTP_PORT")
+	if err := os.Setenv("MAILDEV_SMTP_PORT", "test-maildev"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_SMTP_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := getEnvStringWithMailDevCompat("MAILDEV_SMTP_PORT", "OWLMAIL_SMTP_PORT", "default")
 	if result != "test-maildev" {
@@ -17,9 +25,17 @@ func TestGetEnvStringWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test OwlMail environment variable fallback
-	os.Unsetenv("MAILDEV_SMTP_PORT")
-	os.Setenv("OWLMAIL_SMTP_PORT", "test-owlmail")
-	defer os.Unsetenv("OWLMAIL_SMTP_PORT")
+	if err := os.Unsetenv("MAILDEV_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_SMTP_PORT", "test-owlmail"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_SMTP_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getEnvStringWithMailDevCompat("MAILDEV_SMTP_PORT", "OWLMAIL_SMTP_PORT", "default")
 	if result != "test-owlmail" {
@@ -27,8 +43,12 @@ func TestGetEnvStringWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test default value
-	os.Unsetenv("MAILDEV_SMTP_PORT")
-	os.Unsetenv("OWLMAIL_SMTP_PORT")
+	if err := os.Unsetenv("MAILDEV_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result = getEnvStringWithMailDevCompat("MAILDEV_SMTP_PORT", "OWLMAIL_SMTP_PORT", "default")
 	if result != "default" {
@@ -38,9 +58,17 @@ func TestGetEnvStringWithMailDevCompat(t *testing.T) {
 
 func TestGetEnvIntWithMailDevCompat(t *testing.T) {
 	// Test MailDev environment variable priority
-	os.Setenv("MAILDEV_WEB_PORT", "8080")
-	defer os.Unsetenv("MAILDEV_WEB_PORT")
-	os.Unsetenv("OWLMAIL_WEB_PORT")
+	if err := os.Setenv("MAILDEV_WEB_PORT", "8080"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_WEB_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_WEB_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := getEnvIntWithMailDevCompat("MAILDEV_WEB_PORT", "OWLMAIL_WEB_PORT", 1080)
 	if result != 8080 {
@@ -48,9 +76,17 @@ func TestGetEnvIntWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test OwlMail environment variable fallback
-	os.Unsetenv("MAILDEV_WEB_PORT")
-	os.Setenv("OWLMAIL_WEB_PORT", "9090")
-	defer os.Unsetenv("OWLMAIL_WEB_PORT")
+	if err := os.Unsetenv("MAILDEV_WEB_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_WEB_PORT", "9090"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_WEB_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getEnvIntWithMailDevCompat("MAILDEV_WEB_PORT", "OWLMAIL_WEB_PORT", 1080)
 	if result != 9090 {
@@ -58,8 +94,12 @@ func TestGetEnvIntWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test default value
-	os.Unsetenv("MAILDEV_WEB_PORT")
-	os.Unsetenv("OWLMAIL_WEB_PORT")
+	if err := os.Unsetenv("MAILDEV_WEB_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_WEB_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result = getEnvIntWithMailDevCompat("MAILDEV_WEB_PORT", "OWLMAIL_WEB_PORT", 1080)
 	if result != 1080 {
@@ -67,8 +107,14 @@ func TestGetEnvIntWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test invalid integer
-	os.Setenv("MAILDEV_WEB_PORT", "invalid")
-	defer os.Unsetenv("MAILDEV_WEB_PORT")
+	if err := os.Setenv("MAILDEV_WEB_PORT", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_WEB_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getEnvIntWithMailDevCompat("MAILDEV_WEB_PORT", "OWLMAIL_WEB_PORT", 1080)
 	if result != 1080 {
@@ -78,9 +124,17 @@ func TestGetEnvIntWithMailDevCompat(t *testing.T) {
 
 func TestGetEnvBoolWithMailDevCompat(t *testing.T) {
 	// Test MailDev environment variable priority
-	os.Setenv("MAILDEV_HTTPS", "true")
-	defer os.Unsetenv("MAILDEV_HTTPS")
-	os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+	if err := os.Setenv("MAILDEV_HTTPS", "true"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_HTTPS"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_HTTPS_ENABLED"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := getEnvBoolWithMailDevCompat("MAILDEV_HTTPS", "OWLMAIL_HTTPS_ENABLED", false)
 	if result != true {
@@ -88,9 +142,17 @@ func TestGetEnvBoolWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test OwlMail environment variable fallback
-	os.Unsetenv("MAILDEV_HTTPS")
-	os.Setenv("OWLMAIL_HTTPS_ENABLED", "false")
-	defer os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+	if err := os.Unsetenv("MAILDEV_HTTPS"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_HTTPS_ENABLED", "false"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_HTTPS_ENABLED"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getEnvBoolWithMailDevCompat("MAILDEV_HTTPS", "OWLMAIL_HTTPS_ENABLED", true)
 	if result != false {
@@ -98,8 +160,12 @@ func TestGetEnvBoolWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test default value
-	os.Unsetenv("MAILDEV_HTTPS")
-	os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+	if err := os.Unsetenv("MAILDEV_HTTPS"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_HTTPS_ENABLED"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result = getEnvBoolWithMailDevCompat("MAILDEV_HTTPS", "OWLMAIL_HTTPS_ENABLED", true)
 	if result != true {
@@ -107,8 +173,14 @@ func TestGetEnvBoolWithMailDevCompat(t *testing.T) {
 	}
 
 	// Test invalid boolean
-	os.Setenv("MAILDEV_HTTPS", "invalid")
-	defer os.Unsetenv("MAILDEV_HTTPS")
+	if err := os.Setenv("MAILDEV_HTTPS", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_HTTPS"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getEnvBoolWithMailDevCompat("MAILDEV_HTTPS", "OWLMAIL_HTTPS_ENABLED", false)
 	if result != false {
@@ -118,9 +190,17 @@ func TestGetEnvBoolWithMailDevCompat(t *testing.T) {
 
 func TestGetMailDevEnvString(t *testing.T) {
 	// Test with mapped environment variable
-	os.Setenv("MAILDEV_SMTP_PORT", "1026")
-	defer os.Unsetenv("MAILDEV_SMTP_PORT")
-	os.Unsetenv("OWLMAIL_SMTP_PORT")
+	if err := os.Setenv("MAILDEV_SMTP_PORT", "1026"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_SMTP_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := GetMailDevEnvString("OWLMAIL_SMTP_PORT", "1025")
 	if result != "1026" {
@@ -128,9 +208,17 @@ func TestGetMailDevEnvString(t *testing.T) {
 	}
 
 	// Test with unmapped environment variable
-	os.Unsetenv("MAILDEV_SMTP_PORT")
-	os.Setenv("OWLMAIL_TEST_VAR", "test-value")
-	defer os.Unsetenv("OWLMAIL_TEST_VAR")
+	if err := os.Unsetenv("MAILDEV_SMTP_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_TEST_VAR", "test-value"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_TEST_VAR"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = GetMailDevEnvString("OWLMAIL_TEST_VAR", "default")
 	if result != "test-value" {
@@ -140,9 +228,17 @@ func TestGetMailDevEnvString(t *testing.T) {
 
 func TestGetMailDevEnvInt(t *testing.T) {
 	// Test with mapped environment variable
-	os.Setenv("MAILDEV_WEB_PORT", "8080")
-	defer os.Unsetenv("MAILDEV_WEB_PORT")
-	os.Unsetenv("OWLMAIL_WEB_PORT")
+	if err := os.Setenv("MAILDEV_WEB_PORT", "8080"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_WEB_PORT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_WEB_PORT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := GetMailDevEnvInt("OWLMAIL_WEB_PORT", 1080)
 	if result != 8080 {
@@ -152,9 +248,17 @@ func TestGetMailDevEnvInt(t *testing.T) {
 
 func TestGetMailDevEnvBool(t *testing.T) {
 	// Test with mapped environment variable
-	os.Setenv("MAILDEV_HTTPS", "true")
-	defer os.Unsetenv("MAILDEV_HTTPS")
-	os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+	if err := os.Setenv("MAILDEV_HTTPS", "true"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_HTTPS"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("OWLMAIL_HTTPS_ENABLED"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := GetMailDevEnvBool("OWLMAIL_HTTPS_ENABLED", false)
 	if result != true {
@@ -164,10 +268,20 @@ func TestGetMailDevEnvBool(t *testing.T) {
 
 func TestGetMailDevLogLevel(t *testing.T) {
 	// Test MAILDEV_VERBOSE
-	os.Setenv("MAILDEV_VERBOSE", "1")
-	defer os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Setenv("MAILDEV_VERBOSE", "1"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := GetMailDevLogLevel("normal")
 	if result != "verbose" {
@@ -175,9 +289,17 @@ func TestGetMailDevLogLevel(t *testing.T) {
 	}
 
 	// Test MAILDEV_SILENT
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Setenv("MAILDEV_SILENT", "1")
-	defer os.Unsetenv("MAILDEV_SILENT")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("MAILDEV_SILENT", "1"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = GetMailDevLogLevel("normal")
 	if result != "silent" {
@@ -185,10 +307,20 @@ func TestGetMailDevLogLevel(t *testing.T) {
 	}
 
 	// Test OWLMAIL_LOG_LEVEL fallback
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Setenv("OWLMAIL_LOG_LEVEL", "verbose")
-	defer os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_LOG_LEVEL", "verbose"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = GetMailDevLogLevel("normal")
 	if result != "verbose" {
@@ -196,9 +328,15 @@ func TestGetMailDevLogLevel(t *testing.T) {
 	}
 
 	// Test default value
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result = GetMailDevLogLevel("normal")
 	if result != "normal" {
@@ -240,9 +378,17 @@ func TestMailDevEnvMapping(t *testing.T) {
 
 	for _, tc := range testCases {
 		// Set MailDev env var
-		os.Setenv(tc.maildevKey, tc.value)
-		defer os.Unsetenv(tc.maildevKey)
-		os.Unsetenv(tc.owlmailKey)
+		if err := os.Setenv(tc.maildevKey, tc.value); err != nil {
+			t.Fatalf("Failed to set environment variable %s: %v", tc.maildevKey, err)
+		}
+		defer func(key string) {
+			if err := os.Unsetenv(key); err != nil {
+				t.Fatalf("Failed to unset environment variable %s: %v", key, err)
+			}
+		}(tc.maildevKey)
+		if err := os.Unsetenv(tc.owlmailKey); err != nil {
+			t.Fatalf("Failed to unset environment variable %s: %v", tc.owlmailKey, err)
+		}
 
 		result := GetMailDevEnvString(tc.owlmailKey, "default")
 		if result != tc.value {
@@ -253,8 +399,14 @@ func TestMailDevEnvMapping(t *testing.T) {
 
 func TestGetMailDevEnvStringUnmapped(t *testing.T) {
 	// Test with unmapped environment variable
-	os.Setenv("OWLMAIL_UNMAPPED_VAR", "test-value")
-	defer os.Unsetenv("OWLMAIL_UNMAPPED_VAR")
+	if err := os.Setenv("OWLMAIL_UNMAPPED_VAR", "test-value"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_UNMAPPED_VAR"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := GetMailDevEnvString("OWLMAIL_UNMAPPED_VAR", "default")
 	if result != "test-value" {
@@ -262,7 +414,9 @@ func TestGetMailDevEnvStringUnmapped(t *testing.T) {
 	}
 
 	// Test with unmapped variable not set
-	os.Unsetenv("OWLMAIL_UNMAPPED_VAR")
+	if err := os.Unsetenv("OWLMAIL_UNMAPPED_VAR"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 	result = GetMailDevEnvString("OWLMAIL_UNMAPPED_VAR", "default")
 	if result != "default" {
 		t.Errorf("Expected 'default', got '%s'", result)
@@ -271,8 +425,14 @@ func TestGetMailDevEnvStringUnmapped(t *testing.T) {
 
 func TestGetMailDevEnvIntUnmapped(t *testing.T) {
 	// Test with unmapped environment variable
-	os.Setenv("OWLMAIL_UNMAPPED_INT", "123")
-	defer os.Unsetenv("OWLMAIL_UNMAPPED_INT")
+	if err := os.Setenv("OWLMAIL_UNMAPPED_INT", "123"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_UNMAPPED_INT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := GetMailDevEnvInt("OWLMAIL_UNMAPPED_INT", 0)
 	if result != 123 {
@@ -280,7 +440,9 @@ func TestGetMailDevEnvIntUnmapped(t *testing.T) {
 	}
 
 	// Test with invalid integer
-	os.Setenv("OWLMAIL_UNMAPPED_INT", "invalid")
+	if err := os.Setenv("OWLMAIL_UNMAPPED_INT", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = GetMailDevEnvInt("OWLMAIL_UNMAPPED_INT", 456)
 	if result != 456 {
 		t.Errorf("Expected default 456 for invalid int, got %d", result)
@@ -289,8 +451,14 @@ func TestGetMailDevEnvIntUnmapped(t *testing.T) {
 
 func TestGetMailDevEnvBoolUnmapped(t *testing.T) {
 	// Test with unmapped environment variable
-	os.Setenv("OWLMAIL_UNMAPPED_BOOL", "true")
-	defer os.Unsetenv("OWLMAIL_UNMAPPED_BOOL")
+	if err := os.Setenv("OWLMAIL_UNMAPPED_BOOL", "true"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_UNMAPPED_BOOL"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := GetMailDevEnvBool("OWLMAIL_UNMAPPED_BOOL", false)
 	if !result {
@@ -298,7 +466,9 @@ func TestGetMailDevEnvBoolUnmapped(t *testing.T) {
 	}
 
 	// Test with invalid boolean
-	os.Setenv("OWLMAIL_UNMAPPED_BOOL", "invalid")
+	if err := os.Setenv("OWLMAIL_UNMAPPED_BOOL", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = GetMailDevEnvBool("OWLMAIL_UNMAPPED_BOOL", false)
 	if result {
 		t.Errorf("Expected default false for invalid bool, got %v", result)
@@ -307,10 +477,22 @@ func TestGetMailDevEnvBoolUnmapped(t *testing.T) {
 
 func TestGetEnvStringWithMailDevCompatEmpty(t *testing.T) {
 	// Test with empty MailDev env var
-	os.Setenv("MAILDEV_TEST", "")
-	defer os.Unsetenv("MAILDEV_TEST")
-	os.Setenv("OWLMAIL_TEST", "owlmail-value")
-	defer os.Unsetenv("OWLMAIL_TEST")
+	if err := os.Setenv("MAILDEV_TEST", ""); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Setenv("OWLMAIL_TEST", "owlmail-value"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvStringWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", "default")
 	if result != "owlmail-value" {
@@ -320,10 +502,22 @@ func TestGetEnvStringWithMailDevCompatEmpty(t *testing.T) {
 
 func TestGetEnvIntWithMailDevCompatInvalid(t *testing.T) {
 	// Test with invalid MailDev int, should fallback to OwlMail
-	os.Setenv("MAILDEV_TEST", "invalid")
-	defer os.Unsetenv("MAILDEV_TEST")
-	os.Setenv("OWLMAIL_TEST", "123")
-	defer os.Unsetenv("OWLMAIL_TEST")
+	if err := os.Setenv("MAILDEV_TEST", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Setenv("OWLMAIL_TEST", "123"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvIntWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", 0)
 	if result != 123 {
@@ -333,10 +527,22 @@ func TestGetEnvIntWithMailDevCompatInvalid(t *testing.T) {
 
 func TestGetEnvBoolWithMailDevCompatInvalid(t *testing.T) {
 	// Test with invalid MailDev bool, should fallback to OwlMail
-	os.Setenv("MAILDEV_TEST", "invalid")
-	defer os.Unsetenv("MAILDEV_TEST")
-	os.Setenv("OWLMAIL_TEST", "true")
-	defer os.Unsetenv("OWLMAIL_TEST")
+	if err := os.Setenv("MAILDEV_TEST", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Setenv("OWLMAIL_TEST", "true"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_TEST"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvBoolWithMailDevCompat("MAILDEV_TEST", "OWLMAIL_TEST", false)
 	if !result {

@@ -175,7 +175,8 @@ func TestLoggerFatal(t *testing.T) {
 	// Test that Fatal method can be called (though it will exit)
 	// We use a subprocess approach to test it
 	if os.Getenv("TEST_FATAL") == "1" {
-		logger.Fatal("test fatal message")
+		// Fatal returns an error in test environment when error handler is set
+		_ = logger.Fatal("test fatal message")
 		return
 	}
 
@@ -234,10 +235,9 @@ func TestDefaultErrorHandler(t *testing.T) {
 	// Verify interface implementation
 	var _ ErrorHandler = handler
 
-	// Verify type
-	if handler == nil {
-		t.Error("DefaultErrorHandler should not be nil")
-	}
+	// Verify type - handler is never nil as it's created with &DefaultErrorHandler{}
+	// This check is redundant but kept for clarity
+	_ = handler
 }
 
 // TestTestErrorHandler tests test error handler

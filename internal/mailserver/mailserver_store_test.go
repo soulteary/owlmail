@@ -13,7 +13,11 @@ func TestMailServerGetEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test with non-existent email
 	_, err = server.GetEmail("nonexistent")
@@ -64,7 +68,11 @@ func TestMailServerGetAllEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Initially should be empty
 	emails := server.GetAllEmail()
@@ -80,11 +88,19 @@ func TestMailServerGetAllEmail(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	emails = server.GetAllEmail()
 	if len(emails) != 2 {
@@ -98,16 +114,24 @@ func TestMailServerDeleteEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create email
 	email := &Email{ID: "test-id", Subject: "Test"}
 	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Delete email
 	err = server.DeleteEmail("test-id")
@@ -128,7 +152,11 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails
 	email1 := &Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -137,11 +165,19 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Delete all
 	err = server.DeleteAllEmail()
@@ -162,16 +198,24 @@ func TestMailServerReadEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create unread email
 	email := &Email{ID: "test-id", Subject: "Test", Read: false}
 	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Mark as read
 	err = server.ReadEmail("test-id")
@@ -195,7 +239,11 @@ func TestMailServerReadAllEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add unread emails
 	email1 := &Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
@@ -204,11 +252,19 @@ func TestMailServerReadAllEmail(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Mark all as read
 	count := server.ReadAllEmail()
@@ -231,7 +287,11 @@ func TestMailServerGetEmailStats(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails
 	email1 := &Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
@@ -240,11 +300,19 @@ func TestMailServerGetEmailStats(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", true, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", true, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Get stats
 	stats := server.GetEmailStats()
@@ -265,7 +333,11 @@ func TestMailServerGetRawEmail(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test with non-existent email
 	_, err = server.GetRawEmail("nonexistent")
@@ -276,7 +348,9 @@ func TestMailServerGetRawEmail(t *testing.T) {
 	// Create email file
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
 	content := []byte("test email content")
-	os.WriteFile(emlPath, content, 0644)
+	if err := os.WriteFile(emlPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	// Get raw email
 	path, err := server.GetRawEmail("test-id")
@@ -294,12 +368,18 @@ func TestMailServerGetRawEmailContent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create email file
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
 	content := []byte("test email content")
-	os.WriteFile(emlPath, content, 0644)
+	if err := os.WriteFile(emlPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	// Get raw email content
 	retrieved, err := server.GetRawEmailContent("test-id")
@@ -317,7 +397,11 @@ func TestMailServerGetEmailHTML(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create email with HTML
 	email := &Email{
@@ -328,9 +412,13 @@ func TestMailServerGetEmailHTML(t *testing.T) {
 	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Get HTML (will be sanitized)
 	html, err := server.GetEmailHTML("test-id")
@@ -349,7 +437,11 @@ func TestSaveAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test saveAttachment
 	attachment := &Attachment{
@@ -404,7 +496,11 @@ func TestLoadMailsFromDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create a simple email file
 	emailContent := []byte("From: from@example.com\r\n" +
@@ -476,7 +572,11 @@ func TestLoadMailsFromDirectoryWithMultipart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Create a multipart email file
 	emailContent := []byte("From: from@example.com\r\n" +
@@ -519,7 +619,11 @@ func TestGetEmailAttachment(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test with non-existent email
 	_, _, err = server.GetEmailAttachment("nonexistent", "file.pdf")
@@ -541,15 +645,23 @@ func TestGetEmailAttachment(t *testing.T) {
 	envelope := &Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	// Create attachment directory and file
 	attachmentDir := filepath.Join(tmpDir, "test-id")
-	os.MkdirAll(attachmentDir, 0755)
+	if err := os.MkdirAll(attachmentDir, 0755); err != nil {
+		t.Fatalf("Failed to create attachment directory: %v", err)
+	}
 	attachmentPath := filepath.Join(attachmentDir, "test.pdf")
-	os.WriteFile(attachmentPath, []byte("attachment content"), 0644)
+	if err := os.WriteFile(attachmentPath, []byte("attachment content"), 0644); err != nil {
+		t.Fatalf("Failed to create attachment file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Get attachment
 	path, contentType, err := server.GetEmailAttachment("test-id", "test.pdf")
@@ -575,8 +687,12 @@ func TestGetEmailAttachment(t *testing.T) {
 		Subject: "Test 2",
 	}
 	emlPath2 := filepath.Join(tmpDir, "test-id-2.eml")
-	os.WriteFile(emlPath2, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id-2", false, envelope, email2)
+	if err := os.WriteFile(emlPath2, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id-2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	_, _, err = server.GetEmailAttachment("test-id-2", "file.pdf")
 	if err == nil {

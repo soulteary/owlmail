@@ -14,7 +14,11 @@ func TestNewMailServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	if server.port != defaultPort {
 		t.Errorf("Expected port %d, got %d", defaultPort, server.port)
@@ -28,7 +32,11 @@ func TestNewMailServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server2.Close()
+	defer func() {
+		if err := server2.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	if server2.port != 2525 {
 		t.Errorf("Expected port 2525, got %d", server2.port)
@@ -53,7 +61,11 @@ func TestNewMailServerWithOutgoing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	if server.outgoing == nil {
 		t.Error("Outgoing mail should be configured")
@@ -82,7 +94,11 @@ func TestNewMailServerWithConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	if server.authConfig == nil {
 		t.Error("Auth config should be set")

@@ -11,21 +11,26 @@ func TestMailServerOn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
-	eventFired := false
+	eventFired := make(chan bool, 1)
 	server.On("new", func(email *Email) {
-		eventFired = true
+		eventFired <- true
 	})
 
 	// Emit event
 	email := &Email{ID: "test-id", Subject: "Test"}
 	server.emit("new", email)
 
-	// Give time for goroutine to execute
-	time.Sleep(50 * time.Millisecond)
-
-	if !eventFired {
+	// Wait for event handler to be called
+	select {
+	case <-eventFired:
+		// Event handler was called
+	case <-time.After(1 * time.Second):
 		t.Error("Event handler should have been called")
 	}
 }

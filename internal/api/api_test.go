@@ -31,12 +31,14 @@ func TestNewAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPI(server, 1080, "localhost")
-	if api == nil {
-		t.Error("NewAPI should not return nil")
-	}
+	// NewAPI never returns nil
 	if api.mailServer != server {
 		t.Error("API should have correct mail server")
 	}
@@ -54,12 +56,14 @@ func TestNewAPIWithAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
-	if api == nil {
-		t.Error("NewAPIWithAuth should not return nil")
-	}
+	// NewAPIWithAuth never returns nil
 	if api.authUser != "user" {
 		t.Errorf("Expected auth user 'user', got '%s'", api.authUser)
 	}
@@ -74,12 +78,14 @@ func TestNewAPIWithHTTPS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithHTTPS(server, 1080, "localhost", "user", "pass", true, "cert.pem", "key.pem")
-	if api == nil {
-		t.Error("NewAPIWithHTTPS should not return nil")
-	}
+	// NewAPIWithHTTPS never returns nil
 	if !api.httpsEnabled {
 		t.Error("HTTPS should be enabled")
 	}
@@ -93,7 +99,11 @@ func TestNewAPIWithHTTPS(t *testing.T) {
 
 func TestAPIHealthCheck(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -115,7 +125,11 @@ func TestAPIHealthCheck(t *testing.T) {
 
 func TestAPISetupEventListeners(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test that event listeners are set up
 	api.mailServer.On("new", func(email *types.Email) {
@@ -126,8 +140,12 @@ func TestAPISetupEventListeners(t *testing.T) {
 	email := &types.Email{ID: "test-id", Subject: "Test", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Give time for event to fire
 	time.Sleep(100 * time.Millisecond)
@@ -141,7 +159,11 @@ func TestAPISetupEventListeners(t *testing.T) {
 
 func TestAPISetupRoutes(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test that routes are set up
 	if api.router == nil {
@@ -198,7 +220,11 @@ func TestAPIStart(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPI(server, 0, "localhost") // Use port 0 for random port
 	if api == nil {

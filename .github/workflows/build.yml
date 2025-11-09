@@ -60,10 +60,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
-        run: |
-          go build -v \
-            -o owlmail${{ matrix.ext }} \
-            ./cmd/owlmail
+        run: go build -v -o owlmail${{ matrix.ext }} ./cmd/owlmail
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

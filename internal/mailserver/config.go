@@ -64,7 +64,10 @@ func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *out
 	common.Log("owlmail using directory %s", mailDir)
 
 	// Load existing emails from directory
-	ms.LoadMailsFromDirectory()
+	if err := ms.LoadMailsFromDirectory(); err != nil {
+		common.Error("Failed to load emails from directory: %v", err)
+		// Continue anyway, as this is not a fatal error
+	}
 
 	return ms, nil
 }

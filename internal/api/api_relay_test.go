@@ -16,14 +16,22 @@ import (
 
 func TestAPIRelayEmail(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with query parameter
 	gin.SetMode(gin.TestMode)
@@ -39,14 +47,22 @@ func TestAPIRelayEmail(t *testing.T) {
 
 func TestAPIRelayEmailWithBody(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with body parameter
 	requestBody := map[string]interface{}{
@@ -68,14 +84,22 @@ func TestAPIRelayEmailWithBody(t *testing.T) {
 
 func TestAPIRelayEmailWithoutRelayTo(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay without relayTo (uses configured SMTP server)
 	gin.SetMode(gin.TestMode)
@@ -91,7 +115,11 @@ func TestAPIRelayEmailWithoutRelayTo(t *testing.T) {
 
 func TestAPIRelayEmailNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -105,14 +133,22 @@ func TestAPIRelayEmailNotFound(t *testing.T) {
 
 func TestAPIRelayEmailWithParam(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with param
 	gin.SetMode(gin.TestMode)
@@ -128,14 +164,22 @@ func TestAPIRelayEmailWithParam(t *testing.T) {
 
 func TestAPIRelayEmailWithParamEmpty(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with empty param (using empty string as param)
 	gin.SetMode(gin.TestMode)
@@ -153,7 +197,11 @@ func TestAPIRelayEmailWithParamEmpty(t *testing.T) {
 
 func TestAPIRelayEmailWithParamNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -167,14 +215,22 @@ func TestAPIRelayEmailWithParamNotFound(t *testing.T) {
 
 func TestAPIRelayEmailWithBodyButNoRelayTo(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with body but no relayTo field
 	requestBody := map[string]interface{}{
@@ -196,14 +252,22 @@ func TestAPIRelayEmailWithBodyButNoRelayTo(t *testing.T) {
 
 func TestAPIRelayEmailWithInvalidBody(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with invalid JSON body
 	gin.SetMode(gin.TestMode)
@@ -220,14 +284,22 @@ func TestAPIRelayEmailWithInvalidBody(t *testing.T) {
 
 func TestAPIRelayEmailWithParamEmptyString(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test relay with empty string param (using empty string as param value)
 	// Note: Gin router may redirect trailing slashes, so we test with actual empty param

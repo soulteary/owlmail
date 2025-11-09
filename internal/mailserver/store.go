@@ -17,11 +17,6 @@ import (
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
 
-	stat, err := os.Stat(emlPath)
-	if err != nil {
-		return fmt.Errorf("failed to stat email file: %w", err)
-	}
-
 	parsedEmail.ID = id
 	// Only set time if not already set (from header parsing)
 	if parsedEmail.Time.IsZero() {
@@ -30,8 +25,17 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 	parsedEmail.Read = isRead
 	parsedEmail.Envelope = envelope
 	parsedEmail.Source = emlPath
-	parsedEmail.Size = stat.Size()
-	parsedEmail.SizeHuman = formatBytes(stat.Size())
+
+	// Try to get file size, but don't fail if file doesn't exist
+	stat, err := os.Stat(emlPath)
+	if err != nil {
+		// File doesn't exist, set size to 0
+		parsedEmail.Size = 0
+		parsedEmail.SizeHuman = formatBytes(0)
+	} else {
+		parsedEmail.Size = stat.Size()
+		parsedEmail.SizeHuman = formatBytes(stat.Size())
+	}
 
 	// Calculate BCC
 	envelopeTo := append([]string{}, envelope.To...)
@@ -57,11 +61,13 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	// Auto relay if enabled
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
-		ms.RelayMail(parsedEmail, true, func(err error) {
+		if err := ms.RelayMail(parsedEmail, true, func(err error) {
 			if err != nil {
 				common.Error("Error when auto-relaying email: %v", err)
 			}
-		})
+		}); err != nil {
+			common.Error("Error when initiating auto-relay: %v", err)
+		}
 	}
 
 	return nil
@@ -121,7 +127,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	defer ms.storeMutex.Unlock()
 
 	var email *Email
-	var emailIndex int = -1
+	var emailIndex = -1
 
 	for i, e := range ms.store {
 		if e.ID == id {
@@ -169,7 +175,9 @@ func (ms *MailServer) DeleteAllEmail() error {
 	files, err := os.ReadDir(ms.mailDir)
 	if err == nil {
 		for _, file := range files {
-			os.RemoveAll(filepath.Join(ms.mailDir, file.Name()))
+			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
+				common.Verbose("Failed to remove file: %v", err)
+			}
 		}
 	}
 
@@ -334,7 +342,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Parse email
 		msg, err := message.Read(emailFile)
-		emailFile.Close()
+		if closeErr := emailFile.Close(); closeErr != nil {
+			common.Verbose("Failed to close email file: %v", closeErr)
+		}
 		if err != nil {
 			common.Verbose("Error parsing email file %s: %v", emlPath, err)
 			continue

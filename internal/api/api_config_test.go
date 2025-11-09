@@ -14,7 +14,11 @@ import (
 
 func TestAPIGetConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -36,7 +40,11 @@ func TestAPIGetConfig(t *testing.T) {
 
 func TestAPIGetOutgoingConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -48,7 +56,9 @@ func TestAPIGetOutgoingConfig(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["enabled"] != false {
 		t.Error("Expected enabled false when no config")
 	}
@@ -56,7 +66,11 @@ func TestAPIGetOutgoingConfig(t *testing.T) {
 
 func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Set outgoing config
 	outgoingConfig := &outgoing.OutgoingConfig{
@@ -81,7 +95,9 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["enabled"] != true {
 		t.Error("Expected enabled true when config exists")
 	}
@@ -92,7 +108,11 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 
 func TestAPIUpdateOutgoingConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	config := map[string]interface{}{
 		"host":   "smtp.example.com",
@@ -115,7 +135,11 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 
 func TestAPIPatchOutgoingConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// First set a config
 	config := map[string]interface{}{
@@ -148,7 +172,11 @@ func TestAPIPatchOutgoingConfig(t *testing.T) {
 
 func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Set outgoing config
 	outgoingConfig := &outgoing.OutgoingConfig{
@@ -167,7 +195,9 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["outgoing"] == nil {
 		t.Error("Response should have outgoing field")
 	}
@@ -183,7 +213,11 @@ func TestAPIGetConfigWithAuth(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPI(server, 1080, "localhost")
 
@@ -197,7 +231,9 @@ func TestAPIGetConfigWithAuth(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["smtpAuth"] == nil {
 		t.Error("Response should have smtpAuth field")
 	}
@@ -234,7 +270,11 @@ func TestAPIGetConfigWithTLS(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPI(server, 1080, "localhost")
 
@@ -248,7 +288,9 @@ func TestAPIGetConfigWithTLS(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["tls"] == nil {
 		t.Error("Response should have tls field")
 	}
@@ -273,7 +315,11 @@ func TestAPIGetConfigWithTLS(t *testing.T) {
 
 func TestAPIUpdateOutgoingConfigInvalidRequest(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -288,7 +334,11 @@ func TestAPIUpdateOutgoingConfigInvalidRequest(t *testing.T) {
 
 func TestAPIUpdateOutgoingConfigMissingHost(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	config := map[string]interface{}{
 		"port": 587,
@@ -308,7 +358,11 @@ func TestAPIUpdateOutgoingConfigMissingHost(t *testing.T) {
 
 func TestAPIUpdateOutgoingConfigInvalidPort(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	config := map[string]interface{}{
 		"host": "smtp.example.com",
@@ -329,7 +383,11 @@ func TestAPIUpdateOutgoingConfigInvalidPort(t *testing.T) {
 
 func TestAPIUpdateOutgoingConfigPortTooLarge(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	config := map[string]interface{}{
 		"host": "smtp.example.com",
@@ -350,7 +408,11 @@ func TestAPIUpdateOutgoingConfigPortTooLarge(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigInvalidRequest(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -365,7 +427,11 @@ func TestAPIPatchOutgoingConfigInvalidRequest(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigAllFields(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Patch with all fields
 	patch := map[string]interface{}{
@@ -394,7 +460,11 @@ func TestAPIPatchOutgoingConfigAllFields(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Patch without host
 	patch := map[string]interface{}{
@@ -415,7 +485,11 @@ func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// First set a config
 	config := map[string]interface{}{
@@ -448,7 +522,9 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w2.Body.Bytes(), &response)
+	if err := json.Unmarshal(w2.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	configResp := response["config"].(map[string]interface{})
 	if configResp["port"] != float64(465) {
 		t.Errorf("Expected port 465, got %v", configResp["port"])
@@ -463,7 +539,11 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// First set a config
 	config := map[string]interface{}{
@@ -496,7 +576,11 @@ func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// First set a config
 	config := map[string]interface{}{
@@ -529,7 +613,11 @@ func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
 
 func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Patch with non-string rules (should be ignored)
 	patch := map[string]interface{}{
@@ -551,7 +639,9 @@ func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	configResp := response["config"].(map[string]interface{})
 	allowRules := configResp["allowRules"].([]interface{})
 	if len(allowRules) != 1 {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -477,7 +478,11 @@ func (api *API) exportEmails(c *gin.Context) {
 	c.Writer.Header().Set("Content-Transfer-Encoding", "binary")
 
 	zipWriter := zip.NewWriter(c.Writer)
-	defer zipWriter.Close()
+	defer func() {
+		if err := zipWriter.Close(); err != nil {
+			common.Verbose("Failed to close zip writer: %v", err)
+		}
+	}()
 
 	// Add each email file to ZIP
 	for _, email := range filtered {
@@ -496,13 +501,17 @@ func (api *API) exportEmails(c *gin.Context) {
 		filename := fmt.Sprintf("%s_%s.eml", email.ID, sanitizeFilename(email.Subject))
 		fileWriter, err := zipWriter.Create(filename)
 		if err != nil {
-			emailFile.Close()
+			if closeErr := emailFile.Close(); closeErr != nil {
+				common.Verbose("Failed to close email file: %v", closeErr)
+			}
 			continue
 		}
 
 		// Copy file content
 		_, err = io.Copy(fileWriter, emailFile)
-		emailFile.Close()
+		if closeErr := emailFile.Close(); closeErr != nil {
+			common.Verbose("Failed to close email file: %v", closeErr)
+		}
 		if err != nil {
 			continue
 		}

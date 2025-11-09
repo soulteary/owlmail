@@ -99,7 +99,11 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	if err != nil {
 		return fmt.Errorf("failed to open email file: %w", err)
 	}
-	defer emailFile.Close()
+	defer func() {
+		if err := emailFile.Close(); err != nil {
+			common.Verbose("Failed to close email file: %v", err)
+		}
+	}()
 
 	// Get sender address
 	sender := task.Email.Envelope.From
@@ -296,7 +300,11 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() {
+		if err := client.Close(); err != nil {
+			common.Verbose("Failed to close SMTP client: %v", err)
+		}
+	}()
 
 	// Check if server supports STARTTLS
 	if ok, _ := client.Extension("STARTTLS"); ok {
@@ -332,7 +340,9 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	}
 	_, err = w.Write(msg)
 	if err != nil {
-		w.Close()
+		if closeErr := w.Close(); closeErr != nil {
+			common.Verbose("Failed to close writer: %v", closeErr)
+		}
 		return err
 	}
 	err = w.Close()

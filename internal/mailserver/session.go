@@ -84,7 +84,11 @@ func (s *Session) Data(r io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("failed to create email file: %w", err)
 	}
-	defer emlFile.Close()
+	defer func() {
+		if err := emlFile.Close(); err != nil {
+			common.Verbose("Failed to close email file: %v", err)
+		}
+	}()
 
 	// Copy email data to file and parse
 	tee := io.TeeReader(r, emlFile)

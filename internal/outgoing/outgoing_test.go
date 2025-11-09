@@ -12,9 +12,7 @@ import (
 func TestNewOutgoingMail(t *testing.T) {
 	// Test with nil config
 	om := NewOutgoingMail(nil)
-	if om == nil {
-		t.Error("NewOutgoingMail should not return nil")
-	}
+	// NewOutgoingMail never returns nil, it creates a default config
 	if om.config == nil {
 		t.Error("config should not be nil")
 	}
@@ -31,9 +29,7 @@ func TestNewOutgoingMail(t *testing.T) {
 		Secure:   true,
 	}
 	om = NewOutgoingMail(config)
-	if om == nil {
-		t.Error("NewOutgoingMail should not return nil")
-	}
+	// NewOutgoingMail never returns nil
 	if !om.enabled {
 		t.Error("enabled should be true when host is set")
 	}
@@ -342,18 +338,20 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 		Subject: "Test",
 	}
 
-	callbackCalled := false
+	callbackCalled := make(chan bool, 1)
 	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
-		callbackCalled = true
+		callbackCalled <- true
 		// Should fail because file doesn't exist
 		if err == nil {
 			t.Error("Expected error when file doesn't exist")
 		}
 	})
 
-	// Wait a bit for callback
-	time.Sleep(100 * time.Millisecond)
-	if !callbackCalled {
+	// Wait for callback
+	select {
+	case <-callbackCalled:
+		// Callback was called
+	case <-time.After(1 * time.Second):
 		t.Error("Callback should be called")
 	}
 
@@ -365,16 +363,18 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 			To: []string{},
 		},
 	}
-	callbackCalled2 := false
+	callbackCalled2 := make(chan bool, 1)
 	om.RelayMail(emailNoRecipients, "/path/to/email.eml", "", false, func(err error) {
-		callbackCalled2 = true
+		callbackCalled2 <- true
 		// Should fail because no recipients
 		if err == nil {
 			t.Error("Expected error when no recipients")
 		}
 	})
-	time.Sleep(100 * time.Millisecond)
-	if !callbackCalled2 {
+	select {
+	case <-callbackCalled2:
+		// Callback was called
+	case <-time.After(1 * time.Second):
 		t.Error("Callback should be called")
 	}
 
@@ -386,15 +386,17 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	// Test with callback on queue full
-	callbackCalled3 := false
+	callbackCalled3 := make(chan bool, 1)
 	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
-		callbackCalled3 = true
+		callbackCalled3 <- true
 		if err == nil {
 			t.Error("Expected error when queue is full")
 		}
 	})
-	time.Sleep(200 * time.Millisecond)
-	if !callbackCalled3 {
+	select {
+	case <-callbackCalled3:
+		// Callback was called
+	case <-time.After(1 * time.Second):
 		t.Error("Callback should be called when queue is full")
 	}
 }
@@ -560,17 +562,19 @@ func TestOutgoingMailRelayMailDisabled(t *testing.T) {
 		ID: "test-id",
 	}
 
-	callbackCalled := false
+	callbackCalled := make(chan bool, 1)
 	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
-		callbackCalled = true
+		callbackCalled <- true
 		if err == nil {
 			t.Error("Expected error when outgoing mail is disabled")
 		}
 	})
 
-	// Wait a bit for callback
-	time.Sleep(100 * time.Millisecond)
-	if !callbackCalled {
+	// Wait for callback
+	select {
+	case <-callbackCalled:
+		// Callback was called
+	case <-time.After(1 * time.Second):
 		t.Error("Callback should be called")
 	}
 }

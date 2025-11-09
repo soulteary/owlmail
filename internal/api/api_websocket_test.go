@@ -15,7 +15,11 @@ import (
 
 func TestAPIHandleWebSocket(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 
@@ -29,15 +33,17 @@ func TestAPIHandleWebSocket(t *testing.T) {
 	// Try to connect (this will fail in test environment, but we can test the route exists)
 	_, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	// We expect this to fail in test environment, but the route should exist
-	if err == nil {
-		// If connection succeeds, close it
-		// This is unlikely in test environment
-	}
+	// If connection succeeds, that's fine too - we just want to verify the route exists
+	_ = err
 }
 
 func TestAPIBroadcastMessage(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test that broadcastMessage doesn't panic with no clients
 	api.broadcastMessage(gin.H{
@@ -55,14 +61,22 @@ func TestAPIBroadcastMessage(t *testing.T) {
 
 func TestAPISetupEventListenersBroadcast(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add a test email to trigger event
 	email := &types.Email{ID: "test-id", Subject: "Test", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Give time for event to fire
 	time.Sleep(100 * time.Millisecond)
@@ -76,7 +90,11 @@ func TestAPISetupEventListenersBroadcast(t *testing.T) {
 
 func TestAPIBroadcastMessageWithClients(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test that broadcastMessage handles write errors gracefully
 	// We can't easily create a real WebSocket connection in unit tests,
@@ -93,17 +111,27 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 
 func TestAPIBroadcastMessageWithDeleteEvent(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add and then delete an email to trigger delete event
 	email := &types.Email{ID: "test-id", Subject: "Test", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Delete the email to trigger delete event
-	server.DeleteEmail("test-id")
+	if err := server.DeleteEmail("test-id"); err != nil {
+		t.Fatalf("Failed to delete email: %v", err)
+	}
 
 	// Give time for event to fire
 	time.Sleep(100 * time.Millisecond)
@@ -116,7 +144,11 @@ func TestAPIBroadcastMessageWithDeleteEvent(t *testing.T) {
 
 func TestAPIHandleWebSocketRoute(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 
@@ -135,7 +167,11 @@ func TestAPIHandleWebSocketRoute(t *testing.T) {
 // TestAPIHandleWebSocketUpgradeError tests WebSocket upgrade error handling
 func TestAPIHandleWebSocketUpgradeError(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 
@@ -154,7 +190,11 @@ func TestAPIHandleWebSocketUpgradeError(t *testing.T) {
 // TestAPIBroadcastMessageWriteError tests WebSocket write error handling
 func TestAPIBroadcastMessageWriteError(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test that broadcastMessage handles errors gracefully
 	// Even with no clients, it should not panic

@@ -13,7 +13,11 @@ func (api *API) handleWebSocket(c *gin.Context) {
 		common.Verbose("WebSocket upgrade error: %v", err)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		if err := conn.Close(); err != nil {
+			common.Verbose("Failed to close WebSocket connection: %v", err)
+		}
+	}()
 
 	// Add client
 	api.wsClientsLock.Lock()
@@ -28,10 +32,13 @@ func (api *API) handleWebSocket(c *gin.Context) {
 	}()
 
 	// Send initial connection message
-	conn.WriteJSON(gin.H{
+	if err := conn.WriteJSON(gin.H{
 		"type":    "connected",
 		"message": "WebSocket connection established",
-	})
+	}); err != nil {
+		common.Verbose("Failed to send WebSocket connection message: %v", err)
+		return
+	}
 
 	// Keep connection alive and handle incoming messages
 	for {
@@ -45,7 +52,10 @@ func (api *API) handleWebSocket(c *gin.Context) {
 
 		// Handle ping/pong
 		if msgType, ok := msg["type"].(string); ok && msgType == "ping" {
-			conn.WriteJSON(gin.H{"type": "pong"})
+			if err := conn.WriteJSON(gin.H{"type": "pong"}); err != nil {
+				common.Verbose("Failed to send WebSocket pong: %v", err)
+				break
+			}
 		}
 	}
 }
@@ -60,7 +70,9 @@ func (api *API) broadcastMessage(message interface{}) {
 			common.Verbose("WebSocket write error: %v", err)
 			// Remove failed client
 			delete(api.wsClients, conn)
-			conn.Close()
+			if err := conn.Close(); err != nil {
+				common.Verbose("Failed to close WebSocket connection: %v", err)
+			}
 		}
 	}
 }

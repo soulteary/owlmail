@@ -11,7 +11,11 @@ import (
 
 func TestCorsMiddleware(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -33,7 +37,11 @@ func TestBasicAuthMiddleware(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
@@ -53,7 +61,11 @@ func TestBasicAuthMiddlewareSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
@@ -74,7 +86,11 @@ func TestBasicAuthMiddlewareInvalidPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
@@ -95,7 +111,11 @@ func TestBasicAuthMiddlewareInvalidBase64(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
@@ -116,7 +136,11 @@ func TestBasicAuthMiddlewareInvalidCredentials(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
@@ -137,7 +161,11 @@ func TestBasicAuthMiddlewareInvalidFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 

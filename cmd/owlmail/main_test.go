@@ -11,8 +11,14 @@ import (
 
 func TestGetEnvString(t *testing.T) {
 	// Test with environment variable set
-	os.Setenv("TEST_VAR", "test-value")
-	defer os.Unsetenv("TEST_VAR")
+	if err := os.Setenv("TEST_VAR", "test-value"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_VAR"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvString("TEST_VAR", "default")
 	if result != "test-value" {
@@ -20,15 +26,23 @@ func TestGetEnvString(t *testing.T) {
 	}
 
 	// Test with environment variable not set
-	os.Unsetenv("TEST_VAR")
+	if err := os.Unsetenv("TEST_VAR"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 	result = getEnvString("TEST_VAR", "default")
 	if result != "default" {
 		t.Errorf("Expected 'default', got '%s'", result)
 	}
 
 	// Test with empty environment variable
-	os.Setenv("TEST_VAR", "")
-	defer os.Unsetenv("TEST_VAR")
+	if err := os.Setenv("TEST_VAR", ""); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_VAR"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 	result = getEnvString("TEST_VAR", "default")
 	if result != "default" {
 		t.Errorf("Expected 'default' for empty env var, got '%s'", result)
@@ -37,8 +51,14 @@ func TestGetEnvString(t *testing.T) {
 
 func TestGetEnvInt(t *testing.T) {
 	// Test with valid integer
-	os.Setenv("TEST_INT", "123")
-	defer os.Unsetenv("TEST_INT")
+	if err := os.Setenv("TEST_INT", "123"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_INT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvInt("TEST_INT", 0)
 	if result != 123 {
@@ -46,23 +66,37 @@ func TestGetEnvInt(t *testing.T) {
 	}
 
 	// Test with environment variable not set
-	os.Unsetenv("TEST_INT")
+	if err := os.Unsetenv("TEST_INT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 	result = getEnvInt("TEST_INT", 456)
 	if result != 456 {
 		t.Errorf("Expected 456, got %d", result)
 	}
 
 	// Test with invalid integer
-	os.Setenv("TEST_INT", "invalid")
-	defer os.Unsetenv("TEST_INT")
+	if err := os.Setenv("TEST_INT", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_INT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 	result = getEnvInt("TEST_INT", 789)
 	if result != 789 {
 		t.Errorf("Expected 789 for invalid int, got %d", result)
 	}
 
 	// Test with empty environment variable
-	os.Setenv("TEST_INT", "")
-	defer os.Unsetenv("TEST_INT")
+	if err := os.Setenv("TEST_INT", ""); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_INT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 	result = getEnvInt("TEST_INT", 999)
 	if result != 999 {
 		t.Errorf("Expected 999 for empty env var, got %d", result)
@@ -71,8 +105,14 @@ func TestGetEnvInt(t *testing.T) {
 
 func TestGetEnvBool(t *testing.T) {
 	// Test with "true"
-	os.Setenv("TEST_BOOL", "true")
-	defer os.Unsetenv("TEST_BOOL")
+	if err := os.Setenv("TEST_BOOL", "true"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_BOOL"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result := getEnvBool("TEST_BOOL", false)
 	if result != true {
@@ -80,36 +120,50 @@ func TestGetEnvBool(t *testing.T) {
 	}
 
 	// Test with "false"
-	os.Setenv("TEST_BOOL", "false")
+	if err := os.Setenv("TEST_BOOL", "false"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = getEnvBool("TEST_BOOL", true)
 	if result != false {
 		t.Errorf("Expected false, got %v", result)
 	}
 
 	// Test with "1"
-	os.Setenv("TEST_BOOL", "1")
+	if err := os.Setenv("TEST_BOOL", "1"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = getEnvBool("TEST_BOOL", false)
 	if result != true {
 		t.Errorf("Expected true for '1', got %v", result)
 	}
 
 	// Test with "0"
-	os.Setenv("TEST_BOOL", "0")
+	if err := os.Setenv("TEST_BOOL", "0"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = getEnvBool("TEST_BOOL", true)
 	if result != false {
 		t.Errorf("Expected false for '0', got %v", result)
 	}
 
 	// Test with environment variable not set
-	os.Unsetenv("TEST_BOOL")
+	if err := os.Unsetenv("TEST_BOOL"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 	result = getEnvBool("TEST_BOOL", true)
 	if result != true {
 		t.Errorf("Expected true (default), got %v", result)
 	}
 
 	// Test with invalid boolean
-	os.Setenv("TEST_BOOL", "invalid")
-	defer os.Unsetenv("TEST_BOOL")
+	if err := os.Setenv("TEST_BOOL", "invalid"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("TEST_BOOL"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 	result = getEnvBool("TEST_BOOL", false)
 	if result != false {
 		t.Errorf("Expected false for invalid bool, got %v", result)
@@ -118,10 +172,20 @@ func TestGetEnvBool(t *testing.T) {
 
 func TestGetLogLevelFromEnv(t *testing.T) {
 	// Test with MAILDEV_VERBOSE
-	os.Setenv("MAILDEV_VERBOSE", "1")
-	defer os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Setenv("MAILDEV_VERBOSE", "1"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result := getLogLevelFromEnv()
 	if result != common.LogLevelVerbose {
@@ -129,9 +193,17 @@ func TestGetLogLevelFromEnv(t *testing.T) {
 	}
 
 	// Test with MAILDEV_SILENT
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Setenv("MAILDEV_SILENT", "1")
-	defer os.Unsetenv("MAILDEV_SILENT")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("MAILDEV_SILENT", "1"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getLogLevelFromEnv()
 	if result != common.LogLevelSilent {
@@ -139,10 +211,20 @@ func TestGetLogLevelFromEnv(t *testing.T) {
 	}
 
 	// Test with OWLMAIL_LOG_LEVEL=verbose
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Setenv("OWLMAIL_LOG_LEVEL", "verbose")
-	defer os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Setenv("OWLMAIL_LOG_LEVEL", "verbose"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+			t.Fatalf("Failed to unset environment variable: %v", err)
+		}
+	}()
 
 	result = getLogLevelFromEnv()
 	if result != common.LogLevelVerbose {
@@ -150,16 +232,24 @@ func TestGetLogLevelFromEnv(t *testing.T) {
 	}
 
 	// Test with OWLMAIL_LOG_LEVEL=silent
-	os.Setenv("OWLMAIL_LOG_LEVEL", "silent")
+	if err := os.Setenv("OWLMAIL_LOG_LEVEL", "silent"); err != nil {
+		t.Fatalf("Failed to set environment variable: %v", err)
+	}
 	result = getLogLevelFromEnv()
 	if result != common.LogLevelSilent {
 		t.Errorf("Expected LogLevelSilent, got %d", result)
 	}
 
 	// Test with default
-	os.Unsetenv("MAILDEV_VERBOSE")
-	os.Unsetenv("MAILDEV_SILENT")
-	os.Unsetenv("OWLMAIL_LOG_LEVEL")
+	if err := os.Unsetenv("MAILDEV_VERBOSE"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("MAILDEV_SILENT"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
+	if err := os.Unsetenv("OWLMAIL_LOG_LEVEL"); err != nil {
+		t.Fatalf("Failed to unset environment variable: %v", err)
+	}
 
 	result = getLogLevelFromEnv()
 	if result != common.LogLevelNormal {

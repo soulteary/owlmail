@@ -20,7 +20,11 @@ import (
 
 func TestAPIGetAllEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now(), Read: false}
@@ -29,11 +33,19 @@ func TestAPIGetAllEmails(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", true, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", true, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -55,16 +67,24 @@ func TestAPIGetAllEmails(t *testing.T) {
 
 func TestAPIGetEmailByID(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -95,16 +115,24 @@ func TestAPIGetEmailByID(t *testing.T) {
 
 func TestAPIDeleteEmail(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -124,7 +152,11 @@ func TestAPIDeleteEmail(t *testing.T) {
 
 func TestAPIDeleteAllEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -133,11 +165,19 @@ func TestAPIDeleteAllEmails(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -157,16 +197,24 @@ func TestAPIDeleteAllEmails(t *testing.T) {
 
 func TestAPIReadEmail(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add unread email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Read: false, Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -189,7 +237,11 @@ func TestAPIReadEmail(t *testing.T) {
 
 func TestAPIReadAllEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add unread emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
@@ -198,11 +250,19 @@ func TestAPIReadAllEmails(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -224,7 +284,11 @@ func TestAPIReadAllEmails(t *testing.T) {
 
 func TestAPIGetEmailStats(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
@@ -233,11 +297,19 @@ func TestAPIGetEmailStats(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", true, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", true, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -259,7 +331,11 @@ func TestAPIGetEmailStats(t *testing.T) {
 
 func TestAPIGetEmailHTML(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with HTML
 	email := &types.Email{
@@ -271,9 +347,13 @@ func TestAPIGetEmailHTML(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -290,7 +370,11 @@ func TestAPIGetEmailHTML(t *testing.T) {
 
 func TestAPIBatchDeleteEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -299,11 +383,19 @@ func TestAPIBatchDeleteEmails(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Batch delete
 	requestBody := map[string]interface{}{
@@ -330,7 +422,11 @@ func TestAPIBatchDeleteEmails(t *testing.T) {
 
 func TestAPIBatchReadEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add unread emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
@@ -339,11 +435,19 @@ func TestAPIBatchReadEmails(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Batch read
 	requestBody := map[string]interface{}{
@@ -372,7 +476,11 @@ func TestAPIBatchReadEmails(t *testing.T) {
 
 func TestAPIGetAttachment(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with attachment
 	email := &types.Email{
@@ -389,15 +497,23 @@ func TestAPIGetAttachment(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
 	// Create attachment directory and file
 	attachmentDir := filepath.Join(tmpDir, "test-id")
-	os.MkdirAll(attachmentDir, 0755)
+	if err := os.MkdirAll(attachmentDir, 0755); err != nil {
+		t.Fatalf("Failed to create attachment directory: %v", err)
+	}
 	attachmentPath := filepath.Join(attachmentDir, "test.pdf")
-	os.WriteFile(attachmentPath, []byte("attachment content"), 0644)
+	if err := os.WriteFile(attachmentPath, []byte("attachment content"), 0644); err != nil {
+		t.Fatalf("Failed to create attachment file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -411,7 +527,11 @@ func TestAPIGetAttachment(t *testing.T) {
 
 func TestAPIGetEmailSource(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email
 	email := &types.Email{ID: "test-id", Subject: "Test", Time: time.Now()}
@@ -419,9 +539,13 @@ func TestAPIGetEmailSource(t *testing.T) {
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
 	content := []byte("test email source content")
-	os.WriteFile(emlPath, content, 0644)
+	if err := os.WriteFile(emlPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -438,7 +562,11 @@ func TestAPIGetEmailSource(t *testing.T) {
 
 func TestAPIDownloadEmail(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
@@ -446,9 +574,13 @@ func TestAPIDownloadEmail(t *testing.T) {
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
 	content := []byte("test email content")
-	os.WriteFile(emlPath, content, 0644)
+	if err := os.WriteFile(emlPath, content, 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -462,7 +594,11 @@ func TestAPIDownloadEmail(t *testing.T) {
 
 func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{
@@ -487,11 +623,19 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", true, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", true, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with query filter
 	gin.SetMode(gin.TestMode)
@@ -542,7 +686,11 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 func TestAPIGetEmailPreviews(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test email
 	email := &types.Email{
@@ -557,9 +705,13 @@ func TestAPIGetEmailPreviews(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -573,7 +725,11 @@ func TestAPIGetEmailPreviews(t *testing.T) {
 
 func TestAPIReloadMailsFromDirectory(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -594,12 +750,18 @@ func TestAPIReloadMailsFromDirectoryError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	api := NewAPI(server, 1080, "localhost")
 
 	// Remove the directory to make it inaccessible
-	os.RemoveAll(invalidDir)
+	if err := os.RemoveAll(invalidDir); err != nil {
+		t.Fatalf("Failed to remove directory: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -646,7 +808,11 @@ func TestAPISanitizeFilename(t *testing.T) {
 
 func TestAPIGetEmailHTMLNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -660,14 +826,22 @@ func TestAPIGetEmailHTMLNotFound(t *testing.T) {
 
 func TestAPIGetAttachmentNotFound(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email without attachment
 	email := &types.Email{ID: "test-id", Subject: "Test", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -681,7 +855,11 @@ func TestAPIGetAttachmentNotFound(t *testing.T) {
 
 func TestAPIDownloadEmailNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -695,14 +873,22 @@ func TestAPIDownloadEmailNotFound(t *testing.T) {
 
 func TestAPIDownloadEmailWithoutSubject(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email without subject
 	email := &types.Email{ID: "test-id", Subject: "", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -716,13 +902,19 @@ func TestAPIDownloadEmailWithoutSubject(t *testing.T) {
 
 func TestAPIDownloadEmailWithRawEmailNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email but don't create the .eml file
 	email := &types.Email{ID: "test-id", Subject: "Test Subject", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	// Don't create eml file
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -736,7 +928,11 @@ func TestAPIDownloadEmailWithRawEmailNotFound(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{
@@ -761,11 +957,19 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", true, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", true, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with query filter
 	gin.SetMode(gin.TestMode)
@@ -834,7 +1038,11 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add multiple test emails
 	for i := 0; i < 5; i++ {
@@ -845,8 +1053,12 @@ func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
 		}
 		envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 		emlPath := filepath.Join(tmpDir, fmt.Sprintf("id%d.eml", i))
-		os.WriteFile(emlPath, []byte("content"), 0644)
-		server.SaveEmailToStore(fmt.Sprintf("id%d", i), false, envelope, email)
+		if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+			t.Fatalf("Failed to create email file %d: %v", i, err)
+		}
+		if err := server.SaveEmailToStore(fmt.Sprintf("id%d", i), false, envelope, email); err != nil {
+			t.Fatalf("Failed to save email %d: %v", i, err)
+		}
 	}
 
 	// Test with limit and offset
@@ -860,7 +1072,9 @@ func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(2) {
 		t.Errorf("Expected limit 2, got %v", response["limit"])
 	}
@@ -871,7 +1085,11 @@ func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithInvalidLimit(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -885,7 +1103,11 @@ func TestAPIGetEmailPreviewsWithInvalidLimit(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithInvalidOffset(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -899,7 +1121,11 @@ func TestAPIGetEmailPreviewsWithInvalidOffset(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -911,7 +1137,9 @@ func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(1000) {
 		t.Errorf("Expected limit 1000 (max), got %v", response["limit"])
 	}
@@ -919,7 +1147,11 @@ func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -931,7 +1163,9 @@ func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["offset"] != float64(0) {
 		t.Errorf("Expected offset 0 (min), got %v", response["offset"])
 	}
@@ -939,7 +1173,11 @@ func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
 
 func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add only 2 emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -947,10 +1185,18 @@ func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with offset beyond total
 	gin.SetMode(gin.TestMode)
@@ -963,7 +1209,9 @@ func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	emails := response["emails"].([]interface{})
 	if len(emails) != 0 {
 		t.Errorf("Expected 0 emails (offset beyond total), got %d", len(emails))
@@ -972,14 +1220,22 @@ func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
 
 func TestAPIGetAllEmailsWithStartEqualsEnd(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add only 1 email
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
 
 	// Test with offset=1, limit=1 (start == end == 1)
 	gin.SetMode(gin.TestMode)
@@ -992,7 +1248,9 @@ func TestAPIGetAllEmailsWithStartEqualsEnd(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	emails := response["emails"].([]interface{})
 	if len(emails) != 0 {
 		t.Errorf("Expected 0 emails (start == end), got %d", len(emails))
@@ -1001,14 +1259,22 @@ func TestAPIGetAllEmailsWithStartEqualsEnd(t *testing.T) {
 
 func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
 
 	// Test with limit=0 (should default to 50)
 	gin.SetMode(gin.TestMode)
@@ -1021,7 +1287,9 @@ func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(50) {
 		t.Errorf("Expected limit 50 (default), got %v", response["limit"])
 	}
@@ -1029,7 +1297,11 @@ func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
 
 func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1037,10 +1309,18 @@ func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with limit=1
 	gin.SetMode(gin.TestMode)
@@ -1053,7 +1333,9 @@ func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	emails := response["emails"].([]interface{})
 	if len(emails) != 1 {
 		t.Errorf("Expected 1 email, got %d", len(emails))
@@ -1062,7 +1344,11 @@ func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
 
 func TestAPIGetEmailSourceNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1076,7 +1362,11 @@ func TestAPIGetEmailSourceNotFound(t *testing.T) {
 
 func TestAPIDeleteEmailNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1090,7 +1380,11 @@ func TestAPIDeleteEmailNotFound(t *testing.T) {
 
 func TestAPIReadEmailNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1104,7 +1398,11 @@ func TestAPIReadEmailNotFound(t *testing.T) {
 
 func TestAPIBatchDeleteEmailsInvalidRequest(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1119,7 +1417,11 @@ func TestAPIBatchDeleteEmailsInvalidRequest(t *testing.T) {
 
 func TestAPIBatchDeleteEmailsEmptyIDs(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	requestBody := map[string]interface{}{
 		"ids": []string{},
@@ -1139,14 +1441,22 @@ func TestAPIBatchDeleteEmailsEmptyIDs(t *testing.T) {
 
 func TestAPIBatchDeleteEmailsPartialFailure(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add one email
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Try to delete both existing and non-existing
 	requestBody := map[string]interface{}{
@@ -1165,7 +1475,9 @@ func TestAPIBatchDeleteEmailsPartialFailure(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["success"] != float64(1) {
 		t.Errorf("Expected 1 success, got %v", response["success"])
 	}
@@ -1176,7 +1488,11 @@ func TestAPIBatchDeleteEmailsPartialFailure(t *testing.T) {
 
 func TestAPIBatchReadEmailsInvalidRequest(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1191,7 +1507,11 @@ func TestAPIBatchReadEmailsInvalidRequest(t *testing.T) {
 
 func TestAPIBatchReadEmailsEmptyIDs(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	requestBody := map[string]interface{}{
 		"ids": []string{},
@@ -1211,14 +1531,22 @@ func TestAPIBatchReadEmailsEmptyIDs(t *testing.T) {
 
 func TestAPIBatchReadEmailsPartialFailure(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add one email
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Try to read both existing and non-existing
 	requestBody := map[string]interface{}{
@@ -1237,7 +1565,9 @@ func TestAPIBatchReadEmailsPartialFailure(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["success"] != float64(1) {
 		t.Errorf("Expected 1 success, got %v", response["success"])
 	}
@@ -1248,17 +1578,27 @@ func TestAPIBatchReadEmailsPartialFailure(t *testing.T) {
 
 func TestAPIBatchReadEmailsAlreadyRead(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add unread email first
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Read: false, Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Mark as read first
-	server.ReadEmail("id1")
+	if err := server.ReadEmail("id1"); err != nil {
+		t.Fatalf("Failed to mark email as read: %v", err)
+	}
 
 	// Now try to read it again
 	requestBody := map[string]interface{}{
@@ -1277,7 +1617,9 @@ func TestAPIBatchReadEmailsAlreadyRead(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	// Should not count as success if already read
 	if response["success"] != float64(0) {
 		t.Errorf("Expected 0 success (already read), got %v", response["success"])
@@ -1286,15 +1628,23 @@ func TestAPIBatchReadEmailsAlreadyRead(t *testing.T) {
 
 func TestAPIGetAllEmailsPagination(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add multiple emails
 	for i := 0; i < 5; i++ {
 		email := &types.Email{ID: fmt.Sprintf("id%d", i), Subject: fmt.Sprintf("Subject %d", i), Time: time.Now().Add(time.Duration(i) * time.Hour)}
 		envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 		emlPath := filepath.Join(tmpDir, fmt.Sprintf("id%d.eml", i))
-		os.WriteFile(emlPath, []byte("content"), 0644)
-		server.SaveEmailToStore(fmt.Sprintf("id%d", i), false, envelope, email)
+		if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+			t.Fatalf("Failed to create email file %d: %v", i, err)
+		}
+		if err := server.SaveEmailToStore(fmt.Sprintf("id%d", i), false, envelope, email); err != nil {
+			t.Fatalf("Failed to save email %d: %v", i, err)
+		}
 	}
 
 	// Test pagination
@@ -1308,7 +1658,9 @@ func TestAPIGetAllEmailsPagination(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(2) {
 		t.Errorf("Expected limit 2, got %v", response["limit"])
 	}
@@ -1319,7 +1671,11 @@ func TestAPIGetAllEmailsPagination(t *testing.T) {
 
 func TestAPIGetAllEmailsInvalidLimit(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1332,7 +1688,9 @@ func TestAPIGetAllEmailsInvalidLimit(t *testing.T) {
 
 	// Should default to 50
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(50) {
 		t.Errorf("Expected default limit 50, got %v", response["limit"])
 	}
@@ -1340,7 +1698,11 @@ func TestAPIGetAllEmailsInvalidLimit(t *testing.T) {
 
 func TestAPIGetAllEmailsLargeLimit(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1353,7 +1715,9 @@ func TestAPIGetAllEmailsLargeLimit(t *testing.T) {
 
 	// Should cap at 1000
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["limit"] != float64(1000) {
 		t.Errorf("Expected capped limit 1000, got %v", response["limit"])
 	}
@@ -1361,7 +1725,11 @@ func TestAPIGetAllEmailsLargeLimit(t *testing.T) {
 
 func TestAPIGetAllEmailsInvalidOffset(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1374,7 +1742,9 @@ func TestAPIGetAllEmailsInvalidOffset(t *testing.T) {
 
 	// Should default to 0
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["offset"] != float64(0) {
 		t.Errorf("Expected default offset 0, got %v", response["offset"])
 	}
@@ -1382,7 +1752,11 @@ func TestAPIGetAllEmailsInvalidOffset(t *testing.T) {
 
 func TestAPIGetAllEmailsNegativeOffset(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1395,7 +1769,9 @@ func TestAPIGetAllEmailsNegativeOffset(t *testing.T) {
 
 	// Should default to 0
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	if response["offset"] != float64(0) {
 		t.Errorf("Expected default offset 0, got %v", response["offset"])
 	}
@@ -1403,7 +1779,11 @@ func TestAPIGetAllEmailsNegativeOffset(t *testing.T) {
 
 func TestAPIGetAllEmailsSorting(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails with different subjects
 	email1 := &types.Email{ID: "id1", Subject: "A Subject", Time: time.Now()}
@@ -1411,10 +1791,18 @@ func TestAPIGetAllEmailsSorting(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test sorting by subject ascending
 	gin.SetMode(gin.TestMode)
@@ -1429,7 +1817,11 @@ func TestAPIGetAllEmailsSorting(t *testing.T) {
 
 func TestAPIGetAllEmailsSortingByFrom(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails with different from addresses
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", From: []*mail.Address{{Address: "a@example.com"}}, Time: time.Now()}
@@ -1437,10 +1829,18 @@ func TestAPIGetAllEmailsSortingByFrom(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test sorting by from
 	gin.SetMode(gin.TestMode)
@@ -1455,7 +1855,11 @@ func TestAPIGetAllEmailsSortingByFrom(t *testing.T) {
 
 func TestAPIGetAllEmailsSortingBySize(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails with different sizes
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Size: 100, Time: time.Now()}
@@ -1463,10 +1867,18 @@ func TestAPIGetAllEmailsSortingBySize(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test sorting by size
 	gin.SetMode(gin.TestMode)
@@ -1481,7 +1893,11 @@ func TestAPIGetAllEmailsSortingBySize(t *testing.T) {
 
 func TestAPIGetAllEmailsDateFilters(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add emails with different dates
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1489,10 +1905,18 @@ func TestAPIGetAllEmailsDateFilters(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test dateFrom filter
 	gin.SetMode(gin.TestMode)
@@ -1518,7 +1942,11 @@ func TestAPIGetAllEmailsDateFilters(t *testing.T) {
 
 func TestAPIGetAllEmailsFilterByCC(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with CC
 	email := &types.Email{
@@ -1529,8 +1957,12 @@ func TestAPIGetAllEmailsFilterByCC(t *testing.T) {
 	}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test filter by CC
 	gin.SetMode(gin.TestMode)
@@ -1545,7 +1977,11 @@ func TestAPIGetAllEmailsFilterByCC(t *testing.T) {
 
 func TestAPIGetAllEmailsFilterByBCC(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with BCC
 	email := &types.Email{
@@ -1556,8 +1992,12 @@ func TestAPIGetAllEmailsFilterByBCC(t *testing.T) {
 	}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test filter by BCC
 	gin.SetMode(gin.TestMode)
@@ -1572,7 +2012,11 @@ func TestAPIGetAllEmailsFilterByBCC(t *testing.T) {
 
 func TestAPIGetEmailPreviewsWithHTML(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with HTML but no text
 	email := &types.Email{
@@ -1586,8 +2030,12 @@ func TestAPIGetEmailPreviewsWithHTML(t *testing.T) {
 	}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1601,7 +2049,11 @@ func TestAPIGetEmailPreviewsWithHTML(t *testing.T) {
 
 func TestAPIGetEmailPreviewsLongText(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with very long text
 	longText := string(make([]byte, 500))
@@ -1619,8 +2071,12 @@ func TestAPIGetEmailPreviewsLongText(t *testing.T) {
 	}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1632,7 +2088,9 @@ func TestAPIGetEmailPreviewsLongText(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	previews := response["previews"].([]interface{})
 	if len(previews) > 0 {
 		preview := previews[0].(map[string]interface{})
@@ -1645,7 +2103,11 @@ func TestAPIGetEmailPreviewsLongText(t *testing.T) {
 
 func TestAPIExportEmails(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1653,10 +2115,18 @@ func TestAPIExportEmails(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1674,7 +2144,11 @@ func TestAPIExportEmails(t *testing.T) {
 
 func TestAPIExportEmailsWithIDs(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1682,10 +2156,18 @@ func TestAPIExportEmailsWithIDs(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1699,7 +2181,11 @@ func TestAPIExportEmailsWithIDs(t *testing.T) {
 
 func TestAPIExportEmailsWithFilters(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Test Subject 1", Time: time.Now()}
@@ -1707,10 +2193,18 @@ func TestAPIExportEmailsWithFilters(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1724,7 +2218,11 @@ func TestAPIExportEmailsWithFilters(t *testing.T) {
 
 func TestAPIExportEmailsNoEmails(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1738,7 +2236,11 @@ func TestAPIExportEmailsNoEmails(t *testing.T) {
 
 func TestAPIExportEmailsWithMissingFiles(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1747,10 +2249,16 @@ func TestAPIExportEmailsWithMissingFiles(t *testing.T) {
 
 	// Create only one eml file
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1765,7 +2273,11 @@ func TestAPIExportEmailsWithMissingFiles(t *testing.T) {
 
 func TestAPIExportEmailsWithIDsAndMissingFiles(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1774,10 +2286,16 @@ func TestAPIExportEmailsWithIDsAndMissingFiles(t *testing.T) {
 
 	// Create only one eml file
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -1792,7 +2310,11 @@ func TestAPIExportEmailsWithIDsAndMissingFiles(t *testing.T) {
 
 func TestAPIExportEmailsWithIDsWithSpaces(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
@@ -1801,11 +2323,19 @@ func TestAPIExportEmailsWithIDsWithSpaces(t *testing.T) {
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with IDs containing spaces
 	gin.SetMode(gin.TestMode)
@@ -1821,16 +2351,24 @@ func TestAPIExportEmailsWithIDsWithSpaces(t *testing.T) {
 
 func TestAPIExportEmailsWithEmptyIDs(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test with empty IDs list (should use filter instead, which returns all emails)
 	gin.SetMode(gin.TestMode)
@@ -1846,16 +2384,24 @@ func TestAPIExportEmailsWithEmptyIDs(t *testing.T) {
 
 func TestAPIExportEmailsWithNonExistentIDs(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add test emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
 
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test with non-existent IDs
 	gin.SetMode(gin.TestMode)
@@ -2093,7 +2639,11 @@ func TestApplyEmailFilters(t *testing.T) {
 // but we test the API endpoint structure
 func TestAPIDeleteAllEmailsError(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Test with empty server (should still work)
 	gin.SetMode(gin.TestMode)
@@ -2110,7 +2660,11 @@ func TestAPIDeleteAllEmailsError(t *testing.T) {
 // TestAPIGetEmailPreviewsBoundaryConditions tests boundary conditions in getEmailPreviews
 func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add only 2 emails
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Text: "Content 1", Time: time.Now()}
@@ -2118,10 +2672,18 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
 	emlPath2 := filepath.Join(tmpDir, "id2.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	os.WriteFile(emlPath2, []byte("content2"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
-	server.SaveEmailToStore("id2", false, envelope, email2)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 1: %v", err)
+	}
+	if err := os.WriteFile(emlPath2, []byte("content2"), 0644); err != nil {
+		t.Fatalf("Failed to create email file 2: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email 1: %v", err)
+	}
+	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
+		t.Fatalf("Failed to save email 2: %v", err)
+	}
 
 	// Test with offset > total (start > total case)
 	gin.SetMode(gin.TestMode)
@@ -2134,7 +2696,9 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	previews := response["previews"].([]interface{})
 	if len(previews) != 0 {
 		t.Errorf("Expected 0 previews (offset > total), got %d", len(previews))
@@ -2150,7 +2714,9 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 	}
 
 	var response2 map[string]interface{}
-	json.Unmarshal(w2.Body.Bytes(), &response2)
+	if err := json.Unmarshal(w2.Body.Bytes(), &response2); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	previews2 := response2["previews"].([]interface{})
 	// Should return 1 email (total is 2, offset is 1, so end would be 11 but capped at 2)
 	if len(previews2) != 1 {
@@ -2161,7 +2727,11 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 // TestAPIGetEmailPreviewsMultipleSpaces tests text processing with multiple spaces
 func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add email with HTML containing multiple spaces
 	email := &types.Email{
@@ -2175,8 +2745,12 @@ func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
 	}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath := filepath.Join(tmpDir, "test-id.eml")
-	os.WriteFile(emlPath, []byte("content"), 0644)
-	server.SaveEmailToStore("test-id", false, envelope, email)
+	if err := os.WriteFile(emlPath, []byte("content"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("test-id", false, envelope, email); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
@@ -2188,7 +2762,9 @@ func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	previews := response["previews"].([]interface{})
 	if len(previews) > 0 {
 		preview := previews[0].(map[string]interface{})
@@ -2203,14 +2779,22 @@ func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
 // TestAPIGetEmailPreviewsStartEqualsEnd tests the case where start == end
 func TestAPIGetEmailPreviewsStartEqualsEnd(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
 
 	// Add only 1 email
 	email1 := &types.Email{ID: "id1", Subject: "Subject 1", Text: "Content 1", Time: time.Now()}
 	envelope := &types.Envelope{From: "from@example.com", To: []string{"to@example.com"}}
 	emlPath1 := filepath.Join(tmpDir, "id1.eml")
-	os.WriteFile(emlPath1, []byte("content1"), 0644)
-	server.SaveEmailToStore("id1", false, envelope, email1)
+	if err := os.WriteFile(emlPath1, []byte("content1"), 0644); err != nil {
+		t.Fatalf("Failed to create email file: %v", err)
+	}
+	if err := server.SaveEmailToStore("id1", false, envelope, email1); err != nil {
+		t.Fatalf("Failed to save email: %v", err)
+	}
 
 	// Test with offset=1, limit=1 (start == end == 1)
 	gin.SetMode(gin.TestMode)
@@ -2223,7 +2807,9 @@ func TestAPIGetEmailPreviewsStartEqualsEnd(t *testing.T) {
 	}
 
 	var response map[string]interface{}
-	json.Unmarshal(w.Body.Bytes(), &response)
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
 	previews := response["previews"].([]interface{})
 	// When start == end, should return empty array
 	if len(previews) != 0 {
