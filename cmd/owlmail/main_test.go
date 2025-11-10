@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"os"
 	"path/filepath"
 	"testing"
@@ -599,4 +600,515 @@ func TestRegisterEventHandlers(t *testing.T) {
 	// Verify handlers are registered by checking that On can be called without error
 	// The actual event triggering is tested in mailserver package
 	// Here we just verify that registerEventHandlers doesn't panic
+}
+
+func TestParseConfig(t *testing.T) {
+	// Save original os.Args and flag.CommandLine
+	originalArgs := os.Args
+	originalCommandLine := flag.CommandLine
+
+	// Helper function to reset flag state
+	resetFlags := func() {
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}
+
+	// Helper function to clear environment variables
+	clearEnvVars := func() {
+		envVars := []string{
+			"OWLMAIL_SMTP_PORT", "MAILDEV_SMTP_PORT",
+			"OWLMAIL_SMTP_HOST", "MAILDEV_IP",
+			"OWLMAIL_MAIL_DIR", "MAILDEV_MAIL_DIRECTORY",
+			"OWLMAIL_WEB_PORT", "MAILDEV_WEB_PORT",
+			"OWLMAIL_WEB_HOST", "MAILDEV_WEB_IP",
+			"OWLMAIL_WEB_USER", "MAILDEV_WEB_USER",
+			"OWLMAIL_WEB_PASSWORD", "MAILDEV_WEB_PASS",
+			"OWLMAIL_HTTPS_ENABLED", "MAILDEV_HTTPS",
+			"OWLMAIL_HTTPS_CERT", "MAILDEV_HTTPS_CERT",
+			"OWLMAIL_HTTPS_KEY", "MAILDEV_HTTPS_KEY",
+			"OWLMAIL_OUTGOING_HOST", "MAILDEV_OUTGOING_HOST",
+			"OWLMAIL_OUTGOING_PORT", "MAILDEV_OUTGOING_PORT",
+			"OWLMAIL_OUTGOING_USER", "MAILDEV_OUTGOING_USER",
+			"OWLMAIL_OUTGOING_PASSWORD", "MAILDEV_OUTGOING_PASS",
+			"OWLMAIL_OUTGOING_SECURE", "MAILDEV_OUTGOING_SECURE",
+			"OWLMAIL_AUTO_RELAY", "MAILDEV_AUTO_RELAY",
+			"OWLMAIL_AUTO_RELAY_ADDR", "MAILDEV_AUTO_RELAY_ADDR",
+			"OWLMAIL_AUTO_RELAY_RULES", "MAILDEV_AUTO_RELAY_RULES",
+			"OWLMAIL_SMTP_USER", "MAILDEV_INCOMING_USER",
+			"OWLMAIL_SMTP_PASSWORD", "MAILDEV_INCOMING_PASS",
+			"OWLMAIL_TLS_ENABLED", "MAILDEV_INCOMING_SECURE",
+			"OWLMAIL_TLS_CERT", "MAILDEV_INCOMING_CERT",
+			"OWLMAIL_TLS_KEY", "MAILDEV_INCOMING_KEY",
+			"OWLMAIL_LOG_LEVEL", "MAILDEV_VERBOSE", "MAILDEV_SILENT",
+		}
+		for _, envVar := range envVars {
+			os.Unsetenv(envVar)
+		}
+	}
+
+	// Helper function to restore original state
+	restoreState := func() {
+		os.Args = originalArgs
+		flag.CommandLine = originalCommandLine
+		clearEnvVars()
+	}
+
+	// Always restore state at the end
+	defer restoreState()
+
+	t.Run("default values", func(t *testing.T) {
+		resetFlags()
+		clearEnvVars()
+		os.Args = []string{"owlmail"}
+		cfg := parseConfig()
+
+		// Check default values
+		if cfg.SMTPPort != 1025 {
+			t.Errorf("Expected SMTPPort 1025, got %d", cfg.SMTPPort)
+		}
+		if cfg.SMTPHost != "localhost" {
+			t.Errorf("Expected SMTPHost 'localhost', got '%s'", cfg.SMTPHost)
+		}
+		if cfg.MailDir != "" {
+			t.Errorf("Expected MailDir '', got '%s'", cfg.MailDir)
+		}
+		if cfg.WebPort != 1080 {
+			t.Errorf("Expected WebPort 1080, got %d", cfg.WebPort)
+		}
+		if cfg.WebHost != "localhost" {
+			t.Errorf("Expected WebHost 'localhost', got '%s'", cfg.WebHost)
+		}
+		if cfg.WebUser != "" {
+			t.Errorf("Expected WebUser '', got '%s'", cfg.WebUser)
+		}
+		if cfg.WebPassword != "" {
+			t.Errorf("Expected WebPassword '', got '%s'", cfg.WebPassword)
+		}
+		if cfg.HTTPSEnabled != false {
+			t.Errorf("Expected HTTPSEnabled false, got %v", cfg.HTTPSEnabled)
+		}
+		if cfg.OutgoingPort != 587 {
+			t.Errorf("Expected OutgoingPort 587, got %d", cfg.OutgoingPort)
+		}
+		if cfg.OutgoingSecure != false {
+			t.Errorf("Expected OutgoingSecure false, got %v", cfg.OutgoingSecure)
+		}
+		if cfg.AutoRelay != false {
+			t.Errorf("Expected AutoRelay false, got %v", cfg.AutoRelay)
+		}
+		if cfg.TLSEnabled != false {
+			t.Errorf("Expected TLSEnabled false, got %v", cfg.TLSEnabled)
+		}
+		if cfg.LogLevel != "normal" {
+			t.Errorf("Expected LogLevel 'normal', got '%s'", cfg.LogLevel)
+		}
+	})
+
+	t.Run("environment variables - OWLMAIL_*", func(t *testing.T) {
+		resetFlags()
+		clearEnvVars()
+		os.Args = []string{"owlmail"}
+
+		// Set environment variables
+		os.Setenv("OWLMAIL_SMTP_PORT", "2025")
+		os.Setenv("OWLMAIL_SMTP_HOST", "0.0.0.0")
+		os.Setenv("OWLMAIL_MAIL_DIR", "/tmp/mail")
+		os.Setenv("OWLMAIL_WEB_PORT", "2080")
+		os.Setenv("OWLMAIL_WEB_HOST", "127.0.0.1")
+		os.Setenv("OWLMAIL_WEB_USER", "testuser")
+		os.Setenv("OWLMAIL_WEB_PASSWORD", "testpass")
+		os.Setenv("OWLMAIL_HTTPS_ENABLED", "true")
+		os.Setenv("OWLMAIL_HTTPS_CERT", "/path/to/cert.pem")
+		os.Setenv("OWLMAIL_HTTPS_KEY", "/path/to/key.pem")
+		os.Setenv("OWLMAIL_OUTGOING_HOST", "smtp.example.com")
+		os.Setenv("OWLMAIL_OUTGOING_PORT", "465")
+		os.Setenv("OWLMAIL_OUTGOING_USER", "outuser")
+		os.Setenv("OWLMAIL_OUTGOING_PASSWORD", "outpass")
+		os.Setenv("OWLMAIL_OUTGOING_SECURE", "true")
+		os.Setenv("OWLMAIL_AUTO_RELAY", "true")
+		os.Setenv("OWLMAIL_AUTO_RELAY_ADDR", "relay@example.com")
+		os.Setenv("OWLMAIL_AUTO_RELAY_RULES", "/path/to/rules.json")
+		os.Setenv("OWLMAIL_SMTP_USER", "smtpuser")
+		os.Setenv("OWLMAIL_SMTP_PASSWORD", "smtppass")
+		os.Setenv("OWLMAIL_TLS_ENABLED", "true")
+		os.Setenv("OWLMAIL_TLS_CERT", "/path/to/tls-cert.pem")
+		os.Setenv("OWLMAIL_TLS_KEY", "/path/to/tls-key.pem")
+		os.Setenv("OWLMAIL_LOG_LEVEL", "verbose")
+
+		defer func() {
+			os.Unsetenv("OWLMAIL_SMTP_PORT")
+			os.Unsetenv("OWLMAIL_SMTP_HOST")
+			os.Unsetenv("OWLMAIL_MAIL_DIR")
+			os.Unsetenv("OWLMAIL_WEB_PORT")
+			os.Unsetenv("OWLMAIL_WEB_HOST")
+			os.Unsetenv("OWLMAIL_WEB_USER")
+			os.Unsetenv("OWLMAIL_WEB_PASSWORD")
+			os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+			os.Unsetenv("OWLMAIL_HTTPS_CERT")
+			os.Unsetenv("OWLMAIL_HTTPS_KEY")
+			os.Unsetenv("OWLMAIL_OUTGOING_HOST")
+			os.Unsetenv("OWLMAIL_OUTGOING_PORT")
+			os.Unsetenv("OWLMAIL_OUTGOING_USER")
+			os.Unsetenv("OWLMAIL_OUTGOING_PASSWORD")
+			os.Unsetenv("OWLMAIL_OUTGOING_SECURE")
+			os.Unsetenv("OWLMAIL_AUTO_RELAY")
+			os.Unsetenv("OWLMAIL_AUTO_RELAY_ADDR")
+			os.Unsetenv("OWLMAIL_AUTO_RELAY_RULES")
+			os.Unsetenv("OWLMAIL_SMTP_USER")
+			os.Unsetenv("OWLMAIL_SMTP_PASSWORD")
+			os.Unsetenv("OWLMAIL_TLS_ENABLED")
+			os.Unsetenv("OWLMAIL_TLS_CERT")
+			os.Unsetenv("OWLMAIL_TLS_KEY")
+			os.Unsetenv("OWLMAIL_LOG_LEVEL")
+		}()
+
+		cfg := parseConfig()
+
+		if cfg.SMTPPort != 2025 {
+			t.Errorf("Expected SMTPPort 2025, got %d", cfg.SMTPPort)
+		}
+		if cfg.SMTPHost != "0.0.0.0" {
+			t.Errorf("Expected SMTPHost '0.0.0.0', got '%s'", cfg.SMTPHost)
+		}
+		if cfg.MailDir != "/tmp/mail" {
+			t.Errorf("Expected MailDir '/tmp/mail', got '%s'", cfg.MailDir)
+		}
+		if cfg.WebPort != 2080 {
+			t.Errorf("Expected WebPort 2080, got %d", cfg.WebPort)
+		}
+		if cfg.WebHost != "127.0.0.1" {
+			t.Errorf("Expected WebHost '127.0.0.1', got '%s'", cfg.WebHost)
+		}
+		if cfg.WebUser != "testuser" {
+			t.Errorf("Expected WebUser 'testuser', got '%s'", cfg.WebUser)
+		}
+		if cfg.WebPassword != "testpass" {
+			t.Errorf("Expected WebPassword 'testpass', got '%s'", cfg.WebPassword)
+		}
+		if cfg.HTTPSEnabled != true {
+			t.Errorf("Expected HTTPSEnabled true, got %v", cfg.HTTPSEnabled)
+		}
+		if cfg.HTTPSCertFile != "/path/to/cert.pem" {
+			t.Errorf("Expected HTTPSCertFile '/path/to/cert.pem', got '%s'", cfg.HTTPSCertFile)
+		}
+		if cfg.HTTPSKeyFile != "/path/to/key.pem" {
+			t.Errorf("Expected HTTPSKeyFile '/path/to/key.pem', got '%s'", cfg.HTTPSKeyFile)
+		}
+		if cfg.OutgoingHost != "smtp.example.com" {
+			t.Errorf("Expected OutgoingHost 'smtp.example.com', got '%s'", cfg.OutgoingHost)
+		}
+		if cfg.OutgoingPort != 465 {
+			t.Errorf("Expected OutgoingPort 465, got %d", cfg.OutgoingPort)
+		}
+		if cfg.OutgoingUser != "outuser" {
+			t.Errorf("Expected OutgoingUser 'outuser', got '%s'", cfg.OutgoingUser)
+		}
+		if cfg.OutgoingPass != "outpass" {
+			t.Errorf("Expected OutgoingPass 'outpass', got '%s'", cfg.OutgoingPass)
+		}
+		if cfg.OutgoingSecure != true {
+			t.Errorf("Expected OutgoingSecure true, got %v", cfg.OutgoingSecure)
+		}
+		if cfg.AutoRelay != true {
+			t.Errorf("Expected AutoRelay true, got %v", cfg.AutoRelay)
+		}
+		if cfg.AutoRelayAddr != "relay@example.com" {
+			t.Errorf("Expected AutoRelayAddr 'relay@example.com', got '%s'", cfg.AutoRelayAddr)
+		}
+		if cfg.AutoRelayRules != "/path/to/rules.json" {
+			t.Errorf("Expected AutoRelayRules '/path/to/rules.json', got '%s'", cfg.AutoRelayRules)
+		}
+		if cfg.SMTPUser != "smtpuser" {
+			t.Errorf("Expected SMTPUser 'smtpuser', got '%s'", cfg.SMTPUser)
+		}
+		if cfg.SMTPPassword != "smtppass" {
+			t.Errorf("Expected SMTPPassword 'smtppass', got '%s'", cfg.SMTPPassword)
+		}
+		if cfg.TLSEnabled != true {
+			t.Errorf("Expected TLSEnabled true, got %v", cfg.TLSEnabled)
+		}
+		if cfg.TLSCertFile != "/path/to/tls-cert.pem" {
+			t.Errorf("Expected TLSCertFile '/path/to/tls-cert.pem', got '%s'", cfg.TLSCertFile)
+		}
+		if cfg.TLSKeyFile != "/path/to/tls-key.pem" {
+			t.Errorf("Expected TLSKeyFile '/path/to/tls-key.pem', got '%s'", cfg.TLSKeyFile)
+		}
+		if cfg.LogLevel != "verbose" {
+			t.Errorf("Expected LogLevel 'verbose', got '%s'", cfg.LogLevel)
+		}
+	})
+
+	t.Run("environment variables - MAILDEV_* compatibility", func(t *testing.T) {
+		resetFlags()
+		clearEnvVars()
+		os.Args = []string{"owlmail"}
+
+		// Set MailDev environment variables (should take precedence over OWLMAIL_*)
+		os.Setenv("MAILDEV_SMTP_PORT", "3025")
+		os.Setenv("MAILDEV_IP", "192.168.1.1")
+		os.Setenv("MAILDEV_MAIL_DIRECTORY", "/tmp/maildev")
+		os.Setenv("MAILDEV_WEB_PORT", "3080")
+		os.Setenv("MAILDEV_WEB_IP", "192.168.1.2")
+		os.Setenv("MAILDEV_WEB_USER", "maildevuser")
+		os.Setenv("MAILDEV_WEB_PASS", "maildevpass")
+		os.Setenv("MAILDEV_HTTPS", "true")
+		os.Setenv("MAILDEV_HTTPS_CERT", "/path/to/maildev-cert.pem")
+		os.Setenv("MAILDEV_HTTPS_KEY", "/path/to/maildev-key.pem")
+		os.Setenv("MAILDEV_OUTGOING_HOST", "smtp.maildev.com")
+		os.Setenv("MAILDEV_OUTGOING_PORT", "25")
+		os.Setenv("MAILDEV_OUTGOING_USER", "maildevout")
+		os.Setenv("MAILDEV_OUTGOING_PASS", "maildevoutpass")
+		os.Setenv("MAILDEV_OUTGOING_SECURE", "false")
+		os.Setenv("MAILDEV_AUTO_RELAY", "false")
+		os.Setenv("MAILDEV_AUTO_RELAY_ADDR", "maildev@example.com")
+		os.Setenv("MAILDEV_AUTO_RELAY_RULES", "/path/to/maildev-rules.json")
+		os.Setenv("MAILDEV_INCOMING_USER", "maildevsmtp")
+		os.Setenv("MAILDEV_INCOMING_PASS", "maildevsmtppass")
+		os.Setenv("MAILDEV_INCOMING_SECURE", "true")
+		os.Setenv("MAILDEV_INCOMING_CERT", "/path/to/maildev-tls-cert.pem")
+		os.Setenv("MAILDEV_INCOMING_KEY", "/path/to/maildev-tls-key.pem")
+		os.Setenv("MAILDEV_VERBOSE", "1")
+
+		defer func() {
+			os.Unsetenv("MAILDEV_SMTP_PORT")
+			os.Unsetenv("MAILDEV_IP")
+			os.Unsetenv("MAILDEV_MAIL_DIRECTORY")
+			os.Unsetenv("MAILDEV_WEB_PORT")
+			os.Unsetenv("MAILDEV_WEB_IP")
+			os.Unsetenv("MAILDEV_WEB_USER")
+			os.Unsetenv("MAILDEV_WEB_PASS")
+			os.Unsetenv("MAILDEV_HTTPS")
+			os.Unsetenv("MAILDEV_HTTPS_CERT")
+			os.Unsetenv("MAILDEV_HTTPS_KEY")
+			os.Unsetenv("MAILDEV_OUTGOING_HOST")
+			os.Unsetenv("MAILDEV_OUTGOING_PORT")
+			os.Unsetenv("MAILDEV_OUTGOING_USER")
+			os.Unsetenv("MAILDEV_OUTGOING_PASS")
+			os.Unsetenv("MAILDEV_OUTGOING_SECURE")
+			os.Unsetenv("MAILDEV_AUTO_RELAY")
+			os.Unsetenv("MAILDEV_AUTO_RELAY_ADDR")
+			os.Unsetenv("MAILDEV_AUTO_RELAY_RULES")
+			os.Unsetenv("MAILDEV_INCOMING_USER")
+			os.Unsetenv("MAILDEV_INCOMING_PASS")
+			os.Unsetenv("MAILDEV_INCOMING_SECURE")
+			os.Unsetenv("MAILDEV_INCOMING_CERT")
+			os.Unsetenv("MAILDEV_INCOMING_KEY")
+			os.Unsetenv("MAILDEV_VERBOSE")
+		}()
+
+		cfg := parseConfig()
+
+		if cfg.SMTPPort != 3025 {
+			t.Errorf("Expected SMTPPort 3025, got %d", cfg.SMTPPort)
+		}
+		if cfg.SMTPHost != "192.168.1.1" {
+			t.Errorf("Expected SMTPHost '192.168.1.1', got '%s'", cfg.SMTPHost)
+		}
+		if cfg.MailDir != "/tmp/maildev" {
+			t.Errorf("Expected MailDir '/tmp/maildev', got '%s'", cfg.MailDir)
+		}
+		if cfg.WebPort != 3080 {
+			t.Errorf("Expected WebPort 3080, got %d", cfg.WebPort)
+		}
+		if cfg.WebHost != "192.168.1.2" {
+			t.Errorf("Expected WebHost '192.168.1.2', got '%s'", cfg.WebHost)
+		}
+		if cfg.WebUser != "maildevuser" {
+			t.Errorf("Expected WebUser 'maildevuser', got '%s'", cfg.WebUser)
+		}
+		if cfg.WebPassword != "maildevpass" {
+			t.Errorf("Expected WebPassword 'maildevpass', got '%s'", cfg.WebPassword)
+		}
+		if cfg.HTTPSEnabled != true {
+			t.Errorf("Expected HTTPSEnabled true, got %v", cfg.HTTPSEnabled)
+		}
+		if cfg.OutgoingHost != "smtp.maildev.com" {
+			t.Errorf("Expected OutgoingHost 'smtp.maildev.com', got '%s'", cfg.OutgoingHost)
+		}
+		if cfg.OutgoingPort != 25 {
+			t.Errorf("Expected OutgoingPort 25, got %d", cfg.OutgoingPort)
+		}
+		if cfg.SMTPUser != "maildevsmtp" {
+			t.Errorf("Expected SMTPUser 'maildevsmtp', got '%s'", cfg.SMTPUser)
+		}
+		if cfg.TLSEnabled != true {
+			t.Errorf("Expected TLSEnabled true, got %v", cfg.TLSEnabled)
+		}
+		if cfg.LogLevel != "verbose" {
+			t.Errorf("Expected LogLevel 'verbose', got '%s'", cfg.LogLevel)
+		}
+	})
+
+	t.Run("command line flags override environment variables", func(t *testing.T) {
+		resetFlags()
+		clearEnvVars()
+
+		// Set environment variables
+		os.Setenv("OWLMAIL_SMTP_PORT", "2025")
+		os.Setenv("OWLMAIL_SMTP_HOST", "0.0.0.0")
+		os.Setenv("OWLMAIL_WEB_PORT", "2080")
+		os.Setenv("OWLMAIL_WEB_HOST", "127.0.0.1")
+		os.Setenv("OWLMAIL_HTTPS_ENABLED", "true")
+		os.Setenv("OWLMAIL_AUTO_RELAY", "true")
+		os.Setenv("OWLMAIL_TLS_ENABLED", "true")
+		os.Setenv("OWLMAIL_LOG_LEVEL", "verbose")
+
+		defer func() {
+			os.Unsetenv("OWLMAIL_SMTP_PORT")
+			os.Unsetenv("OWLMAIL_SMTP_HOST")
+			os.Unsetenv("OWLMAIL_WEB_PORT")
+			os.Unsetenv("OWLMAIL_WEB_HOST")
+			os.Unsetenv("OWLMAIL_HTTPS_ENABLED")
+			os.Unsetenv("OWLMAIL_AUTO_RELAY")
+			os.Unsetenv("OWLMAIL_TLS_ENABLED")
+			os.Unsetenv("OWLMAIL_LOG_LEVEL")
+		}()
+
+		// Set command line arguments (should override environment variables)
+		os.Args = []string{
+			"owlmail",
+			"-smtp", "4025",
+			"-ip", "10.0.0.1",
+			"-web", "4080",
+			"-web-ip", "10.0.0.2",
+			"-https=false",
+			"-auto-relay=false",
+			"-tls=false",
+			"-log-level", "silent",
+		}
+
+		cfg := parseConfig()
+
+		// Command line flags should override environment variables
+		if cfg.SMTPPort != 4025 {
+			t.Errorf("Expected SMTPPort 4025 (from flag), got %d", cfg.SMTPPort)
+		}
+		if cfg.SMTPHost != "10.0.0.1" {
+			t.Errorf("Expected SMTPHost '10.0.0.1' (from flag), got '%s'", cfg.SMTPHost)
+		}
+		if cfg.WebPort != 4080 {
+			t.Errorf("Expected WebPort 4080 (from flag), got %d", cfg.WebPort)
+		}
+		if cfg.WebHost != "10.0.0.2" {
+			t.Errorf("Expected WebHost '10.0.0.2' (from flag), got '%s'", cfg.WebHost)
+		}
+		if cfg.HTTPSEnabled != false {
+			t.Errorf("Expected HTTPSEnabled false (from flag), got %v", cfg.HTTPSEnabled)
+		}
+		if cfg.AutoRelay != false {
+			t.Errorf("Expected AutoRelay false (from flag), got %v", cfg.AutoRelay)
+		}
+		if cfg.TLSEnabled != false {
+			t.Errorf("Expected TLSEnabled false (from flag), got %v", cfg.TLSEnabled)
+		}
+		if cfg.LogLevel != "silent" {
+			t.Errorf("Expected LogLevel 'silent' (from flag), got '%s'", cfg.LogLevel)
+		}
+	})
+
+	t.Run("all command line flags", func(t *testing.T) {
+		resetFlags()
+		clearEnvVars()
+		os.Args = []string{
+			"owlmail",
+			"-smtp", "5025",
+			"-ip", "192.168.0.1",
+			"-mail-directory", "/custom/mail",
+			"-web", "5080",
+			"-web-ip", "192.168.0.2",
+			"-web-user", "flaguser",
+			"-web-password", "flagpass",
+			"-https=true",
+			"-https-cert", "/flag/cert.pem",
+			"-https-key", "/flag/key.pem",
+			"-outgoing-host", "smtp.flag.com",
+			"-outgoing-port", "2525",
+			"-outgoing-user", "flagout",
+			"-outgoing-pass", "flagoutpass",
+			"-outgoing-secure=true",
+			"-auto-relay=true",
+			"-auto-relay-addr", "flag@example.com",
+			"-auto-relay-rules", "/flag/rules.json",
+			"-smtp-user", "flagsmtp",
+			"-smtp-password", "flagsmtppass",
+			"-tls=true",
+			"-tls-cert", "/flag/tls-cert.pem",
+			"-tls-key", "/flag/tls-key.pem",
+			"-log-level", "verbose",
+		}
+
+		cfg := parseConfig()
+
+		if cfg.SMTPPort != 5025 {
+			t.Errorf("Expected SMTPPort 5025, got %d", cfg.SMTPPort)
+		}
+		if cfg.SMTPHost != "192.168.0.1" {
+			t.Errorf("Expected SMTPHost '192.168.0.1', got '%s'", cfg.SMTPHost)
+		}
+		if cfg.MailDir != "/custom/mail" {
+			t.Errorf("Expected MailDir '/custom/mail', got '%s'", cfg.MailDir)
+		}
+		if cfg.WebPort != 5080 {
+			t.Errorf("Expected WebPort 5080, got %d", cfg.WebPort)
+		}
+		if cfg.WebHost != "192.168.0.2" {
+			t.Errorf("Expected WebHost '192.168.0.2', got '%s'", cfg.WebHost)
+		}
+		if cfg.WebUser != "flaguser" {
+			t.Errorf("Expected WebUser 'flaguser', got '%s'", cfg.WebUser)
+		}
+		if cfg.WebPassword != "flagpass" {
+			t.Errorf("Expected WebPassword 'flagpass', got '%s'", cfg.WebPassword)
+		}
+		if cfg.HTTPSEnabled != true {
+			t.Errorf("Expected HTTPSEnabled true, got %v", cfg.HTTPSEnabled)
+		}
+		if cfg.HTTPSCertFile != "/flag/cert.pem" {
+			t.Errorf("Expected HTTPSCertFile '/flag/cert.pem', got '%s'", cfg.HTTPSCertFile)
+		}
+		if cfg.HTTPSKeyFile != "/flag/key.pem" {
+			t.Errorf("Expected HTTPSKeyFile '/flag/key.pem', got '%s'", cfg.HTTPSKeyFile)
+		}
+		if cfg.OutgoingHost != "smtp.flag.com" {
+			t.Errorf("Expected OutgoingHost 'smtp.flag.com', got '%s'", cfg.OutgoingHost)
+		}
+		if cfg.OutgoingPort != 2525 {
+			t.Errorf("Expected OutgoingPort 2525, got %d", cfg.OutgoingPort)
+		}
+		if cfg.OutgoingUser != "flagout" {
+			t.Errorf("Expected OutgoingUser 'flagout', got '%s'", cfg.OutgoingUser)
+		}
+		if cfg.OutgoingPass != "flagoutpass" {
+			t.Errorf("Expected OutgoingPass 'flagoutpass', got '%s'", cfg.OutgoingPass)
+		}
+		if cfg.OutgoingSecure != true {
+			t.Errorf("Expected OutgoingSecure true, got %v", cfg.OutgoingSecure)
+		}
+		if cfg.AutoRelay != true {
+			t.Errorf("Expected AutoRelay true, got %v", cfg.AutoRelay)
+		}
+		if cfg.AutoRelayAddr != "flag@example.com" {
+			t.Errorf("Expected AutoRelayAddr 'flag@example.com', got '%s'", cfg.AutoRelayAddr)
+		}
+		if cfg.AutoRelayRules != "/flag/rules.json" {
+			t.Errorf("Expected AutoRelayRules '/flag/rules.json', got '%s'", cfg.AutoRelayRules)
+		}
+		if cfg.SMTPUser != "flagsmtp" {
+			t.Errorf("Expected SMTPUser 'flagsmtp', got '%s'", cfg.SMTPUser)
+		}
+		if cfg.SMTPPassword != "flagsmtppass" {
+			t.Errorf("Expected SMTPPassword 'flagsmtppass', got '%s'", cfg.SMTPPassword)
+		}
+		if cfg.TLSEnabled != true {
+			t.Errorf("Expected TLSEnabled true, got %v", cfg.TLSEnabled)
+		}
+		if cfg.TLSCertFile != "/flag/tls-cert.pem" {
+			t.Errorf("Expected TLSCertFile '/flag/tls-cert.pem', got '%s'", cfg.TLSCertFile)
+		}
+		if cfg.TLSKeyFile != "/flag/tls-key.pem" {
+			t.Errorf("Expected TLSKeyFile '/flag/tls-key.pem', got '%s'", cfg.TLSKeyFile)
+		}
+		if cfg.LogLevel != "verbose" {
+			t.Errorf("Expected LogLevel 'verbose', got '%s'", cfg.LogLevel)
+		}
+	})
 }
