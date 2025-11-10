@@ -20,7 +20,7 @@ type API struct {
 	port          int
 	host          string
 	wsUpgrader    websocket.Upgrader
-	wsClients     map[*websocket.Conn]bool
+	wsClients     map[*websocket.Conn]*sync.Mutex
 	wsClientsLock sync.RWMutex
 	authUser      string
 	authPassword  string
@@ -45,7 +45,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		mailServer:    mailServer,
 		port:          port,
 		host:          host,
-		wsClients:     make(map[*websocket.Conn]bool),
+		wsClients:     make(map[*websocket.Conn]*sync.Mutex),
 		authUser:      user,
 		authPassword:  password,
 		httpsEnabled:  httpsEnabled,

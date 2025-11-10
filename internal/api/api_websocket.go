@@ -1,6 +1,8 @@
 package api
 
 import (
+	"sync"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/owlmail/internal/common"
@@ -19,9 +21,12 @@ func (api *API) handleWebSocket(c *gin.Context) {
 		}
 	}()
 
+	// Create a write mutex for this connection
+	writeMutex := &sync.Mutex{}
+
 	// Add client
 	api.wsClientsLock.Lock()
-	api.wsClients[conn] = true
+	api.wsClients[conn] = writeMutex
 	api.wsClientsLock.Unlock()
 
 	// Remove client on disconnect
@@ -32,10 +37,13 @@ func (api *API) handleWebSocket(c *gin.Context) {
 	}()
 
 	// Send initial connection message
-	if err := conn.WriteJSON(gin.H{
+	writeMutex.Lock()
+	err = conn.WriteJSON(gin.H{
 		"type":    "connected",
 		"message": "WebSocket connection established",
-	}); err != nil {
+	})
+	writeMutex.Unlock()
+	if err != nil {
 		common.Verbose("Failed to send WebSocket connection message: %v", err)
 		return
 	}
@@ -52,7 +60,10 @@ func (api *API) handleWebSocket(c *gin.Context) {
 
 		// Handle ping/pong
 		if msgType, ok := msg["type"].(string); ok && msgType == "ping" {
-			if err := conn.WriteJSON(gin.H{"type": "pong"}); err != nil {
+			writeMutex.Lock()
+			err = conn.WriteJSON(gin.H{"type": "pong"})
+			writeMutex.Unlock()
+			if err != nil {
 				common.Verbose("Failed to send WebSocket pong: %v", err)
 				break
 			}
@@ -66,22 +77,37 @@ func (api *API) broadcastMessage(message interface{}) {
 	var failedConns []*websocket.Conn
 
 	api.wsClientsLock.RLock()
-	for conn := range api.wsClients {
-		if err := conn.WriteJSON(message); err != nil {
+	// Create a snapshot of connections and their mutexes
+	conns := make(map[*websocket.Conn]*sync.Mutex, len(api.wsClients))
+	for conn, writeMutex := range api.wsClients {
+		conns[conn] = writeMutex
+	}
+	api.wsClientsLock.RUnlock()
+
+	// Write to each connection using its own mutex
+	for conn, writeMutex := range conns {
+		writeMutex.Lock()
+		err := conn.WriteJSON(message)
+		writeMutex.Unlock()
+		if err != nil {
 			common.Verbose("WebSocket write error: %v", err)
 			// Collect failed client for removal
 			failedConns = append(failedConns, conn)
 		}
 	}
-	api.wsClientsLock.RUnlock()
 
 	// Remove failed clients with write lock
 	if len(failedConns) > 0 {
 		api.wsClientsLock.Lock()
 		for _, conn := range failedConns {
-			delete(api.wsClients, conn)
-			if err := conn.Close(); err != nil {
-				common.Verbose("Failed to close WebSocket connection: %v", err)
+			if writeMutex, exists := api.wsClients[conn]; exists {
+				// Lock the connection's mutex before closing to ensure no concurrent writes
+				writeMutex.Lock()
+				delete(api.wsClients, conn)
+				writeMutex.Unlock()
+				if err := conn.Close(); err != nil {
+					common.Verbose("Failed to close WebSocket connection: %v", err)
+				}
 			}
 		}
 		api.wsClientsLock.Unlock()
