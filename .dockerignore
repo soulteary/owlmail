@@ -1,0 +1,54 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+README*.md
+LICENSE
+SECURITY*.md
+
+# CI/CD
+.github/
+
+# Test files
+*_test.go
+*.test
+*.out
+coverage.*
+*.html
+
+# Build artifacts
+owlmail
+owlmail-*
+*.exe
+*.dll
+*.so
+*.dylib
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Temporary files
+*.tmp
+*.log
+*.bak
+*.cache
+
+# Docker
+Dockerfile*
+.dockerignore
+docker-compose*.yml
+
+# Development files
+.env
+.env.local
+*.local
+
