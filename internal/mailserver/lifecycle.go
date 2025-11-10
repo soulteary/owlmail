@@ -46,6 +46,7 @@ func (ms *MailServer) Close() error {
 		defer func() {
 			if r := recover(); r != nil {
 				// Channel is already closed, which is fine
+				_ = r
 			}
 		}()
 		close(ms.eventChan)

@@ -41,7 +41,7 @@ func TestListenBasic(t *testing.T) {
 	if err != nil {
 		t.Logf("Could not connect to server (this may be expected): %v", err)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Close the server
@@ -149,7 +149,7 @@ func TestListenWithTLS(t *testing.T) {
 	if err != nil {
 		t.Logf("Could not connect to SMTPS server (this may be expected): %v", err)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Close the server
@@ -405,7 +405,7 @@ func TestListenAndClose(t *testing.T) {
 	if err != nil {
 		t.Logf("Could not connect to server (this may be expected): %v", err)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Close the server

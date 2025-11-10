@@ -35,7 +35,9 @@ func TestAPIHandleWebSocket(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Wait for initial connection message
 	var msg map[string]interface{}
@@ -57,7 +59,7 @@ func TestAPIHandleWebSocket(t *testing.T) {
 	}
 
 	// Close connection and verify it's removed
-	conn.Close()
+	_ = conn.Close()
 	time.Sleep(50 * time.Millisecond)
 
 	api.wsClientsLock.RLock()
@@ -102,7 +104,9 @@ func TestAPIBroadcastMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Read initial connection message
 	var msg map[string]interface{}
@@ -118,7 +122,7 @@ func TestAPIBroadcastMessage(t *testing.T) {
 	api.broadcastMessage(testMessage)
 
 	// Read the broadcast message
-	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 	if err := conn.ReadJSON(&msg); err != nil {
 		t.Fatalf("Failed to read broadcast message: %v", err)
 	}
@@ -186,7 +190,9 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect first client: %v", err)
 	}
-	defer conn1.Close()
+	defer func() {
+		_ = conn1.Close()
+	}()
 
 	// Read initial message
 	var msg map[string]interface{}
@@ -199,7 +205,9 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect second client: %v", err)
 	}
-	defer conn2.Close()
+	defer func() {
+		_ = conn2.Close()
+	}()
 
 	// Read initial message
 	if err := conn2.ReadJSON(&msg); err != nil {
@@ -220,7 +228,7 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 	api.broadcastMessage(broadcastMsg)
 
 	// Both clients should receive the message
-	conn1.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_ = conn1.SetReadDeadline(time.Now().Add(1 * time.Second))
 	if err := conn1.ReadJSON(&msg); err != nil {
 		t.Fatalf("Client 1 failed to read broadcast: %v", err)
 	}
@@ -228,7 +236,7 @@ func TestAPIBroadcastMessageWithClients(t *testing.T) {
 		t.Errorf("Client 1: Expected 'broadcast', got %v", msg["type"])
 	}
 
-	conn2.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_ = conn2.SetReadDeadline(time.Now().Add(1 * time.Second))
 	if err := conn2.ReadJSON(&msg); err != nil {
 		t.Fatalf("Client 2 failed to read broadcast: %v", err)
 	}
@@ -367,7 +375,7 @@ func TestAPIBroadcastMessageWriteError(t *testing.T) {
 	}
 
 	// Close the connection to simulate write error
-	conn.Close()
+	_ = conn.Close()
 
 	// Wait a bit for the connection to be recognized as closed
 	time.Sleep(50 * time.Millisecond)
@@ -410,7 +418,9 @@ func TestAPIHandleWebSocketPingPong(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Read initial connection message
 	var msg map[string]interface{}
@@ -425,7 +435,7 @@ func TestAPIHandleWebSocketPingPong(t *testing.T) {
 	}
 
 	// Read pong response
-	conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(1 * time.Second))
 	if err := conn.ReadJSON(&msg); err != nil {
 		t.Fatalf("Failed to read pong: %v", err)
 	}
@@ -454,7 +464,9 @@ func TestAPIHandleWebSocketOtherMessages(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Read initial connection message
 	var msg map[string]interface{}
@@ -514,8 +526,8 @@ func TestAPIHandleWebSocketConnectionClose(t *testing.T) {
 	}
 
 	// Close connection gracefully
-	conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-	conn.Close()
+	_ = conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+	_ = conn.Close()
 
 	// Wait for cleanup
 	time.Sleep(100 * time.Millisecond)
@@ -551,7 +563,9 @@ func TestAPIBroadcastMessageWithFailedClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect first client: %v", err)
 	}
-	defer conn1.Close()
+	defer func() {
+		_ = conn1.Close()
+	}()
 
 	// Read initial message
 	var msg map[string]interface{}
@@ -564,7 +578,9 @@ func TestAPIBroadcastMessageWithFailedClient(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to connect second client: %v", err)
 	}
-	defer conn2.Close()
+	defer func() {
+		_ = conn2.Close()
+	}()
 
 	// Read initial message
 	if err := conn2.ReadJSON(&msg); err != nil {
@@ -572,7 +588,7 @@ func TestAPIBroadcastMessageWithFailedClient(t *testing.T) {
 	}
 
 	// Close one connection to simulate failure
-	conn1.Close()
+	_ = conn1.Close()
 
 	// Wait a bit for the connection to be recognized as closed
 	time.Sleep(100 * time.Millisecond)
@@ -582,7 +598,7 @@ func TestAPIBroadcastMessageWithFailedClient(t *testing.T) {
 	api.broadcastMessage(broadcastMsg)
 
 	// The second client should still receive the message
-	conn2.SetReadDeadline(time.Now().Add(1 * time.Second))
+	_ = conn2.SetReadDeadline(time.Now().Add(1 * time.Second))
 	if err := conn2.ReadJSON(&msg); err != nil {
 		t.Fatalf("Client 2 failed to read broadcast: %v", err)
 	}
@@ -619,7 +635,7 @@ func TestAPIHandleWebSocketInitialMessageError(t *testing.T) {
 
 	// Close the connection immediately after reading initial message
 	// This tests the defer cleanup
-	conn.Close()
+	_ = conn.Close()
 
 	// Wait for cleanup
 	time.Sleep(100 * time.Millisecond)

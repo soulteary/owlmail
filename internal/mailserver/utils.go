@@ -158,7 +158,7 @@ func validateEmailID(id string) error {
 	// Validate that ID only contains safe characters (alphanumeric, hyphen, underscore)
 	// This allows test IDs like "test-id" while preventing path traversal
 	for _, r := range id {
-		if !((r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
 			return fmt.Errorf("invalid email ID: contains invalid characters")
 		}
 	}
