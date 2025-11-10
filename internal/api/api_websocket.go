@@ -62,17 +62,28 @@ func (api *API) handleWebSocket(c *gin.Context) {
 
 // broadcastMessage broadcasts a message to all connected WebSocket clients
 func (api *API) broadcastMessage(message interface{}) {
-	api.wsClientsLock.RLock()
-	defer api.wsClientsLock.RUnlock()
+	// Collect failed connections to remove after releasing read lock
+	var failedConns []*websocket.Conn
 
+	api.wsClientsLock.RLock()
 	for conn := range api.wsClients {
 		if err := conn.WriteJSON(message); err != nil {
 			common.Verbose("WebSocket write error: %v", err)
-			// Remove failed client
+			// Collect failed client for removal
+			failedConns = append(failedConns, conn)
+		}
+	}
+	api.wsClientsLock.RUnlock()
+
+	// Remove failed clients with write lock
+	if len(failedConns) > 0 {
+		api.wsClientsLock.Lock()
+		for _, conn := range failedConns {
 			delete(api.wsClients, conn)
 			if err := conn.Close(); err != nil {
 				common.Verbose("Failed to close WebSocket connection: %v", err)
 			}
 		}
+		api.wsClientsLock.Unlock()
 	}
 }
