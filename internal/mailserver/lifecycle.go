@@ -40,7 +40,16 @@ func (ms *MailServer) Close() error {
 	if ms.outgoing != nil {
 		ms.outgoing.Close()
 	}
-	close(ms.eventChan)
+
+	// Safely close eventChan, handling the case where it's already closed
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				// Channel is already closed, which is fine
+			}
+		}()
+		close(ms.eventChan)
+	}()
 
 	var err error
 	if ms.smtpsServer != nil {
