@@ -73,7 +73,7 @@ func (api *API) setupRoutes() {
 
 	// HTTP Basic Auth middleware if configured
 	if api.authUser != "" && api.authPassword != "" {
-		router.Use(basicAuthMiddleware(api.authUser, api.authPassword))
+		router.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/api/v1/health"))
 	}
 
 	// Static files (web UI)

@@ -59,7 +59,7 @@ ENV OWLMAIL_MAIL_DIR=/app/mail
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --tries=1 -O /dev/null --http-user=$OWLMAIL_WEB_USER --http-password=$OWLMAIL_WEB_PASSWORD http://localhost:1080/healthz || exit 1
+  CMD wget --quiet --tries=1 -O /dev/null http://localhost:1080/healthz || exit 1
 
 # Start application
 ENTRYPOINT ["/app/owlmail"]
