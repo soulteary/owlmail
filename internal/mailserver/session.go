@@ -2,16 +2,12 @@ package mailserver
 
 import (
 	"fmt"
+	_ "github.com/emersion/go-message/charset"
+	"github.com/emersion/go-smtp"
+	"github.com/soulteary/owlmail/internal/common"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
-
-	"github.com/emersion/go-message"
-	_ "github.com/emersion/go-message/charset"
-	"github.com/emersion/go-message/mail"
-	"github.com/emersion/go-smtp"
-	"github.com/soulteary/owlmail/internal/common"
 )
 
 // Backend implements smtp.Backend
@@ -95,143 +91,8 @@ func (s *Session) Data(r io.Reader) error {
 	tee := io.TeeReader(r, emlFile)
 
 	// Parse email
-	msg, err := message.Read(tee)
-	if err != nil {
-		return fmt.Errorf("failed to parse email: %w", err)
-	}
-
-	// Parse email content
-	email := &Email{
-		Attachments: make([]*Attachment, 0),
-		Headers:     make(map[string]interface{}),
-	}
-
-	// Extract headers
-	// Wrap in mail.Header to get decoding support
-	headers := mail.Header{Header: msg.Header}
-
-	// Parse all headers into Headers map
-	// Common headers to parse
-	commonHeaders := []string{
-		"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
-		"Reply-To", "In-Reply-To", "References", "Content-Type",
-		"Content-Transfer-Encoding", "MIME-Version", "X-Mailer",
-		"X-Priority", "Priority", "Importance",
-	}
-	for _, headerName := range commonHeaders {
-		if headerValue := headers.Get(headerName); headerValue != "" {
-			if headerValues := headers.Values(headerName); len(headerValues) > 1 {
-				email.Headers[headerName] = headerValues
-			} else {
-				email.Headers[headerName] = headerValue
-			}
-		}
-	}
-	// Note: Additional custom headers can be added here if needed
-	// For now, we parse the most common headers listed above
-
-	// Parse date from headers
-	if email.Time, err = headers.Date(); err != nil {
-		email.Time = parseEmailDate(headers.Header)
-	}
-
-	if email.Subject, err = headers.Subject(); err != nil {
-		// Fallback to raw subject if decoding fails
-		email.Subject = headers.Get("Subject")
-	}
-
-	// Parse addresses
-	email.From, err = headers.AddressList("From")
-	email.To, err = headers.AddressList("To")
-	email.CC, err = headers.AddressList("Cc")
-	email.BCC, err = headers.AddressList("Bcc")
-
-	// Parse body
-	mediaType, _, err := headers.ContentType()
-	if err != nil {
-		mediaType = "text/plain"
-	}
-
-	if strings.HasPrefix(mediaType, "multipart/") {
-		mr := msg.MultipartReader()
-		if mr != nil {
-			for {
-				p, err := mr.NextPart()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					common.Verbose("Error reading multipart: %v", err)
-					continue
-				}
-
-				partMediaType, _, _ := p.Header.ContentType()
-				if partMediaType == "" {
-					partMediaType = "text/plain"
-				}
-
-				disposition, params, _ := p.Header.ContentDisposition()
-				contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
-
-				body, _ := io.ReadAll(p.Body)
-
-				if partMediaType == "text/plain" && disposition != "attachment" {
-					email.Text = strings.TrimSpace(string(body))
-				} else if partMediaType == "text/html" && disposition != "attachment" {
-					email.HTML = strings.TrimSpace(string(body))
-				} else if disposition == "attachment" || contentID != "" {
-					// Handle attachment
-					filename := params["filename"]
-					if filename == "" {
-						filename = partMediaType
-					}
-
-					attachment := &Attachment{
-						ContentType: partMediaType,
-						FileName:    filename,
-						ContentID:   contentID,
-					}
-
-					if err := s.mailServer.saveAttachment(id, attachment, body); err != nil {
-						common.Verbose("Error saving attachment: %v", err)
-					} else {
-						email.Attachments = append(email.Attachments, attachment)
-					}
-				}
-			}
-		}
-	} else {
-		// Simple message
-		body, _ := io.ReadAll(msg.Body)
-		if strings.HasPrefix(mediaType, "text/html") {
-			email.HTML = strings.TrimSpace(string(body))
-		} else {
-			email.Text = strings.TrimSpace(string(body))
-		}
-	}
-
-	// Create envelope
-	remoteAddr := ""
-	hostname := ""
-	if s.conn != nil {
-		if conn := s.conn.Conn(); conn != nil {
-			remoteAddr = conn.RemoteAddr().String()
-		}
-		hostname = s.conn.Hostname()
-	}
-	envelope := &Envelope{
-		From:          s.from,
-		To:            s.to,
-		Host:          hostname,
-		RemoteAddress: remoteAddr,
-	}
-
-	// Save email to store
-	if err := s.mailServer.SaveEmailToStore(id, false, envelope, email); err != nil {
-		return fmt.Errorf("failed to save email: %w", err)
-	}
-
-	return nil
+	_, err = s.mailServer.parseEmail(id, tee, s, true, false)
+	return err
 }
 
 // Reset resets the session
