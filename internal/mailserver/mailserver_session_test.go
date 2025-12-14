@@ -165,7 +165,7 @@ func TestSessionData(t *testing.T) {
 	// Create a simple email message
 	emailData := []byte("From: from@example.com\r\n" +
 		"To: to@example.com\r\n" +
-		"Subject: Test\r\n" +
+		"Subject: =?UTF-8?Q?=E6=B5=8B=E8=AF=95=E6=B6=88=E6=81=AF?=\r\n" +
 		"\r\n" +
 		"Test body")
 
@@ -179,6 +179,9 @@ func TestSessionData(t *testing.T) {
 	emails := server.GetAllEmail()
 	if len(emails) == 0 {
 		t.Error("Email should be saved")
+	}
+	if emails[0].Subject != "测试消息" {
+		t.Error("Email subject should be properly decoded")
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/emersion/go-message"
+	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/emersion/go-smtp"
 	"github.com/soulteary/owlmail/internal/common"
@@ -106,11 +107,10 @@ func (s *Session) Data(r io.Reader) error {
 	}
 
 	// Extract headers
-	headers := msg.Header
-	email.Subject = headers.Get("Subject")
+	// Wrap in mail.Header to get decoding support
+	headers := mail.Header{Header: msg.Header}
 
 	// Parse all headers into Headers map
-	email.Headers = make(map[string]interface{})
 	// Common headers to parse
 	commonHeaders := []string{
 		"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
@@ -131,32 +131,23 @@ func (s *Session) Data(r io.Reader) error {
 	// For now, we parse the most common headers listed above
 
 	// Parse date from headers
-	email.Time = parseEmailDate(headers)
+	if email.Time, err = headers.Date(); err != nil {
+		email.Time = parseEmailDate(headers.Header)
+	}
+
+	if email.Subject, err = headers.Subject(); err != nil {
+		// Fallback to raw subject if decoding fails
+		email.Subject = headers.Get("Subject")
+	}
 
 	// Parse addresses
-	if fromStr := headers.Get("From"); fromStr != "" {
-		if from, err := mail.ParseAddressList(fromStr); err == nil {
-			email.From = from
-		}
-	}
-	if toStr := headers.Get("To"); toStr != "" {
-		if to, err := mail.ParseAddressList(toStr); err == nil {
-			email.To = to
-		}
-	}
-	if ccStr := headers.Get("Cc"); ccStr != "" {
-		if cc, err := mail.ParseAddressList(ccStr); err == nil {
-			email.CC = cc
-		}
-	}
-	if bccStr := headers.Get("Bcc"); bccStr != "" {
-		if bcc, err := mail.ParseAddressList(bccStr); err == nil {
-			email.BCC = bcc
-		}
-	}
+	email.From, err = headers.AddressList("From")
+	email.To, err = headers.AddressList("To")
+	email.CC, err = headers.AddressList("Cc")
+	email.BCC, err = headers.AddressList("Bcc")
 
 	// Parse body
-	mediaType, _, err := msg.Header.ContentType()
+	mediaType, _, err := headers.ContentType()
 	if err != nil {
 		mediaType = "text/plain"
 	}
@@ -185,14 +176,14 @@ func (s *Session) Data(r io.Reader) error {
 				body, _ := io.ReadAll(p.Body)
 
 				if partMediaType == "text/plain" && disposition != "attachment" {
-					email.Text = string(body)
+					email.Text = strings.TrimSpace(string(body))
 				} else if partMediaType == "text/html" && disposition != "attachment" {
-					email.HTML = string(body)
+					email.HTML = strings.TrimSpace(string(body))
 				} else if disposition == "attachment" || contentID != "" {
 					// Handle attachment
 					filename := params["filename"]
 					if filename == "" {
-						filename = p.Header.Get("Content-Type")
+						filename = partMediaType
 					}
 
 					attachment := &Attachment{
@@ -213,9 +204,9 @@ func (s *Session) Data(r io.Reader) error {
 		// Simple message
 		body, _ := io.ReadAll(msg.Body)
 		if strings.HasPrefix(mediaType, "text/html") {
-			email.HTML = string(body)
+			email.HTML = strings.TrimSpace(string(body))
 		} else {
-			email.Text = string(body)
+			email.Text = strings.TrimSpace(string(body))
 		}
 	}
 

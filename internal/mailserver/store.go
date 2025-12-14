@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-message"
+	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/owlmail/internal/common"
 )
@@ -47,7 +48,7 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	// Sanitize HTML if present
 	if parsedEmail.HTML != "" {
-		parsedEmail.HTML = sanitizeHTML(parsedEmail.HTML)
+		parsedEmail.HTML = strings.TrimSpace(sanitizeHTML(parsedEmail.HTML))
 	}
 
 	ms.storeMutex.Lock()
@@ -166,7 +167,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		common.Verbose("Error deleting attachment directory: %v", err)
 	}
 
-	common.Log("Deleting email - %s", email.Subject)
+	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
 	// Remove from store
 	ms.store = append(ms.store[:emailIndex], ms.store[emailIndex+1:]...)
@@ -400,7 +401,15 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Extract headers
 		headers := msg.Header
-		email.Subject = headers.Get("Subject")
+
+		// Wrap in mail.Header to get decoding support
+		mh := mail.Header{Header: headers}
+		var subjectErr error
+		email.Subject, subjectErr = mh.Subject()
+		if subjectErr != nil {
+			// Fallback to raw subject if decoding fails
+			email.Subject = headers.Get("Subject")
+		}
 
 		// Parse all headers
 		email.Headers = make(map[string]interface{})

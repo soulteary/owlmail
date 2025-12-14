@@ -156,7 +156,7 @@ func (api *API) downloadEmail(c *gin.Context) {
 	filename := fmt.Sprintf("%s.eml", email.ID)
 	if email.Subject != "" {
 		// Sanitize filename
-		filename = sanitizeFilename(email.Subject) + ".eml"
+		filename = sanitizeFilename(fmt.Sprintf("%s-%s", email.ID, email.Subject)) + ".eml"
 	}
 
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
