@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	_ "github.com/emersion/go-message/charset"
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/owlmail/internal/mailserver"

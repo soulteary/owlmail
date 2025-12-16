@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-message"
+	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/owlmail/internal/common"
 )
@@ -47,7 +48,7 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	// Sanitize HTML if present
 	if parsedEmail.HTML != "" {
-		parsedEmail.HTML = sanitizeHTML(parsedEmail.HTML)
+		parsedEmail.HTML = strings.TrimSpace(sanitizeHTML(parsedEmail.HTML))
 	}
 
 	ms.storeMutex.Lock()
@@ -166,7 +167,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		common.Verbose("Error deleting attachment directory: %v", err)
 	}
 
-	common.Log("Deleting email - %s", email.Subject)
+	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
 	// Remove from store
 	ms.store = append(ms.store[:emailIndex], ms.store[emailIndex+1:]...)
@@ -339,6 +340,151 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	return stats
 }
 
+// parseEmail parses email from given reader
+func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachments, markAsRead bool) (*Email, error) {
+	msg, err := message.Read(r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse email: %w", err)
+	}
+
+	// Parse email content
+	email := &Email{
+		Attachments: make([]*Attachment, 0),
+		Headers:     make(map[string]interface{}),
+	}
+
+	// Extract headers
+	// Wrap in mail.Header to get decoding support
+	headers := mail.Header{Header: msg.Header}
+
+	// Parse all headers into Headers map
+	// Common headers to parse
+	commonHeaders := []string{
+		"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
+		"Reply-To", "In-Reply-To", "References", "Content-Type",
+		"Content-Transfer-Encoding", "MIME-Version", "X-Mailer",
+		"X-Priority", "Priority", "Importance",
+	}
+	for _, headerName := range commonHeaders {
+		if headerValue := headers.Get(headerName); headerValue != "" {
+			if headerValues := headers.Values(headerName); len(headerValues) > 1 {
+				email.Headers[headerName] = headerValues
+			} else {
+				email.Headers[headerName] = headerValue
+			}
+		}
+	}
+	// Note: Additional custom headers can be added here if needed
+	// For now, we parse the most common headers listed above
+
+	// Parse date from headers
+	if email.Time, err = headers.Date(); err != nil {
+		email.Time = parseEmailDate(headers.Header)
+	}
+
+	if email.Subject, err = headers.Subject(); err != nil {
+		// Fallback to raw subject if decoding fails
+		email.Subject = headers.Get("Subject")
+	}
+
+	// Parse addresses
+	email.From, err = headers.AddressList("From")
+	email.To, err = headers.AddressList("To")
+	email.CC, err = headers.AddressList("Cc")
+	email.BCC, err = headers.AddressList("Bcc")
+
+	// Parse body
+	mediaType, _, err := headers.ContentType()
+	if err != nil {
+		mediaType = "text/plain"
+	}
+
+	if strings.HasPrefix(mediaType, "multipart/") {
+		mr := msg.MultipartReader()
+		if mr != nil {
+			for {
+				p, err := mr.NextPart()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					common.Verbose("Error reading multipart: %v", err)
+					continue
+				}
+
+				partMediaType, _, _ := p.Header.ContentType()
+				if partMediaType == "" {
+					partMediaType = "text/plain"
+				}
+
+				disposition, params, _ := p.Header.ContentDisposition()
+				contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
+
+				body, _ := io.ReadAll(p.Body)
+
+				if partMediaType == "text/plain" && disposition != "attachment" {
+					email.Text = strings.TrimSpace(string(body))
+				} else if partMediaType == "text/html" && disposition != "attachment" {
+					email.HTML = strings.TrimSpace(string(body))
+				} else if disposition == "attachment" || contentID != "" {
+					// Handle attachment
+					filename := params["filename"]
+					if filename == "" {
+						filename = partMediaType
+					}
+
+					attachment := &Attachment{
+						ContentType: partMediaType,
+						FileName:    filename,
+						ContentID:   contentID,
+					}
+
+					if saveAttachments {
+						err = ms.saveAttachment(id, attachment, body)
+						if err != nil {
+							common.Verbose("Error saving attachment: %v", err)
+						}
+					}
+					email.Attachments = append(email.Attachments, attachment)
+				}
+			}
+		}
+	} else {
+		// Simple message
+		body, _ := io.ReadAll(msg.Body)
+		if strings.HasPrefix(mediaType, "text/html") {
+			email.HTML = strings.TrimSpace(string(body))
+		} else {
+			email.Text = strings.TrimSpace(string(body))
+		}
+	}
+
+	// Create envelope
+	envelope := &Envelope{
+		From:          "",
+		To:            addressListToStrings(email.To),
+		Host:          "unknown",
+		RemoteAddress: "unknown",
+	}
+	if s != nil {
+		if s.conn != nil {
+			if conn := s.conn.Conn(); conn != nil {
+				envelope.RemoteAddress = conn.RemoteAddr().String()
+			}
+			envelope.Host = s.conn.Hostname()
+		}
+		envelope.From = s.from
+		envelope.To = s.to
+	}
+
+	// Save email to store
+	if err = ms.SaveEmailToStore(id, markAsRead, envelope, email); err != nil {
+		return nil, fmt.Errorf("failed to store email into memory: %w", err)
+	}
+
+	return email, nil
+}
+
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
 	files, err := os.ReadDir(ms.mailDir)
@@ -383,158 +529,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		}
 
 		// Parse email
-		msg, err := message.Read(emailFile)
-		if closeErr := emailFile.Close(); closeErr != nil {
-			common.Verbose("Failed to close email file: %v", closeErr)
+		if email, err := ms.parseEmail(id, emailFile, nil, false, true); err == nil {
+			common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
 		}
-		if err != nil {
-			common.Verbose("Error parsing email file %s: %v", emlPath, err)
-			continue
-		}
-
-		// Parse email content (similar to Session.Data)
-		email := &Email{
-			Attachments: make([]*Attachment, 0),
-			Headers:     make(map[string]interface{}),
-		}
-
-		// Extract headers
-		headers := msg.Header
-		email.Subject = headers.Get("Subject")
-
-		// Parse all headers
-		email.Headers = make(map[string]interface{})
-		// Common headers to parse
-		commonHeaders := []string{
-			"From", "To", "Cc", "Bcc", "Subject", "Date", "Message-ID",
-			"Reply-To", "In-Reply-To", "References", "Content-Type",
-			"Content-Transfer-Encoding", "MIME-Version", "X-Mailer",
-			"X-Priority", "Priority", "Importance",
-		}
-		for _, headerName := range commonHeaders {
-			if headerValue := headers.Get(headerName); headerValue != "" {
-				if headerValues := headers.Values(headerName); len(headerValues) > 1 {
-					email.Headers[headerName] = headerValues
-				} else {
-					email.Headers[headerName] = headerValue
-				}
-			}
-		}
-		// Note: Additional custom headers can be added here if needed
-		// For now, we parse the most common headers listed above
-
-		// Parse date from headers
-		email.Time = parseEmailDate(headers)
-
-		// Parse addresses
-		if fromStr := headers.Get("From"); fromStr != "" {
-			if from, err := mail.ParseAddressList(fromStr); err == nil {
-				email.From = from
-			}
-		}
-		if toStr := headers.Get("To"); toStr != "" {
-			if to, err := mail.ParseAddressList(toStr); err == nil {
-				email.To = to
-			}
-		}
-		if ccStr := headers.Get("Cc"); ccStr != "" {
-			if cc, err := mail.ParseAddressList(ccStr); err == nil {
-				email.CC = cc
-			}
-		}
-		if bccStr := headers.Get("Bcc"); bccStr != "" {
-			if bcc, err := mail.ParseAddressList(bccStr); err == nil {
-				email.BCC = bcc
-			}
-		}
-
-		// Parse body
-		mediaType, _, err := msg.Header.ContentType()
-		if err != nil {
-			mediaType = "text/plain"
-		}
-
-		if strings.HasPrefix(mediaType, "multipart/") {
-			mr := msg.MultipartReader()
-			if mr != nil {
-				for {
-					p, err := mr.NextPart()
-					if err == io.EOF {
-						break
-					}
-					if err != nil {
-						common.Verbose("Error reading multipart: %v", err)
-						continue
-					}
-
-					partMediaType, _, _ := p.Header.ContentType()
-					if partMediaType == "" {
-						partMediaType = "text/plain"
-					}
-
-					disposition, params, _ := p.Header.ContentDisposition()
-					contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
-
-					body, _ := io.ReadAll(p.Body)
-
-					if partMediaType == "text/plain" && disposition != "attachment" {
-						email.Text = string(body)
-					} else if partMediaType == "text/html" && disposition != "attachment" {
-						email.HTML = string(body)
-					} else if disposition == "attachment" || contentID != "" {
-						// Handle attachment
-						filename := params["filename"]
-						if filename == "" {
-							filename = p.Header.Get("Content-Type")
-						}
-
-						attachment := &Attachment{
-							ContentType: partMediaType,
-							FileName:    filename,
-							ContentID:   contentID,
-						}
-
-						// Check if attachment file exists
-						attachmentDir := filepath.Join(ms.mailDir, id)
-						attachment = transformAttachment(attachment)
-						attachmentPath := filepath.Join(attachmentDir, attachment.GeneratedFileName)
-						if stat, err := os.Stat(attachmentPath); err == nil {
-							attachment.Size = stat.Size()
-							email.Attachments = append(email.Attachments, attachment)
-						}
-					}
-				}
-			}
-		} else {
-			// Simple message
-			body, _ := io.ReadAll(msg.Body)
-			if strings.HasPrefix(mediaType, "text/html") {
-				email.HTML = string(body)
-			} else {
-				email.Text = string(body)
-			}
-		}
-
-		// Create envelope (minimal, since we don't have SMTP session info)
-		envelope := &Envelope{
-			From:          "",
-			To:            addressListToStrings(email.To),
-			Host:          "unknown",
-			RemoteAddress: "unknown",
-		}
-
-		// Try to get From from headers
-		if len(email.From) > 0 {
-			envelope.From = email.From[0].Address
-		}
-
-		// Save email to store (mark as read since it's restored)
-		if err := ms.SaveEmailToStore(id, true, envelope, email); err != nil {
-			common.Verbose("Error saving restored email %s: %v", id, err)
-			continue
-		}
-
-		common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
 	}
 
 	return nil
