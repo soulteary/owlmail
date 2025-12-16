@@ -19,7 +19,7 @@ func TestCorsMiddleware(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("OPTIONS", "/api/v1/health", nil)
+	req, _ := http.NewRequest("OPTIONS", "/api/v1/emails", nil)
 	req.Header.Set("Origin", "http://example.com")
 	api.router.ServeHTTP(w, req)
 
@@ -47,7 +47,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	api.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
@@ -71,7 +71,7 @@ func TestBasicAuthMiddlewareSuccess(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.SetBasicAuth("user", "pass")
 	api.router.ServeHTTP(w, req)
 
@@ -96,7 +96,7 @@ func TestBasicAuthMiddlewareInvalidPrefix(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Authorization", "Bearer invalid")
 	api.router.ServeHTTP(w, req)
 
@@ -121,7 +121,7 @@ func TestBasicAuthMiddlewareInvalidBase64(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Authorization", "Basic invalid-base64!")
 	api.router.ServeHTTP(w, req)
 
@@ -146,7 +146,7 @@ func TestBasicAuthMiddlewareInvalidCredentials(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.SetBasicAuth("wronguser", "wrongpass")
 	api.router.ServeHTTP(w, req)
 
@@ -171,12 +171,53 @@ func TestBasicAuthMiddlewareInvalidFormat(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	w := httptest.NewRecorder()
-	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	// Set invalid format (no colon)
 	req.Header.Set("Authorization", "Basic dXNlcg==") // base64("user")
 	api.router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusUnauthorized {
 		t.Errorf("Expected status 401, got %d", w.Code)
+	}
+}
+
+func TestHealthCheckSkippedAuth(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
+	api.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
+	}
+}
+func TestHealthzSkippedAuth(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/healthz", nil)
+	api.router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("Expected status 200, got %d", w.Code)
 	}
 }

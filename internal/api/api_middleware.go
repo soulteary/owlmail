@@ -26,8 +26,15 @@ func corsMiddleware() gin.HandlerFunc {
 }
 
 // basicAuthMiddleware creates HTTP Basic Auth middleware
-func basicAuthMiddleware(username, password string) gin.HandlerFunc {
+func basicAuthMiddleware(username, password string, skippedPaths ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		for _, path := range skippedPaths {
+			if c.Request.URL.Path == path {
+				c.Next()
+				return
+			}
+		}
+
 		auth := c.GetHeader("Authorization")
 		if auth == "" {
 			c.Header("WWW-Authenticate", `Basic realm="OwlMail"`)
