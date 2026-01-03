@@ -25,6 +25,11 @@ func NewMailServerWithOutgoing(port int, host, mailDir string, outgoingConfig *o
 
 // NewMailServerWithConfig creates a new mail server instance with full configuration
 func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *outgoing.OutgoingConfig, authConfig *SMTPAuthConfig, tlsConfig *TLSConfig) (*MailServer, error) {
+	return NewMailServerWithFullConfig(port, host, mailDir, outgoingConfig, authConfig, tlsConfig, false)
+}
+
+// NewMailServerWithFullConfig creates a new mail server instance with full configuration including UUID option
+func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig *outgoing.OutgoingConfig, authConfig *SMTPAuthConfig, tlsConfig *TLSConfig, useUUIDForID bool) (*MailServer, error) {
 	if port == 0 {
 		port = defaultPort
 	}
@@ -41,14 +46,15 @@ func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *out
 	}
 
 	ms := &MailServer{
-		store:      make([]*types.Email, 0),
-		mailDir:    mailDir,
-		port:       port,
-		host:       host,
-		eventChan:  make(chan Event, 100),
-		listeners:  make(map[string][]func(*types.Email)),
-		authConfig: authConfig,
-		tlsConfig:  tlsConfig,
+		store:        make([]*types.Email, 0),
+		mailDir:      mailDir,
+		port:         port,
+		host:         host,
+		eventChan:    make(chan Event, 100),
+		listeners:    make(map[string][]func(*types.Email)),
+		authConfig:   authConfig,
+		tlsConfig:    tlsConfig,
+		useUUIDForID: useUUIDForID,
 	}
 
 	// Setup outgoing mail if config provided
