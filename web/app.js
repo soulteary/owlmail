@@ -146,8 +146,8 @@ function renderEmailList() {
 
     container.innerHTML = state.emails.map(email => {
         const from = email.from && email.from.length > 0 
-            ? email.from[0].address || email.from[0].name || '未知发件人'
-            : '未知发件人';
+            ? formatAddress(email.from[0])
+            : '未知';
         const time = formatTime(email.time);
         const preview = email.text ? email.text.substring(0, 100) : '';
         const unreadClass = email.read ? '' : 'unread';
@@ -190,10 +190,10 @@ function renderEmailDetail() {
     const email = state.currentEmail;
     const from = email.from && email.from.length > 0 
         ? formatAddress(email.from[0])
-        : '未知发件人';
+        : '未知';
     const to = email.to && email.to.length > 0
         ? email.to.map(addr => formatAddress(addr)).join(', ')
-        : '未知收件人';
+        : '未知';
     const cc = email.cc && email.cc.length > 0
         ? email.cc.map(addr => formatAddress(addr)).join(', ')
         : '';
@@ -416,10 +416,25 @@ function formatTime(timeStr) {
 
 function formatAddress(addr) {
     if (typeof addr === 'string') return addr;
-    if (addr.name && addr.address) {
-        return `${addr.name} <${addr.address}>`;
+    
+    // 支持大小写两种字段名格式（Name/Address 或 name/address）
+    const name = addr.Name || addr.name || '';
+    const address = addr.Address || addr.address || '';
+    
+    // 如果名称和地址都存在，显示为 "名称 <地址>"
+    if (name && address) {
+        return `${name} <${address}>`;
     }
-    return addr.address || addr.name || '未知';
+    // 如果只有地址，只显示地址
+    if (address) {
+        return address;
+    }
+    // 如果只有名称，只显示名称
+    if (name) {
+        return name;
+    }
+    // 两者都为空时显示"未知"
+    return '未知';
 }
 
 function formatBytes(bytes) {
