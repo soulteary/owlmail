@@ -388,10 +388,11 @@ func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachm
 	}
 
 	// Parse addresses
-	email.From, err = headers.AddressList("From")
-	email.To, err = headers.AddressList("To")
-	email.CC, err = headers.AddressList("Cc")
-	email.BCC, err = headers.AddressList("Bcc")
+	// TODO : handle error cases
+	email.From, _ = headers.AddressList("From")
+	email.To, _ = headers.AddressList("To")
+	email.CC, _ = headers.AddressList("Cc")
+	email.BCC, _ = headers.AddressList("Bcc")
 
 	// Parse body
 	mediaType, _, err := headers.ContentType()
