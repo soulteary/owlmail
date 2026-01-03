@@ -2,6 +2,151 @@
 // API Base URL - 使用新的 API v1 端点
 const API_BASE = `${window.location.origin}/api/v1`;
 
+// Internationalization (i18n)
+const i18n = {
+    'zh-CN': {
+        title: 'OwlMail - 邮件开发测试工具',
+        refresh: '刷新',
+        markAllRead: '标记全部已读',
+        deleteAll: '删除全部',
+        searchPlaceholder: '搜索邮件...',
+        search: '搜索',
+        emailList: '邮件列表',
+        emailCount: '{count} 封邮件',
+        loading: '加载中...',
+        noEmails: '暂无邮件',
+        selectEmail: '选择一个邮件查看详情',
+        unknown: '未知',
+        noSubject: '(无主题)',
+        attachments: '{count} 个附件',
+        downloadEml: '下载 .eml',
+        viewSource: '查看源码',
+        delete: '删除',
+        from: '发件人:',
+        to: '收件人:',
+        cc: '抄送:',
+        time: '时间:',
+        attachmentsTitle: '附件 ({count})',
+        download: '下载',
+        prevPage: '上一页',
+        nextPage: '下一页',
+        pageInfo: '第 {current} 页 / 共 {total} 页',
+        confirmTitle: '确认操作',
+        confirm: '确认',
+        cancel: '取消',
+        deleteConfirm: '确定要删除这封邮件吗？',
+        deleteAllConfirm: '确定要删除所有邮件吗？此操作不可恢复！',
+        markAllReadSuccess: '已标记 {count} 封邮件为已读',
+        loadEmailsError: '加载邮件失败: {error}',
+        loadEmailDetailError: '加载邮件详情失败: {error}',
+        deleteEmailError: '删除邮件失败: {error}',
+        deleteAllEmailsError: '删除所有邮件失败: {error}',
+        markAllReadError: '标记失败: {error}',
+        justNow: '刚刚',
+        minutesAgo: '{minutes} 分钟前',
+        hoursAgo: '{hours} 小时前',
+        daysAgo: '{days} 天前',
+        toggleTheme: '切换主题',
+        switchLanguage: '切换语言'
+    },
+    'en': {
+        title: 'OwlMail - Email Development Testing Tool',
+        refresh: 'Refresh',
+        markAllRead: 'Mark All Read',
+        deleteAll: 'Delete All',
+        searchPlaceholder: 'Search emails...',
+        search: 'Search',
+        emailList: 'Email List',
+        emailCount: '{count} emails',
+        loading: 'Loading...',
+        noEmails: 'No emails',
+        selectEmail: 'Select an email to view details',
+        unknown: 'Unknown',
+        noSubject: '(No Subject)',
+        attachments: '{count} attachments',
+        downloadEml: 'Download .eml',
+        viewSource: 'View Source',
+        delete: 'Delete',
+        from: 'From:',
+        to: 'To:',
+        cc: 'CC:',
+        time: 'Time:',
+        attachmentsTitle: 'Attachments ({count})',
+        download: 'Download',
+        prevPage: 'Previous',
+        nextPage: 'Next',
+        pageInfo: 'Page {current} of {total}',
+        confirmTitle: 'Confirm Action',
+        confirm: 'Confirm',
+        cancel: 'Cancel',
+        deleteConfirm: 'Are you sure you want to delete this email?',
+        deleteAllConfirm: 'Are you sure you want to delete all emails? This action cannot be undone!',
+        markAllReadSuccess: 'Marked {count} emails as read',
+        loadEmailsError: 'Failed to load emails: {error}',
+        loadEmailDetailError: 'Failed to load email details: {error}',
+        deleteEmailError: 'Failed to delete email: {error}',
+        deleteAllEmailsError: 'Failed to delete all emails: {error}',
+        markAllReadError: 'Failed to mark as read: {error}',
+        justNow: 'Just now',
+        minutesAgo: '{minutes} minutes ago',
+        hoursAgo: '{hours} hours ago',
+        daysAgo: '{days} days ago',
+        toggleTheme: 'Toggle Theme',
+        switchLanguage: 'Switch Language'
+    }
+};
+
+// Current language
+let currentLang = 'en';
+
+// Detect browser language
+function detectLanguage() {
+    // Check localStorage first
+    const savedLang = localStorage.getItem('language');
+    if (savedLang && i18n[savedLang]) {
+        return savedLang;
+    }
+    
+    // Detect from browser
+    const browserLang = navigator.language || navigator.userLanguage;
+    if (browserLang) {
+        // Check exact match
+        if (i18n[browserLang]) {
+            return browserLang;
+        }
+        // Check language code (e.g., 'zh' from 'zh-CN')
+        const langCode = browserLang.split('-')[0];
+        if (langCode === 'zh') {
+            return 'zh-CN';
+        }
+        if (langCode === 'en') {
+            return 'en';
+        }
+    }
+    
+    // Default to English
+    return 'en';
+}
+
+// Translation function
+function t(key, params = {}) {
+    const translation = i18n[currentLang][key] || i18n['en'][key] || key;
+    return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
+        return params[paramKey] !== undefined ? params[paramKey] : match;
+    });
+}
+
+// Set language
+function setLanguage(lang) {
+    if (!i18n[lang]) {
+        lang = 'en';
+    }
+    currentLang = lang;
+    localStorage.setItem('language', lang);
+    document.documentElement.lang = lang;
+    updateUI();
+}
+
 // Global State
 let state = {
     emails: [],
@@ -134,26 +279,74 @@ function handleWebSocketMessage(data) {
     }
 }
 
+// Update UI with current language
+function updateUI() {
+    // Update title
+    document.title = t('title');
+    
+    // Update header buttons
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.textContent = t('refresh');
+    
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) markAllReadBtn.textContent = t('markAllRead');
+    
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) deleteAllBtn.textContent = t('deleteAll');
+    
+    // Update search
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) searchInput.placeholder = t('searchPlaceholder');
+    
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) searchBtn.textContent = t('search');
+    
+    // Update email list header
+    const emailListHeader = document.querySelector('.email-list-header h2');
+    if (emailListHeader) emailListHeader.textContent = t('emailList');
+    
+    // Update pagination
+    const prevPageBtn = document.getElementById('prevPage');
+    if (prevPageBtn) prevPageBtn.textContent = t('prevPage');
+    
+    const nextPageBtn = document.getElementById('nextPage');
+    if (nextPageBtn) nextPageBtn.textContent = t('nextPage');
+    
+    // Update theme toggle title
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) themeToggle.title = t('toggleTheme');
+    
+    // Update language toggle title
+    const langToggle = document.getElementById('langToggle');
+    if (langToggle) langToggle.title = t('switchLanguage');
+    
+    // Re-render dynamic content
+    updateEmailCount();
+    updatePagination();
+    renderEmailList();
+    renderEmailDetail();
+}
+
 // UI Rendering Functions
 function renderEmailList() {
     const container = document.getElementById('emailList');
     if (!container) return;
 
     if (state.emails.length === 0) {
-        container.innerHTML = '<div class="loading">暂无邮件</div>';
+        container.innerHTML = `<div class="loading">${t('noEmails')}</div>`;
         return;
     }
 
     container.innerHTML = state.emails.map(email => {
         const from = email.from && email.from.length > 0 
             ? formatAddress(email.from[0])
-            : '未知';
+            : t('unknown');
         const time = formatTime(email.time);
         const preview = email.text ? email.text.substring(0, 100) : '';
         const unreadClass = email.read ? '' : 'unread';
         const selectedClass = state.currentEmail && state.currentEmail.id === email.id ? 'selected' : '';
         const attachments = email.attachments && email.attachments.length > 0
-            ? `<div class="email-item-attachments">📎 ${email.attachments.length} 个附件</div>`
+            ? `<div class="email-item-attachments">📎 ${t('attachments', { count: email.attachments.length })}</div>`
             : '';
 
         return `
@@ -162,7 +355,7 @@ function renderEmailList() {
                     <span class="email-item-from">${escapeHtml(from)}</span>
                     <span class="email-item-time">${time}</span>
                 </div>
-                <div class="email-item-subject">${escapeHtml(email.subject || '(无主题)')}</div>
+                <div class="email-item-subject">${escapeHtml(email.subject || t('noSubject'))}</div>
                 ${preview ? `<div class="email-item-preview">${escapeHtml(preview)}</div>` : ''}
                 ${attachments}
             </div>
@@ -183,17 +376,17 @@ function renderEmailDetail() {
     if (!container) return;
 
     if (!state.currentEmail) {
-        container.innerHTML = '<div class="empty-state"><p>选择一个邮件查看详情</p></div>';
+        container.innerHTML = `<div class="empty-state"><p>${t('selectEmail')}</p></div>`;
         return;
     }
 
     const email = state.currentEmail;
     const from = email.from && email.from.length > 0 
         ? formatAddress(email.from[0])
-        : '未知';
+        : t('unknown');
     const to = email.to && email.to.length > 0
         ? email.to.map(addr => formatAddress(addr)).join(', ')
-        : '未知';
+        : t('unknown');
     const cc = email.cc && email.cc.length > 0
         ? email.cc.map(addr => formatAddress(addr)).join(', ')
         : '';
@@ -204,22 +397,22 @@ function renderEmailDetail() {
 
     container.innerHTML = `
         <div class="email-detail-actions">
-            <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">下载 .eml</button>
-            <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">查看源码</button>
-            <button class="btn btn-danger" onclick="deleteEmail('${email.id}')">删除</button>
+            <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">${t('downloadEml')}</button>
+            <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button>
+            <button class="btn btn-danger" onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
-            <h2 class="email-detail-subject">${escapeHtml(email.subject || '(无主题)')}</h2>
+            <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
             <div class="email-detail-meta">
-                <span class="email-detail-meta-label">发件人:</span>
+                <span class="email-detail-meta-label">${t('from')}</span>
                 <span>${escapeHtml(from)}</span>
-                <span class="email-detail-meta-label">收件人:</span>
+                <span class="email-detail-meta-label">${t('to')}</span>
                 <span>${escapeHtml(to)}</span>
                 ${cc ? `
-                    <span class="email-detail-meta-label">抄送:</span>
+                    <span class="email-detail-meta-label">${t('cc')}</span>
                     <span>${escapeHtml(cc)}</span>
                 ` : ''}
-                <span class="email-detail-meta-label">时间:</span>
+                <span class="email-detail-meta-label">${t('time')}</span>
                 <span>${time}</span>
             </div>
         </div>
@@ -247,7 +440,7 @@ function renderText(text) {
 function renderAttachments(attachments, emailId) {
     return `
         <div class="email-detail-attachments">
-            <h3>附件 (${attachments.length})</h3>
+            <h3>${t('attachmentsTitle', { count: attachments.length })}</h3>
             ${attachments.map(att => {
                 // 使用新的 API v1 端点：/api/v1/emails/:id/attachments/:filename
                 const url = `${API_BASE}/emails/${emailId}/attachments/${encodeURIComponent(att.generatedFileName)}`;
@@ -257,7 +450,7 @@ function renderAttachments(attachments, emailId) {
                             <div class="attachment-item-name">${escapeHtml(att.fileName || att.generatedFileName)}</div>
                             <div class="attachment-item-size">${att.sizeHuman || formatBytes(att.size || 0)}</div>
                         </div>
-                        <a href="${url}" class="attachment-item-download" download>下载</a>
+                        <a href="${url}" class="attachment-item-download" download>${t('download')}</a>
                     </div>
                 `;
             }).join('')}
@@ -281,7 +474,7 @@ async function loadEmails() {
         updatePagination();
     } catch (error) {
         console.error('Failed to load emails:', error);
-        alert('加载邮件失败: ' + error.message);
+        alert(t('loadEmailsError', { error: error.message }));
     } finally {
         hideLoading();
     }
@@ -296,14 +489,14 @@ async function loadEmailDetail(id) {
         renderEmailList(); // Update selected state
     } catch (error) {
         console.error('Failed to load email detail:', error);
-        alert('加载邮件详情失败: ' + error.message);
+        alert(t('loadEmailDetailError', { error: error.message }));
     } finally {
         hideLoading();
     }
 }
 
 async function deleteEmail(id) {
-    if (!confirm('确定要删除这封邮件吗？')) return;
+    if (!confirm(t('deleteConfirm'))) return;
 
     try {
         showLoading();
@@ -319,14 +512,14 @@ async function deleteEmail(id) {
         updateEmailCount();
     } catch (error) {
         console.error('Failed to delete email:', error);
-        alert('删除邮件失败: ' + error.message);
+        alert(t('deleteEmailError', { error: error.message }));
     } finally {
         hideLoading();
     }
 }
 
 async function deleteAllEmails() {
-    if (!confirm('确定要删除所有邮件吗？此操作不可恢复！')) return;
+    if (!confirm(t('deleteAllConfirm'))) return;
 
     try {
         showLoading();
@@ -339,7 +532,7 @@ async function deleteAllEmails() {
         updateEmailCount();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
-        alert('删除所有邮件失败: ' + error.message);
+        alert(t('deleteAllEmailsError', { error: error.message }));
     } finally {
         hideLoading();
     }
@@ -351,10 +544,10 @@ async function markAllRead() {
         const result = await API.markAllRead();
         // Reload emails to update read status
         await loadEmails();
-        alert(`已标记 ${result.count || 0} 封邮件为已读`);
+        alert(t('markAllReadSuccess', { count: result.count || 0 }));
     } catch (error) {
         console.error('Failed to mark all as read:', error);
-        alert('标记失败: ' + error.message);
+        alert(t('markAllReadError', { error: error.message }));
     } finally {
         hideLoading();
     }
@@ -404,13 +597,13 @@ function formatTime(timeStr) {
     const days = Math.floor(hours / 24);
 
     if (days > 0) {
-        return `${days} 天前`;
+        return t('daysAgo', { days });
     } else if (hours > 0) {
-        return `${hours} 小时前`;
+        return t('hoursAgo', { hours });
     } else if (minutes > 0) {
-        return `${minutes} 分钟前`;
+        return t('minutesAgo', { minutes });
     } else {
-        return '刚刚';
+        return t('justNow');
     }
 }
 
@@ -434,7 +627,7 @@ function formatAddress(addr) {
         return name;
     }
     // 两者都为空时显示"未知"
-    return '未知';
+    return t('unknown');
 }
 
 function formatBytes(bytes) {
@@ -455,7 +648,7 @@ function escapeHtml(text) {
 function updateEmailCount() {
     const countEl = document.getElementById('emailCount');
     if (countEl) {
-        countEl.textContent = `${state.total} 封邮件`;
+        countEl.textContent = t('emailCount', { count: state.total });
     }
 }
 
@@ -463,7 +656,7 @@ function updatePagination() {
     const pageInfo = document.getElementById('pageInfo');
     const maxPage = Math.ceil(state.total / state.pageSize) - 1;
     if (pageInfo) {
-        pageInfo.textContent = `第 ${state.currentPage + 1} 页 / 共 ${maxPage + 1} 页`;
+        pageInfo.textContent = t('pageInfo', { current: state.currentPage + 1, total: maxPage + 1 });
     }
 
     const prevBtn = document.getElementById('prevPage');
@@ -511,8 +704,18 @@ function toggleTheme() {
     setTheme(newTheme);
 }
 
+// Language toggle function
+function toggleLanguage() {
+    const newLang = currentLang === 'zh-CN' ? 'en' : 'zh-CN';
+    setLanguage(newLang);
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize language
+    currentLang = detectLanguage();
+    setLanguage(currentLang);
+    
     // Initialize theme
     initTheme();
 
@@ -530,6 +733,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('prevPage').addEventListener('click', prevPage);
     document.getElementById('nextPage').addEventListener('click', nextPage);
     document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    document.getElementById('langToggle').addEventListener('click', toggleLanguage);
 
     // Search input enter key
     document.getElementById('searchInput').addEventListener('keypress', (e) => {
@@ -543,4 +747,5 @@ document.addEventListener('DOMContentLoaded', () => {
 window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
+window.t = t; // Make translation function available globally
 
