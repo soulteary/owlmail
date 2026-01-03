@@ -132,6 +132,7 @@ docker run -d \
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
+| `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | 使用 UUID 作为邮件 ID（默认使用 8 字符随机字符串） |
 
 ### 环境变量兼容性
 
@@ -151,6 +152,17 @@ export OWLMAIL_WEB_PORT=1080
 ```
 
 ## 📡 API 文档
+
+### 邮件 ID 格式
+
+OwlMail 支持两种邮件 ID 格式，所有 API 端点都兼容这两种格式：
+
+- **8 字符随机字符串**：默认格式，例如 `aB3dEfGh`
+- **UUID 格式**：36 字符标准 UUID，例如 `550e8400-e29b-41d4-a716-446655440000`
+
+在 API 请求中使用 `:id` 参数时，可以使用任意一种格式。例如：
+- `GET /email/aB3dEfGh` - 使用随机字符串 ID
+- `GET /email/550e8400-e29b-41d4-a716-446655440000` - 使用 UUID ID
 
 ### MailDev 兼容 API
 
@@ -306,6 +318,36 @@ EOF
   -tls-key /path/to/key.pem \
   -smtp 1025
 ```
+
+### 使用 UUID 作为邮件 ID
+
+OwlMail 支持两种邮件 ID 格式：
+
+1. **默认格式**：8 字符随机字符串（例如：`aB3dEfGh`）
+2. **UUID 格式**：36 字符标准 UUID（例如：`550e8400-e29b-41d4-a716-446655440000`）
+
+使用 UUID 格式可以提供更好的唯一性和可追溯性，特别适合需要与外部系统集成的场景。
+
+```bash
+# 使用命令行参数启用 UUID
+./owlmail -use-uuid-for-email-id
+
+# 使用环境变量启用 UUID
+export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
+./owlmail
+
+# 结合其他配置使用
+./owlmail \
+  -use-uuid-for-email-id \
+  -smtp 1025 \
+  -web 1080
+```
+
+**注意事项**：
+- 默认使用 8 字符随机字符串，兼容 MailDev 的行为
+- 启用 UUID 后，所有新接收的邮件将使用 UUID 格式的 ID
+- API 同时支持两种格式的 ID，可以正常查询、删除和操作邮件
+- 已存在的邮件 ID 格式不会改变，只有新邮件会使用新的 ID 格式
 
 ## 🔄 从 MailDev 迁移
 

@@ -132,6 +132,7 @@ docker run -d \
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
+| `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
 
 ### Environment Variable Compatibility
 
@@ -151,6 +152,17 @@ export OWLMAIL_WEB_PORT=1080
 ```
 
 ## 📡 API Documentation
+
+### Email ID Format
+
+OwlMail supports two email ID formats, and all API endpoints are compatible with both:
+
+- **8-character random string**: Default format, e.g., `aB3dEfGh`
+- **UUID format**: 36-character standard UUID, e.g., `550e8400-e29b-41d4-a716-446655440000`
+
+When using the `:id` parameter in API requests, you can use either format. For example:
+- `GET /email/aB3dEfGh` - Using random string ID
+- `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
 
 ### MailDev Compatible API
 
@@ -306,6 +318,36 @@ EOF
   -tls-key /path/to/key.pem \
   -smtp 1025
 ```
+
+### Using UUID for Email IDs
+
+OwlMail supports two email ID formats:
+
+1. **Default format**: 8-character random string (e.g., `aB3dEfGh`)
+2. **UUID format**: 36-character standard UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`)
+
+Using UUID format provides better uniqueness and traceability, especially useful for integration with external systems.
+
+```bash
+# Enable UUID using command line flag
+./owlmail -use-uuid-for-email-id
+
+# Enable UUID using environment variable
+export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
+./owlmail
+
+# Use with other configurations
+./owlmail \
+  -use-uuid-for-email-id \
+  -smtp 1025 \
+  -web 1080
+```
+
+**Notes**:
+- Default uses 8-character random string, compatible with MailDev behavior
+- When UUID is enabled, all newly received emails will use UUID format IDs
+- The API supports both ID formats, allowing normal query, delete, and operation of emails
+- Existing email ID formats will not change; only new emails will use the new ID format
 
 ## 🔄 Migrating from MailDev
 
