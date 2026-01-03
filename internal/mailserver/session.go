@@ -2,12 +2,13 @@ package mailserver
 
 import (
 	"fmt"
-	_ "github.com/emersion/go-message/charset"
-	"github.com/emersion/go-smtp"
-	"github.com/soulteary/owlmail/internal/common"
 	"io"
 	"os"
 	"path/filepath"
+
+	_ "github.com/emersion/go-message/charset"
+	"github.com/emersion/go-smtp"
+	"github.com/soulteary/owlmail/internal/common"
 )
 
 // Backend implements smtp.Backend

@@ -55,9 +55,9 @@ type MailServer struct {
 		IsAutoRelayEnabled() bool
 		Close()
 	}
-	authConfig    *SMTPAuthConfig
-	tlsConfig     *TLSConfig
-	useUUIDForID  bool
+	authConfig   *SMTPAuthConfig
+	tlsConfig    *TLSConfig
+	useUUIDForID bool
 }
 
 // GetHost returns the SMTP server host
