@@ -55,6 +55,9 @@ type Config struct {
 
 	// Logging configuration
 	LogLevel string
+
+	// Email ID configuration
+	UseUUIDForEmailID bool
 }
 
 // getEnvString returns environment variable value or default
@@ -139,34 +142,38 @@ func parseConfig() *Config {
 
 		// Logging configuration
 		logLevel = flag.String("log-level", maildev.GetMailDevLogLevel("normal"), "Log level: silent, normal, or verbose")
+
+		// Email ID configuration
+		useUUIDForEmailID = flag.Bool("use-uuid-for-email-id", maildev.GetMailDevEnvBool("OWLMAIL_USE_UUID_FOR_EMAIL_ID", false), "Use UUID instead of random string for email IDs")
 	)
 	flag.Parse()
 
 	return &Config{
-		SMTPPort:       *smtpPort,
-		SMTPHost:       *smtpHost,
-		MailDir:        *mailDir,
-		WebPort:        *webPort,
-		WebHost:        *webHost,
-		WebUser:        *webUser,
-		WebPassword:    *webPassword,
-		HTTPSEnabled:   *httpsEnabled,
-		HTTPSCertFile:  *httpsCertFile,
-		HTTPSKeyFile:   *httpsKeyFile,
-		OutgoingHost:   *outgoingHost,
-		OutgoingPort:   *outgoingPort,
-		OutgoingUser:   *outgoingUser,
-		OutgoingPass:   *outgoingPass,
-		OutgoingSecure: *outgoingSecure,
-		AutoRelay:      *autoRelay,
-		AutoRelayAddr:  *autoRelayAddr,
-		AutoRelayRules: *autoRelayRules,
-		SMTPUser:       *smtpUser,
-		SMTPPassword:   *smtpPassword,
-		TLSEnabled:     *tlsEnabled,
-		TLSCertFile:    *tlsCertFile,
-		TLSKeyFile:     *tlsKeyFile,
-		LogLevel:       *logLevel,
+		SMTPPort:          *smtpPort,
+		SMTPHost:          *smtpHost,
+		MailDir:           *mailDir,
+		WebPort:           *webPort,
+		WebHost:           *webHost,
+		WebUser:           *webUser,
+		WebPassword:       *webPassword,
+		HTTPSEnabled:      *httpsEnabled,
+		HTTPSCertFile:     *httpsCertFile,
+		HTTPSKeyFile:      *httpsKeyFile,
+		OutgoingHost:      *outgoingHost,
+		OutgoingPort:      *outgoingPort,
+		OutgoingUser:      *outgoingUser,
+		OutgoingPass:      *outgoingPass,
+		OutgoingSecure:    *outgoingSecure,
+		AutoRelay:         *autoRelay,
+		AutoRelayAddr:     *autoRelayAddr,
+		AutoRelayRules:    *autoRelayRules,
+		SMTPUser:          *smtpUser,
+		SMTPPassword:      *smtpPassword,
+		TLSEnabled:        *tlsEnabled,
+		TLSCertFile:       *tlsCertFile,
+		TLSKeyFile:        *tlsKeyFile,
+		LogLevel:          *logLevel,
+		UseUUIDForEmailID: *useUUIDForEmailID,
 	}
 }
 
@@ -318,7 +325,7 @@ func main() {
 	tlsConfig := setupTLSConfig(cfg)
 
 	// Create mail server
-	server, err := mailserver.NewMailServerWithConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig)
+	server, err := mailserver.NewMailServerWithFullConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig, cfg.UseUUIDForEmailID)
 	if err != nil {
 		if fatalErr := common.Fatal("Failed to create mail server: %v", err); fatalErr != nil {
 			// In test environments, this will return an error instead of exiting

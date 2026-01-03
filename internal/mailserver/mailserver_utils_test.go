@@ -10,14 +10,30 @@ import (
 )
 
 func TestMakeID(t *testing.T) {
-	id1 := makeID()
-	id2 := makeID()
+	// Test random string ID
+	id1 := makeID(false)
+	id2 := makeID(false)
 
 	if len(id1) != 8 {
 		t.Errorf("Expected ID length 8, got %d", len(id1))
 	}
 	if id1 == id2 {
 		t.Error("IDs should be unique")
+	}
+
+	// Test UUID ID
+	uuid1 := makeID(true)
+	uuid2 := makeID(true)
+
+	if len(uuid1) != 36 {
+		t.Errorf("Expected UUID length 36, got %d", len(uuid1))
+	}
+	if uuid1 == uuid2 {
+		t.Error("UUIDs should be unique")
+	}
+	// UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+	if uuid1[8] != '-' || uuid1[13] != '-' || uuid1[18] != '-' || uuid1[23] != '-' {
+		t.Error("UUID should have correct format with hyphens")
 	}
 }
 

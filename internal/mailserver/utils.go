@@ -19,12 +19,16 @@ import (
 
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
+	"github.com/google/uuid"
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/soulteary/owlmail/internal/common"
 )
 
-// makeID generates a unique 8-character ID
-func makeID() string {
+// makeID generates a unique ID - either UUID or 8-character random string
+func makeID(useUUID bool) string {
+	if useUUID {
+		return uuid.New().String()
+	}
 	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
@@ -143,6 +147,7 @@ func transformAttachment(attachment *Attachment) *Attachment {
 
 // validateEmailID validates and sanitizes an email ID to prevent path traversal attacks
 // It ensures the ID doesn't contain path traversal characters and is not empty
+// Supports both random string IDs (8 chars) and UUIDs (36 chars with hyphens)
 func validateEmailID(id string) error {
 	if id == "" {
 		return fmt.Errorf("email ID cannot be empty")
@@ -156,7 +161,7 @@ func validateEmailID(id string) error {
 		return fmt.Errorf("invalid email ID: contains null byte")
 	}
 	// Validate that ID only contains safe characters (alphanumeric, hyphen, underscore)
-	// This allows test IDs like "test-id" while preventing path traversal
+	// This allows test IDs like "test-id" and UUIDs like "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 	for _, r := range id {
 		if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') && r != '-' && r != '_' {
 			return fmt.Errorf("invalid email ID: contains invalid characters")

@@ -73,7 +73,7 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 // Data handles the DATA command
 func (s *Session) Data(r io.Reader) error {
 	// Generate unique ID
-	id := makeID()
+	id := makeID(s.mailServer.useUUIDForID)
 
 	// Save raw email
 	emlPath := filepath.Join(s.mailServer.mailDir, id+".eml")
