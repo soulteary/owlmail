@@ -1,6 +1,10 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
+# Build arguments for multi-arch support
+ARG TARGETOS=linux
+ARG TARGETARCH
+
 # Set working directory
 WORKDIR /build
 
@@ -16,8 +20,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build application
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail ./cmd/owlmail
+# Build application with target architecture
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail ./cmd/owlmail
 
 # Runtime stage
 FROM alpine:latest

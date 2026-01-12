@@ -90,8 +90,10 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker 使用
 
+#### 基础构建（单架构）
+
 ```bash
-# 构建镜像
+# 为当前架构构建镜像
 docker build -t owlmail .
 
 # 运行容器
@@ -101,6 +103,35 @@ docker run -d \
   --name owlmail \
   owlmail
 ```
+
+#### 多架构构建（推荐）
+
+对于 aarch64 (ARM64) 或其他架构，请使用 Docker Buildx：
+
+```bash
+# 启用 buildx（如果尚未启用）
+docker buildx create --use --name multiarch-builder
+
+# 为多个架构构建
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t owlmail:latest \
+  --load .
+
+# 或构建并推送到镜像仓库
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t your-registry/owlmail:latest \
+  --push .
+
+# 为特定架构构建（例如 aarch64/arm64）
+docker buildx build \
+  --platform linux/arm64 \
+  -t owlmail:latest \
+  --load .
+```
+
+**注意**：Dockerfile 现在支持使用 `TARGETOS` 和 `TARGETARCH` 构建参数进行多架构构建，这些参数由 Docker Buildx 自动设置。
 
 ## 📖 配置选项
 
