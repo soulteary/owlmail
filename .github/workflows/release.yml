@@ -44,16 +44,16 @@ jobs:
           
           echo "Building version: $VERSION"
           
-          # Linux
-          GOOS=linux GOARCH=amd64 go build -o owlmail-linux-amd64 ./cmd/owlmail
-          GOOS=linux GOARCH=arm64 go build -o owlmail-linux-arm64 ./cmd/owlmail
+          # Linux (static linking for better compatibility)
+          GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail-linux-amd64 ./cmd/owlmail
+          GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail-linux-arm64 ./cmd/owlmail
           
           # macOS
-          GOOS=darwin GOARCH=amd64 go build -o owlmail-darwin-amd64 ./cmd/owlmail
-          GOOS=darwin GOARCH=arm64 go build -o owlmail-darwin-arm64 ./cmd/owlmail
+          GOOS=darwin GOARCH=amd64 go build -a -installsuffix cgo -o owlmail-darwin-amd64 ./cmd/owlmail
+          GOOS=darwin GOARCH=arm64 go build -a -installsuffix cgo -o owlmail-darwin-arm64 ./cmd/owlmail
           
           # Windows
-          GOOS=windows GOARCH=amd64 go build -o owlmail-windows-amd64.exe ./cmd/owlmail
+          GOOS=windows GOARCH=amd64 go build -a -installsuffix cgo -o owlmail-windows-amd64.exe ./cmd/owlmail
 
       - name: Create checksums
         run: |

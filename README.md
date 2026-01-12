@@ -90,8 +90,10 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker Usage
 
+#### Basic Build (Single Architecture)
+
 ```bash
-# Build image
+# Build image for current architecture
 docker build -t owlmail .
 
 # Run container
@@ -101,6 +103,35 @@ docker run -d \
   --name owlmail \
   owlmail
 ```
+
+#### Multi-Architecture Build (Recommended)
+
+For aarch64 (ARM64) or other architectures, use Docker Buildx:
+
+```bash
+# Enable buildx (if not already enabled)
+docker buildx create --use --name multiarch-builder
+
+# Build for multiple architectures
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t owlmail:latest \
+  --load .
+
+# Or build and push to registry
+docker buildx build \
+  --platform linux/amd64,linux/arm64 \
+  -t your-registry/owlmail:latest \
+  --push .
+
+# Build for specific architecture (e.g., aarch64/arm64)
+docker buildx build \
+  --platform linux/arm64 \
+  -t owlmail:latest \
+  --load .
+```
+
+**Note**: The Dockerfile now supports multi-architecture builds using `TARGETOS` and `TARGETARCH` build arguments, which are automatically set by Docker Buildx.
 
 ## 📖 Configuration Options
 
