@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"bytes"
+	"path/filepath"
 	"testing"
 )
 
@@ -104,6 +105,38 @@ func TestSessionMail(t *testing.T) {
 	// Should still succeed (we just log a warning)
 	if err != nil {
 		t.Errorf("Mail should still succeed with warning, got error: %v", err)
+	}
+}
+
+// TestSessionMailWithConnNilConn tests Mail method when conn is nil (covers the else branch)
+func TestSessionMailWithConnNilConn(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	// Create a session with a nil conn pointer - this tests the else branch (conn == nil)
+	session := &Session{
+		mailServer:    server,
+		authenticated: false,
+		conn:          nil, // This tests the else branch (conn == nil)
+	}
+
+	server.authConfig = &SMTPAuthConfig{
+		Username: "user",
+		Password: "pass",
+		Enabled:  true,
+	}
+
+	err = session.Mail("from@example.com", nil)
+	if err != nil {
+		t.Errorf("Mail should succeed, got error: %v", err)
 	}
 }
 
@@ -337,6 +370,161 @@ func TestSessionDataWithHTML(t *testing.T) {
 		email := emails[0]
 		if email.HTML == "" {
 			t.Error("Email should have HTML content")
+		}
+	}
+}
+
+// TestSessionDataFileCreationError tests Data method when file creation fails
+func TestSessionDataFileCreationError(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	session := &Session{
+		mailServer: server,
+		from:       "from@example.com",
+		to:         []string{"to@example.com"},
+		conn:       nil,
+	}
+
+	// Create a simple email message
+	emailData := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: Test\r\n" +
+		"\r\n" +
+		"Test body")
+
+	reader := bytes.NewReader(emailData)
+
+	// Set mailDir to a non-existent path to trigger file creation error
+	originalMailDir := server.mailDir
+	// Use a path that doesn't exist and can't be created (parent doesn't exist)
+	server.mailDir = filepath.Join(tmpDir, "nonexistent", "subdir", "path")
+
+	err = session.Data(reader)
+	if err == nil {
+		t.Error("Data should fail when file creation fails")
+	}
+
+	// Restore original mailDir
+	server.mailDir = originalMailDir
+}
+
+// TestSessionDataWithInvalidMailDir tests Data method with invalid mail directory
+func TestSessionDataWithInvalidMailDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	session := &Session{
+		mailServer: server,
+		from:       "from@example.com",
+		to:         []string{"to@example.com"},
+		conn:       nil,
+	}
+
+	// Create a simple email message
+	emailData := []byte("From: from@example.com\r\n" +
+		"To: to@example.com\r\n" +
+		"Subject: Test\r\n" +
+		"\r\n" +
+		"Test body")
+
+	reader := bytes.NewReader(emailData)
+
+	// Set mailDir to an invalid path (too long path on some systems)
+	originalMailDir := server.mailDir
+	// Create a path that's likely to be invalid
+	invalidPath := filepath.Join(tmpDir, string(make([]byte, 300))) // Very long path
+	server.mailDir = invalidPath
+
+	err = session.Data(reader)
+	if err == nil {
+		t.Error("Data should fail with invalid mail directory")
+	}
+
+	// Restore original mailDir
+	server.mailDir = originalMailDir
+}
+
+// TestSessionNewSessionWithAuthConfigNil tests NewSession when authConfig is nil
+func TestSessionNewSessionWithAuthConfigNil(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	// Ensure authConfig is nil
+	server.authConfig = nil
+
+	backend := &Backend{mailServer: server}
+	session, err := backend.NewSession(nil)
+	if err != nil {
+		t.Fatalf("NewSession should succeed: %v", err)
+	}
+	if session == nil {
+		t.Error("Session should not be nil")
+	}
+	// When authConfig is nil, authenticated should be true
+	if s, ok := session.(*Session); ok {
+		if !s.authenticated {
+			t.Error("Session should be authenticated when authConfig is nil")
+		}
+	}
+}
+
+// TestSessionNewSessionWithAuthConfigDisabled tests NewSession when auth is disabled
+func TestSessionNewSessionWithAuthConfigDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	// Set authConfig but with Enabled = false
+	server.authConfig = &SMTPAuthConfig{
+		Username: "user",
+		Password: "pass",
+		Enabled:  false,
+	}
+
+	backend := &Backend{mailServer: server}
+	session, err := backend.NewSession(nil)
+	if err != nil {
+		t.Fatalf("NewSession should succeed: %v", err)
+	}
+	if session == nil {
+		t.Error("Session should not be nil")
+	}
+	// When auth is disabled, authenticated should be true
+	if s, ok := session.(*Session); ok {
+		if !s.authenticated {
+			t.Error("Session should be authenticated when auth is disabled")
 		}
 	}
 }

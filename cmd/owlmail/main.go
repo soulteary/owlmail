@@ -247,23 +247,50 @@ func setupTLSConfig(cfg *Config) *mailserver.TLSConfig {
 
 // registerEventHandlers registers event handlers for the mail server
 func registerEventHandlers(server *mailserver.MailServer) {
+	if server == nil {
+		return
+	}
+
 	server.On("new", func(email *mailserver.Email) {
+		if email == nil {
+			common.Log("New email received: (nil email)")
+			return
+		}
 		fromAddr := "unknown"
-		if len(email.From) > 0 {
+		if len(email.From) > 0 && email.From[0] != nil {
 			fromAddr = email.From[0].Address
 		}
-		common.Log("New email received: %s (from: %s)", email.Subject, fromAddr)
+		subject := email.Subject
+		if subject == "" {
+			subject = "(no subject)"
+		}
+		common.Log("New email received: %s (from: %s)", subject, fromAddr)
 		common.Verbose("Email details - ID: %s, Size: %s, Attachments: %d", email.ID, email.SizeHuman, len(email.Attachments))
 	})
 
 	server.On("delete", func(email *mailserver.Email) {
-		common.Log("Email deleted: %s", email.Subject)
+		if email == nil {
+			common.Log("Email deleted: (nil email)")
+			return
+		}
+		subject := email.Subject
+		if subject == "" {
+			subject = "(no subject)"
+		}
+		common.Log("Email deleted: %s", subject)
 		common.Verbose("Deleted email ID: %s", email.ID)
 	})
 }
 
 // startAPIServer creates and starts the API server
 func startAPIServer(server *mailserver.MailServer, cfg *Config) (*api.API, error) {
+	if server == nil {
+		return nil, fmt.Errorf("mail server is nil")
+	}
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 
 	protocol := "http"
@@ -275,7 +302,11 @@ func startAPIServer(server *mailserver.MailServer, cfg *Config) (*api.API, error
 		common.Log("HTTP Basic Auth enabled for user: %s", cfg.WebUser)
 	}
 	if cfg.HTTPSEnabled {
-		common.Log("HTTPS enabled with certificate: %s", cfg.HTTPSCertFile)
+		if cfg.HTTPSCertFile != "" {
+			common.Log("HTTPS enabled with certificate: %s", cfg.HTTPSCertFile)
+		} else {
+			common.Log("HTTPS enabled (no certificate file specified)")
+		}
 	}
 
 	if err := apiServer.Start(); err != nil {
@@ -287,12 +318,16 @@ func startAPIServer(server *mailserver.MailServer, cfg *Config) (*api.API, error
 
 // setupGracefulShutdown sets up signal handling for graceful shutdown
 func setupGracefulShutdown(server *mailserver.MailServer) {
+	if server == nil {
+		return
+	}
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		<-sigChan
-		common.Log("Shutting down mail server...")
+		sig := <-sigChan
+		common.Log("Shutting down mail server... (signal: %v)", sig)
 		common.Verbose("Received shutdown signal, closing connections...")
 		if err := server.Close(); err != nil {
 			common.Error("Error closing server: %v", err)
@@ -301,21 +336,26 @@ func setupGracefulShutdown(server *mailserver.MailServer) {
 	}()
 }
 
-func main() {
-	// Parse configuration
-	cfg := parseConfig()
-
-	// Initialize logger based on log level
+// initializeApplication initializes the application (logger, etc.)
+func initializeApplication(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
 	level := parseLogLevel(cfg.LogLevel)
 	common.InitLogger(level)
+	return nil
+}
+
+// createMailServer creates and configures the mail server
+func createMailServer(cfg *Config) (*mailserver.MailServer, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
 
 	// Setup outgoing mail config if provided
 	outgoingConfig, err := setupOutgoingConfig(cfg)
 	if err != nil {
-		if fatalErr := common.Fatal("Failed to setup outgoing config: %v", err); fatalErr != nil {
-			// In test environments, this will return an error instead of exiting
-			return
-		}
+		return nil, fmt.Errorf("failed to setup outgoing config: %w", err)
 	}
 
 	// Setup SMTP authentication config
@@ -327,14 +367,23 @@ func main() {
 	// Create mail server
 	server, err := mailserver.NewMailServerWithFullConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig, cfg.UseUUIDForEmailID)
 	if err != nil {
-		if fatalErr := common.Fatal("Failed to create mail server: %v", err); fatalErr != nil {
-			// In test environments, this will return an error instead of exiting
-			return
-		}
+		return nil, fmt.Errorf("failed to create mail server: %w", err)
 	}
 
 	// Register event handlers
 	registerEventHandlers(server)
+
+	return server, nil
+}
+
+// startServers starts all servers (API and SMTP)
+func startServers(server *mailserver.MailServer, cfg *Config) error {
+	if server == nil {
+		return fmt.Errorf("mail server is nil")
+	}
+	if cfg == nil {
+		return fmt.Errorf("config is nil")
+	}
 
 	// Create and start API server with HTTPS support
 	go func() {
@@ -357,7 +406,36 @@ func main() {
 		common.Verbose("TLS certificate: %s, Key: %s", cfg.TLSCertFile, cfg.TLSKeyFile)
 	}
 	if err := server.Listen(); err != nil {
-		if fatalErr := common.Fatal("Failed to start server: %v", err); fatalErr != nil {
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	return nil
+}
+
+func main() {
+	// Parse configuration
+	cfg := parseConfig()
+
+	// Initialize application
+	if err := initializeApplication(cfg); err != nil {
+		if fatalErr := common.Fatal("Failed to initialize application: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
+	}
+
+	// Create mail server
+	server, err := createMailServer(cfg)
+	if err != nil {
+		if fatalErr := common.Fatal("Failed to create mail server: %v", err); fatalErr != nil {
+			// In test environments, this will return an error instead of exiting
+			return
+		}
+	}
+
+	// Start servers
+	if err := startServers(server, cfg); err != nil {
+		if fatalErr := common.Fatal("Failed to start servers: %v", err); fatalErr != nil {
 			// In test environments, this will return an error instead of exiting
 			return
 		}

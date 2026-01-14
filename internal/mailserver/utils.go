@@ -198,6 +198,7 @@ func sanitizeHTML(html string) string {
 	p := bluemonday.UGCPolicy()
 	p.AllowAttrs("target").OnElements("a")
 	p.AllowElements("link")
+	p.AllowAttrs("rel", "href", "type", "media").OnElements("link")
 	return p.Sanitize(html)
 }
 

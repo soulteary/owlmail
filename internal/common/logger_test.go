@@ -228,6 +228,120 @@ func TestGlobalFatalWithErrorHandler(t *testing.T) {
 	}
 }
 
+// TestLoggerFatalWithoutErrorHandler tests Fatal without error handler (uses global)
+func TestLoggerFatalWithoutErrorHandler(t *testing.T) {
+	testHandler := &TestErrorHandler{}
+	SetErrorHandler(testHandler)
+	defer ResetErrorHandler()
+
+	// Create logger without errorHandler - should use global error handler
+	logger := &Logger{
+		level:  LogLevelNormal,
+		logger: log.New(io.Discard, "", 0),
+		// errorHandler is nil, so it should use global error handler
+	}
+
+	// Test Fatal without errorHandler - should use global error handler
+	err := logger.Fatal("test fatal without handler")
+	if err == nil {
+		t.Error("Fatal should return an error")
+	}
+
+	if testHandler.LastError == nil {
+		t.Error("Global error handler should record the error")
+	}
+
+	if testHandler.LastError.Error() != err.Error() {
+		t.Errorf("Expected error %v, got %v", testHandler.LastError, err)
+	}
+}
+
+// TestLoggerLogWithFormatting tests Log with formatting arguments
+func TestLoggerLogWithFormatting(t *testing.T) {
+	var buf bytes.Buffer
+	logger := &Logger{
+		level:  LogLevelNormal,
+		logger: log.New(&buf, "", 0),
+	}
+
+	// Test Log with formatting
+	logger.Log("test message: %s", "value")
+	if buf.Len() == 0 {
+		t.Error("Log should write to buffer with formatting")
+	}
+
+	// Test Log with multiple arguments
+	buf.Reset()
+	logger.Log("test: %s %d", "value", 42)
+	if buf.Len() == 0 {
+		t.Error("Log should write to buffer with multiple arguments")
+	}
+}
+
+// TestLoggerVerboseWithFormatting tests Verbose with formatting arguments
+func TestLoggerVerboseWithFormatting(t *testing.T) {
+	var buf bytes.Buffer
+	logger := &Logger{
+		level:  LogLevelVerbose,
+		logger: log.New(&buf, "", 0),
+	}
+
+	// Test Verbose with formatting
+	logger.Verbose("test message: %s", "value")
+	if buf.Len() == 0 {
+		t.Error("Verbose should write to buffer with formatting")
+	}
+
+	// Test Verbose with multiple arguments
+	buf.Reset()
+	logger.Verbose("test: %s %d", "value", 42)
+	if buf.Len() == 0 {
+		t.Error("Verbose should write to buffer with multiple arguments")
+	}
+}
+
+// TestLoggerErrorWithFormatting tests Error with formatting arguments
+func TestLoggerErrorWithFormatting(t *testing.T) {
+	logger := &Logger{
+		level:  LogLevelSilent,
+		logger: log.New(io.Discard, "", 0),
+	}
+
+	// Error uses standard log, so we can't easily test output
+	// But we can test it doesn't panic with formatting
+	logger.Error("test error: %s", "value")
+	logger.Error("test error: %s %d", "value", 42)
+}
+
+// TestSetLevelOutputSwitching tests SetLevel output switching
+func TestSetLevelOutputSwitching(t *testing.T) {
+	var buf bytes.Buffer
+	logger := &Logger{
+		level:  LogLevelNormal,
+		logger: log.New(&buf, "", 0),
+	}
+
+	// Test switching to Silent (should switch to Discard)
+	logger.SetLevel(LogLevelSilent)
+	logger.Log("should not appear")
+	if buf.Len() != 0 {
+		t.Error("Silent level should not write to buffer")
+	}
+
+	// Test switching back to Normal (should switch back to stdout)
+	// Note: We can't easily test stdout, but we can verify the level is set
+	logger.SetLevel(LogLevelNormal)
+	if logger.level != LogLevelNormal {
+		t.Errorf("Expected level %d, got %d", LogLevelNormal, logger.level)
+	}
+
+	// Test switching to Verbose
+	logger.SetLevel(LogLevelVerbose)
+	if logger.level != LogLevelVerbose {
+		t.Errorf("Expected level %d, got %d", LogLevelVerbose, logger.level)
+	}
+}
+
 // TestDefaultErrorHandler tests default error handler behavior
 func TestDefaultErrorHandler(t *testing.T) {
 	handler := &DefaultErrorHandler{}

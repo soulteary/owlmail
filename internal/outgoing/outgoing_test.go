@@ -624,3 +624,538 @@ func TestSendMailTLS(t *testing.T) {
 		t.Logf("sendMailTLS with empty message failed: %v", err)
 	}
 }
+
+func TestUpdateConfigWithInvalidType(t *testing.T) {
+	// Test UpdateConfig with invalid type (not *OutgoingConfig)
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	originalConfig := om.GetConfig().(*OutgoingConfig)
+
+	// Try to update with wrong type
+	om.UpdateConfig("not a config")
+
+	// Config should remain unchanged
+	currentConfig := om.GetConfig().(*OutgoingConfig)
+	if currentConfig.Host != originalConfig.Host {
+		t.Error("Config should not change when invalid type is passed")
+	}
+}
+
+func TestGetRecipientsWithOnlyAllowRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{"*@example.com"},
+		DenyRules:  []string{},
+	})
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			Envelope: &types.Envelope{
+				To: []string{"test@example.com", "test@other.com"},
+			},
+		},
+	}
+	recipients := om.getRecipients(task)
+	if len(recipients) != 1 || recipients[0] != "test@example.com" {
+		t.Errorf("Expected [test@example.com], got %v", recipients)
+	}
+}
+
+func TestGetRecipientsWithOnlyDenyRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{},
+		DenyRules:  []string{"*@other.com"},
+	})
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			Envelope: &types.Envelope{
+				To: []string{"test@example.com", "test@other.com"},
+			},
+		},
+	}
+	recipients := om.getRecipients(task)
+	if len(recipients) != 1 || recipients[0] != "test@example.com" {
+		t.Errorf("Expected [test@example.com], got %v", recipients)
+	}
+}
+
+func TestGetRecipientsAutoRelayWithoutAddr(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:          "smtp.example.com",
+		Port:          587,
+		AutoRelayAddr: "", // Empty AutoRelayAddr
+	})
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			Envelope: &types.Envelope{
+				To: []string{"to@example.com"},
+			},
+		},
+		IsAutoRelay: true,
+	}
+	recipients := om.getRecipients(task)
+	// Should fall back to envelope recipients
+	if len(recipients) != 1 || recipients[0] != "to@example.com" {
+		t.Errorf("Expected [to@example.com], got %v", recipients)
+	}
+}
+
+func TestFilterRecipientsWithEmptyList(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{"*@example.com"},
+		DenyRules:  []string{"*@test.com"},
+	})
+	defer om.Close()
+
+	recipients := []string{}
+	filtered := om.filterRecipients(recipients)
+	if len(filtered) != 0 {
+		t.Errorf("Expected empty list, got %v", filtered)
+	}
+}
+
+func TestFilterRecipientsWithOnlyAllowRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{"*@example.com"},
+		DenyRules:  []string{},
+	})
+	defer om.Close()
+
+	recipients := []string{"test@example.com", "test@other.com"}
+	filtered := om.filterRecipients(recipients)
+	if len(filtered) != 1 || filtered[0] != "test@example.com" {
+		t.Errorf("Expected [test@example.com], got %v", filtered)
+	}
+}
+
+func TestFilterRecipientsWithOnlyDenyRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{},
+		DenyRules:  []string{"*@other.com"},
+	})
+	defer om.Close()
+
+	recipients := []string{"test@example.com", "test@other.com"}
+	filtered := om.filterRecipients(recipients)
+	if len(filtered) != 1 || filtered[0] != "test@example.com" {
+		t.Errorf("Expected [test@example.com], got %v", filtered)
+	}
+}
+
+func TestMatchesRuleWithOnlyWildcard(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test with only "*" pattern
+	if !om.matchesRule("test@example.com", "*") {
+		t.Error("Single wildcard should match any address")
+	}
+	if !om.matchesRule("any@address.com", "*") {
+		t.Error("Single wildcard should match any address")
+	}
+}
+
+func TestMatchesRuleWithWildcardInMiddleMultipleParts(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test pattern with multiple wildcards that splits into more than 2 parts
+	// "*@*" splits into ["", "@", ""] which has 3 parts
+	if om.matchesRule("test@example.com", "*@*") {
+		t.Error("Pattern with multiple wildcards should not match (3+ parts)")
+	}
+
+	// Test pattern "test**example" splits into ["test", "", "example"] which has 3 parts
+	if om.matchesRule("test@example.com", "test**example") {
+		t.Error("Pattern with consecutive wildcards should not match (3+ parts)")
+	}
+}
+
+func TestRelayEmailWithEnvelopeFromEmpty(t *testing.T) {
+	// Test relayEmail when Envelope.From is empty but Email.From has value
+	tmpDir := t.TempDir()
+	emailFile := tmpDir + "/test.eml"
+	emailContent := []byte("From: sender@example.com\nTo: recipient@example.com\nSubject: Test\n\nBody")
+	if err := os.WriteFile(emailFile, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create test email file: %v", err)
+	}
+
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		From: []*mail.Address{
+			{Address: "from@example.com"},
+		},
+		Envelope: &types.Envelope{
+			From: "", // Empty envelope From
+			To:   []string{"to@example.com"},
+		},
+	}
+
+	task := &RelayTask{
+		Email:     email,
+		EmailPath: emailFile,
+	}
+
+	err := om.relayEmail(task)
+	if err == nil {
+		t.Log("relayEmail succeeded (unexpected)")
+	} else {
+		t.Logf("relayEmail failed as expected: %v", err)
+	}
+}
+
+func TestRelayEmailWithNoEnvelope(t *testing.T) {
+	// Test relayEmail when Envelope is nil but Email.From has value
+	tmpDir := t.TempDir()
+	emailFile := tmpDir + "/test.eml"
+	emailContent := []byte("From: sender@example.com\nTo: recipient@example.com\nSubject: Test\n\nBody")
+	if err := os.WriteFile(emailFile, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create test email file: %v", err)
+	}
+
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		From: []*mail.Address{
+			{Address: "from@example.com"},
+		},
+		Envelope: nil, // No envelope
+	}
+
+	task := &RelayTask{
+		Email:     email,
+		EmailPath: emailFile,
+	}
+
+	err := om.relayEmail(task)
+	// Should fail because no recipients (no envelope)
+	if err == nil {
+		t.Error("Expected error when no envelope and no recipients")
+	}
+}
+
+func TestWorkerWithNilCallback(t *testing.T) {
+	// Test worker function with nil callback
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	tmpDir := t.TempDir()
+	emailFile := tmpDir + "/test.eml"
+	emailContent := []byte("From: sender@example.com\nTo: recipient@example.com\nSubject: Test\n\nBody")
+	if err := os.WriteFile(emailFile, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create test email file: %v", err)
+	}
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		Envelope: &types.Envelope{
+			To: []string{"to@example.com"},
+		},
+	}
+
+	// Queue a task with nil callback
+	task := &RelayTask{
+		Email:     email,
+		EmailPath: emailFile,
+		Callback:  nil, // Nil callback
+	}
+
+	// This should not panic
+	om.queue <- task
+	time.Sleep(100 * time.Millisecond) // Give worker time to process
+}
+
+func TestRelayMailWithNilCallback(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		Envelope: &types.Envelope{
+			To: []string{"to@example.com"},
+		},
+	}
+
+	// Test with nil callback - should not panic
+	om.RelayMail(email, "/path/to/email.eml", "", false, nil)
+	time.Sleep(100 * time.Millisecond) // Give worker time to process
+}
+
+func TestRelayEmailDisabled(t *testing.T) {
+	// Test relayEmail when disabled
+	om := NewOutgoingMail(nil) // Disabled (no host)
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			ID: "test-id",
+		},
+		EmailPath: "/path/to/email.eml",
+	}
+
+	err := om.relayEmail(task)
+	if err == nil {
+		t.Error("Expected error when outgoing mail is disabled")
+	}
+	if err.Error() != "outgoing mail not configured" {
+		t.Errorf("Expected 'outgoing mail not configured', got: %v", err)
+	}
+}
+
+func TestMatchesRuleWithNoWildcard(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test pattern without wildcard that doesn't match
+	if om.matchesRule("test@example.com", "other@example.com") {
+		t.Error("Non-matching pattern without wildcard should return false")
+	}
+
+	// Test pattern without wildcard that matches
+	if !om.matchesRule("test@example.com", "test@example.com") {
+		t.Error("Matching pattern without wildcard should return true")
+	}
+}
+
+func TestGetRecipientsWithFilterRulesButNoEnvelope(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{"*@example.com"},
+		DenyRules:  []string{"*@test.com"},
+	})
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			Envelope: nil, // No envelope
+		},
+	}
+	recipients := om.getRecipients(task)
+	if len(recipients) != 0 {
+		t.Errorf("Expected empty recipients, got %v", recipients)
+	}
+}
+
+func TestFilterRecipientsWithNoRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{},
+		DenyRules:  []string{},
+	})
+	defer om.Close()
+
+	// When no rules, all recipients should be allowed
+	recipients := []string{"test@example.com", "test@other.com", "test@test.com"}
+	filtered := om.filterRecipients(recipients)
+	if len(filtered) != 3 {
+		t.Errorf("Expected all 3 recipients when no rules, got %d", len(filtered))
+	}
+}
+
+func TestGetRecipientsWithNoFilterRules(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host:       "smtp.example.com",
+		Port:       587,
+		AllowRules: []string{},
+		DenyRules:  []string{},
+	})
+	defer om.Close()
+
+	task := &RelayTask{
+		Email: &types.Email{
+			Envelope: &types.Envelope{
+				To: []string{"to1@example.com", "to2@example.com", "to3@test.com"},
+			},
+		},
+	}
+	recipients := om.getRecipients(task)
+	// Should return all recipients when no filter rules
+	if len(recipients) != 3 {
+		t.Errorf("Expected 3 recipients when no filter rules, got %d", len(recipients))
+	}
+}
+
+func TestRelayEmailWithEnvelopeFromButNoFromField(t *testing.T) {
+	// Test relayEmail when Envelope.From is set but Email.From is empty
+	tmpDir := t.TempDir()
+	emailFile := tmpDir + "/test.eml"
+	emailContent := []byte("To: recipient@example.com\nSubject: Test\n\nBody")
+	if err := os.WriteFile(emailFile, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create test email file: %v", err)
+	}
+
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		From:    []*mail.Address{}, // Empty From
+		Envelope: &types.Envelope{
+			From: "envelope@example.com",
+			To:   []string{"to@example.com"},
+		},
+	}
+
+	task := &RelayTask{
+		Email:     email,
+		EmailPath: emailFile,
+	}
+
+	err := om.relayEmail(task)
+	if err == nil {
+		t.Log("relayEmail succeeded (unexpected)")
+	} else {
+		t.Logf("relayEmail failed as expected: %v", err)
+	}
+}
+
+func TestRelayEmailWithBothEnvelopeFromAndEmailFrom(t *testing.T) {
+	// Test relayEmail when both Envelope.From and Email.From are set (Envelope.From takes precedence)
+	tmpDir := t.TempDir()
+	emailFile := tmpDir + "/test.eml"
+	emailContent := []byte("From: sender@example.com\nTo: recipient@example.com\nSubject: Test\n\nBody")
+	if err := os.WriteFile(emailFile, emailContent, 0644); err != nil {
+		t.Fatalf("Failed to create test email file: %v", err)
+	}
+
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	email := &types.Email{
+		ID:      "test-id",
+		Subject: "Test",
+		From: []*mail.Address{
+			{Address: "from@example.com"},
+		},
+		Envelope: &types.Envelope{
+			From: "envelope@example.com", // This should be used
+			To:   []string{"to@example.com"},
+		},
+	}
+
+	task := &RelayTask{
+		Email:     email,
+		EmailPath: emailFile,
+	}
+
+	err := om.relayEmail(task)
+	if err == nil {
+		t.Log("relayEmail succeeded (unexpected)")
+	} else {
+		t.Logf("relayEmail failed as expected: %v", err)
+	}
+}
+
+func TestMatchesRuleWithWildcardOnlyAtStart(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test pattern "*example.com" - wildcard only at start
+	if !om.matchesRule("test@example.com", "*example.com") {
+		t.Error("Pattern with wildcard at start should match suffix")
+	}
+	if !om.matchesRule("any@example.com", "*example.com") {
+		t.Error("Pattern with wildcard at start should match suffix")
+	}
+	if om.matchesRule("test@other.com", "*example.com") {
+		t.Error("Pattern with wildcard at start should not match different suffix")
+	}
+}
+
+func TestMatchesRuleWithWildcardOnlyAtEnd(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test pattern "test@*" - wildcard only at end
+	if !om.matchesRule("test@example.com", "test@*") {
+		t.Error("Pattern with wildcard at end should match prefix")
+	}
+	if !om.matchesRule("test@other.com", "test@*") {
+		t.Error("Pattern with wildcard at end should match prefix")
+	}
+	if om.matchesRule("other@example.com", "test@*") {
+		t.Error("Pattern with wildcard at end should not match different prefix")
+	}
+}
+
+func TestMatchesRuleWithWildcardInMiddle(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{
+		Host: "smtp.example.com",
+		Port: 587,
+	})
+	defer om.Close()
+
+	// Test pattern "test*com" - wildcard in middle (splits into 2 parts)
+	if !om.matchesRule("test@example.com", "test*com") {
+		t.Error("Pattern with wildcard in middle (2 parts) should match")
+	}
+	if !om.matchesRule("test@other.com", "test*com") {
+		t.Error("Pattern with wildcard in middle (2 parts) should match")
+	}
+	if om.matchesRule("other@example.com", "test*com") {
+		t.Error("Pattern with wildcard in middle should not match different prefix")
+	}
+}

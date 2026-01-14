@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"sync"
 )
 
 // LogLevel represents the logging level
@@ -25,7 +26,10 @@ type Logger struct {
 	errorHandler ErrorHandler // Error handler for fatal errors
 }
 
-var globalLogger *Logger
+var (
+	globalLogger *Logger
+	loggerMu     sync.RWMutex // Protects globalLogger from concurrent access
+)
 
 // InitLogger initializes the global logger with the specified level
 func InitLogger(level LogLevel) {
@@ -36,6 +40,9 @@ func InitLogger(level LogLevel) {
 		output = io.Discard
 	}
 
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
+
 	globalLogger = &Logger{
 		level:  level,
 		logger: log.New(output, "", log.LstdFlags),
@@ -44,8 +51,23 @@ func InitLogger(level LogLevel) {
 
 // GetLogger returns the global logger instance
 func GetLogger() *Logger {
+	loggerMu.RLock()
+	if globalLogger != nil {
+		logger := globalLogger
+		loggerMu.RUnlock()
+		return logger
+	}
+	loggerMu.RUnlock()
+
+	// Double-check pattern to avoid race condition
+	loggerMu.Lock()
+	defer loggerMu.Unlock()
 	if globalLogger == nil {
-		InitLogger(LogLevelNormal)
+		var output io.Writer = os.Stdout
+		globalLogger = &Logger{
+			level:  LogLevelNormal,
+			logger: log.New(output, "", log.LstdFlags),
+		}
 	}
 	return globalLogger
 }
