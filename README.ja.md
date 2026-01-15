@@ -316,7 +316,7 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/health` - Health check
 - `GET /api/v1/ws` - WebSocket connection
 
-For detailed API documentation, see: [API Refactoring Record](./docs/en/internal/API_Refactoring_Record.md)
+For detailed API documentation, see: [API Refactoring Record](./docs/ja/internal/API_Refactoring_Record.md)
 
 ## 🔧 Usage Examples
 
@@ -473,7 +473,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 
 ## 🧪 Testing
 
@@ -531,8 +531,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [API Refactoring Record](./docs/en/internal/API_Refactoring_Record.md)
+- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [API Refactoring Record](./docs/ja/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
 

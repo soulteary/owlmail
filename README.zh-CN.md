@@ -8,6 +8,12 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
+## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+- [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+
+---
+
 OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，可以捕获和查看所有发送的邮件。它是 [MailDev](https://github.com/maildev/maildev) 的 Go 语言实现，提供 100% API 兼容性，同时带来更好的性能、更低的资源占用和更丰富的功能。
 
 ![](.github/assets/owlmail-banner.jpg)
@@ -184,6 +190,30 @@ export OWLMAIL_WEB_PORT=1080
 
 ## 📡 API 文档
 
+### API 响应格式
+
+OwlMail 使用标准化的 API 响应格式：
+
+**成功响应：**
+```json
+{
+  "code": "EMAIL_DELETED",
+  "message": "Email deleted",
+  "data": { ... }
+}
+```
+
+**错误响应：**
+```json
+{
+  "code": "EMAIL_NOT_FOUND",
+  "error": "EMAIL_NOT_FOUND",
+  "message": "Email not found"
+}
+```
+
+`code` 字段包含标准化的错误/成功代码，可用于国际化。`message` 字段提供英文文本以保持向后兼容。
+
 ### 邮件 ID 格式
 
 OwlMail 支持两种邮件 ID 格式，所有 API 端点都兼容这两种格式：
@@ -202,6 +232,18 @@ OwlMail 完全兼容 MailDev 的所有 API 端点：
 #### 邮件操作
 
 - `GET /email` - 获取所有邮件（支持分页和过滤）
+  - 查询参数：
+    - `limit` (默认: 50, 最大: 1000) - 返回邮件数量
+    - `offset` (默认: 0) - 跳过的邮件数量
+    - `q` - 全文搜索查询
+    - `from` - 按发件人邮箱地址过滤
+    - `to` - 按收件人邮箱地址过滤
+    - `dateFrom` - 按起始日期过滤（YYYY-MM-DD 格式）
+    - `dateTo` - 按结束日期过滤（YYYY-MM-DD 格式）
+    - `read` - 按已读状态过滤（true/false）
+    - `sortBy` - 排序字段（time, subject）
+    - `sortOrder` - 排序顺序（asc, desc，默认: desc）
+  - 示例：`GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - 获取单个邮件
 - `DELETE /email/:id` - 删除单个邮件
 - `DELETE /email/all` - 删除所有邮件
@@ -254,6 +296,8 @@ OwlMail 完全兼容 MailDev 的所有 API 端点：
 OwlMail 提供了更规范的 RESTful API 设计：
 
 - `GET /api/v1/emails` - 获取所有邮件（复数资源）
+  - 查询参数：与 `GET /email` 相同（limit, offset, q, from, to, dateFrom, dateTo, read, sortBy, sortOrder）
+  - 示例：`GET /api/v1/emails?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /api/v1/emails/:id` - 获取单个邮件
 - `DELETE /api/v1/emails/:id` - 删除单个邮件
 - `DELETE /api/v1/emails` - 删除所有邮件
@@ -272,7 +316,7 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/health` - 健康检查
 - `GET /api/v1/ws` - WebSocket 连接
 
-详细 API 文档请参考：[API 重构记录](./docs/internal/API_重构记录.md)
+详细 API 文档请参考：[API 重构记录](./docs/zh-CN/internal/API_Refactoring_Record.md)
 
 ## 🔧 使用示例
 
@@ -349,6 +393,8 @@ EOF
   -tls-key /path/to/key.pem \
   -smtp 1025
 ```
+
+**注意**：启用 TLS 时，OwlMail 会自动在 465 端口启动 SMTPS 服务器，除了常规 SMTP 服务器外。SMTPS 服务器使用直接 TLS 连接（无需 STARTTLS）。这是 OwlMail 的独有功能。
 
 ### 使用 UUID 作为邮件 ID
 
@@ -427,7 +473,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/OwlMail%20×%20MailDev%20-%20功能与%20API%20完整对比与迁移白皮书.md)
+详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 
 ## 🧪 测试
 
@@ -485,8 +531,8 @@ OwlMail/
 
 ## 📚 相关文档
 
-- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/OwlMail%20×%20MailDev%20-%20功能与%20API%20完整对比与迁移白皮书.md)
-- [API 重构记录](./docs/internal/API_重构记录.md)
+- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [API 重构记录](./docs/zh-CN/internal/API_Refactoring_Record.md)
 
 ## 🐛 问题反馈
 

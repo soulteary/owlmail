@@ -104,7 +104,7 @@ func (api *API) getEmailByID(c *gin.Context) {
 	id := c.Param("id")
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 		return
 	}
 	c.JSON(http.StatusOK, email)
@@ -115,7 +115,7 @@ func (api *API) getEmailHTML(c *gin.Context) {
 	id := c.Param("id")
 	html, err := api.mailServer.GetEmailHTML(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 		return
 	}
 	c.Data(http.StatusOK, "text/html; charset=utf-8", []byte(html))
@@ -128,7 +128,7 @@ func (api *API) getAttachment(c *gin.Context) {
 
 	attachmentPath, contentType, err := api.mailServer.GetEmailAttachment(id, filename)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 		return
 	}
 
@@ -142,13 +142,13 @@ func (api *API) downloadEmail(c *gin.Context) {
 
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 		return
 	}
 
 	emlPath, err := api.mailServer.GetRawEmail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email file not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailFileNotFound, "Email file not found"))
 		return
 	}
 
@@ -169,7 +169,7 @@ func (api *API) getEmailSource(c *gin.Context) {
 
 	content, err := api.mailServer.GetRawEmailContent(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 		return
 	}
 
@@ -180,41 +180,35 @@ func (api *API) getEmailSource(c *gin.Context) {
 func (api *API) deleteEmail(c *gin.Context) {
 	id := c.Param("id")
 	if err := api.mailServer.DeleteEmail(id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Email deleted"})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeEmailDeleted, "Email deleted", nil))
 }
 
 // deleteAllEmails handles DELETE /api/v1/emails
 func (api *API) deleteAllEmails(c *gin.Context) {
 	if err := api.mailServer.DeleteAllEmail(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "All emails deleted"})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeAllEmailsDeleted, "All emails deleted", nil))
 }
 
 // readAllEmails handles PATCH /api/v1/emails/read
 func (api *API) readAllEmails(c *gin.Context) {
 	count := api.mailServer.ReadAllEmail()
-	c.JSON(http.StatusOK, gin.H{
-		"message": "All emails marked as read",
-		"count":   count,
-	})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeAllEmailsMarkedRead, "All emails marked as read", gin.H{"count": count}))
 }
 
 // readEmail handles PATCH /api/v1/emails/:id/read
 func (api *API) readEmail(c *gin.Context) {
 	id := c.Param("id")
 	if err := api.mailServer.ReadEmail(id); err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Email marked as read",
-		"id":      id,
-	})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeEmailMarkedRead, "Email marked as read", gin.H{"id": id}))
 }
 
 // getEmailStats handles GET /api/v1/emails/stats
@@ -226,15 +220,11 @@ func (api *API) getEmailStats(c *gin.Context) {
 // reloadMailsFromDirectory handles POST /api/v1/emails/reload
 func (api *API) reloadMailsFromDirectory(c *gin.Context) {
 	if err := api.mailServer.LoadMailsFromDirectory(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Failed to reload mails from directory: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, ErrorResponse(ErrorCodeInvalidRequest, "Failed to reload mails from directory: "+err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Mails reloaded from directory successfully",
-	})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeMailsReloaded, "Mails reloaded from directory successfully", nil))
 }
 
 // getEmailPreviews handles GET /api/v1/emails/preview
@@ -359,12 +349,12 @@ func (api *API) batchDeleteEmails(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 		return
 	}
 
 	if len(request.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No email IDs provided"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeNoEmailIDsProvided, "No email IDs provided"))
 		return
 	}
 
@@ -381,7 +371,9 @@ func (api *API) batchDeleteEmails(c *gin.Context) {
 		}
 	}
 
+	// Return response with success/failed fields at root level for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
+		"code":      SuccessCodeBatchDeleteCompleted,
 		"message":   "Batch delete completed",
 		"success":   successCount,
 		"failed":    failedCount,
@@ -397,12 +389,12 @@ func (api *API) batchReadEmails(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 		return
 	}
 
 	if len(request.IDs) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No email IDs provided"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeNoEmailIDsProvided, "No email IDs provided"))
 		return
 	}
 
@@ -424,7 +416,9 @@ func (api *API) batchReadEmails(c *gin.Context) {
 		}
 	}
 
+	// Return response with success/failed fields at root level for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
+		"code":      SuccessCodeBatchReadCompleted,
 		"message":   "Batch read completed",
 		"success":   successCount,
 		"failed":    failedCount,
@@ -468,7 +462,7 @@ func (api *API) exportEmails(c *gin.Context) {
 	}
 
 	if len(filtered) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "No emails found to export"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeNoEmailsToExport, "No emails found to export"))
 		return
 	}
 

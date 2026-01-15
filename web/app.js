@@ -47,7 +47,30 @@ const i18n = {
         hoursAgo: '{hours} 小时前',
         daysAgo: '{days} 天前',
         toggleTheme: '切换主题',
-        switchLanguage: '切换语言'
+        switchLanguage: '切换语言',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': '邮件未找到',
+        'EMAIL_FILE_NOT_FOUND': '邮件文件未找到',
+        'NO_EMAILS_FOUND': '未找到邮件',
+        'NO_EMAILS_TO_EXPORT': '没有可导出的邮件',
+        'INVALID_EMAIL_ID': '无效的邮件ID',
+        'NO_EMAIL_IDS_PROVIDED': '未提供邮件ID',
+        'INVALID_REQUEST': '无效的请求',
+        'INVALID_EMAIL_ADDRESS': '无效的邮箱地址',
+        'HOST_REQUIRED': '主机地址是必需的',
+        'PORT_OUT_OF_RANGE': '端口必须在1到65535之间',
+        'INVALID_PORT': '无效的端口',
+        'RELAY_FAILED': '转发失败',
+        // API Success Codes
+        'EMAIL_DELETED': '邮件已删除',
+        'ALL_EMAILS_DELETED': '所有邮件已删除',
+        'EMAIL_MARKED_READ': '邮件已标记为已读',
+        'ALL_EMAILS_MARKED_READ': '所有邮件已标记为已读',
+        'EMAIL_RELAYED': '邮件转发成功',
+        'MAILS_RELOADED': '邮件重新加载成功',
+        'BATCH_DELETE_COMPLETED': '批量删除完成',
+        'BATCH_READ_COMPLETED': '批量标记已读完成',
+        'CONFIG_UPDATED': '配置已更新'
     },
     'en': {
         title: 'OwlMail - Email Development Testing Tool',
@@ -92,12 +115,386 @@ const i18n = {
         hoursAgo: '{hours} hours ago',
         daysAgo: '{days} days ago',
         toggleTheme: 'Toggle Theme',
-        switchLanguage: 'Switch Language'
+        switchLanguage: 'Switch Language',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': 'Email not found',
+        'EMAIL_FILE_NOT_FOUND': 'Email file not found',
+        'NO_EMAILS_FOUND': 'No emails found',
+        'NO_EMAILS_TO_EXPORT': 'No emails found to export',
+        'INVALID_EMAIL_ID': 'Invalid email ID',
+        'NO_EMAIL_IDS_PROVIDED': 'No email IDs provided',
+        'INVALID_REQUEST': 'Invalid request',
+        'INVALID_EMAIL_ADDRESS': 'Invalid email address',
+        'HOST_REQUIRED': 'Host is required',
+        'PORT_OUT_OF_RANGE': 'Port must be between 1 and 65535',
+        'INVALID_PORT': 'Invalid port',
+        'RELAY_FAILED': 'Relay failed',
+        // API Success Codes
+        'EMAIL_DELETED': 'Email deleted',
+        'ALL_EMAILS_DELETED': 'All emails deleted',
+        'EMAIL_MARKED_READ': 'Email marked as read',
+        'ALL_EMAILS_MARKED_READ': 'All emails marked as read',
+        'EMAIL_RELAYED': 'Email relayed successfully',
+        'MAILS_RELOADED': 'Mails reloaded successfully',
+        'BATCH_DELETE_COMPLETED': 'Batch delete completed',
+        'BATCH_READ_COMPLETED': 'Batch read completed',
+        'CONFIG_UPDATED': 'Configuration updated'
+    },
+    'de': {
+        title: 'OwlMail - E-Mail-Entwicklungstest-Tool',
+        refresh: 'Aktualisieren',
+        markAllRead: 'Alle als gelesen markieren',
+        deleteAll: 'Alle löschen',
+        searchPlaceholder: 'E-Mails suchen...',
+        search: 'Suchen',
+        emailList: 'E-Mail-Liste',
+        emailCount: '{count} E-Mails',
+        loading: 'Laden...',
+        noEmails: 'Keine E-Mails',
+        selectEmail: 'Wählen Sie eine E-Mail aus, um Details anzuzeigen',
+        unknown: 'Unbekannt',
+        noSubject: '(Kein Betreff)',
+        attachments: '{count} Anhänge',
+        downloadEml: '.eml herunterladen',
+        viewSource: 'Quelle anzeigen',
+        delete: 'Löschen',
+        from: 'Von:',
+        to: 'An:',
+        cc: 'CC:',
+        time: 'Zeit:',
+        attachmentsTitle: 'Anhänge ({count})',
+        download: 'Herunterladen',
+        prevPage: 'Zurück',
+        nextPage: 'Weiter',
+        pageInfo: 'Seite {current} von {total}',
+        confirmTitle: 'Aktion bestätigen',
+        confirm: 'Bestätigen',
+        cancel: 'Abbrechen',
+        deleteConfirm: 'Möchten Sie diese E-Mail wirklich löschen?',
+        deleteAllConfirm: 'Möchten Sie wirklich alle E-Mails löschen? Diese Aktion kann nicht rückgängig gemacht werden!',
+        markAllReadSuccess: '{count} E-Mails als gelesen markiert',
+        loadEmailsError: 'E-Mails konnten nicht geladen werden: {error}',
+        loadEmailDetailError: 'E-Mail-Details konnten nicht geladen werden: {error}',
+        deleteEmailError: 'E-Mail konnte nicht gelöscht werden: {error}',
+        deleteAllEmailsError: 'Alle E-Mails konnten nicht gelöscht werden: {error}',
+        markAllReadError: 'Als gelesen markieren fehlgeschlagen: {error}',
+        justNow: 'Gerade eben',
+        minutesAgo: 'vor {minutes} Minuten',
+        hoursAgo: 'vor {hours} Stunden',
+        daysAgo: 'vor {days} Tagen',
+        toggleTheme: 'Design umschalten',
+        switchLanguage: 'Sprache wechseln',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': 'E-Mail nicht gefunden',
+        'EMAIL_FILE_NOT_FOUND': 'E-Mail-Datei nicht gefunden',
+        'NO_EMAILS_FOUND': 'Keine E-Mails gefunden',
+        'NO_EMAILS_TO_EXPORT': 'Keine E-Mails zum Exportieren gefunden',
+        'INVALID_EMAIL_ID': 'Ungültige E-Mail-ID',
+        'NO_EMAIL_IDS_PROVIDED': 'Keine E-Mail-IDs angegeben',
+        'INVALID_REQUEST': 'Ungültige Anfrage',
+        'INVALID_EMAIL_ADDRESS': 'Ungültige E-Mail-Adresse',
+        'HOST_REQUIRED': 'Host ist erforderlich',
+        'PORT_OUT_OF_RANGE': 'Port muss zwischen 1 und 65535 liegen',
+        'INVALID_PORT': 'Ungültiger Port',
+        'RELAY_FAILED': 'Weiterleitung fehlgeschlagen',
+        // API Success Codes
+        'EMAIL_DELETED': 'E-Mail gelöscht',
+        'ALL_EMAILS_DELETED': 'Alle E-Mails gelöscht',
+        'EMAIL_MARKED_READ': 'E-Mail als gelesen markiert',
+        'ALL_EMAILS_MARKED_READ': 'Alle E-Mails als gelesen markiert',
+        'EMAIL_RELAYED': 'E-Mail erfolgreich weitergeleitet',
+        'MAILS_RELOADED': 'E-Mails erfolgreich neu geladen',
+        'BATCH_DELETE_COMPLETED': 'Batch-Löschung abgeschlossen',
+        'BATCH_READ_COMPLETED': 'Batch-Lesevorgang abgeschlossen',
+        'CONFIG_UPDATED': 'Konfiguration aktualisiert'
+    },
+    'it': {
+        title: 'OwlMail - Strumento di Test per lo Sviluppo Email',
+        refresh: 'Aggiorna',
+        markAllRead: 'Segna Tutto come Letto',
+        deleteAll: 'Elimina Tutto',
+        searchPlaceholder: 'Cerca email...',
+        search: 'Cerca',
+        emailList: 'Elenco Email',
+        emailCount: '{count} email',
+        loading: 'Caricamento...',
+        noEmails: 'Nessuna email',
+        selectEmail: 'Seleziona un\'email per visualizzare i dettagli',
+        unknown: 'Sconosciuto',
+        noSubject: '(Nessun oggetto)',
+        attachments: '{count} allegati',
+        downloadEml: 'Scarica .eml',
+        viewSource: 'Visualizza Sorgente',
+        delete: 'Elimina',
+        from: 'Da:',
+        to: 'A:',
+        cc: 'CC:',
+        time: 'Ora:',
+        attachmentsTitle: 'Allegati ({count})',
+        download: 'Scarica',
+        prevPage: 'Precedente',
+        nextPage: 'Successivo',
+        pageInfo: 'Pagina {current} di {total}',
+        confirmTitle: 'Conferma Azione',
+        confirm: 'Conferma',
+        cancel: 'Annulla',
+        deleteConfirm: 'Sei sicuro di voler eliminare questa email?',
+        deleteAllConfirm: 'Sei sicuro di voler eliminare tutte le email? Questa azione non può essere annullata!',
+        markAllReadSuccess: '{count} email contrassegnate come lette',
+        loadEmailsError: 'Impossibile caricare le email: {error}',
+        loadEmailDetailError: 'Impossibile caricare i dettagli dell\'email: {error}',
+        deleteEmailError: 'Impossibile eliminare l\'email: {error}',
+        deleteAllEmailsError: 'Impossibile eliminare tutte le email: {error}',
+        markAllReadError: 'Impossibile contrassegnare come letto: {error}',
+        justNow: 'Proprio ora',
+        minutesAgo: '{minutes} minuti fa',
+        hoursAgo: '{hours} ore fa',
+        daysAgo: '{days} giorni fa',
+        toggleTheme: 'Cambia Tema',
+        switchLanguage: 'Cambia Lingua',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': 'Email non trovata',
+        'EMAIL_FILE_NOT_FOUND': 'File email non trovato',
+        'NO_EMAILS_FOUND': 'Nessuna email trovata',
+        'NO_EMAILS_TO_EXPORT': 'Nessuna email da esportare',
+        'INVALID_EMAIL_ID': 'ID email non valido',
+        'NO_EMAIL_IDS_PROVIDED': 'Nessun ID email fornito',
+        'INVALID_REQUEST': 'Richiesta non valida',
+        'INVALID_EMAIL_ADDRESS': 'Indirizzo email non valido',
+        'HOST_REQUIRED': 'Host richiesto',
+        'PORT_OUT_OF_RANGE': 'La porta deve essere compresa tra 1 e 65535',
+        'INVALID_PORT': 'Porta non valida',
+        'RELAY_FAILED': 'Inoltro fallito',
+        // API Success Codes
+        'EMAIL_DELETED': 'Email eliminata',
+        'ALL_EMAILS_DELETED': 'Tutte le email eliminate',
+        'EMAIL_MARKED_READ': 'Email contrassegnata come letta',
+        'ALL_EMAILS_MARKED_READ': 'Tutte le email contrassegnate come lette',
+        'EMAIL_RELAYED': 'Email inoltrata con successo',
+        'MAILS_RELOADED': 'Email ricaricate con successo',
+        'BATCH_DELETE_COMPLETED': 'Eliminazione batch completata',
+        'BATCH_READ_COMPLETED': 'Lettura batch completata',
+        'CONFIG_UPDATED': 'Configurazione aggiornata'
+    },
+    'fr': {
+        title: 'OwlMail - Outil de Test de Développement Email',
+        refresh: 'Actualiser',
+        markAllRead: 'Tout Marquer comme Lu',
+        deleteAll: 'Tout Supprimer',
+        searchPlaceholder: 'Rechercher des emails...',
+        search: 'Rechercher',
+        emailList: 'Liste des Emails',
+        emailCount: '{count} emails',
+        loading: 'Chargement...',
+        noEmails: 'Aucun email',
+        selectEmail: 'Sélectionnez un email pour voir les détails',
+        unknown: 'Inconnu',
+        noSubject: '(Sans objet)',
+        attachments: '{count} pièces jointes',
+        downloadEml: 'Télécharger .eml',
+        viewSource: 'Voir la Source',
+        delete: 'Supprimer',
+        from: 'De:',
+        to: 'À:',
+        cc: 'CC:',
+        time: 'Heure:',
+        attachmentsTitle: 'Pièces jointes ({count})',
+        download: 'Télécharger',
+        prevPage: 'Précédent',
+        nextPage: 'Suivant',
+        pageInfo: 'Page {current} sur {total}',
+        confirmTitle: 'Confirmer l\'Action',
+        confirm: 'Confirmer',
+        cancel: 'Annuler',
+        deleteConfirm: 'Êtes-vous sûr de vouloir supprimer cet email?',
+        deleteAllConfirm: 'Êtes-vous sûr de vouloir supprimer tous les emails? Cette action ne peut pas être annulée!',
+        markAllReadSuccess: '{count} emails marqués comme lus',
+        loadEmailsError: 'Échec du chargement des emails: {error}',
+        loadEmailDetailError: 'Échec du chargement des détails de l\'email: {error}',
+        deleteEmailError: 'Échec de la suppression de l\'email: {error}',
+        deleteAllEmailsError: 'Échec de la suppression de tous les emails: {error}',
+        markAllReadError: 'Échec du marquage comme lu: {error}',
+        justNow: 'À l\'instant',
+        minutesAgo: 'il y a {minutes} minutes',
+        hoursAgo: 'il y a {hours} heures',
+        daysAgo: 'il y a {days} jours',
+        toggleTheme: 'Changer le Thème',
+        switchLanguage: 'Changer la Langue',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': 'Email introuvable',
+        'EMAIL_FILE_NOT_FOUND': 'Fichier email introuvable',
+        'NO_EMAILS_FOUND': 'Aucun email trouvé',
+        'NO_EMAILS_TO_EXPORT': 'Aucun email à exporter',
+        'INVALID_EMAIL_ID': 'ID email invalide',
+        'NO_EMAIL_IDS_PROVIDED': 'Aucun ID email fourni',
+        'INVALID_REQUEST': 'Requête invalide',
+        'INVALID_EMAIL_ADDRESS': 'Adresse email invalide',
+        'HOST_REQUIRED': 'Hôte requis',
+        'PORT_OUT_OF_RANGE': 'Le port doit être entre 1 et 65535',
+        'INVALID_PORT': 'Port invalide',
+        'RELAY_FAILED': 'Relais échoué',
+        // API Success Codes
+        'EMAIL_DELETED': 'Email supprimé',
+        'ALL_EMAILS_DELETED': 'Tous les emails supprimés',
+        'EMAIL_MARKED_READ': 'Email marqué comme lu',
+        'ALL_EMAILS_MARKED_READ': 'Tous les emails marqués comme lus',
+        'EMAIL_RELAYED': 'Email relayé avec succès',
+        'MAILS_RELOADED': 'Emails rechargés avec succès',
+        'BATCH_DELETE_COMPLETED': 'Suppression par lot terminée',
+        'BATCH_READ_COMPLETED': 'Lecture par lot terminée',
+        'CONFIG_UPDATED': 'Configuration mise à jour'
+    },
+    'ko': {
+        title: 'OwlMail - 이메일 개발 테스트 도구',
+        refresh: '새로고침',
+        markAllRead: '모두 읽음으로 표시',
+        deleteAll: '모두 삭제',
+        searchPlaceholder: '이메일 검색...',
+        search: '검색',
+        emailList: '이메일 목록',
+        emailCount: '{count}개의 이메일',
+        loading: '로딩 중...',
+        noEmails: '이메일 없음',
+        selectEmail: '이메일을 선택하여 세부 정보 보기',
+        unknown: '알 수 없음',
+        noSubject: '(제목 없음)',
+        attachments: '{count}개의 첨부파일',
+        downloadEml: '.eml 다운로드',
+        viewSource: '소스 보기',
+        delete: '삭제',
+        from: '보낸 사람:',
+        to: '받는 사람:',
+        cc: '참조:',
+        time: '시간:',
+        attachmentsTitle: '첨부파일 ({count})',
+        download: '다운로드',
+        prevPage: '이전',
+        nextPage: '다음',
+        pageInfo: '{current}페이지 / 총 {total}페이지',
+        confirmTitle: '작업 확인',
+        confirm: '확인',
+        cancel: '취소',
+        deleteConfirm: '이 이메일을 삭제하시겠습니까?',
+        deleteAllConfirm: '모든 이메일을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다!',
+        markAllReadSuccess: '{count}개의 이메일을 읽음으로 표시했습니다',
+        loadEmailsError: '이메일 로드 실패: {error}',
+        loadEmailDetailError: '이메일 세부 정보 로드 실패: {error}',
+        deleteEmailError: '이메일 삭제 실패: {error}',
+        deleteAllEmailsError: '모든 이메일 삭제 실패: {error}',
+        markAllReadError: '읽음 표시 실패: {error}',
+        justNow: '방금',
+        minutesAgo: '{minutes}분 전',
+        hoursAgo: '{hours}시간 전',
+        daysAgo: '{days}일 전',
+        toggleTheme: '테마 전환',
+        switchLanguage: '언어 전환',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': '이메일을 찾을 수 없습니다',
+        'EMAIL_FILE_NOT_FOUND': '이메일 파일을 찾을 수 없습니다',
+        'NO_EMAILS_FOUND': '이메일을 찾을 수 없습니다',
+        'NO_EMAILS_TO_EXPORT': '내보낼 이메일이 없습니다',
+        'INVALID_EMAIL_ID': '잘못된 이메일 ID',
+        'NO_EMAIL_IDS_PROVIDED': '이메일 ID가 제공되지 않았습니다',
+        'INVALID_REQUEST': '잘못된 요청',
+        'INVALID_EMAIL_ADDRESS': '잘못된 이메일 주소',
+        'HOST_REQUIRED': '호스트가 필요합니다',
+        'PORT_OUT_OF_RANGE': '포트는 1에서 65535 사이여야 합니다',
+        'INVALID_PORT': '잘못된 포트',
+        'RELAY_FAILED': '전달 실패',
+        // API Success Codes
+        'EMAIL_DELETED': '이메일이 삭제되었습니다',
+        'ALL_EMAILS_DELETED': '모든 이메일이 삭제되었습니다',
+        'EMAIL_MARKED_READ': '이메일이 읽음으로 표시되었습니다',
+        'ALL_EMAILS_MARKED_READ': '모든 이메일이 읽음으로 표시되었습니다',
+        'EMAIL_RELAYED': '이메일이 성공적으로 전달되었습니다',
+        'MAILS_RELOADED': '이메일이 성공적으로 다시 로드되었습니다',
+        'BATCH_DELETE_COMPLETED': '일괄 삭제가 완료되었습니다',
+        'BATCH_READ_COMPLETED': '일괄 읽기 표시가 완료되었습니다',
+        'CONFIG_UPDATED': '설정이 업데이트되었습니다'
+    },
+    'ja': {
+        title: 'OwlMail - メール開発テストツール',
+        refresh: '更新',
+        markAllRead: 'すべて既読にする',
+        deleteAll: 'すべて削除',
+        searchPlaceholder: 'メールを検索...',
+        search: '検索',
+        emailList: 'メール一覧',
+        emailCount: '{count}通のメール',
+        loading: '読み込み中...',
+        noEmails: 'メールなし',
+        selectEmail: 'メールを選択して詳細を表示',
+        unknown: '不明',
+        noSubject: '(件名なし)',
+        attachments: '{count}個の添付ファイル',
+        downloadEml: '.emlをダウンロード',
+        viewSource: 'ソースを表示',
+        delete: '削除',
+        from: '送信者:',
+        to: '宛先:',
+        cc: 'CC:',
+        time: '時刻:',
+        attachmentsTitle: '添付ファイル ({count})',
+        download: 'ダウンロード',
+        prevPage: '前へ',
+        nextPage: '次へ',
+        pageInfo: '{current}ページ / 全{total}ページ',
+        confirmTitle: '操作の確認',
+        confirm: '確認',
+        cancel: 'キャンセル',
+        deleteConfirm: 'このメールを削除してもよろしいですか?',
+        deleteAllConfirm: 'すべてのメールを削除してもよろしいですか? この操作は元に戻せません!',
+        markAllReadSuccess: '{count}通のメールを既読にしました',
+        loadEmailsError: 'メールの読み込みに失敗しました: {error}',
+        loadEmailDetailError: 'メール詳細の読み込みに失敗しました: {error}',
+        deleteEmailError: 'メールの削除に失敗しました: {error}',
+        deleteAllEmailsError: 'すべてのメールの削除に失敗しました: {error}',
+        markAllReadError: '既読マークに失敗しました: {error}',
+        justNow: 'たった今',
+        minutesAgo: '{minutes}分前',
+        hoursAgo: '{hours}時間前',
+        daysAgo: '{days}日前',
+        toggleTheme: 'テーマを切り替え',
+        switchLanguage: '言語を切り替え',
+        // API Error Codes
+        'EMAIL_NOT_FOUND': 'メールが見つかりません',
+        'EMAIL_FILE_NOT_FOUND': 'メールファイルが見つかりません',
+        'NO_EMAILS_FOUND': 'メールが見つかりません',
+        'NO_EMAILS_TO_EXPORT': 'エクスポートするメールがありません',
+        'INVALID_EMAIL_ID': '無効なメールID',
+        'NO_EMAIL_IDS_PROVIDED': 'メールIDが提供されていません',
+        'INVALID_REQUEST': '無効なリクエスト',
+        'INVALID_EMAIL_ADDRESS': '無効なメールアドレス',
+        'HOST_REQUIRED': 'ホストが必要です',
+        'PORT_OUT_OF_RANGE': 'ポートは1から65535の間である必要があります',
+        'INVALID_PORT': '無効なポート',
+        'RELAY_FAILED': 'リレーに失敗しました',
+        // API Success Codes
+        'EMAIL_DELETED': 'メールが削除されました',
+        'ALL_EMAILS_DELETED': 'すべてのメールが削除されました',
+        'EMAIL_MARKED_READ': 'メールが既読としてマークされました',
+        'ALL_EMAILS_MARKED_READ': 'すべてのメールが既読としてマークされました',
+        'EMAIL_RELAYED': 'メールが正常にリレーされました',
+        'MAILS_RELOADED': 'メールが正常に再読み込みされました',
+        'BATCH_DELETE_COMPLETED': '一括削除が完了しました',
+        'BATCH_READ_COMPLETED': '一括既読マークが完了しました',
+        'CONFIG_UPDATED': '設定が更新されました'
     }
 };
 
 // Current language
 let currentLang = 'en';
+
+// Language code mapping for browser language detection
+const languageCodeMap = {
+    'zh': 'zh-CN',
+    'de': 'de',
+    'it': 'it',
+    'fr': 'fr',
+    'ko': 'ko',
+    'ja': 'ja',
+    'en': 'en'
+};
 
 // Detect browser language
 function detectLanguage() {
@@ -114,13 +511,10 @@ function detectLanguage() {
         if (i18n[browserLang]) {
             return browserLang;
         }
-        // Check language code (e.g., 'zh' from 'zh-CN')
-        const langCode = browserLang.split('-')[0];
-        if (langCode === 'zh') {
-            return 'zh-CN';
-        }
-        if (langCode === 'en') {
-            return 'en';
+        // Check language code and map to supported language
+        const langCode = browserLang.split('-')[0].toLowerCase();
+        if (languageCodeMap[langCode]) {
+            return languageCodeMap[langCode];
         }
     }
     
@@ -134,6 +528,74 @@ function t(key, params = {}) {
     return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
         return params[paramKey] !== undefined ? params[paramKey] : match;
     });
+}
+
+// Parse API error response and return translated message
+function parseAPIError(error) {
+    // If error is a string, try to parse it as JSON
+    let errorObj = error;
+    if (typeof error === 'string') {
+        try {
+            errorObj = JSON.parse(error);
+        } catch (e) {
+            // If not JSON, return the string as is
+            return error;
+        }
+    }
+    
+    // Check if it's an Error object with response
+    if (error.response) {
+        try {
+            errorObj = typeof error.response === 'string' 
+                ? JSON.parse(error.response) 
+                : error.response;
+        } catch (e) {
+            // If parsing fails, use error message
+            return error.message || error.toString();
+        }
+    }
+    
+    // Extract error code from response
+    const errorCode = errorObj.error || errorObj.code || errorObj.Error || errorObj.Code;
+    if (errorCode && i18n[currentLang][errorCode]) {
+        return t(errorCode);
+    }
+    
+    // Extract message from response
+    const message = errorObj.message || errorObj.Message || errorObj.error || errorObj.Error;
+    if (message) {
+        // Check if message is an error code
+        if (i18n[currentLang][message]) {
+            return t(message);
+        }
+        return message;
+    }
+    
+    // Fallback to error message or toString
+    return error.message || error.toString();
+}
+
+// Parse API success response and return translated message
+function parseAPISuccess(response) {
+    if (!response) return '';
+    
+    // Extract success code from response
+    const successCode = response.code || response.Code;
+    if (successCode && i18n[currentLang][successCode]) {
+        return t(successCode);
+    }
+    
+    // Extract message from response
+    const message = response.message || response.Message;
+    if (message) {
+        // Check if message is a success code
+        if (i18n[currentLang][message]) {
+            return t(message);
+        }
+        return message;
+    }
+    
+    return '';
 }
 
 // Set language
@@ -158,6 +620,36 @@ let state = {
     ws: null
 };
 
+// Helper function to handle API errors
+async function handleAPIResponse(response) {
+    const contentType = response.headers.get('content-type');
+    const isJSON = contentType && contentType.includes('application/json');
+    
+    if (!response.ok) {
+        let errorData;
+        if (isJSON) {
+            errorData = await response.json();
+        } else {
+            const text = await response.text();
+            try {
+                errorData = JSON.parse(text);
+            } catch (e) {
+                errorData = { error: text || 'Unknown error' };
+            }
+        }
+        const error = new Error(errorData.message || errorData.error || 'Request failed');
+        error.response = errorData;
+        error.status = response.status;
+        throw error;
+    }
+    
+    if (isJSON) {
+        return await response.json();
+    } else {
+        return await response.text();
+    }
+}
+
 // API Functions - 使用新的 RESTful API 设计
 const API = {
     async getEmails(offset = 0, limit = 50, query = '') {
@@ -169,44 +661,38 @@ const API = {
             params.append('q', query);
         }
         const response = await fetch(`${API_BASE}/emails?${params}`);
-        if (!response.ok) throw new Error('Failed to fetch emails');
-        return await response.json();
+        return await handleAPIResponse(response);
     },
 
     async getEmail(id) {
         const response = await fetch(`${API_BASE}/emails/${id}`);
-        if (!response.ok) throw new Error('Failed to fetch email');
-        return await response.json();
+        return await handleAPIResponse(response);
     },
 
     async getEmailHTML(id) {
         const response = await fetch(`${API_BASE}/emails/${id}/html`);
-        if (!response.ok) throw new Error('Failed to fetch email HTML');
-        return await response.text();
+        return await handleAPIResponse(response);
     },
 
     async deleteEmail(id) {
         const response = await fetch(`${API_BASE}/emails/${id}`, {
             method: 'DELETE'
         });
-        if (!response.ok) throw new Error('Failed to delete email');
-        return await response.json();
+        return await handleAPIResponse(response);
     },
 
     async deleteAllEmails() {
         const response = await fetch(`${API_BASE}/emails`, {
             method: 'DELETE'
         });
-        if (!response.ok) throw new Error('Failed to delete all emails');
-        return await response.json();
+        return await handleAPIResponse(response);
     },
 
     async markAllRead() {
         const response = await fetch(`${API_BASE}/emails/read`, {
             method: 'PATCH'
         });
-        if (!response.ok) throw new Error('Failed to mark all as read');
-        return await response.json();
+        return await handleAPIResponse(response);
     },
 
     async relayEmail(id, relayTo = '') {
@@ -216,8 +702,7 @@ const API = {
         const response = await fetch(url, {
             method: 'POST'
         });
-        if (!response.ok) throw new Error('Failed to relay email');
-        return await response.json();
+        return await handleAPIResponse(response);
     }
 };
 
@@ -316,9 +801,18 @@ function updateUI() {
     const themeToggle = document.getElementById('themeToggle');
     if (themeToggle) themeToggle.title = t('toggleTheme');
     
-    // Update language toggle title
-    const langToggle = document.getElementById('langToggle');
-    if (langToggle) langToggle.title = t('switchLanguage');
+    // Update language selector
+    updateLanguageSelector();
+    
+    // Update modal texts
+    const confirmTitle = document.getElementById('confirmTitle');
+    if (confirmTitle) confirmTitle.textContent = t('confirmTitle');
+    
+    const confirmYes = document.getElementById('confirmYes');
+    if (confirmYes) confirmYes.textContent = t('confirm');
+    
+    const confirmNo = document.getElementById('confirmNo');
+    if (confirmNo) confirmNo.textContent = t('cancel');
     
     // Re-render dynamic content
     updateEmailCount();
@@ -474,7 +968,8 @@ async function loadEmails() {
         updatePagination();
     } catch (error) {
         console.error('Failed to load emails:', error);
-        alert(t('loadEmailsError', { error: error.message }));
+        const errorMsg = parseAPIError(error);
+        alert(t('loadEmailsError', { error: errorMsg }));
     } finally {
         hideLoading();
     }
@@ -489,7 +984,8 @@ async function loadEmailDetail(id) {
         renderEmailList(); // Update selected state
     } catch (error) {
         console.error('Failed to load email detail:', error);
-        alert(t('loadEmailDetailError', { error: error.message }));
+        const errorMsg = parseAPIError(error);
+        alert(t('loadEmailDetailError', { error: errorMsg }));
     } finally {
         hideLoading();
     }
@@ -512,7 +1008,8 @@ async function deleteEmail(id) {
         updateEmailCount();
     } catch (error) {
         console.error('Failed to delete email:', error);
-        alert(t('deleteEmailError', { error: error.message }));
+        const errorMsg = parseAPIError(error);
+        alert(t('deleteEmailError', { error: errorMsg }));
     } finally {
         hideLoading();
     }
@@ -532,7 +1029,8 @@ async function deleteAllEmails() {
         updateEmailCount();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
-        alert(t('deleteAllEmailsError', { error: error.message }));
+        const errorMsg = parseAPIError(error);
+        alert(t('deleteAllEmailsError', { error: errorMsg }));
     } finally {
         hideLoading();
     }
@@ -544,10 +1042,12 @@ async function markAllRead() {
         const result = await API.markAllRead();
         // Reload emails to update read status
         await loadEmails();
-        alert(t('markAllReadSuccess', { count: result.count || 0 }));
+        const successMsg = parseAPISuccess(result) || t('markAllReadSuccess', { count: result.count || 0 });
+        alert(successMsg);
     } catch (error) {
         console.error('Failed to mark all as read:', error);
-        alert(t('markAllReadError', { error: error.message }));
+        const errorMsg = parseAPIError(error);
+        alert(t('markAllReadError', { error: errorMsg }));
     } finally {
         hideLoading();
     }
@@ -704,10 +1204,45 @@ function toggleTheme() {
     setTheme(newTheme);
 }
 
-// Language toggle function
-function toggleLanguage() {
-    const newLang = currentLang === 'zh-CN' ? 'en' : 'zh-CN';
-    setLanguage(newLang);
+// Language names in their own language (for display in selector)
+const languageNames = {
+    'en': 'English',
+    'zh-CN': '简体中文',
+    'de': 'Deutsch',
+    'it': 'Italiano',
+    'fr': 'Français',
+    'ko': '한국어',
+    'ja': '日本語'
+};
+
+// Initialize language selector
+function initLanguageSelector() {
+    const langSelect = document.getElementById('langSelect');
+    if (!langSelect) return;
+    
+    // Populate language options
+    Object.keys(i18n).forEach(lang => {
+        const option = document.createElement('option');
+        option.value = lang;
+        option.textContent = languageNames[lang] || lang;
+        if (lang === currentLang) {
+            option.selected = true;
+        }
+        langSelect.appendChild(option);
+    });
+    
+    // Add change event listener
+    langSelect.addEventListener('change', (e) => {
+        setLanguage(e.target.value);
+    });
+}
+
+// Update language selector
+function updateLanguageSelector() {
+    const langSelect = document.getElementById('langSelect');
+    if (langSelect) {
+        langSelect.value = currentLang;
+    }
 }
 
 // Event Listeners
@@ -715,6 +1250,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize language
     currentLang = detectLanguage();
     setLanguage(currentLang);
+    
+    // Initialize language selector
+    initLanguageSelector();
     
     // Initialize theme
     initTheme();
@@ -726,21 +1264,36 @@ document.addEventListener('DOMContentLoaded', () => {
     connectWebSocket();
 
     // Button event listeners
-    document.getElementById('refreshBtn').addEventListener('click', loadEmails);
-    document.getElementById('markAllReadBtn').addEventListener('click', markAllRead);
-    document.getElementById('deleteAllBtn').addEventListener('click', deleteAllEmails);
-    document.getElementById('searchBtn').addEventListener('click', searchEmails);
-    document.getElementById('prevPage').addEventListener('click', prevPage);
-    document.getElementById('nextPage').addEventListener('click', nextPage);
-    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
-    document.getElementById('langToggle').addEventListener('click', toggleLanguage);
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadEmails);
+    
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) markAllReadBtn.addEventListener('click', markAllRead);
+    
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) deleteAllBtn.addEventListener('click', deleteAllEmails);
+    
+    const searchBtn = document.getElementById('searchBtn');
+    if (searchBtn) searchBtn.addEventListener('click', searchEmails);
+    
+    const prevPageBtn = document.getElementById('prevPage');
+    if (prevPageBtn) prevPageBtn.addEventListener('click', prevPage);
+    
+    const nextPageBtn = document.getElementById('nextPage');
+    if (nextPageBtn) nextPageBtn.addEventListener('click', nextPage);
+    
+    const themeToggle = document.getElementById('themeToggle');
+    if (themeToggle) themeToggle.addEventListener('click', toggleTheme);
 
     // Search input enter key
-    document.getElementById('searchInput').addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
-            searchEmails();
-        }
-    });
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchEmails();
+            }
+        });
+    }
 });
 
 // Make functions available globally for onclick handlers

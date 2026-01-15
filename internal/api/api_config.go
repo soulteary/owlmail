@@ -93,25 +93,27 @@ func (api *API) getOutgoingConfig(c *gin.Context) {
 func (api *API) updateOutgoingConfig(c *gin.Context) {
 	var config outgoing.OutgoingConfig
 	if err := c.ShouldBindJSON(&config); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 		return
 	}
 
 	// Validate required fields
 	if config.Host == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Host is required"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeHostRequired, "Host is required"))
 		return
 	}
 
 	if config.Port <= 0 || config.Port > 65535 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Port must be between 1 and 65535"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 		return
 	}
 
 	// Update configuration
 	api.mailServer.SetOutgoingConfig(&config)
 
+	// Return response with config field for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
+		"code":    SuccessCodeConfigUpdated,
 		"message": "Outgoing mail configuration updated",
 		"config": gin.H{
 			"host":          config.Host,
@@ -138,7 +140,7 @@ func (api *API) patchOutgoingConfig(c *gin.Context) {
 	// Parse partial update
 	var updates map[string]interface{}
 	if err := c.ShouldBindJSON(&updates); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request: " + err.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 		return
 	}
 
@@ -183,19 +185,21 @@ func (api *API) patchOutgoingConfig(c *gin.Context) {
 
 	// Validate if host is set
 	if currentConfig.Host == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Host is required"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeHostRequired, "Host is required"))
 		return
 	}
 
 	if currentConfig.Port <= 0 || currentConfig.Port > 65535 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Port must be between 1 and 65535"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 		return
 	}
 
 	// Update configuration
 	api.mailServer.SetOutgoingConfig(currentConfig)
 
+	// Return response with config field for backward compatibility
 	c.JSON(http.StatusOK, gin.H{
+		"code":    SuccessCodeConfigUpdated,
 		"message": "Outgoing mail configuration updated",
 		"config": gin.H{
 			"host":          currentConfig.Host,

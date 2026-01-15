@@ -131,8 +131,20 @@
 
 | 方法 | 路径 | 描述 |
 |--------|------|-------------|
-| GET | `/email` | 获取所有邮件 |
+| GET | `/email` | 获取所有邮件（支持分页和过滤） |
 | GET | `/email/:id` | 获取单个邮件 |
+
+**`GET /email` 的查询参数：**
+- `limit` (默认: 50, 最大: 1000) - 返回邮件数量
+- `offset` (默认: 0) - 跳过的邮件数量
+- `q` - 全文搜索查询
+- `from` - 按发件人邮箱地址过滤
+- `to` - 按收件人邮箱地址过滤
+- `dateFrom` - 按起始日期过滤（YYYY-MM-DD 格式）
+- `dateTo` - 按结束日期过滤（YYYY-MM-DD 格式）
+- `read` - 按已读状态过滤（true/false）
+- `sortBy` - 排序字段（time, subject）
+- `sortOrder` - 排序顺序（asc, desc，默认: desc）
 | GET | `/email/:id/html` | 获取邮件 HTML |
 | GET | `/email/:id/attachment/:filename` | 下载附件 |
 | GET | `/email/:id/download` | 下载原始 .eml 文件 |
@@ -162,7 +174,7 @@
 
 | 方法 | 路径 | 描述 | 改进 |
 |--------|------|-------------|-------------|
-| GET | `/api/v1/emails` | 获取所有邮件 | 使用复数资源 |
+| GET | `/api/v1/emails` | 获取所有邮件 | 使用复数资源（查询参数与 `/email` 相同） |
 | GET | `/api/v1/emails/:id` | 获取单个邮件 | 使用复数资源 |
 | DELETE | `/api/v1/emails/:id` | 删除单个邮件 | 使用复数资源 |
 | DELETE | `/api/v1/emails` | 删除所有邮件 | 更符合 RESTful，无 `/all` 后缀 |
