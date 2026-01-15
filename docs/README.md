@@ -2,6 +2,14 @@
 
 Welcome to the OwlMail documentation directory. This directory contains technical documentation, migration guides, and API reference materials in multiple languages.
 
+## 📸 Preview
+
+![OwlMail Preview](../../.github/assets/preview.png)
+
+## 🎥 Demo Video
+
+![Demo Video](../../.github/assets/realtime.gif)
+
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
 Select your preferred language:

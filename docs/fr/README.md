@@ -2,6 +2,14 @@
 
 Bienvenue dans le répertoire de documentation OwlMail. Ce répertoire contient de la documentation technique, des guides de migration et des matériaux de référence API.
 
+## 📸 Aperçu
+
+![Aperçu OwlMail](../../.github/assets/preview.png)
+
+## 🎥 Vidéo de démonstration
+
+![Vidéo de démonstration](../../.github/assets/realtime.gif)
+
 ## 📚 Structure de la documentation
 
 ### Documents principaux

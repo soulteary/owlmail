@@ -18,6 +18,17 @@ OwlMail is an SMTP server and web interface for development and testing environm
 
 ![](.github/assets/owlmail-banner.jpg)
 
+## 📸 Aperçu
+
+![Aperçu OwlMail](.github/assets/preview.png)
+
+## 🎥 Vidéo de démonstration
+
+<video width="100%" controls>
+  <source src=".github/assets/realtime.mp4" type="video/mp4">
+  Votre navigateur ne prend pas en charge la balise vidéo.
+</video>
+
 ## ✨ Features
 
 ### Core Features

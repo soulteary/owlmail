@@ -18,6 +18,17 @@ OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，�
 
 ![](.github/assets/owlmail-banner.jpg)
 
+## 📸 预览
+
+![OwlMail 预览](.github/assets/preview.png)
+
+## 🎥 演示视频
+
+<video width="100%" controls>
+  <source src=".github/assets/realtime.mp4" type="video/mp4">
+  您的浏览器不支持视频标签。
+</video>
+
 ## ✨ 特性
 
 ### 核心功能
