@@ -2,6 +2,17 @@
 
 Welcome to the OwlMail documentation directory. This directory contains technical documentation, migration guides, and API reference materials.
 
+## 📸 Preview
+
+![OwlMail Preview](../../.github/assets/preview.png)
+
+## 🎥 Demo Video
+
+<video width="100%" controls>
+  <source src="../../.github/assets/realtime.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
 - [English](../README.md#english) | [简体中文](../README.md#简体中文) | [Deutsch](../README.md#deutsch) | [Français](../README.md#français) | [Italiano](../README.md#italiano) | [日本語](../README.md#日本語) | [한국어](../README.md#한국어)

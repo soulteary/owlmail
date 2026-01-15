@@ -2,6 +2,17 @@
 
 Willkommen im OwlMail-Dokumentationsverzeichnis. Dieses Verzeichnis enthält technische Dokumentation, Migrationsleitfäden und API-Referenzmaterialien.
 
+## 📸 Vorschau
+
+![OwlMail Vorschau](../../.github/assets/preview.png)
+
+## 🎥 Demo-Video
+
+<video width="100%" controls>
+  <source src="../../.github/assets/realtime.mp4" type="video/mp4">
+  Ihr Browser unterstützt das Video-Tag nicht.
+</video>
+
 ## 📚 Dokumentationsstruktur
 
 ### Hauptdokumente

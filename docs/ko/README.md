@@ -2,6 +2,17 @@
 
 OwlMail 문서 디렉토리에 오신 것을 환영합니다. 이 디렉토리에는 기술 문서, 마이그레이션 가이드 및 API 참조 자료가 포함되어 있습니다.
 
+## 📸 미리보기
+
+![OwlMail 미리보기](../../.github/assets/preview.png)
+
+## 🎥 데모 비디오
+
+<video width="100%" controls>
+  <source src="../../.github/assets/realtime.mp4" type="video/mp4">
+  브라우저가 비디오 태그를 지원하지 않습니다.
+</video>
+
 ## 📚 문서 구조
 
 ### 주요 문서

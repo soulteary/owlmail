@@ -2,6 +2,17 @@
 
 欢迎来到 OwlMail 文档目录。本目录包含技术文档、迁移指南和 API 参考材料。
 
+## 📸 预览
+
+![OwlMail 预览](../../.github/assets/preview.png)
+
+## 🎥 演示视频
+
+<video width="100%" controls>
+  <source src="../../.github/assets/realtime.mp4" type="video/mp4">
+  您的浏览器不支持视频标签。
+</video>
+
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
 - [English](../README.md#english) | [简体中文](../README.md#简体中文) | [Deutsch](../README.md#deutsch) | [Français](../README.md#français) | [Italiano](../README.md#italiano) | [日本語](../README.md#日本語) | [한국어](../README.md#한국어)

@@ -18,6 +18,17 @@ OwlMail is an SMTP server and web interface for development and testing environm
 
 ![](.github/assets/owlmail-banner.jpg)
 
+## 📸 미리보기
+
+![OwlMail 미리보기](.github/assets/preview.png)
+
+## 🎥 데모 비디오
+
+<video width="100%" controls>
+  <source src=".github/assets/realtime.mp4" type="video/mp4">
+  브라우저가 비디오 태그를 지원하지 않습니다.
+</video>
+
 ## ✨ Features
 
 ### Core Features
