@@ -94,15 +94,46 @@ export MAILDEV_WEB_PORT=1080
 ./owlmail
 ```
 
-### Docker Usage
+### Docker の使用
 
-#### Basic Build (Single Architecture)
+#### GitHub Container Registry から取得（推奨）
+
+OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# Build image for current architecture
+# 最新のイメージを取得
+docker pull ghcr.io/soulteary/owlmail:latest
+
+# 特定のバージョンを取得（コミット SHA を使用）
+docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+
+# コンテナを実行
+docker run -d \
+  -p 1025:1025 \
+  -p 1080:1080 \
+  --name owlmail \
+  ghcr.io/soulteary/owlmail:latest
+```
+
+**利用可能なタグ：**
+- `latest` - 最新の安定版
+- `sha-<commit>` - 特定のコミット SHA（例：`sha-49b5f35`）
+- `main` - main ブランチの最新版
+
+**マルチアーキテクチャサポート：**
+イメージは `linux/amd64` と `linux/arm64` の両方のアーキテクチャをサポートしています。Docker は自動的にプラットフォームに適したイメージを取得します。
+
+**利用可能なすべてのイメージを表示：** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+
+#### ソースからビルド
+
+##### 基本ビルド（単一アーキテクチャ）
+
+```bash
+# 現在のアーキテクチャ用のイメージをビルド
 docker build -t owlmail .
 
-# Run container
+# コンテナを実行
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
@@ -110,34 +141,34 @@ docker run -d \
   owlmail
 ```
 
-#### Multi-Architecture Build (Recommended)
+##### マルチアーキテクチャビルド
 
-For aarch64 (ARM64) or other architectures, use Docker Buildx:
+aarch64 (ARM64) またはその他のアーキテクチャの場合、Docker Buildx を使用してください：
 
 ```bash
-# Enable buildx (if not already enabled)
+# buildx を有効化（まだ有効でない場合）
 docker buildx create --use --name multiarch-builder
 
-# Build for multiple architectures
+# 複数のアーキテクチャ用にビルド
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t owlmail:latest \
   --load .
 
-# Or build and push to registry
+# またはビルドしてレジストリにプッシュ
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t your-registry/owlmail:latest \
   --push .
 
-# Build for specific architecture (e.g., aarch64/arm64)
+# 特定のアーキテクチャ用にビルド（例：aarch64/arm64）
 docker buildx build \
   --platform linux/arm64 \
   -t owlmail:latest \
   --load .
 ```
 
-**Note**: The Dockerfile now supports multi-architecture builds using `TARGETOS` and `TARGETARCH` build arguments, which are automatically set by Docker Buildx.
+**注意**：Dockerfile は、Docker Buildx によって自動的に設定される `TARGETOS` と `TARGETARCH` ビルド引数を使用して、マルチアーキテクチャビルドをサポートするようになりました。
 
 ## 📖 Configuration Options
 

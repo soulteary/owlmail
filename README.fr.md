@@ -94,15 +94,46 @@ export MAILDEV_WEB_PORT=1080
 ./owlmail
 ```
 
-### Docker Usage
+### Utilisation Docker
 
-#### Basic Build (Single Architecture)
+#### Récupérer depuis GitHub Container Registry (Recommandé)
+
+La façon la plus simple d'utiliser OwlMail est de récupérer l'image pré-construite depuis GitHub Container Registry :
 
 ```bash
-# Build image for current architecture
+# Récupérer la dernière image
+docker pull ghcr.io/soulteary/owlmail:latest
+
+# Récupérer une version spécifique (en utilisant le SHA du commit)
+docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+
+# Exécuter le conteneur
+docker run -d \
+  -p 1025:1025 \
+  -p 1080:1080 \
+  --name owlmail \
+  ghcr.io/soulteary/owlmail:latest
+```
+
+**Tags disponibles :**
+- `latest` - Dernière version stable
+- `sha-<commit>` - SHA de commit spécifique (ex. : `sha-49b5f35`)
+- `main` - Dernière version de la branche main
+
+**Support multi-architecture :**
+L'image prend en charge les architectures `linux/amd64` et `linux/arm64`. Docker récupérera automatiquement la bonne image pour votre plateforme.
+
+**Voir toutes les images disponibles :** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+
+#### Construire depuis les sources
+
+##### Build de base (Architecture unique)
+
+```bash
+# Construire l'image pour l'architecture actuelle
 docker build -t owlmail .
 
-# Run container
+# Exécuter le conteneur
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
@@ -110,34 +141,34 @@ docker run -d \
   owlmail
 ```
 
-#### Multi-Architecture Build (Recommended)
+##### Build multi-architecture
 
-For aarch64 (ARM64) or other architectures, use Docker Buildx:
+Pour aarch64 (ARM64) ou d'autres architectures, utilisez Docker Buildx :
 
 ```bash
-# Enable buildx (if not already enabled)
+# Activer buildx (si ce n'est pas déjà fait)
 docker buildx create --use --name multiarch-builder
 
-# Build for multiple architectures
+# Construire pour plusieurs architectures
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t owlmail:latest \
   --load .
 
-# Or build and push to registry
+# Ou construire et pousser vers le registre
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t your-registry/owlmail:latest \
   --push .
 
-# Build for specific architecture (e.g., aarch64/arm64)
+# Construire pour une architecture spécifique (ex. aarch64/arm64)
 docker buildx build \
   --platform linux/arm64 \
   -t owlmail:latest \
   --load .
 ```
 
-**Note**: The Dockerfile now supports multi-architecture builds using `TARGETOS` and `TARGETARCH` build arguments, which are automatically set by Docker Buildx.
+**Note** : Le Dockerfile prend maintenant en charge les builds multi-architecture en utilisant les arguments de build `TARGETOS` et `TARGETARCH`, qui sont automatiquement définis par Docker Buildx.
 
 ## 📖 Configuration Options
 
