@@ -131,8 +131,20 @@ All original MailDev API endpoints are preserved to ensure backward compatibilit
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/email` | Get all emails |
+| GET | `/email` | Get all emails (supports pagination and filtering) |
 | GET | `/email/:id` | Get single email |
+
+**Query Parameters for `GET /email`:**
+- `limit` (default: 50, max: 1000) - Number of emails to return
+- `offset` (default: 0) - Number of emails to skip
+- `q` - Full-text search query
+- `from` - Filter by sender email address
+- `to` - Filter by recipient email address
+- `dateFrom` - Filter by date from (YYYY-MM-DD format)
+- `dateTo` - Filter by date to (YYYY-MM-DD format)
+- `read` - Filter by read status (true/false)
+- `sortBy` - Sort by field (time, subject)
+- `sortOrder` - Sort order (asc, desc, default: desc)
 | GET | `/email/:id/html` | Get email HTML |
 | GET | `/email/:id/attachment/:filename` | Download attachment |
 | GET | `/email/:id/download` | Download original .eml file |
@@ -162,7 +174,7 @@ All original MailDev API endpoints are preserved to ensure backward compatibilit
 
 | Method | Path | Description | Improvement |
 |--------|------|-------------|-------------|
-| GET | `/api/v1/emails` | Get all emails | Use plural resource |
+| GET | `/api/v1/emails` | Get all emails | Use plural resource (same query parameters as `/email`) |
 | GET | `/api/v1/emails/:id` | Get single email | Use plural resource |
 | DELETE | `/api/v1/emails/:id` | Delete single email | Use plural resource |
 | DELETE | `/api/v1/emails` | Delete all emails | More RESTful, no `/all` suffix |

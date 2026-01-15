@@ -25,7 +25,7 @@ func (api *API) relayEmail(c *gin.Context) {
 	// Get email
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 		return
 	}
 
@@ -48,14 +48,11 @@ func (api *API) relayEmail(c *gin.Context) {
 	}
 
 	if relayErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": relayErr.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeRelayFailed, relayErr.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Email relayed successfully",
-		"relayTo": relayTo,
-	})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeEmailRelayed, "Email relayed successfully", gin.H{"relayTo": relayTo}))
 }
 
 // relayEmailWithParam handles POST /api/v1/emails/:id/actions/relay/:relayTo
@@ -65,14 +62,14 @@ func (api *API) relayEmailWithParam(c *gin.Context) {
 
 	// Validate email address format (simple check)
 	if relayTo == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email address provided"})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeInvalidEmailAddress, "Invalid email address provided"))
 		return
 	}
 
 	// Get email
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Email not found"})
+		c.JSON(http.StatusNotFound, ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 		return
 	}
 
@@ -84,12 +81,9 @@ func (api *API) relayEmailWithParam(c *gin.Context) {
 	})
 
 	if relayErr != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": relayErr.Error()})
+		c.JSON(http.StatusBadRequest, ErrorResponse(ErrorCodeRelayFailed, relayErr.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message": "Email relayed successfully",
-		"relayTo": relayTo,
-	})
+	c.JSON(http.StatusOK, SuccessResponse(SuccessCodeEmailRelayed, "Email relayed successfully", gin.H{"relayTo": relayTo}))
 }

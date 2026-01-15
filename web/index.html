@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OwlMail - 邮件开发测试工具</title>
+    <title>OwlMail - Email Development Testing Tool</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body class="light-theme">
@@ -13,16 +13,16 @@
             <div class="header-content">
                 <h1>🦉 OwlMail</h1>
                 <div class="header-actions">
-                    <button id="langToggle" class="btn btn-secondary" title="切换语言">🌐</button>
-                    <button id="themeToggle" class="btn btn-secondary" title="切换主题">🌙</button>
-                    <button id="refreshBtn" class="btn btn-primary">刷新</button>
-                    <button id="markAllReadBtn" class="btn btn-secondary">标记全部已读</button>
-                    <button id="deleteAllBtn" class="btn btn-danger">删除全部</button>
+                    <select id="langSelect" class="lang-select" title="Switch Language"></select>
+                    <button id="themeToggle" class="btn btn-secondary" title="Toggle Theme">🌙</button>
+                    <button id="refreshBtn" class="btn btn-primary">Refresh</button>
+                    <button id="markAllReadBtn" class="btn btn-secondary">Mark All Read</button>
+                    <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
                 </div>
             </div>
             <div class="search-bar">
-                <input type="text" id="searchInput" placeholder="搜索邮件..." class="search-input">
-                <button id="searchBtn" class="btn btn-primary">搜索</button>
+                <input type="text" id="searchInput" placeholder="Search emails..." class="search-input">
+                <button id="searchBtn" class="btn btn-primary">Search</button>
             </div>
         </header>
 
@@ -31,16 +31,16 @@
             <!-- Email List -->
             <aside class="email-list-container">
                 <div class="email-list-header">
-                    <h2>邮件列表</h2>
-                    <span id="emailCount" class="email-count">0 封邮件</span>
+                    <h2>Email List</h2>
+                    <span id="emailCount" class="email-count">0 emails</span>
                 </div>
                 <div id="emailList" class="email-list">
-                    <div class="loading">加载中...</div>
+                    <div class="loading">Loading...</div>
                 </div>
                 <div class="pagination">
-                    <button id="prevPage" class="btn btn-secondary">上一页</button>
-                    <span id="pageInfo" class="page-info">第 1 页</span>
-                    <button id="nextPage" class="btn btn-secondary">下一页</button>
+                    <button id="prevPage" class="btn btn-secondary">Previous</button>
+                    <span id="pageInfo" class="page-info">Page 1</span>
+                    <button id="nextPage" class="btn btn-secondary">Next</button>
                 </div>
             </aside>
 
@@ -48,7 +48,7 @@
             <main class="email-detail-container">
                 <div id="emailDetail" class="email-detail">
                     <div class="empty-state">
-                        <p>选择一个邮件查看详情</p>
+                        <p>Select an email to view details</p>
                     </div>
                 </div>
             </main>
@@ -63,11 +63,11 @@
     <!-- Confirmation Modal -->
     <div id="confirmModal" class="modal" style="display: none;">
         <div class="modal-content">
-            <h3 id="confirmTitle">确认操作</h3>
+            <h3 id="confirmTitle">Confirm Action</h3>
             <p id="confirmMessage"></p>
             <div class="modal-actions">
-                <button id="confirmYes" class="btn btn-danger">确认</button>
-                <button id="confirmNo" class="btn btn-secondary">取消</button>
+                <button id="confirmYes" class="btn btn-danger">Confirm</button>
+                <button id="confirmNo" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </div>

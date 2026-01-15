@@ -57,6 +57,29 @@ body {
     font-size: 14px;
 }
 
+/* Language Selector */
+.lang-select {
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: white;
+    color: #333;
+    cursor: pointer;
+    transition: all 0.3s;
+    min-width: 120px;
+}
+
+.lang-select:hover {
+    border-color: #3498db;
+}
+
+.lang-select:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
 /* Buttons */
 .btn {
     padding: 10px 20px;
@@ -478,6 +501,21 @@ body.dark-theme .search-input {
     background-color: #3d3d3d;
     color: #e0e0e0;
     border-color: #555;
+}
+
+body.dark-theme .lang-select {
+    background-color: #3d3d3d;
+    color: #e0e0e0;
+    border-color: #555;
+}
+
+body.dark-theme .lang-select:hover {
+    border-color: #3498db;
+}
+
+body.dark-theme .lang-select:focus {
+    border-color: #3498db;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
 }
 
 body.dark-theme .email-list-container {
