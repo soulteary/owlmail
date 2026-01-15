@@ -96,7 +96,38 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker-Verwendung
 
-#### Grundlegender Build (Einzelarchitektur)
+#### Von GitHub Container Registry abrufen (Empfohlen)
+
+Der einfachste Weg, OwlMail zu verwenden, ist das Abrufen des vorgefertigten Images von GitHub Container Registry:
+
+```bash
+# Neuestes Image abrufen
+docker pull ghcr.io/soulteary/owlmail:latest
+
+# Bestimmte Version abrufen (mit Commit-SHA)
+docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+
+# Container ausführen
+docker run -d \
+  -p 1025:1025 \
+  -p 1080:1080 \
+  --name owlmail \
+  ghcr.io/soulteary/owlmail:latest
+```
+
+**Verfügbare Tags:**
+- `latest` - Neueste stabile Version
+- `sha-<commit>` - Bestimmter Commit-SHA (z.B. `sha-49b5f35`)
+- `main` - Neueste Version vom main-Branch
+
+**Multi-Architektur-Unterstützung:**
+Das Image unterstützt sowohl `linux/amd64` als auch `linux/arm64` Architekturen. Docker lädt automatisch das richtige Image für Ihre Plattform herunter.
+
+**Alle verfügbaren Images anzeigen:** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+
+#### Aus Quellcode erstellen
+
+##### Grundlegender Build (Einzelarchitektur)
 
 ```bash
 # Image für aktuelle Architektur erstellen
@@ -110,7 +141,7 @@ docker run -d \
   owlmail
 ```
 
-#### Multi-Architektur-Build (Empfohlen)
+##### Multi-Architektur-Build
 
 Für aarch64 (ARM64) oder andere Architekturen verwenden Sie Docker Buildx:
 

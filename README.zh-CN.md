@@ -96,7 +96,38 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker 使用
 
-#### 基础构建（单架构）
+#### 从 GitHub Container Registry 拉取镜像（推荐）
+
+使用 OwlMail 最简单的方式是从 GitHub Container Registry 拉取预构建的镜像：
+
+```bash
+# 拉取最新镜像
+docker pull ghcr.io/soulteary/owlmail:latest
+
+# 拉取特定版本（使用提交 SHA）
+docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+
+# 运行容器
+docker run -d \
+  -p 1025:1025 \
+  -p 1080:1080 \
+  --name owlmail \
+  ghcr.io/soulteary/owlmail:latest
+```
+
+**可用标签：**
+- `latest` - 最新稳定版本
+- `sha-<commit>` - 特定提交 SHA（例如：`sha-49b5f35`）
+- `main` - main 分支的最新版本
+
+**多架构支持：**
+镜像支持 `linux/amd64` 和 `linux/arm64` 两种架构。Docker 会自动为您的平台拉取正确的镜像。
+
+**查看所有可用镜像：** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+
+#### 从源码构建
+
+##### 基础构建（单架构）
 
 ```bash
 # 为当前架构构建镜像
@@ -110,7 +141,7 @@ docker run -d \
   owlmail
 ```
 
-#### 多架构构建（推荐）
+##### 多架构构建
 
 对于 aarch64 (ARM64) 或其他架构，请使用 Docker Buildx：
 
