@@ -7,14 +7,14 @@ import (
 	"sync"
 
 	_ "github.com/emersion/go-message/charset"
-	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/adaptor"
-	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gorilla/websocket"
-	"github.com/soulteary/health-kit"
+	"github.com/soulteary/health-kit/v2"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
-	"github.com/soulteary/version-kit"
+	"github.com/soulteary/version-kit/v2"
 )
 
 // API represents the REST API server
@@ -70,17 +70,15 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 // This function sets up both MailDev-compatible routes (for backward compatibility)
 // and new improved RESTful API routes
 func (api *API) setupRoutes() {
-	app := fiber.New(fiber.Config{
-		DisableStartupMessage: true,
-	})
+	app := fiber.New(fiber.Config{})
 
 	// Enable CORS (match original: allow all origins, AllowCredentials, AllowHeaders, AllowMethods)
 	// Fiber disallows AllowCredentials with AllowOrigins "*", so use AllowOriginsFunc to allow all.
 	app.Use(cors.New(cors.Config{
 		AllowOriginsFunc: func(origin string) bool { return true },
 		AllowCredentials: true,
-		AllowHeaders:     "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With",
-		AllowMethods:     "POST, OPTIONS, GET, PUT, DELETE, PATCH",
+		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
+		AllowMethods:     []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
 	}))
 
 	// HTTP Basic Auth middleware if configured
@@ -89,8 +87,8 @@ func (api *API) setupRoutes() {
 	}
 
 	// Static files (web UI)
-	app.Get("/style.css", func(c *fiber.Ctx) error { return c.SendFile("./web/style.css") })
-	app.Get("/app.js", func(c *fiber.Ctx) error { return c.SendFile("./web/app.js") })
+	app.Get("/style.css", func(c fiber.Ctx) error { return c.SendFile("./web/style.css") })
+	app.Get("/app.js", func(c fiber.Ctx) error { return c.SendFile("./web/app.js") })
 
 	// ============================================================================
 	// MailDev-compatible API routes (maintains backward compatibility)
@@ -103,12 +101,12 @@ func (api *API) setupRoutes() {
 	api.setupImprovedAPIRoutes(app)
 
 	// Root route - serve index.html
-	app.Get("/", func(c *fiber.Ctx) error {
+	app.Get("/", func(c fiber.Ctx) error {
 		return c.SendFile("./web/index.html")
 	})
 
 	// Serve index.html for all non-API routes (NoRoute equivalent)
-	app.All("*", func(c *fiber.Ctx) error {
+	app.All("*", func(c fiber.Ctx) error {
 		path := c.Path()
 		if strings.HasPrefix(path, "/email") ||
 			strings.HasPrefix(path, "/config") ||
@@ -173,10 +171,14 @@ func (api *API) Start() error {
 		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
 			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
 		}
-		return api.app.ListenTLS(addr, api.httpsCertFile, api.httpsKeyFile)
+		return api.app.Listen(addr, fiber.ListenConfig{
+			DisableStartupMessage: true,
+			CertFile:              api.httpsCertFile,
+			CertKeyFile:           api.httpsKeyFile,
+		})
 	}
 
-	return api.app.Listen(addr)
+	return api.app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true})
 }
 
 // setupEventListeners sets up event listeners for WebSocket broadcasting

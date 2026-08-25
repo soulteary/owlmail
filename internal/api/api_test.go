@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -102,7 +103,7 @@ func TestAPIHealthCheck(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -165,7 +166,7 @@ func TestAPISetupRoutes(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -175,10 +176,10 @@ func TestAPISetupRoutes(t *testing.T) {
 	}
 
 	req2, _ := http.NewRequest("GET", "/some-page", nil)
-	_, _ = api.app.Test(req2, -1)
+	_, _ = api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 
 	req3, _ := http.NewRequest("GET", "/api/v1/health", nil)
-	resp3, err := api.app.Test(req3, -1)
+	resp3, err := api.app.Test(req3, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -190,7 +191,7 @@ func TestAPISetupRoutes(t *testing.T) {
 	testCases := []string{"/email", "/config", "/healthz", "/socket.io", "/api/", "/style.css", "/app.js"}
 	for _, path := range testCases {
 		req, _ := http.NewRequest("GET", path, nil)
-		_, _ = api.app.Test(req, -1)
+		_, _ = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	}
 }
 
