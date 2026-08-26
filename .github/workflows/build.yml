@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: "1.25"
+  GO_VERSION: "1.26.6"
   GO111MODULE: on
 
 jobs:
@@ -87,4 +87,3 @@ jobs:
             exit 1
           fi
           echo "All builds completed successfully"
-

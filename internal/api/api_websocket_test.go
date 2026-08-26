@@ -9,14 +9,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
 // apiHTTPTestHandler wraps *API so httptest.NewServer can serve both normal routes and WebSocket.
 // For /api/v1/ws and /socket.io it calls handleWebSocketHTTP(w, r) so the real connection is upgraded.
-// app.Test(r,-1) would block forever because the WebSocket handler loops on ReadJSON.
+// app.Test(r, fiber.TestConfig{Timeout: 0, FailOnTimeout: false}) would block forever because the WebSocket handler loops on ReadJSON.
 type apiHTTPTestHandler struct{ api *API }
 
 func (h *apiHTTPTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -24,7 +24,7 @@ func (h *apiHTTPTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.api.handleWebSocketHTTP(w, r)
 		return
 	}
-	resp, err := h.api.app.Test(r, -1)
+	resp, err := h.api.app.Test(r, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
@@ -308,7 +308,7 @@ func TestAPIHandleWebSocketRoute(t *testing.T) {
 
 	// Test that the WebSocket route exists
 	req, _ := http.NewRequest("GET", "/api/v1/ws", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestAPIHandleWebSocketUpgradeError(t *testing.T) {
 
 	// Test WebSocket upgrade with invalid request (no upgrade header)
 	req, _ := http.NewRequest("GET", "/api/v1/ws", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}

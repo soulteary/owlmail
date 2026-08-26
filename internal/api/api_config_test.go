@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
 )
@@ -20,7 +21,7 @@ func TestAPIGetConfig(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -51,7 +52,7 @@ func TestAPIGetOutgoingConfig(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -95,7 +96,7 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 	server.SetOutgoingConfig(outgoingConfig)
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -138,7 +139,7 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -169,7 +170,7 @@ func TestAPIPatchOutgoingConfig(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -185,7 +186,7 @@ func TestAPIPatchOutgoingConfig(t *testing.T) {
 
 	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -215,7 +216,7 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	server.SetOutgoingConfig(outgoingConfig)
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -256,7 +257,7 @@ func TestAPIGetConfigWithAuth(t *testing.T) {
 	api := NewAPI(server, 1080, "localhost")
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -318,7 +319,7 @@ func TestAPIGetConfigWithTLS(t *testing.T) {
 	api := NewAPI(server, 1080, "localhost")
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -367,7 +368,7 @@ func TestAPIUpdateOutgoingConfigInvalidRequest(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -395,7 +396,7 @@ func TestAPIUpdateOutgoingConfigMissingHost(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -424,7 +425,7 @@ func TestAPIUpdateOutgoingConfigInvalidPort(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -453,7 +454,7 @@ func TestAPIUpdateOutgoingConfigPortTooLarge(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -476,7 +477,7 @@ func TestAPIPatchOutgoingConfigInvalidRequest(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -513,7 +514,7 @@ func TestAPIPatchOutgoingConfigAllFields(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -543,7 +544,7 @@ func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -574,7 +575,7 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -591,7 +592,7 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 
 	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -637,7 +638,7 @@ func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -653,7 +654,7 @@ func TestAPIPatchOutgoingConfigWithInvalidPort(t *testing.T) {
 
 	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -683,7 +684,7 @@ func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
 
 	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -699,7 +700,7 @@ func TestAPIPatchOutgoingConfigWithPortTooLarge(t *testing.T) {
 
 	req2, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req2.Header.Set("Content-Type", "application/json")
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -731,7 +732,7 @@ func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(patchBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}

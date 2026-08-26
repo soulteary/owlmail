@@ -2,7 +2,7 @@
 
 > 🦉 一个用 Go 语言实现的邮件开发测试工具，完全兼容 MailDev，提供更好的性能和更丰富的功能
 
-[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
@@ -585,4 +585,3 @@ OwlMail/
 ---
 
 **OwlMail** - 用 Go 语言实现的邮件开发测试工具，完全兼容 MailDev 🦉
-

@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	logger "github.com/soulteary/logger-kit"
+	logger "github.com/soulteary/logger-kit/v2"
 )
 
 // LogLevel represents the logging level (owlmail legacy: silent / normal / verbose).

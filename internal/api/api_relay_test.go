@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -33,7 +34,7 @@ func TestAPIRelayEmail(t *testing.T) {
 
 	// Test relay with query parameter
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay?relayTo=relay@example.com", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -72,7 +73,7 @@ func TestAPIRelayEmailWithBody(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestAPIRelayEmailWithoutRelayTo(t *testing.T) {
 
 	// Test relay without relayTo (uses configured SMTP server)
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -126,7 +127,7 @@ func TestAPIRelayEmailNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/nonexistent/actions/relay", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -158,7 +159,7 @@ func TestAPIRelayEmailWithParam(t *testing.T) {
 
 	// Test relay with param
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay/relay@example.com", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -192,7 +193,7 @@ func TestAPIRelayEmailWithParamEmpty(t *testing.T) {
 	// Test relay with empty param (using empty string as param)
 	// Use a route that will have empty relayTo param
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay/ ", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -214,7 +215,7 @@ func TestAPIRelayEmailWithParamNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/nonexistent/actions/relay/relay@example.com", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -252,7 +253,7 @@ func TestAPIRelayEmailWithBodyButNoRelayTo(t *testing.T) {
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -286,7 +287,7 @@ func TestAPIRelayEmailWithInvalidBody(t *testing.T) {
 	// Test relay with invalid JSON body
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -321,7 +322,7 @@ func TestAPIRelayEmailWithParamEmptyString(t *testing.T) {
 	// Note: Fiber router may redirect trailing slashes, so we test with actual empty param
 	// Use a route that will have empty relayTo param - need to use a different approach
 	req, _ := http.NewRequest("POST", "/api/v1/emails/test-id/actions/relay/%20", nil) // space character
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}

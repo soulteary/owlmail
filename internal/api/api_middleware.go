@@ -4,12 +4,12 @@ import (
 	"encoding/base64"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 )
 
 // basicAuthMiddleware creates HTTP Basic Auth middleware for Fiber
 func basicAuthMiddleware(username, password string, skippedPaths ...string) fiber.Handler {
-	return func(c *fiber.Ctx) error {
+	return func(c fiber.Ctx) error {
 		path := c.Path()
 		for _, p := range skippedPaths {
 			if path == p {

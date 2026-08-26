@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/emersion/go-message/mail"
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -48,7 +49,7 @@ func TestAPIGetAllEmails(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -91,7 +92,7 @@ func TestAPIGetEmailByID(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -113,7 +114,7 @@ func TestAPIGetEmailByID(t *testing.T) {
 
 	// Test non-existent email
 	req2, _ := http.NewRequest("GET", "/api/v1/emails/nonexistent", nil)
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -148,7 +149,7 @@ func TestAPIDeleteEmail(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/test-id", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -197,7 +198,7 @@ func TestAPIDeleteAllEmails(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -238,7 +239,7 @@ func TestAPIReadEmail(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/test-id/read", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -290,7 +291,7 @@ func TestAPIReadAllEmails(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/read", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -341,7 +342,7 @@ func TestAPIGetEmailStats(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/stats", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -389,7 +390,7 @@ func TestAPIGetEmailHTML(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/html", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -442,7 +443,7 @@ func TestAPIBatchDeleteEmails(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/batch", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -498,7 +499,7 @@ func TestAPIBatchReadEmails(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/batch/read", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -561,7 +562,7 @@ func TestAPIGetAttachment(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/attachments/test.pdf", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -597,7 +598,7 @@ func TestAPIGetEmailSource(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/source", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -636,7 +637,7 @@ func TestAPIDownloadEmail(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/raw", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -696,7 +697,7 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	// Test with query filter
 	req, _ := http.NewRequest("GET", "/api/v1/emails?q=Subject&limit=10&offset=0", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -710,7 +711,7 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	// Test with from filter
 	req2, _ := http.NewRequest("GET", "/api/v1/emails?from=from1", nil)
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -724,7 +725,7 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	// Test with to filter
 	req3, _ := http.NewRequest("GET", "/api/v1/emails?to=to1", nil)
-	resp3, err3 := api.app.Test(req3, -1)
+	resp3, err3 := api.app.Test(req3, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err3 != nil {
 		t.Fatalf("Test request failed: %v", err3)
 	}
@@ -735,7 +736,7 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	// Test with read filter
 	req4, _ := http.NewRequest("GET", "/api/v1/emails?read=false", nil)
-	resp4, err4 := api.app.Test(req4, -1)
+	resp4, err4 := api.app.Test(req4, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err4 != nil {
 		t.Fatalf("Test request failed: %v", err4)
 	}
@@ -746,7 +747,7 @@ func TestAPIGetAllEmailsWithFilters(t *testing.T) {
 
 	// Test with sort
 	req5, _ := http.NewRequest("GET", "/api/v1/emails?sortBy=subject&sortOrder=asc", nil)
-	resp5, err5 := api.app.Test(req5, -1)
+	resp5, err5 := api.app.Test(req5, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err5 != nil {
 		t.Fatalf("Test request failed: %v", err5)
 	}
@@ -786,7 +787,7 @@ func TestAPIGetEmailPreviews(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -808,7 +809,7 @@ func TestAPIReloadMailsFromDirectory(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/reload", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -844,7 +845,7 @@ func TestAPIReloadMailsFromDirectoryError(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("POST", "/api/v1/emails/reload", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -899,7 +900,7 @@ func TestAPIGetEmailHTMLNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/nonexistent/html", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -932,7 +933,7 @@ func TestAPIGetAttachmentNotFound(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/attachments/nonexistent.pdf", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -954,7 +955,7 @@ func TestAPIDownloadEmailNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/nonexistent/raw", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -987,7 +988,7 @@ func TestAPIDownloadEmailWithoutSubject(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/raw", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1017,7 +1018,7 @@ func TestAPIDownloadEmailWithRawEmailNotFound(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/test-id/raw", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1077,7 +1078,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with query filter
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?q=Subject&limit=10&offset=0", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1091,7 +1092,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with from filter
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?from=from1", nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1105,7 +1106,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with to filter
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?to=to1", nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1119,7 +1120,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with read filter
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?read=false", nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1133,7 +1134,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with dateFrom filter
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?dateFrom="+time.Now().Add(-48*time.Hour).Format("2006-01-02"), nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1147,7 +1148,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with dateTo filter
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?dateTo="+time.Now().Format("2006-01-02"), nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1161,7 +1162,7 @@ func TestAPIGetEmailPreviewsWithFilters(t *testing.T) {
 
 	// Test with sortBy
 	req, _ = http.NewRequest("GET", "/api/v1/emails/preview?sortBy=subject&sortOrder=asc", nil)
-	resp, err = api.app.Test(req, -1)
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1201,7 +1202,7 @@ func TestAPIGetEmailPreviewsWithPagination(t *testing.T) {
 
 	// Test with limit and offset
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=2&offset=1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1234,7 +1235,7 @@ func TestAPIGetEmailPreviewsWithInvalidLimit(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=invalid", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1256,7 +1257,7 @@ func TestAPIGetEmailPreviewsWithInvalidOffset(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=invalid", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1278,7 +1279,7 @@ func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?limit=2000", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1308,7 +1309,7 @@ func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=-1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1358,7 +1359,7 @@ func TestAPIGetAllEmailsWithOffsetBeyondTotal(t *testing.T) {
 
 	// Test with offset beyond total
 	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=100&limit=10", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1401,7 +1402,7 @@ func TestAPIGetAllEmailsWithStartEqualsEnd(t *testing.T) {
 
 	// Test with offset=1, limit=1 (start == end == 1)
 	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=1&limit=1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1444,7 +1445,7 @@ func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
 
 	// Test with limit=0 (should default to 50)
 	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=0", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1494,7 +1495,7 @@ func TestAPIGetAllEmailsWithLimitOne(t *testing.T) {
 
 	// Test with limit=1
 	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1525,7 +1526,7 @@ func TestAPIGetEmailSourceNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/nonexistent/source", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1547,7 +1548,7 @@ func TestAPIDeleteEmailNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/nonexistent", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1569,7 +1570,7 @@ func TestAPIReadEmailNotFound(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/nonexistent/read", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1592,7 +1593,7 @@ func TestAPIBatchDeleteEmailsInvalidRequest(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/batch", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1620,7 +1621,7 @@ func TestAPIBatchDeleteEmailsEmptyIDs(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/batch", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1660,7 +1661,7 @@ func TestAPIBatchDeleteEmailsPartialFailure(t *testing.T) {
 
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails/batch", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1694,7 +1695,7 @@ func TestAPIBatchReadEmailsInvalidRequest(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/batch/read", bytes.NewBuffer([]byte("invalid json")))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1722,7 +1723,7 @@ func TestAPIBatchReadEmailsEmptyIDs(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/batch/read", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1762,7 +1763,7 @@ func TestAPIBatchReadEmailsPartialFailure(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/batch/read", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1818,7 +1819,7 @@ func TestAPIBatchReadEmailsAlreadyRead(t *testing.T) {
 
 	req, _ := http.NewRequest("PATCH", "/api/v1/emails/batch/read", bytes.NewBuffer(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1863,7 +1864,7 @@ func TestAPIGetAllEmailsPagination(t *testing.T) {
 
 	// Test pagination
 	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=2&offset=1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1896,7 +1897,7 @@ func TestAPIGetAllEmailsInvalidLimit(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=invalid", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1927,7 +1928,7 @@ func TestAPIGetAllEmailsLargeLimit(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails?limit=2000", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1958,7 +1959,7 @@ func TestAPIGetAllEmailsInvalidOffset(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=invalid", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -1989,7 +1990,7 @@ func TestAPIGetAllEmailsNegativeOffset(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails?offset=-1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2040,7 +2041,7 @@ func TestAPIGetAllEmailsSorting(t *testing.T) {
 
 	// Test sorting by subject ascending
 	req, _ := http.NewRequest("GET", "/api/v1/emails?sortBy=subject&sortOrder=asc", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2082,7 +2083,7 @@ func TestAPIGetAllEmailsSortingByFrom(t *testing.T) {
 
 	// Test sorting by from
 	req, _ := http.NewRequest("GET", "/api/v1/emails?sortBy=from&sortOrder=asc", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2124,7 +2125,7 @@ func TestAPIGetAllEmailsSortingBySize(t *testing.T) {
 
 	// Test sorting by size
 	req, _ := http.NewRequest("GET", "/api/v1/emails?sortBy=size&sortOrder=asc", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2167,7 +2168,7 @@ func TestAPIGetAllEmailsDateFilters(t *testing.T) {
 	// Test dateFrom filter
 	dateFrom := time.Now().Add(-24 * time.Hour).Format("2006-01-02")
 	req, _ := http.NewRequest("GET", "/api/v1/emails?dateFrom="+dateFrom, nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2182,7 +2183,7 @@ func TestAPIGetAllEmailsDateFilters(t *testing.T) {
 	// Test dateTo filter
 	dateTo := time.Now().Format("2006-01-02")
 	req2, _ := http.NewRequest("GET", "/api/v1/emails?dateTo="+dateTo, nil)
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -2221,7 +2222,7 @@ func TestAPIGetAllEmailsFilterByCC(t *testing.T) {
 
 	// Test filter by CC
 	req, _ := http.NewRequest("GET", "/api/v1/emails?to=cc", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2260,7 +2261,7 @@ func TestAPIGetAllEmailsFilterByBCC(t *testing.T) {
 
 	// Test filter by BCC
 	req, _ := http.NewRequest("GET", "/api/v1/emails?to=bcc", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2301,7 +2302,7 @@ func TestAPIGetEmailPreviewsWithHTML(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2346,7 +2347,7 @@ func TestAPIGetEmailPreviewsLongText(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2400,7 +2401,7 @@ func TestAPIExportEmails(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2445,7 +2446,7 @@ func TestAPIExportEmailsWithIDs(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=id1,id2", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2486,7 +2487,7 @@ func TestAPIExportEmailsWithFilters(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?q=Test", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2508,7 +2509,7 @@ func TestAPIExportEmailsNoEmails(t *testing.T) {
 	}()
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2548,7 +2549,7 @@ func TestAPIExportEmailsWithMissingFiles(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2589,7 +2590,7 @@ func TestAPIExportEmailsWithIDsAndMissingFiles(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=id1,id2", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2636,7 +2637,7 @@ func TestAPIExportEmailsWithIDsWithSpaces(t *testing.T) {
 	params := url.Values{}
 	params.Set("ids", "id1, id2 , id3")
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?"+params.Encode(), nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2673,7 +2674,7 @@ func TestAPIExportEmailsWithEmptyIDs(t *testing.T) {
 
 	// Test with empty IDs list (should use filter instead, which returns all emails)
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2710,7 +2711,7 @@ func TestAPIExportEmailsWithNonExistentIDs(t *testing.T) {
 
 	// Test with non-existent IDs
 	req, _ := http.NewRequest("GET", "/api/v1/emails/export?ids=nonexistent1,nonexistent2", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -2956,7 +2957,7 @@ func TestAPIDeleteAllEmailsError(t *testing.T) {
 
 	// Test with empty server (should still work)
 	req, _ := http.NewRequest("DELETE", "/api/v1/emails", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -3000,7 +3001,7 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 
 	// Test with offset > total (start > total case)
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=100&limit=10", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -3023,7 +3024,7 @@ func TestAPIGetEmailPreviewsBoundaryConditions(t *testing.T) {
 
 	// Test with offset + limit > total (end > total case)
 	req2, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=1&limit=10", nil)
-	resp2, err2 := api.app.Test(req2, -1)
+	resp2, err2 := api.app.Test(req2, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err2 != nil {
 		t.Fatalf("Test request failed: %v", err2)
 	}
@@ -3075,7 +3076,7 @@ func TestAPIGetEmailPreviewsMultipleSpaces(t *testing.T) {
 	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -3124,7 +3125,7 @@ func TestAPIGetEmailPreviewsStartEqualsEnd(t *testing.T) {
 
 	// Test with offset=1, limit=1 (start == end == 1)
 	req, _ := http.NewRequest("GET", "/api/v1/emails/preview?offset=1&limit=1", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}

@@ -1,12 +1,12 @@
 package api
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
 )
 
 // relayEmail handles POST /api/v1/emails/:id/actions/relay
-func (api *API) relayEmail(c *fiber.Ctx) error {
+func (api *API) relayEmail(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	relayTo := c.Query("relayTo")
@@ -14,7 +14,7 @@ func (api *API) relayEmail(c *fiber.Ctx) error {
 		var body struct {
 			RelayTo string `json:"relayTo"`
 		}
-		if err := c.BodyParser(&body); err == nil {
+		if err := c.Bind().Body(&body); err == nil {
 			relayTo = body.RelayTo
 		}
 	}
@@ -47,7 +47,7 @@ func (api *API) relayEmail(c *fiber.Ctx) error {
 }
 
 // relayEmailWithParam handles POST /api/v1/emails/:id/actions/relay/:relayTo
-func (api *API) relayEmailWithParam(c *fiber.Ctx) error {
+func (api *API) relayEmailWithParam(c fiber.Ctx) error {
 	id := c.Params("id")
 	relayTo := c.Params("relayTo")
 

@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -31,7 +31,7 @@ type EmailPreview struct {
 }
 
 // getAllEmails handles GET /api/v1/emails
-func (api *API) getAllEmails(c *fiber.Ctx) error {
+func (api *API) getAllEmails(c fiber.Ctx) error {
 	limitStr := c.Query("limit", "50")
 	offsetStr := c.Query("offset", "0")
 	query := c.Query("q")
@@ -93,7 +93,7 @@ func (api *API) getAllEmails(c *fiber.Ctx) error {
 }
 
 // getEmailByID handles GET /api/v1/emails/:id
-func (api *API) getEmailByID(c *fiber.Ctx) error {
+func (api *API) getEmailByID(c fiber.Ctx) error {
 	id := c.Params("id")
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
@@ -103,7 +103,7 @@ func (api *API) getEmailByID(c *fiber.Ctx) error {
 }
 
 // getEmailHTML handles GET /api/v1/emails/:id/html
-func (api *API) getEmailHTML(c *fiber.Ctx) error {
+func (api *API) getEmailHTML(c fiber.Ctx) error {
 	id := c.Params("id")
 	html, err := api.mailServer.GetEmailHTML(id)
 	if err != nil {
@@ -114,7 +114,7 @@ func (api *API) getEmailHTML(c *fiber.Ctx) error {
 }
 
 // getAttachment handles GET /api/v1/emails/:id/attachments/:filename
-func (api *API) getAttachment(c *fiber.Ctx) error {
+func (api *API) getAttachment(c fiber.Ctx) error {
 	id := c.Params("id")
 	filename := c.Params("filename")
 
@@ -128,7 +128,7 @@ func (api *API) getAttachment(c *fiber.Ctx) error {
 }
 
 // downloadEmail handles GET /api/v1/emails/:id/raw
-func (api *API) downloadEmail(c *fiber.Ctx) error {
+func (api *API) downloadEmail(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	email, err := api.mailServer.GetEmail(id)
@@ -151,7 +151,7 @@ func (api *API) downloadEmail(c *fiber.Ctx) error {
 }
 
 // getEmailSource handles GET /api/v1/emails/:id/source
-func (api *API) getEmailSource(c *fiber.Ctx) error {
+func (api *API) getEmailSource(c fiber.Ctx) error {
 	id := c.Params("id")
 
 	content, err := api.mailServer.GetRawEmailContent(id)
@@ -164,7 +164,7 @@ func (api *API) getEmailSource(c *fiber.Ctx) error {
 }
 
 // deleteEmail handles DELETE /api/v1/emails/:id
-func (api *API) deleteEmail(c *fiber.Ctx) error {
+func (api *API) deleteEmail(c fiber.Ctx) error {
 	id := c.Params("id")
 	if err := api.mailServer.DeleteEmail(id); err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
@@ -173,7 +173,7 @@ func (api *API) deleteEmail(c *fiber.Ctx) error {
 }
 
 // deleteAllEmails handles DELETE /api/v1/emails
-func (api *API) deleteAllEmails(c *fiber.Ctx) error {
+func (api *API) deleteAllEmails(c fiber.Ctx) error {
 	if err := api.mailServer.DeleteAllEmail(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
 	}
@@ -181,13 +181,13 @@ func (api *API) deleteAllEmails(c *fiber.Ctx) error {
 }
 
 // readAllEmails handles PATCH /api/v1/emails/read
-func (api *API) readAllEmails(c *fiber.Ctx) error {
+func (api *API) readAllEmails(c fiber.Ctx) error {
 	count := api.mailServer.ReadAllEmail()
 	return c.JSON(SuccessResponse(SuccessCodeAllEmailsMarkedRead, "All emails marked as read", fiber.Map{"count": count}))
 }
 
 // readEmail handles PATCH /api/v1/emails/:id/read
-func (api *API) readEmail(c *fiber.Ctx) error {
+func (api *API) readEmail(c fiber.Ctx) error {
 	id := c.Params("id")
 	if err := api.mailServer.ReadEmail(id); err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
@@ -196,13 +196,13 @@ func (api *API) readEmail(c *fiber.Ctx) error {
 }
 
 // getEmailStats handles GET /api/v1/emails/stats
-func (api *API) getEmailStats(c *fiber.Ctx) error {
+func (api *API) getEmailStats(c fiber.Ctx) error {
 	stats := api.mailServer.GetEmailStats()
 	return c.JSON(stats)
 }
 
 // reloadMailsFromDirectory handles POST /api/v1/emails/reload
-func (api *API) reloadMailsFromDirectory(c *fiber.Ctx) error {
+func (api *API) reloadMailsFromDirectory(c fiber.Ctx) error {
 	if err := api.mailServer.LoadMailsFromDirectory(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Failed to reload mails from directory: "+err.Error()))
 	}
@@ -210,7 +210,7 @@ func (api *API) reloadMailsFromDirectory(c *fiber.Ctx) error {
 }
 
 // getEmailPreviews handles GET /api/v1/emails/preview
-func (api *API) getEmailPreviews(c *fiber.Ctx) error {
+func (api *API) getEmailPreviews(c fiber.Ctx) error {
 	limitStr := c.Query("limit", "50")
 	offsetStr := c.Query("offset", "0")
 	query := c.Query("q")
@@ -313,12 +313,12 @@ func (api *API) getEmailPreviews(c *fiber.Ctx) error {
 }
 
 // batchDeleteEmails handles DELETE /api/v1/emails/batch
-func (api *API) batchDeleteEmails(c *fiber.Ctx) error {
+func (api *API) batchDeleteEmails(c fiber.Ctx) error {
 	var request struct {
 		IDs []string `json:"ids"`
 	}
 
-	if err := c.BodyParser(&request); err != nil {
+	if err := c.Bind().Body(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
 
@@ -350,12 +350,12 @@ func (api *API) batchDeleteEmails(c *fiber.Ctx) error {
 }
 
 // batchReadEmails handles PATCH /api/v1/emails/batch/read
-func (api *API) batchReadEmails(c *fiber.Ctx) error {
+func (api *API) batchReadEmails(c fiber.Ctx) error {
 	var request struct {
 		IDs []string `json:"ids"`
 	}
 
-	if err := c.BodyParser(&request); err != nil {
+	if err := c.Bind().Body(&request); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
 
@@ -392,7 +392,7 @@ func (api *API) batchReadEmails(c *fiber.Ctx) error {
 }
 
 // exportEmails handles GET /api/v1/emails/export
-func (api *API) exportEmails(c *fiber.Ctx) error {
+func (api *API) exportEmails(c fiber.Ctx) error {
 	idsParam := c.Query("ids")
 	query := c.Query("q")
 	from := c.Query("from")

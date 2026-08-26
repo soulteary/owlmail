@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/owlmail/internal/common"
 )

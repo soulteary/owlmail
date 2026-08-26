@@ -1,13 +1,13 @@
 package api
 
 import (
-	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/outgoing"
-	"github.com/soulteary/version-kit"
+	"github.com/soulteary/version-kit/v2"
 )
 
 // getConfig handles GET /api/v1/settings
-func (api *API) getConfig(c *fiber.Ctx) error {
+func (api *API) getConfig(c fiber.Ctx) error {
 	config := fiber.Map{
 		"version": version.Default().Version,
 		"smtp": fiber.Map{
@@ -62,7 +62,7 @@ func (api *API) getConfig(c *fiber.Ctx) error {
 }
 
 // getOutgoingConfig handles GET /api/v1/settings/outgoing
-func (api *API) getOutgoingConfig(c *fiber.Ctx) error {
+func (api *API) getOutgoingConfig(c fiber.Ctx) error {
 	outgoingConfig := api.mailServer.GetOutgoingConfig()
 	if outgoingConfig == nil {
 		return c.JSON(fiber.Map{
@@ -85,9 +85,9 @@ func (api *API) getOutgoingConfig(c *fiber.Ctx) error {
 }
 
 // updateOutgoingConfig handles PUT /api/v1/settings/outgoing
-func (api *API) updateOutgoingConfig(c *fiber.Ctx) error {
+func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
 	var config outgoing.OutgoingConfig
-	if err := c.BodyParser(&config); err != nil {
+	if err := c.Bind().Body(&config); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
 
@@ -118,14 +118,14 @@ func (api *API) updateOutgoingConfig(c *fiber.Ctx) error {
 }
 
 // patchOutgoingConfig handles PATCH /api/v1/settings/outgoing
-func (api *API) patchOutgoingConfig(c *fiber.Ctx) error {
+func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 	currentConfig := api.mailServer.GetOutgoingConfig()
 	if currentConfig == nil {
 		currentConfig = &outgoing.OutgoingConfig{}
 	}
 
 	var updates map[string]interface{}
-	if err := c.BodyParser(&updates); err != nil {
+	if err := c.Bind().Body(&updates); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
 

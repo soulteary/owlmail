@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.6-alpine AS builder
 
 # Build arguments for multi-arch support
 ARG TARGETOS=linux
@@ -67,4 +67,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Start application
 ENTRYPOINT ["/app/owlmail"]
-

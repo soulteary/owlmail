@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 )
 
@@ -19,7 +20,7 @@ func TestCorsMiddleware(t *testing.T) {
 	// returning true it sets Access-Control-Allow-Origin to the request origin.
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Origin", "http://example.com")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -49,7 +50,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -76,7 +77,7 @@ func TestBasicAuthMiddlewareSuccess(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.SetBasicAuth("user", "pass")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -103,7 +104,7 @@ func TestBasicAuthMiddlewareInvalidPrefix(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Authorization", "Bearer invalid")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -130,7 +131,7 @@ func TestBasicAuthMiddlewareInvalidBase64(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Authorization", "Basic invalid-base64!")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -157,7 +158,7 @@ func TestBasicAuthMiddlewareInvalidCredentials(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.SetBasicAuth("wronguser", "wrongpass")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -184,7 +185,7 @@ func TestBasicAuthMiddlewareInvalidFormat(t *testing.T) {
 
 	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
 	req.Header.Set("Authorization", "Basic dXNlcg==") // base64("user")
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -208,7 +209,7 @@ func TestHealthCheckSkippedAuth(t *testing.T) {
 	}()
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 	req, _ := http.NewRequest("GET", "/api/v1/health", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
@@ -231,7 +232,7 @@ func TestHealthzSkippedAuth(t *testing.T) {
 	}()
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
 	req, _ := http.NewRequest("GET", "/healthz", nil)
-	resp, err := api.app.Test(req, -1)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
 		t.Fatalf("Test request failed: %v", err)
 	}
