@@ -43,6 +43,7 @@ OwlMail is an SMTP server and web interface for development and testing environm
 ### Enhanced Features
 
 - 🆕 **Batch Operations** - Batch delete, batch mark as read
+- 🆕 **Browser Notifications** - Optional live notifications for newly received email
 - 🆕 **Email Statistics** - Get email statistics
 - 🆕 **Email Preview** - Lightweight email preview API
 - 🆕 **Email Export** - Export emails as ZIP files
@@ -183,6 +184,19 @@ docker buildx build \
 ```
 
 **Note**: The Dockerfile now supports multi-architecture builds using `TARGETOS` and `TARGETARCH` build arguments, which are automatically set by Docker Buildx.
+
+### Browser Notifications
+
+Browser notifications are off by default. Click **Notifications off** in the
+inbox header to request permission and enable them. The preference is stored in
+that browser and can be switched off from the same button. Only messages arriving
+through the live WebSocket after notifications are enabled create a notification;
+loading existing messages does not.
+
+The Notifications API requires HTTPS or a trusted local origin such as
+`http://localhost`. If permission was denied, allow OwlMail in the browser's site
+settings before trying again. Notifications show the subject and sender but not
+the message body; clicking one focuses OwlMail and opens the message.
 
 ## 📖 Configuration Options
 

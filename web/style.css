@@ -41,6 +41,8 @@ body {
 
 .header-actions {
     display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
     gap: 10px;
 }
 
@@ -121,6 +123,35 @@ body {
     opacity: 0.5;
     cursor: not-allowed;
     transform: none;
+}
+
+.notification-toggle.is-enabled {
+    background-color: #27ae60;
+}
+
+.notification-toggle {
+    white-space: nowrap;
+}
+
+.notification-toggle.is-blocked {
+    background-color: #d68910;
+}
+
+.notification-status {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1100;
+    max-width: min(420px, calc(100vw - 40px));
+    padding: 12px 16px;
+    border-radius: 6px;
+    background: #2c3e50;
+    color: white;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+}
+
+.notification-status[hidden] {
+    display: none;
 }
 
 /* Main Content */
@@ -467,6 +498,7 @@ body {
     .header-actions {
         width: 100%;
         flex-wrap: wrap;
+        justify-content: flex-start;
     }
 }
 

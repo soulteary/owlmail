@@ -492,6 +492,89 @@ const i18n = {
 // Current language
 let currentLang = 'en';
 
+// Browser notification strings are kept separate from the main UI dictionary
+// so notification behavior remains self-contained.
+const notificationI18n = {
+    'zh-CN': {
+        off: '通知已关闭',
+        on: '通知已开启',
+        blocked: '通知被阻止',
+        unavailable: '通知不可用',
+        deniedHelp: '通知权限已被阻止，请在浏览器的网站设置中允许通知。',
+        unavailableHelp: '浏览器通知需要浏览器支持，并通过 HTTPS 或 localhost 访问。',
+        error: '无法更新浏览器通知设置。',
+        newEmailFrom: '来自 {sender} 的新邮件'
+    },
+    'en': {
+        off: 'Notifications off',
+        on: 'Notifications on',
+        blocked: 'Notifications blocked',
+        unavailable: 'Notifications unavailable',
+        deniedHelp: 'Notification permission is blocked. Allow it in the browser site settings.',
+        unavailableHelp: 'Browser notifications require support and a secure context (HTTPS or localhost).',
+        error: 'Could not update browser notifications.',
+        newEmailFrom: 'New email from {sender}'
+    },
+    'de': {
+        off: 'Benachrichtigungen aus',
+        on: 'Benachrichtigungen an',
+        blocked: 'Benachrichtigungen blockiert',
+        unavailable: 'Benachrichtigungen nicht verfügbar',
+        deniedHelp: 'Benachrichtigungen sind blockiert. Erlauben Sie sie in den Website-Einstellungen des Browsers.',
+        unavailableHelp: 'Browser-Benachrichtigungen benötigen einen sicheren Kontext (HTTPS oder localhost).',
+        error: 'Browser-Benachrichtigungen konnten nicht aktualisiert werden.',
+        newEmailFrom: 'Neue E-Mail von {sender}'
+    },
+    'it': {
+        off: 'Notifiche disattivate',
+        on: 'Notifiche attivate',
+        blocked: 'Notifiche bloccate',
+        unavailable: 'Notifiche non disponibili',
+        deniedHelp: 'Le notifiche sono bloccate. Consentile nelle impostazioni del sito del browser.',
+        unavailableHelp: 'Le notifiche richiedono un contesto sicuro (HTTPS o localhost) e un browser compatibile.',
+        error: 'Impossibile aggiornare le notifiche del browser.',
+        newEmailFrom: 'Nuova email da {sender}'
+    },
+    'fr': {
+        off: 'Notifications désactivées',
+        on: 'Notifications activées',
+        blocked: 'Notifications bloquées',
+        unavailable: 'Notifications indisponibles',
+        deniedHelp: 'Les notifications sont bloquées. Autorisez-les dans les paramètres du site du navigateur.',
+        unavailableHelp: 'Les notifications nécessitent un contexte sécurisé (HTTPS ou localhost) et un navigateur compatible.',
+        error: 'Impossible de mettre à jour les notifications du navigateur.',
+        newEmailFrom: 'Nouvel e-mail de {sender}'
+    },
+    'ko': {
+        off: '알림 꺼짐',
+        on: '알림 켜짐',
+        blocked: '알림 차단됨',
+        unavailable: '알림 사용 불가',
+        deniedHelp: '알림 권한이 차단되었습니다. 브라우저 사이트 설정에서 알림을 허용하세요.',
+        unavailableHelp: '브라우저 알림은 HTTPS 또는 localhost의 보안 컨텍스트와 브라우저 지원이 필요합니다.',
+        error: '브라우저 알림 설정을 변경할 수 없습니다.',
+        newEmailFrom: '{sender} 님이 보낸 새 이메일'
+    },
+    'ja': {
+        off: '通知オフ',
+        on: '通知オン',
+        blocked: '通知がブロックされています',
+        unavailable: '通知を利用できません',
+        deniedHelp: '通知がブロックされています。ブラウザーのサイト設定で許可してください。',
+        unavailableHelp: 'ブラウザー通知には、HTTPS または localhost の安全な接続と対応ブラウザーが必要です。',
+        error: 'ブラウザー通知の設定を変更できませんでした。',
+        newEmailFrom: '{sender} から新しいメール'
+    }
+};
+
+function nt(key, params = {}) {
+    const dictionary = notificationI18n[currentLang] || notificationI18n.en;
+    const translation = dictionary[key] || notificationI18n.en[key] || key;
+    return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
+        return params[paramKey] !== undefined ? params[paramKey] : match;
+    });
+}
+
 // Language code mapping for browser language detection
 const languageCodeMap = {
     'zh': 'zh-CN',
@@ -614,6 +697,7 @@ function setLanguage(lang) {
     localStorage.setItem('language', lang);
     document.documentElement.lang = lang;
     updateUI();
+    if (browserNotificationsInitialized) updateBrowserNotificationButton();
 }
 
 // Global State
@@ -626,6 +710,198 @@ let state = {
     searchQuery: '',
     ws: null
 };
+
+const BROWSER_NOTIFICATION_STORAGE_KEY = 'owlmail.browserNotifications.enabled';
+let browserNotificationsEnabled = false;
+let browserNotificationsInitialized = false;
+let notificationPermissionPending = false;
+let notificationStatusTimer = null;
+
+function browserNotificationsSupported() {
+    return typeof window.Notification === 'function'
+        && typeof window.Notification.requestPermission === 'function'
+        && window.isSecureContext !== false;
+}
+
+function readBrowserNotificationPreference() {
+    try {
+        return localStorage.getItem(BROWSER_NOTIFICATION_STORAGE_KEY) === 'true';
+    } catch (error) {
+        console.warn('Unable to read browser notification preference:', error);
+        return false;
+    }
+}
+
+function storeBrowserNotificationPreference(enabled) {
+    try {
+        localStorage.setItem(BROWSER_NOTIFICATION_STORAGE_KEY, enabled ? 'true' : 'false');
+    } catch (error) {
+        console.warn('Unable to store browser notification preference:', error);
+    }
+}
+
+function getBrowserNotificationState() {
+    if (!browserNotificationsSupported()) return 'unavailable';
+    if (window.Notification.permission === 'denied') return 'blocked';
+    if (window.Notification.permission === 'granted' && browserNotificationsEnabled) return 'enabled';
+    return 'disabled';
+}
+
+function showBrowserNotificationStatus(message) {
+    const status = document.getElementById('notificationStatus');
+    if (!status) return;
+
+    status.textContent = message;
+    status.hidden = false;
+    if (notificationStatusTimer) clearTimeout(notificationStatusTimer);
+    notificationStatusTimer = setTimeout(() => {
+        status.hidden = true;
+        notificationStatusTimer = null;
+    }, 5000);
+}
+
+function updateBrowserNotificationButton() {
+    const button = document.getElementById('notificationToggle');
+    if (!button) return;
+
+    const notificationState = getBrowserNotificationState();
+    const labels = {
+        enabled: { icon: '🔔', text: nt('on'), title: nt('on') },
+        disabled: { icon: '🔕', text: nt('off'), title: nt('off') },
+        blocked: { icon: '🔒', text: nt('blocked'), title: nt('deniedHelp') },
+        unavailable: { icon: '🚫', text: nt('unavailable'), title: nt('unavailableHelp') }
+    };
+    const label = labels[notificationState];
+
+    button.textContent = `${label.icon} ${label.text}`;
+    button.title = label.title;
+    button.disabled = notificationPermissionPending || notificationState === 'unavailable';
+    button.setAttribute('aria-pressed', notificationState === 'enabled' ? 'true' : 'false');
+    button.classList.toggle('is-enabled', notificationState === 'enabled');
+    button.classList.toggle('is-blocked', notificationState === 'blocked');
+}
+
+async function toggleBrowserNotifications() {
+    if (notificationPermissionPending) return;
+
+    if (!browserNotificationsSupported()) {
+        showBrowserNotificationStatus(nt('unavailableHelp'));
+        updateBrowserNotificationButton();
+        return;
+    }
+
+    if (browserNotificationsEnabled && window.Notification.permission === 'granted') {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+        updateBrowserNotificationButton();
+        showBrowserNotificationStatus(nt('off'));
+        return;
+    }
+
+    if (window.Notification.permission === 'denied') {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+        updateBrowserNotificationButton();
+        showBrowserNotificationStatus(nt('deniedHelp'));
+        return;
+    }
+
+    notificationPermissionPending = true;
+    updateBrowserNotificationButton();
+    try {
+        let permission = window.Notification.permission;
+        if (permission === 'default') {
+            const requestedPermission = await window.Notification.requestPermission();
+            permission = requestedPermission || window.Notification.permission;
+        }
+
+        browserNotificationsEnabled = permission === 'granted';
+        storeBrowserNotificationPreference(browserNotificationsEnabled);
+        updateBrowserNotificationButton();
+        showBrowserNotificationStatus(
+            browserNotificationsEnabled ? nt('on') : (permission === 'denied' ? nt('deniedHelp') : nt('off'))
+        );
+    } catch (error) {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+        console.error('Failed to request browser notification permission:', error);
+        showBrowserNotificationStatus(nt('error'));
+    } finally {
+        notificationPermissionPending = false;
+        updateBrowserNotificationButton();
+    }
+}
+
+function synchronizeBrowserNotificationPermission() {
+    if (browserNotificationsSupported()
+        && window.Notification.permission !== 'granted'
+        && browserNotificationsEnabled) {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+    }
+    updateBrowserNotificationButton();
+}
+
+function initializeBrowserNotifications() {
+    const button = document.getElementById('notificationToggle');
+    if (!button) return;
+
+    const savedPreference = readBrowserNotificationPreference();
+    browserNotificationsEnabled = browserNotificationsSupported()
+        && window.Notification.permission === 'granted'
+        && savedPreference;
+    if (browserNotificationsSupported()
+        && window.Notification.permission !== 'granted'
+        && savedPreference) {
+        storeBrowserNotificationPreference(false);
+    }
+
+    button.addEventListener('click', toggleBrowserNotifications);
+    window.addEventListener('focus', synchronizeBrowserNotificationPermission);
+    browserNotificationsInitialized = true;
+    updateBrowserNotificationButton();
+}
+
+function normalizeNotificationText(value, fallback, maxLength) {
+    const normalized = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
+    const text = normalized || fallback;
+    return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function notifyBrowserForEmail(email) {
+    if (!email || !browserNotificationsEnabled || !browserNotificationsSupported()) return;
+    if (window.Notification.permission !== 'granted') {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+        updateBrowserNotificationButton();
+        return;
+    }
+
+    const sender = email.from && email.from.length > 0 && email.from[0]
+        ? formatAddress(email.from[0])
+        : t('unknown');
+    const title = normalizeNotificationText(email.subject, t('noSubject'), 160);
+    const notificationSender = normalizeNotificationText(sender, t('unknown'), 240);
+
+    try {
+        const notification = new window.Notification(title, {
+            body: nt('newEmailFrom', { sender: notificationSender }),
+            tag: email.id ? `owlmail-email-${email.id}` : 'owlmail-new-email',
+            renotify: false
+        });
+        notification.onclick = () => {
+            if (typeof window.focus === 'function') window.focus();
+            notification.close();
+            if (email.id) loadEmailDetail(email.id);
+        };
+    } catch (error) {
+        browserNotificationsEnabled = false;
+        storeBrowserNotificationPreference(false);
+        updateBrowserNotificationButton();
+        console.error('Failed to show browser notification:', error);
+        showBrowserNotificationStatus(nt('error'));
+    }
+}
 
 // Helper function to handle API errors
 async function handleAPIResponse(response) {
@@ -758,6 +1034,7 @@ function handleWebSocketMessage(data) {
         state.total++;
         renderEmailList();
         updateEmailCount();
+        notifyBrowserForEmail(data.email);
     } else if (data.type === 'delete') {
         // Remove deleted email from the list
         state.emails = state.emails.filter(e => e.id !== data.id);
@@ -1269,6 +1546,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Initialize theme
     initTheme();
+
+    // Initialize opt-in browser notifications without prompting on page load.
+    initializeBrowserNotifications();
 
     // Load initial emails
     loadEmails();

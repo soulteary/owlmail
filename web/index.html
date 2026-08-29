@@ -16,6 +16,7 @@
                     <select id="langSelect" class="lang-select" title="Switch Language"></select>
                     <a id="helpBtn" class="btn btn-secondary btn-link" href="/help" target="_blank" rel="noopener">Help</a>
                     <button id="themeToggle" class="btn btn-secondary" title="Toggle Theme">🌙</button>
+                    <button id="notificationToggle" class="btn btn-secondary notification-toggle" type="button" aria-pressed="false" title="Enable browser notifications">🔕 Notifications off</button>
                     <button id="refreshBtn" class="btn btn-primary">Refresh</button>
                     <button id="markAllReadBtn" class="btn btn-secondary">Mark All Read</button>
                     <button id="deleteAllBtn" class="btn btn-danger">Delete All</button>
@@ -55,6 +56,9 @@
             </main>
         </div>
     </div>
+
+    <!-- Browser notification feedback -->
+    <div id="notificationStatus" class="notification-status" role="status" aria-live="polite" hidden></div>
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">
