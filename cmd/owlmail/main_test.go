@@ -314,7 +314,12 @@ func TestRegisterWebhookHandlerDispatchesNewEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	registerWebhookHandler(server, dispatcher)
+	if err := registerWebhookHandler(server, dispatcher, -1); err == nil {
+		t.Fatal("negative webhook concurrency should fail")
+	}
+	if err := registerWebhookHandler(server, dispatcher, 8); err != nil {
+		t.Fatal(err)
+	}
 
 	email := &mailserver.Email{Subject: "Webhook integration"}
 	envelope := &mailserver.Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}}
@@ -329,13 +334,17 @@ func TestRegisterWebhookHandlerDispatchesNewEmail(t *testing.T) {
 }
 
 func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
-	registerWebhookHandler(nil, nil)
+	if err := registerWebhookHandler(nil, nil, 8); err != nil {
+		t.Fatal(err)
+	}
 	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	registerWebhookHandler(server, nil)
+	if err := registerWebhookHandler(server, nil, 8); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSetupAuthConfig(t *testing.T) {

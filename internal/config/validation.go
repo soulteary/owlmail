@@ -64,6 +64,9 @@ func ValidateConfig(cfg *Config) error {
 			return fmt.Errorf("webhook config file: %w", err)
 		}
 	}
+	if cfg.WebhookMaxConcurrency < 0 {
+		return fmt.Errorf("webhook max concurrency must be zero or greater")
+	}
 
 	return nil
 }

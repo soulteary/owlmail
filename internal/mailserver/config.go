@@ -51,7 +51,7 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 		port:         port,
 		host:         host,
 		eventChan:    make(chan Event, 100),
-		listeners:    make(map[string][]func(*types.Email)),
+		listeners:    make(map[string][]eventListener),
 		authConfig:   authConfig,
 		tlsConfig:    tlsConfig,
 		useUUIDForID: useUUIDForID,

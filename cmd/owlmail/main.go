@@ -136,12 +136,12 @@ func setupWebhookDispatcher(cfg *config.Config) (*webhooknotify.Dispatcher, erro
 	return dispatcher, nil
 }
 
-func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhooknotify.Dispatcher) {
+func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhooknotify.Dispatcher, maxConcurrency int) error {
 	if server == nil || dispatcher == nil {
-		return
+		return nil
 	}
 
-	server.On("new", func(email *mailserver.Email) {
+	err := server.OnWithConcurrency("new", maxConcurrency, func(email *mailserver.Email) {
 		for _, result := range dispatcher.Dispatch(context.Background(), email) {
 			if result.Err != nil {
 				common.Error("Webhook delivery to %q failed after %d attempt(s): %v", result.Target, result.Attempts, result.Err)
@@ -150,7 +150,15 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 			common.Verbose("Webhook delivery to %q succeeded with HTTP %d", result.Target, result.StatusCode)
 		}
 	})
-	common.Log("Webhook forwarding enabled with %d target(s)", dispatcher.TargetCount())
+	if err != nil {
+		return fmt.Errorf("register webhook handler: %w", err)
+	}
+	if maxConcurrency == 0 {
+		common.Log("Webhook forwarding enabled with %d target(s), unlimited concurrency", dispatcher.TargetCount())
+	} else {
+		common.Log("Webhook forwarding enabled with %d target(s), concurrency limit %d", dispatcher.TargetCount(), maxConcurrency)
+	}
+	return nil
 }
 
 // startAPIServer creates and starts the API server
@@ -249,7 +257,10 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Register event handlers
 	registerEventHandlers(server)
-	registerWebhookHandler(server, webhookDispatcher)
+	if err := registerWebhookHandler(server, webhookDispatcher, cfg.WebhookMaxConcurrency); err != nil {
+		_ = server.Close()
+		return nil, err
+	}
 
 	return server, nil
 }
