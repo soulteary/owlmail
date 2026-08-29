@@ -41,6 +41,7 @@
                     <a href="#en-quick-start">Quick start</a>
                     <a href="#en-workflow">Inbox workflow</a>
                     <a href="#en-config">Configuration</a>
+                    <a href="#en-notifications-webhooks">Notifications &amp; webhooks</a>
                     <a href="#en-api">API</a>
                     <a href="#en-security">Security</a>
                     <a href="#en-troubleshooting">Troubleshooting</a>
@@ -93,6 +94,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP authentication</td><td><code>-smtp-user</code>, <code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>, <code>OWLMAIL_SMTP_PASSWORD</code></td><td>Disabled</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>, <code>-tls-cert</code>, <code>-tls-key</code></td><td><code>OWLMAIL_TLS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>, <code>-https-cert</code>, <code>-https-key</code></td><td><code>OWLMAIL_HTTPS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
+                                <tr><td>Webhook forwarding</td><td><code>-webhook-config</code></td><td><code>OWLMAIL_WEBHOOK_CONFIG</code></td><td>Disabled</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -103,8 +105,30 @@ SMTP_SECURE=false</code></pre>
   ghcr.io/soulteary/owlmail:latest</code></pre>
                 </section>
 
+                <section id="en-notifications-webhooks" class="help-card">
+                    <div class="section-heading"><span>04</span><h2>Notifications and webhooks</h2></div>
+                    <div class="feature-grid">
+                        <div><h3>Browser notifications</h3><p>Notifications are off by default. Click <strong>Notifications off</strong> in the inbox header to request permission. Only new WebSocket messages received after enabling the preference create notifications; loading existing mail does not.</p></div>
+                        <div><h3>Server-side webhooks</h3><p>Webhook forwarding runs even when no browser is open. Targets can filter mail, send custom JSON or text, add authentication headers and HMAC signatures, and retry transient failures.</p></div>
+                    </div>
+                    <aside class="note"><strong>Browser requirement:</strong> notifications need HTTPS or a trusted local origin such as <code>http://localhost</code>. If permission was denied, allow OwlMail in the browser's site settings first.</aside>
+                    <h3>Minimal webhook configuration</h3>
+                    <pre><code>{
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
+}</code></pre>
+                    <pre><code>./owlmail -webhook-config ./webhooks.json</code></pre>
+                    <p>Omit both <code>-webhook-config</code> and <code>OWLMAIL_WEBHOOK_CONFIG</code> to keep forwarding disabled. Restart OwlMail after changing the file.</p>
+                    <p><a href="https://github.com/soulteary/owlmail/tree/main/examples/webhooks" target="_blank" rel="noopener noreferrer">Open runnable filtering, custom JSON, multi-target, plain-text, and soulteary/webhook examples ↗</a></p>
+                </section>
+
                 <section id="en-api" class="help-card">
-                    <div class="section-heading"><span>04</span><h2>API essentials</h2></div>
+                    <div class="section-heading"><span>05</span><h2>API essentials</h2></div>
                     <div class="endpoint-list">
                         <div><code>GET /api/v1/emails</code><span>List and search messages</span></div>
                         <div><code>GET /api/v1/emails/:id</code><span>Read a message</span></div>
@@ -118,20 +142,23 @@ SMTP_SECURE=false</code></pre>
                 </section>
 
                 <section id="en-security" class="help-card">
-                    <div class="section-heading"><span>05</span><h2>Security checklist</h2></div>
+                    <div class="section-heading"><span>06</span><h2>Security checklist</h2></div>
                     <ul class="checklist">
                         <li>Keep the default loopback binding for local-only development.</li>
                         <li>If exposed to a network, set both web credentials and SMTP credentials; terminate TLS as appropriate.</li>
                         <li>Captured messages can contain credentials, reset links, and personal data. Protect the storage directory and backups.</li>
                         <li>Use development or test messages only. Review recipients carefully before enabling outgoing relay or auto-relay.</li>
+                        <li>Webhook targets receive email content. Use trusted HTTPS endpoints, keep tokens in environment variables, and verify HMAC signatures.</li>
                     </ul>
                 </section>
 
                 <section id="en-troubleshooting" class="help-card">
-                    <div class="section-heading"><span>06</span><h2>Troubleshooting</h2></div>
+                    <div class="section-heading"><span>07</span><h2>Troubleshooting</h2></div>
                     <details><summary>The application cannot connect to SMTP</summary><p>Confirm host and port, check whether OwlMail is bound to the expected interface, and verify Docker port publishing. TLS must match on both sides.</p></details>
                     <details><summary>The inbox is empty after restart</summary><p>Set <code>-mail-directory</code> or <code>OWLMAIL_MAIL_DIR</code>. In Docker, mount a volume at <code>/app/mail</code>.</p></details>
                     <details><summary>Live updates stopped</summary><p>Refresh the page and check that proxies allow WebSocket upgrade requests to <code>/api/v1/ws</code>.</p></details>
+                    <details><summary>Browser notifications are blocked</summary><p>Allow notifications in the browser's site settings, return to OwlMail, and click the notification button again. Confirm the page uses HTTPS or <code>localhost</code>.</p></details>
+                    <details><summary>A webhook receives no request</summary><p>Check startup logs, target matching rules, and container networking. Inside a container, <code>127.0.0.1</code> points to OwlMail itself; use the receiver service name.</p></details>
                     <details><summary>HTML looks different from a real mailbox</summary><p>OwlMail previews captured HTML in an isolated frame. Email clients apply different CSS and security rules, so validate important templates in target clients too.</p></details>
                 </section>
             </article>
@@ -141,6 +168,7 @@ SMTP_SECURE=false</code></pre>
                     <a href="#zh-quick-start">快速开始</a>
                     <a href="#zh-workflow">收件箱操作</a>
                     <a href="#zh-config">配置</a>
+                    <a href="#zh-notifications-webhooks">通知与 Webhook</a>
                     <a href="#zh-api">API</a>
                     <a href="#zh-security">安全</a>
                     <a href="#zh-troubleshooting">问题排查</a>
@@ -193,6 +221,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP 认证</td><td><code>-smtp-user</code>、<code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>、<code>OWLMAIL_SMTP_PASSWORD</code></td><td>关闭</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>、证书和私钥参数</td><td><code>OWLMAIL_TLS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>、证书和私钥参数</td><td><code>OWLMAIL_HTTPS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
+                                <tr><td>Webhook 转发</td><td><code>-webhook-config</code></td><td><code>OWLMAIL_WEBHOOK_CONFIG</code></td><td>关闭</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -203,8 +232,30 @@ SMTP_SECURE=false</code></pre>
   ghcr.io/soulteary/owlmail:latest</code></pre>
                 </section>
 
+                <section id="zh-notifications-webhooks" class="help-card">
+                    <div class="section-heading"><span>04</span><h2>通知与 Webhook</h2></div>
+                    <div class="feature-grid">
+                        <div><h3>浏览器通知</h3><p>通知默认关闭。点击收件箱顶部的<strong>通知已关闭</strong>后，浏览器才会请求权限。只有启用后通过 WebSocket 实时到达的新邮件会通知，加载已有邮件不会通知。</p></div>
+                        <div><h3>服务端 Webhook</h3><p>即使没有打开浏览器，Webhook 转发也会运行。目标支持过滤邮件、发送自定义 JSON 或文本、添加鉴权请求头与 HMAC 签名，并对临时故障进行有限重试。</p></div>
+                    </div>
+                    <aside class="note"><strong>浏览器要求：</strong>通知需要 HTTPS 或 <code>http://localhost</code> 等受信任的本地来源。如果曾拒绝权限，应先在浏览器的网站设置中允许 OwlMail。</aside>
+                    <h3>最小 Webhook 配置</h3>
+                    <pre><code>{
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
+}</code></pre>
+                    <pre><code>./owlmail -webhook-config ./webhooks.json</code></pre>
+                    <p>同时省略 <code>-webhook-config</code> 和 <code>OWLMAIL_WEBHOOK_CONFIG</code> 时，转发保持关闭。修改文件后需要重启 OwlMail。</p>
+                    <p><a href="https://github.com/soulteary/owlmail/tree/main/examples/webhooks" target="_blank" rel="noopener noreferrer">打开可运行的过滤、自定义 JSON、多目标、纯文本和 soulteary/webhook 联动示例 ↗</a></p>
+                </section>
+
                 <section id="zh-api" class="help-card">
-                    <div class="section-heading"><span>04</span><h2>常用 API</h2></div>
+                    <div class="section-heading"><span>05</span><h2>常用 API</h2></div>
                     <div class="endpoint-list">
                         <div><code>GET /api/v1/emails</code><span>列出和搜索邮件</span></div>
                         <div><code>GET /api/v1/emails/:id</code><span>读取单封邮件</span></div>
@@ -218,20 +269,23 @@ SMTP_SECURE=false</code></pre>
                 </section>
 
                 <section id="zh-security" class="help-card">
-                    <div class="section-heading"><span>05</span><h2>安全检查清单</h2></div>
+                    <div class="section-heading"><span>06</span><h2>安全检查清单</h2></div>
                     <ul class="checklist">
                         <li>仅用于本地开发时，保留默认的回环地址监听。</li>
                         <li>暴露到网络时，同时设置 Web 和 SMTP 凭据，并按场景启用或终止 TLS。</li>
                         <li>捕获的邮件可能包含凭据、重置链接和个人信息，请保护存储目录及备份。</li>
                         <li>只处理开发或测试邮件；开启外发转发或自动转发前，请仔细检查收件人。</li>
+                        <li>Webhook 目标会收到邮件内容；应使用可信 HTTPS 端点、通过环境变量保存 Token，并校验 HMAC 签名。</li>
                     </ul>
                 </section>
 
                 <section id="zh-troubleshooting" class="help-card">
-                    <div class="section-heading"><span>06</span><h2>问题排查</h2></div>
+                    <div class="section-heading"><span>07</span><h2>问题排查</h2></div>
                     <details><summary>应用无法连接 SMTP</summary><p>确认主机和端口，检查 OwlMail 是否监听预期网卡，并核对 Docker 端口映射。客户端和服务端的 TLS 设置必须一致。</p></details>
                     <details><summary>重启后收件箱为空</summary><p>设置 <code>-mail-directory</code> 或 <code>OWLMAIL_MAIL_DIR</code>。在 Docker 中，需要把数据卷挂载到 <code>/app/mail</code>。</p></details>
                     <details><summary>实时更新停止</summary><p>刷新页面，并确认代理允许 <code>/api/v1/ws</code> 的 WebSocket 升级请求。</p></details>
+                    <details><summary>浏览器通知被阻止</summary><p>先在浏览器的网站设置中允许通知，返回 OwlMail 后再次点击通知按钮，并确认页面使用 HTTPS 或 <code>localhost</code>。</p></details>
+                    <details><summary>Webhook 没有收到请求</summary><p>检查启动日志、目标匹配规则和容器网络。容器内的 <code>127.0.0.1</code> 指向 OwlMail 自身，应使用接收器的服务名。</p></details>
                     <details><summary>HTML 与真实邮箱显示不同</summary><p>OwlMail 在隔离框架中预览捕获的 HTML。不同邮件客户端会应用不同的 CSS 和安全规则，重要模板仍应在目标客户端中验证。</p></details>
                 </section>
             </article>

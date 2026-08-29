@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "all-messages",
+      "url": "http://127.0.0.1:18080/archive"
+    },
+    {
+      "name": "critical-alerts",
+      "url": "http://127.0.0.1:18080/incidents",
+      "retries": 2,
+      "match": {
+        "to": ["ops@*"],
+        "subject": ["*critical*", "*outage*"]
+      },
+      "bodyTemplate": "{\"severity\":\"critical\",\"emailId\":{{ json .ID }},\"title\":{{ json .Subject }},\"message\":{{ json (truncate .Text 2000) }}}"
+    }
+  ]
+}

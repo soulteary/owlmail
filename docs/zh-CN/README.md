@@ -22,6 +22,7 @@
 
 - **[Webhook 消息转发](./Webhook-Forwarding.md)**
   - 配置邮件过滤、自定义消息模板、HMAC 签名、失败重试，以及与 `soulteary/webhook` 的对接。
+  - **可运行示例**：[最小、过滤、自定义、多目标、纯文本与 Compose 联动](../../examples/webhooks/README.zh-CN.md)
   - **其他语言**：[English](../en/Webhook-Forwarding.md)
 
 - **[OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**

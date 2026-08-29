@@ -4,10 +4,23 @@ OwlMail 可以把符合规则的新邮件发送到一个或多个 HTTP 端点。
 
 ## 开启转发
 
-创建 JSON 配置文件，并在启动时传给 OwlMail：
+最小有效配置只需要目标名称和 HTTP(S) 地址：
+
+```json
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
+}
+```
+
+保存配置，并在启动时传给 OwlMail：
 
 ```bash
-export OWLMAIL_WEBHOOK_SECRET='请替换为随机密钥'
 ./owlmail -webhook-config ./webhooks.json
 ```
 
@@ -17,7 +30,23 @@ export OWLMAIL_WEBHOOK_SECRET='请替换为随机密钥'
 export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 ```
 
-完整示例见 [`examples/webhooks.json`](../../examples/webhooks.json)。
+没有设置参数或环境变量时，Webhook 转发保持关闭。配置只在启动时校验一次；
+修改文件后需要重启 OwlMail。
+
+## 选择可运行示例
+
+| 场景 | 配置 |
+|---|---|
+| 使用默认请求体转发所有新邮件 | [`examples/webhooks/minimal.json`](../../examples/webhooks/minimal.json) |
+| 按收件人和主题过滤 | [`examples/webhooks/filtered-alerts.json`](../../examples/webhooks/filtered-alerts.json) |
+| 带鉴权的自定义 JSON 和 HMAC | [`examples/webhooks/custom-json.json`](../../examples/webhooks/custom-json.json) |
+| 全量归档与事故目标多路分发 | [`examples/webhooks/multiple-targets.json`](../../examples/webhooks/multiple-targets.json) |
+| 纯文本请求体 | [`examples/webhooks/plain-text.json`](../../examples/webhooks/plain-text.json) |
+| 完整 OwlMail + `soulteary/webhook` Compose 联动 | [`examples/webhooks/soulteary-webhook/`](../../examples/webhooks/soulteary-webhook/) |
+| 单个目标展示大部分参数 | [`examples/webhooks.json`](../../examples/webhooks.json) |
+
+[示例操作指南](../../examples/webhooks/README.zh-CN.md)包含仅监听本机的接收器、
+完整启动命令和测试 SMTP 邮件。
 
 ## 配置格式
 
@@ -52,10 +81,10 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 |---|---:|---|
 | `version` | 否 | 配置版本；省略或设置为 `1` 都表示版本 1。 |
 | `targets` | 是 | 1～32 个目标，目标名称必须唯一。 |
-| `name` | 是 | 仅用于日志的安全标识；完整 URL 和配置密钥不会写入日志。 |
-| `url` | 是 | 固定的 `http` 或 `https` 地址；不会跟随重定向。 |
+| `name` | 是 | 仅用于日志的安全标识，最长 100 字符且不能包含换行；完整 URL 和配置密钥不会写入日志。 |
+| `url` | 是 | 固定的 `http` 或 `https` 地址；拒绝用户信息和片段，不会跟随重定向。 |
 | `method` | 否 | 默认 `POST`，支持 `POST`、`PUT`、`PATCH`。 |
-| `headers` | 否 | 静态请求头；不能覆盖 `Host` 和 `Content-Length`。 |
+| `headers` | 否 | 静态请求头；名称和值会被校验，不能覆盖 `Host` 和 `Content-Length`。 |
 | `contentType` | 否 | 默认 `application/json`；显式 `Content-Type` 请求头优先。 |
 | `secret` | 否 | 对最终请求体生成 `X-OwlMail-Signature: sha256=<hex>`。 |
 | `timeout` | 否 | 每次请求的超时，默认 `5s`，最大 `1m`。 |
@@ -65,15 +94,32 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 
 `url`、请求头值和 `secret` 支持 `${VARIABLE}` 占位符。如果变量不存在，OwlMail 会在启动阶段报错，不会静默发送缺少鉴权信息的请求。
 
+只有带花括号的 `${VARIABLE}` 会展开，`$VARIABLE` 会作为普通文本。环境变量
+不会展开到 `name`、`contentType`、匹配规则或 `bodyTemplate`。
+
+### 校验与限制
+
+- 配置文件最大 1 MiB，只能包含一个 JSON 值，并拒绝未知字段；
+- 版本 1 支持 1～32 个名称唯一的目标；
+- 模板渲染后的请求体最大 2 MiB，超出时不会发出 HTTP 请求；
+- 单次超时必须大于零且不超过一分钟，默认每次尝试五秒；
+- `retries` 表示额外尝试次数，例如 `2` 表示最多请求三次；
+- SMTP 和 Web 服务启动前，会先编译全部目标与模板，因此错误配置不会造成部分启用。
+
 ## 匹配规则
 
-`from`、`to`、`subject`、`text` 支持含 `*`、`?` 的通配符数组：
+`from`、`to`、`subject`、`text` 支持 Go shell 风格通配符数组：`*`、`?`、
+`[a-z]` 等字符组以及 `\` 转义。与 Go 的 `path.Match` 一致，`*` 不匹配 `/`。
 
 - 同一个字段内的多个规则是“或”关系；
 - 多个非空字段之间是“且”关系；
 - 空字段匹配所有邮件；
 - 匹配不区分大小写；
 - `to` 同时检查 SMTP 信封收件人，以及 To、Cc、Bcc 邮件头。
+- `from` 同时检查解析后的 From 地址与 SMTP 信封发件人；
+- `text` 只匹配解析后的纯文本正文，不搜索 HTML 或附件；只有 HTML 的邮件通常
+  没有可匹配的 `text`；
+- 不支持按任意邮件头过滤。如果接收端需要邮件头，可在自定义模板中读取 `.Headers`。
 
 例如，下面的规则只转发来自 `example.com`、主题为告警或验证码、正文包含验证码的邮件：
 
@@ -105,6 +151,10 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 - `join STRINGS SEPARATOR`：连接地址数组；
 - `truncate STRING LENGTH`：按 Unicode 字符数截断文本。
 
+模板使用 `missingkey=error`；映射键不存在或模板执行错误会使该目标发送失败。
+解析后的地址只包含邮箱地址，不包含显示名称。`.Headers` 的值可能是字符串、数组
+或其他解析类型，因此应通过 `json` 传递，不要假设所有值都是字符串。
+
 把邮件内容写进 JSON 时，应始终使用 `json`：
 
 ```json
@@ -116,22 +166,62 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 ```json
 {
   "event": "email.received",
-  "message": "主题和纯文本正文",
+  "message": "示例\n邮件正文",
   "email": {
     "id": "email-id",
+    "time": "2026-08-29T12:00:00Z",
     "subject": "示例",
     "from": ["sender@example.com"],
     "to": ["recipient@example.com"],
-    "text": "邮件正文"
+    "envelopeFrom": "sender@example.com",
+    "envelopeTo": ["recipient@example.com"],
+    "text": "邮件正文",
+    "html": "<p>邮件正文</p>",
+    "size": 123,
+    "sizeHuman": "123 B",
+    "attachments": [
+      {
+        "fileName": "report.txt",
+        "contentType": "text/plain",
+        "size": 42
+      }
+    ],
+    "attachmentCount": 1
   }
 }
 ```
 
-请求头还会包含 `X-OwlMail-Email-ID`。接收端可用它作为幂等键，处理重试造成的重复请求。
+`cc`、`bcc`、`html`、信封字段和 `attachments` 等可选值为空时会省略。
+默认请求体有意不包含 `headers`，只有显式模板可以读取。附件正文和本地存储路径
+永远不会发送。
+
+## 请求头
+
+| 请求头 | 值 |
+|---|---|
+| `Content-Type` | 目标的 `contentType`，默认为 `application/json`；显式自定义请求头优先。 |
+| `User-Agent` | 默认为 `OwlMail-Webhook/1`，可用自定义请求头覆盖。 |
+| `X-OwlMail-Event` | 固定为 `email.received`。 |
+| `X-OwlMail-Email-ID` | OwlMail 邮件 ID，可作为幂等键。 |
+| `X-OwlMail-Signature` | 只在配置 `secret` 时发送；格式为 `sha256=` 加上对原始请求体计算的十六进制小写 HMAC。 |
+
+重试会使用相同的请求体和邮件 ID。接收端在执行非幂等操作前应先去重。
 
 ## 发送到 `soulteary/webhook`
 
-把目标地址设置为 [`soulteary/webhook`](https://github.com/soulteary/webhook) 提供的 Hook 地址：
+可运行示例会同时启动两个项目，验证 HMAC，把请求字段映射为环境变量，并执行
+一个可以直接观察结果的演示命令：
+
+```bash
+cd examples/webhooks/soulteary-webhook
+export OWLMAIL_WEBHOOK_SECRET='replace-with-a-long-random-secret'
+docker compose up --build
+```
+
+发送测试邮件和查看结果的步骤见[完整联动指南](../../examples/webhooks/soulteary-webhook/README.zh-CN.md)。
+
+手动部署时，把目标地址设置为
+[`soulteary/webhook`](https://github.com/soulteary/webhook) 提供的 Hook 地址：
 
 ```json
 {
@@ -147,9 +237,10 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 }
 ```
 
-对应的 `soulteary/webhook` Hook 配置示例：
+对应的 `soulteary/webhook` Hook 配置如下。这是 Go 模板源文件，在
+`soulteary/webhook -template` 渲染之前有意不是合法 JSON：
 
-```json
+```text
 [
   {
     "id": "owlmail",
@@ -164,7 +255,7 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
     "trigger-rule": {
       "match": {
         "type": "payload-hmac-sha256",
-        "secret": "{{ getenv \"OWLMAIL_WEBHOOK_SECRET\" | js }}",
+        "secret": "{{ getenv "OWLMAIL_WEBHOOK_SECRET" | js }}",
         "parameter": { "source": "header", "name": "X-OwlMail-Signature" }
       }
     }
@@ -172,7 +263,38 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 ]
 ```
 
-Hook 文件使用 `getenv` 时，需要用 `-template` 参数启动 `soulteary/webhook`。两个容器应配置相同的 `OWLMAIL_WEBHOOK_SECRET`。
+Hook 文件使用 `getenv` 时，需要用 `-template` 参数启动 `soulteary/webhook`。
+两个容器应配置相同的 `OWLMAIL_WEBHOOK_SECRET`。
+
+## 发送生命周期与问题排查
+
+1. OwlMail 先解析并保存 SMTP 邮件；
+2. `new` 事件异步启动 Webhook 发送，因此目标缓慢或失败不会改变 SMTP 接收结果；
+3. 同一封邮件命中的目标按照配置顺序依次调用，不同邮件事件可能并发发送；
+4. 2xx 表示目标完成。网络错误、408、425、429 和 5xx 会根据需要等待约
+   100 ms、200 ms、400 ms、800 ms、1.6 s 后重试；不会解析 `Retry-After`；
+5. 其他 3xx/4xx 会立即失败，响应正文不会参与处理。
+
+转发没有持久化发送队列或死信存储。配置的尝试次数耗尽后，OwlMail 会保留邮件并
+记录失败，但重启后不会再次发送该事件。
+
+本地检查时，可在不同终端运行内置接收器和最小配置：
+
+```bash
+go run ./examples/webhooks/receiver
+go run ./cmd/owlmail -webhook-config ./examples/webhooks/minimal.json
+```
+
+排查建议：
+
+- 启动错误通常来自非法 JSON、未知字段、缺失 `${VARIABLE}`、错误通配符/时长
+  或模板解析失败；
+- 没有收到请求通常表示规则未命中，可暂时移除 `match` 或改用 `minimal.json`；
+- 容器内的 `127.0.0.1` 指向 OwlMail 自身，应使用接收器服务名和容器端口；
+- HTTP 401/403 通常表示自定义 Token 或 HMAC 密钥不同。HMAC 覆盖请求体的精确
+  字节，验证前不要重新格式化请求体；
+- 成功发送记录在 verbose 日志中；失败日志包含安全目标名、状态和尝试次数，
+  不包含完整 URL 或密钥。
 
 ## 运行与安全边界
 
@@ -182,3 +304,7 @@ Hook 文件使用 `getenv` 时，需要用 `-template` 参数启动 `soulteary/w
 - 任意 2xx 都视为成功；重定向和其他非 2xx 响应视为失败；
 - Webhook 发送相对于 SMTP 存储是异步的，发送失败不会拒收或删除邮件；
 - 重试可能造成重复请求，执行非幂等动作前应使用 `email.id` 或 `X-OwlMail-Email-ID` 去重。
+- 默认请求体可能同时包含纯文本和 HTML 正文；接收端只需要标题或验证码时，
+  应使用自定义模板减少数据；
+- Webhook 转发适合通知和自动化，不是可靠消息队列；需要投递保证时，应把目标
+  设置为具备持久化能力的下游服务。

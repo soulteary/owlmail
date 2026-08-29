@@ -426,11 +426,14 @@ EOF
 ### Webhook 消息转发
 
 ```bash
-export OWLMAIL_WEBHOOK_SECRET='请替换为随机密钥'
-./owlmail -webhook-config ./examples/webhooks.json
+# 终端 1：启动本地测试接收器
+go run ./examples/webhooks/receiver
+
+# 终端 2：使用默认 JSON 请求体转发所有新邮件
+./owlmail -webhook-config ./examples/webhooks/minimal.json
 ```
 
-Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义请求体模板、环境变量密钥、HMAC-SHA256 签名、超时和有限重试。完整配置和 `soulteary/webhook` 对接方式见 [Webhook 消息转发指南](./docs/zh-CN/Webhook-Forwarding.md)。
+Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义请求体模板、环境变量密钥、HMAC-SHA256 签名、超时和有限重试。[场景示例](./examples/webhooks/README.zh-CN.md)覆盖过滤、自定义 API、多目标、纯文本和可直接运行的 `soulteary/webhook` 联动；完整参考见 [Webhook 消息转发指南](./docs/zh-CN/Webhook-Forwarding.md)。
 
 ### 使用 HTTPS
 

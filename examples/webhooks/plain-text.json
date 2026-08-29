@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "plain-text-endpoint",
+      "url": "http://127.0.0.1:18080/plain-text",
+      "contentType": "text/plain; charset=utf-8",
+      "bodyTemplate": "Subject: {{ .Subject }}\nFrom: {{ join .From \", \" }}\nTo: {{ join .To \", \" }}\n\n{{ truncate .Text 2000 }}"
+    }
+  ]
+}
