@@ -39,9 +39,9 @@ prima di migrare client API o Socket.IO.
 - ✅ **Inoltro Email** - Supporta l'inoltro di email a server SMTP reali
 - ✅ **Inoltro Automatico** - Supporta l'inoltro automatico di tutte le email con filtri basati su regole
 - ✅ **Inoltro Webhook** - Invia le nuove email corrispondenti a webhook HTTP con modelli di messaggio personalizzati
-- ✅ **Autenticazione SMTP** - Supporta autenticazione PLAIN/LOGIN
+- ⚠️ **Autenticazione SMTP in ingresso** - I parametri esistono, ma i mittenti non autenticati non vengono attualmente rifiutati
 - ✅ **TLS/STARTTLS** - Supporta connessioni crittografate
-- ✅ **SMTPS** - Supporta connessione TLS diretta sulla porta 465 (esclusivo OwlMail)
+- ✅ **SMTPS** - Supporta la connessione TLS diretta sulla porta 465 quando SMTP TLS è abilitato
 
 ### Funzionalità Avanzate
 
@@ -213,13 +213,27 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | File regole inoltro automatico |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | File JSON di configurazione dell'inoltro webhook |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Consegne Webhook simultanee; `0` disabilita il limite |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente autenticazione SMTP |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password autenticazione SMTP |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente SMTP in ingresso; attualmente non applicato |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password SMTP in ingresso; attualmente non applicata |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Abilita TLS SMTP |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | File certificato TLS SMTP |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | File chiave privata TLS SMTP |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Usa UUID per ID email (predefinito: stringa casuale di 8 caratteri) |
+
+Una configurazione incompleta dell’autenticazione Web non viene disabilitata silenziosamente:
+
+| Valori configurati | Credenziali effettive |
+|---|---|
+| Nessuno | Autenticazione disabilitata |
+| Solo nome utente | Il nome utente e una password temporanea casuale crittograficamente sicura di 32 caratteri, stampata una volta su stderr all’avvio |
+| Solo password | Nome utente `admin` e password configurata |
+| Entrambi i valori | Nome utente e password configurati |
+
+Una password generata cambia a ogni riavvio. Leggila dall’output del processo
+(`docker logs owlmail` nell’esempio con container), oppure configura entrambi i
+valori per ottenere credenziali stabili. OwlMail non si avvia se non può scrivere
+la password generata su stderr. Usa Basic Auth solo tramite localhost o HTTPS.
 
 ### Compatibilità Variabili d'Ambiente
 
@@ -430,14 +444,12 @@ EOF
   -web 1080
 ```
 
-### Usa Autenticazione SMTP
+### Limite dell’autenticazione SMTP in ingresso
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` e `-smtp-password` compilano attualmente la configurazione, ma
+> la sessione SMTP non rifiuta i mittenti non autenticati. Isola il listener
+> SMTP tramite binding dell’interfaccia, firewall o tunnel privato.
 
 ### Usa TLS
 
@@ -449,7 +461,7 @@ EOF
   -smtp 1025
 ```
 
-**Nota**: Quando TLS è abilitato, OwlMail avvia automaticamente un server SMTPS sulla porta 465 oltre al server SMTP regolare. Il server SMTPS utilizza una connessione TLS diretta (non è richiesto STARTTLS). Questa è una funzionalità esclusiva di OwlMail.
+**Nota**: Quando TLS è abilitato, OwlMail avvia automaticamente un server SMTPS sulla porta 465 oltre al server SMTP regolare. Il server SMTPS utilizza una connessione TLS diretta (non è richiesto STARTTLS).
 
 ### Usa UUID per ID Email
 
@@ -560,7 +572,11 @@ OwlMail/
 │   ├── maildev/          # Livello compatibilità MailDev
 │   ├── mailserver/       # Implementazione server SMTP
 │   ├── outgoing/         # Implementazione inoltro email
-│   └── types/            # Definizioni di tipo
+│   ├── types/            # Definizioni di tipo
+│   └── webhook/          # Filtri, modelli, firme e consegna Webhook
+├── docs/                 # Documentazione API, operativa, Webhook e migrazione
+├── examples/             # Esempi di integrazione eseguibili
+├── tests/                # Test del browser e del contratto documentale
 ├── web/                  # File frontend web
 ├── go.mod                # Definizione modulo Go
 └── README.md             # Questo documento

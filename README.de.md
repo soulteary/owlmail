@@ -39,9 +39,9 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 - ✅ **E-Mail-Weiterleitung** - Unterstützt Weiterleitung von E-Mails an echte SMTP-Server
 - ✅ **Auto-Relay** - Unterstützt automatische Weiterleitung aller E-Mails mit Regel-Filterung
 - ✅ **Webhook-Weiterleitung** - Sendet passende neue E-Mails mit benutzerdefinierten Nachrichtenvorlagen an HTTP-Webhooks
-- ✅ **SMTP-Authentifizierung** - Unterstützt PLAIN/LOGIN-Authentifizierung
+- ⚠️ **Eingehende SMTP-Authentifizierung** - Konfigurationsparameter sind vorhanden, nicht authentifizierte Absender werden derzeit jedoch nicht abgewiesen
 - ✅ **TLS/STARTTLS** - Unterstützt verschlüsselte Verbindungen
-- ✅ **SMTPS** - Unterstützt direkte TLS-Verbindung auf Port 465 (OwlMail exklusiv)
+- ✅ **SMTPS** - Unterstützt direkte TLS-Verbindung auf Port 465, wenn SMTP-TLS aktiviert ist
 
 ### Erweiterte Funktionen
 
@@ -213,13 +213,28 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto-Relay-Regeldatei |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON-Konfigurationsdatei für Webhook-Weiterleitung |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Gleichzeitige Webhook-Zustellungen; `0` deaktiviert die Begrenzung |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP-Authentifizierungsbenutzername |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP-Authentifizierungspasswort |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Eingehender SMTP-Benutzername; derzeit nicht erzwungen |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Eingehendes SMTP-Passwort; derzeit nicht erzwungen |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | SMTP TLS aktivieren |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS-Zertifikatsdatei |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS-Private-Key-Datei |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Protokollierungsstufe |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | UUID für E-Mail-IDs verwenden (Standard: 8-Zeichen-Zufallszeichenfolge) |
+
+Eine unvollständige Web-Authentifizierung wird nicht stillschweigend deaktiviert:
+
+| Konfigurierte Werte | Effektive Zugangsdaten |
+|---|---|
+| Keine | Authentifizierung deaktiviert |
+| Nur Benutzername | Der Benutzername und ein kryptografisch zufälliges temporäres Passwort mit 32 Zeichen; das Passwort wird beim Start einmal auf stderr ausgegeben |
+| Nur Passwort | Benutzername `admin` und das konfigurierte Passwort |
+| Beide Werte | Der konfigurierte Benutzername und das konfigurierte Passwort |
+
+Ein generiertes Passwort ändert sich bei jedem Neustart. Lesen Sie es aus der
+Prozessausgabe (`docker logs owlmail` beim Container-Beispiel), oder konfigurieren
+Sie beide Werte für stabile Zugangsdaten. OwlMail startet nicht, wenn das
+generierte Passwort nicht auf stderr geschrieben werden kann. Verwenden Sie
+Basic Auth nur über localhost oder HTTPS.
 
 ### Umgebungsvariablen-Kompatibilität
 
@@ -431,14 +446,13 @@ EOF
   -web 1080
 ```
 
-### SMTP-Authentifizierung verwenden
+### Einschränkung der eingehenden SMTP-Authentifizierung
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` und `-smtp-password` füllen derzeit nur die Konfiguration;
+> nicht authentifizierte Absender werden nicht abgewiesen. Schützen Sie den
+> SMTP-Listener durch Interface-Bindung, Firewall-Regeln oder einen privaten
+> Tunnel und verwenden Sie diese Parameter nicht als Zugriffskontrolle.
 
 ### TLS verwenden
 
@@ -450,7 +464,7 @@ EOF
   -smtp 1025
 ```
 
-**Hinweis**: Wenn TLS aktiviert ist, startet OwlMail automatisch zusätzlich zum regulären SMTP-Server einen SMTPS-Server auf Port 465. Der SMTPS-Server verwendet eine direkte TLS-Verbindung (kein STARTTLS erforderlich). Dies ist eine exklusive OwlMail-Funktion.
+**Hinweis**: Wenn TLS aktiviert ist, startet OwlMail automatisch zusätzlich zum regulären SMTP-Server einen SMTPS-Server auf Port 465. Der SMTPS-Server verwendet eine direkte TLS-Verbindung (kein STARTTLS erforderlich).
 
 ### UUID für E-Mail-IDs verwenden
 
@@ -561,7 +575,11 @@ OwlMail/
 │   ├── maildev/          # MailDev-Kompatibilitätsschicht
 │   ├── mailserver/       # SMTP-Server-Implementierung
 │   ├── outgoing/         # E-Mail-Weiterleitungsimplementierung
-│   └── types/            # Typdefinitionen
+│   ├── types/            # Typdefinitionen
+│   └── webhook/          # Webhook-Filterung, Vorlagen, Signaturen und Zustellung
+├── docs/                 # API-, Betriebs-, Webhook- und Migrationsdokumentation
+├── examples/             # Ausführbare Integrationsbeispiele
+├── tests/                # Browser- und Dokumentationsvertragstests
 ├── web/                  # Web-Frontend-Dateien
 ├── go.mod                # Go-Moduldefinition
 └── README.md             # Dieses Dokument

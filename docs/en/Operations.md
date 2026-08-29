@@ -13,9 +13,11 @@ modes. See the [API Reference](./API-Reference.md) and
 ./owlmail
 ```
 
-This listens on localhost by default: SMTP on 1025 and HTTP on 1080. It keeps
-mail in memory unless `-mail-directory` is set. This profile is intended for one
-developer on a trusted machine.
+This listens on localhost by default: SMTP on 1025 and HTTP on 1080. Without
+`-mail-directory`, raw messages and attachments are written under the
+process-specific temporary directory `owlmail-<pid>` while parsed state is held
+in memory. That location is not a durable archive. This profile is intended for
+one developer on a trusted machine.
 
 Readiness check:
 
@@ -65,7 +67,8 @@ docker run -d \
 
 Configure both values for stable automation. A username alone causes OwlMail to
 generate a new password at each process start and print it once to stderr. A
-password alone uses `admin` as the username. Retrieve startup output with:
+password alone uses `admin` as the username. Startup fails if a generated
+password cannot be printed. Retrieve startup output with:
 
 ```bash
 docker logs owlmail
@@ -113,6 +116,25 @@ Verify that the container runtime permits the non-root process to bind port 465.
 If it does not, grant only the required bind-service capability according to the
 runtime's security policy.
 
+## SMTP ingress limits and authentication status
+
+The current SMTP server accepts at most 1 MiB per message and 50 recipients,
+with 10-second read and write timeouts. These values are compiled defaults and
+do not currently have command-line overrides.
+
+> [!WARNING]
+> `-smtp-user` / `-smtp-password` and their environment aliases populate SMTP
+> authentication configuration, but the current SMTP session does **not**
+> reject unauthenticated senders. Do not use these options as an access-control
+> boundary. Keep the SMTP listener on a trusted interface or protect it with
+> network policy, a firewall, or a private tunnel.
+
+For SMTP TLS, OwlMail uses the configured certificate only when both
+`-tls-cert` and `-tls-key` are present; otherwise it generates a self-signed
+certificate and logs a warning. Web HTTPS behaves differently: both
+`-https-cert` and `-https-key` are required, and missing files prevent the Web
+server from starting.
+
 ## Webhook capacity profiles
 
 `-webhook-max-concurrency` is process-wide across all targets and messages.
@@ -140,9 +162,11 @@ of waiting goroutines.
 ```
 
 The limit is not a queue size. When all slots are occupied, new-message event
-processing waits for a slot. Include target timeout and retry duration when
-estimating the worst-case hold time. Monitor receiver latency and error rate
-before raising the limit.
+processing waits for a slot. The message has already been stored, but completion
+of the SMTP `DATA` command can wait until a slot becomes available. This is the
+intentional backpressure that prevents unbounded goroutine growth. Include
+target timeout and retry duration when estimating the worst-case hold time.
+Monitor receiver latency and error rate before raising the limit.
 
 ## Shutdown and delivery guarantees
 
@@ -158,6 +182,16 @@ window. For deployments that require stronger delivery guarantees:
 
 Webhook forwarding is an integration notification mechanism, not a durable
 message queue.
+
+Outgoing relay is also asynchronous. An API success response acknowledges the
+in-process request, not delivery by the downstream SMTP server; inspect logs and
+the destination system when delivery confirmation matters.
+
+Configuration is not yet validated by one uniform startup pass. Individual
+components reject some invalid settings while other values can be normalized or
+fail later during listener setup. Use the documented values, treat startup
+warnings as actionable, and verify both health endpoints and SMTP receipt after
+configuration changes.
 
 ## Backup and upgrade procedure
 
@@ -178,10 +212,12 @@ Use immutable release or commit tags in repeatable environments instead of
 |---|---|
 | Web UI is unreachable | Verify `-web-ip`/`OWLMAIL_WEB_HOST`, port publication, and `/healthz`; inspect startup logs for bind or certificate errors |
 | Browser repeatedly asks for credentials | Confirm the effective username/password; a generated password changes on restart; clear stale browser credentials if needed |
+| SMTP is still open after setting SMTP credentials | Current inbound SMTP authentication is not enforced; isolate the listener with interface binding and network controls |
 | Container is unhealthy with HTTPS | Override the image's HTTP healthcheck with an HTTPS probe and correct certificate trust |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |
 | SMTP works but direct SMTPS does not | Publish port 465, check certificate paths and runtime permission to bind a privileged port |
+| Relay API returned success but no message arrived | The relay is asynchronous; inspect OwlMail logs, outgoing SMTP connectivity, recipient syntax, and receiver logs |
 | Messages disappear after container recreation | Mount a volume at `/app/mail`; an unmounted container filesystem is disposable |
 | API client breaks after MailDev migration | Adapt the `/api` versus `/api/v1` prefix, pagination envelope, explicit read operation, and native WebSocket protocol |
 
@@ -192,4 +228,3 @@ docker logs --tail 200 owlmail
 curl --fail http://localhost:1080/healthz
 curl -u admin:secret http://localhost:1080/api/v1/version
 ```
-

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +24,116 @@ import (
 // so they do not race with logger-kit/zerolog globals when one test's handler runs
 // while another calls InitLogger.
 var loggerEventTestMu sync.Mutex
+
+func TestCompleteWebAuthConfig(t *testing.T) {
+	if _, err := completeWebAuthConfig(nil, nil); err == nil {
+		t.Fatal("nil config should fail")
+	}
+
+	t.Run("both omitted keeps authentication disabled", func(t *testing.T) {
+		cfg := &config.Config{}
+		result, err := completeWebAuthConfig(cfg, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result != (webAuthCompletion{}) || cfg.WebUser != "" || cfg.WebPassword != "" {
+			t.Fatalf("unexpected completion: %#v, config: %#v", result, cfg)
+		}
+	})
+
+	t.Run("username only generates strong password", func(t *testing.T) {
+		randomBytes := bytes.Repeat([]byte{0xab}, generatedWebPasswordBytes)
+		cfg := &config.Config{WebUser: "operator"}
+		result, err := completeWebAuthConfig(cfg, bytes.NewReader(randomBytes))
+		if err != nil {
+			t.Fatal(err)
+		}
+		wantPassword := base64.RawURLEncoding.EncodeToString(randomBytes)
+		if !result.generatedPassword || result.defaultedUsername {
+			t.Fatalf("completion = %#v", result)
+		}
+		if cfg.WebUser != "operator" || cfg.WebPassword != wantPassword || len(cfg.WebPassword) != 32 {
+			t.Fatalf("completed config = %#v", cfg)
+		}
+	})
+
+	t.Run("password only defaults username", func(t *testing.T) {
+		cfg := &config.Config{WebPassword: "configured-secret"}
+		result, err := completeWebAuthConfig(cfg, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.generatedPassword || !result.defaultedUsername {
+			t.Fatalf("completion = %#v", result)
+		}
+		if cfg.WebUser != "admin" || cfg.WebPassword != "configured-secret" {
+			t.Fatalf("completed config = %#v", cfg)
+		}
+	})
+
+	t.Run("complete credentials remain unchanged", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "operator", WebPassword: "configured-secret"}
+		result, err := completeWebAuthConfig(cfg, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result != (webAuthCompletion{}) || cfg.WebUser != "operator" || cfg.WebPassword != "configured-secret" {
+			t.Fatalf("unexpected completion: %#v, config: %#v", result, cfg)
+		}
+	})
+
+	t.Run("random source failure is fatal", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "operator"}
+		if _, err := completeWebAuthConfig(cfg, bytes.NewReader([]byte("short"))); err == nil {
+			t.Fatal("short random source should fail")
+		}
+		if cfg.WebPassword != "" {
+			t.Fatal("failed generation should not set a partial password")
+		}
+	})
+}
+
+func TestReportWebAuthCompletion(t *testing.T) {
+	t.Run("generated password is disclosed", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "operator", WebPassword: "generated-secret"}
+		var output bytes.Buffer
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{generatedPassword: true}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(output.Bytes(), []byte(`user "operator": generated-secret`)) {
+			t.Fatalf("generated credential was not disclosed: %q", output.String())
+		}
+	})
+
+	t.Run("generated password output failure is fatal", func(t *testing.T) {
+		readEnd, writeEnd, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := readEnd.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeEnd.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := &config.Config{WebUser: "operator", WebPassword: "generated-secret"}
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{generatedPassword: true}, writeEnd); err == nil {
+			t.Fatal("writing the only copy of a generated password should fail startup")
+		}
+	})
+
+	t.Run("default username is reported", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "admin", WebPassword: "configured-secret"}
+		var output bytes.Buffer
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{defaultedUsername: true}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(output.Bytes(), []byte(`username to "admin"`)) {
+			t.Fatalf("default username was not reported: %q", output.String())
+		}
+	})
+}
 
 func TestLoadAutoRelayRules(t *testing.T) {
 	// Create temporary directory

@@ -40,9 +40,9 @@ boundary before migrating API or Socket.IO clients.
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to generic HTTP webhooks with custom payload templates
-- ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
+- ⚠️ **Inbound SMTP Authentication** - Configuration flags exist, but unauthenticated senders are not currently rejected
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
-- ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
+- ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
 ### Enhanced Features
 
@@ -232,8 +232,8 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Concurrent email webhook deliveries; `0` disables the limit |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Inbound SMTP username setting; not currently enforced |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Inbound SMTP password setting; not currently enforced |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -243,6 +243,20 @@ the message body; clicking one focuses OwlMail and opens the message.
 When HTTP Basic Auth is enabled, browser API and WebSocket requests are limited
 to OwlMail's own origin. Command-line and server-to-server clients that omit the
 browser `Origin` header continue to work normally.
+
+Web authentication also fails closed when only one credential is configured:
+
+| Configured values | Effective credentials |
+|---|---|
+| Neither value | Authentication disabled |
+| Username only | The username plus a cryptographically random 32-character temporary password, printed once to stderr at startup |
+| Password only | Username `admin` plus the configured password |
+| Both values | The configured username and password |
+
+A generated password changes on every restart. Read it from the process output
+(`docker logs owlmail` for the container example), or configure both values for
+stable credentials. Startup fails if the generated password cannot be written
+to stderr. Basic Auth credentials should only be used over localhost or HTTPS.
 
 ### Environment Variable Compatibility
 
@@ -466,14 +480,13 @@ Webhook targets support case-insensitive wildcard rules, custom JSON-safe body t
   -web 1080
 ```
 
-### Using SMTP Authentication
+### Inbound SMTP Authentication Limitation
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` and `-smtp-password` currently populate configuration, but the
+> SMTP session does not reject unauthenticated senders. Do not expose the SMTP
+> listener to untrusted networks or rely on these flags as an access-control
+> boundary; use interface binding, firewall rules, or a private tunnel.
 
 ### Using TLS
 
@@ -485,7 +498,7 @@ Webhook targets support case-insensitive wildcard rules, custom JSON-safe body t
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required). This is an OwlMail exclusive feature.
+**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
 
 ### Using UUID for Email IDs
 
@@ -596,7 +609,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering, templates, signing, and delivery
+├── docs/                 # API, operations, webhook, and migration documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation contract tests
 ├── web/                  # Embedded web frontend and local help assets
 ├── go.mod                # Go module definition
 └── README.md             # This document

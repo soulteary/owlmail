@@ -11,8 +11,9 @@ protocol compatibility.
 The default base URL is `http://localhost:1080`. JSON is used unless an endpoint
 explicitly returns HTML, plain text, an attachment, an EML file, or a ZIP file.
 
-HTTP Basic Auth is disabled when neither web credential is configured. The
-effective behavior for partial credentials is:
+Configure HTTP Basic Auth with `-web-user` / `OWLMAIL_WEB_USER` and
+`-web-password` / `OWLMAIL_WEB_PASSWORD`. It is disabled when neither web
+credential is configured. The effective behavior for partial credentials is:
 
 | Configuration | Effective credentials |
 |---|---|
@@ -22,10 +23,12 @@ effective behavior for partial credentials is:
 | both values | the configured username and password |
 
 A generated password changes whenever OwlMail restarts. Configure both values
-for stable credentials. The health endpoints remain unauthenticated. When Basic
-Auth is enabled, browser requests carrying an `Origin` header and WebSocket
-upgrades must come from OwlMail's own origin; server-to-server clients that omit
-`Origin` are accepted. Use HTTPS outside a trusted local development machine.
+for stable credentials. Startup fails if that generated password cannot be
+written to stderr, because no recoverable credential would remain. The health
+endpoints remain unauthenticated. When Basic Auth is enabled, browser requests
+carrying an `Origin` header and WebSocket upgrades must come from OwlMail's own
+origin; server-to-server clients that omit `Origin` are accepted. Use HTTPS
+outside a trusted local development machine.
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
@@ -129,8 +132,11 @@ Both batch routes accept:
 | `POST /api/v1/emails/:id/actions/relay` | relay using the message recipients |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
 
-Relay routes require outgoing SMTP configuration. The `relayTo` path value must
-be a valid email address.
+Relay routes require outgoing SMTP configuration. A success response confirms
+that OwlMail accepted the in-process relay request; it does **not** confirm that
+the downstream SMTP server delivered the message. The API does not
+syntactically validate `relayTo` before queueing it, and downstream failures are
+reported in process logs after the HTTP response.
 
 ### Settings and system
 
@@ -148,6 +154,10 @@ The outgoing settings body supports `host`, `port`, `user`, `password`,
 `secure`, `autoRelay`, `autoRelayAddr`, `allowRules`, and `denyRules`. `host` is
 required and `port` must be between 1 and 65535. Changes are in memory; they do
 not rewrite the process flags or environment.
+
+The `smtpAuth` object returned by the settings endpoint reflects configured
+values only. Inbound SMTP authentication is not currently enforced; see
+[Operations](./Operations.md#smtp-ingress-limits-and-authentication-status).
 
 ```bash
 curl -u admin:secret \

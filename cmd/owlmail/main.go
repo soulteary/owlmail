@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,6 +18,52 @@ import (
 	"github.com/soulteary/owlmail/internal/outgoing"
 	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
+
+const generatedWebPasswordBytes = 24
+
+type webAuthCompletion struct {
+	generatedPassword bool
+	defaultedUsername bool
+}
+
+func completeWebAuthConfig(cfg *config.Config, randomSource io.Reader) (webAuthCompletion, error) {
+	if cfg == nil {
+		return webAuthCompletion{}, fmt.Errorf("config is nil")
+	}
+
+	switch {
+	case cfg.WebUser != "" && cfg.WebPassword == "":
+		if randomSource == nil {
+			return webAuthCompletion{}, fmt.Errorf("generate HTTP Basic Auth password: random source is nil")
+		}
+		passwordBytes := make([]byte, generatedWebPasswordBytes)
+		if _, err := io.ReadFull(randomSource, passwordBytes); err != nil {
+			return webAuthCompletion{}, fmt.Errorf("generate HTTP Basic Auth password: %w", err)
+		}
+		cfg.WebPassword = base64.RawURLEncoding.EncodeToString(passwordBytes)
+		return webAuthCompletion{generatedPassword: true}, nil
+	case cfg.WebUser == "" && cfg.WebPassword != "":
+		cfg.WebUser = "admin"
+		return webAuthCompletion{defaultedUsername: true}, nil
+	default:
+		return webAuthCompletion{}, nil
+	}
+}
+
+func reportWebAuthCompletion(cfg *config.Config, completion webAuthCompletion, output io.Writer) error {
+	if completion.generatedPassword {
+		if output == nil {
+			return fmt.Errorf("print generated HTTP Basic Auth password: output is nil")
+		}
+		if _, err := fmt.Fprintf(output, "OwlMail generated a temporary HTTP Basic Auth password for user %q: %s (set -web-password or OWLMAIL_WEB_PASSWORD for a stable password)\n", cfg.WebUser, cfg.WebPassword); err != nil {
+			return fmt.Errorf("print generated HTTP Basic Auth password: %w", err)
+		}
+	}
+	if completion.defaultedUsername && output != nil {
+		_, _ = fmt.Fprintln(output, "OwlMail defaulted the HTTP Basic Auth username to \"admin\" because only a password was configured")
+	}
+	return nil
+}
 
 // parseLogLevel parses log level string and returns LogLevel
 func parseLogLevel(levelStr string) common.LogLevel {
@@ -222,7 +271,11 @@ func initializeApplication(cfg *config.Config) error {
 	}
 	level := parseLogLevel(cfg.LogLevel)
 	common.InitLogger(level)
-	return nil
+	completion, err := completeWebAuthConfig(cfg, rand.Reader)
+	if err != nil {
+		return err
+	}
+	return reportWebAuthCompletion(cfg, completion, os.Stderr)
 }
 
 // createMailServer creates and configures the mail server

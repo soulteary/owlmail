@@ -39,9 +39,9 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 - ✅ **邮件转发** - 支持将邮件转发到真实的 SMTP 服务器
 - ✅ **自动中继** - 支持自动转发所有邮件，带规则过滤
 - ✅ **Webhook 消息转发** - 按规则把新邮件转换为自定义消息并发送到通用 HTTP Webhook
-- ✅ **SMTP 认证** - 支持 PLAIN/LOGIN 认证
+- ⚠️ **入站 SMTP 认证** - 已提供配置参数，但当前不会拒绝未认证发送方
 - ✅ **TLS/STARTTLS** - 支持加密连接
-- ✅ **SMTPS** - 支持端口 465 的直接 TLS 连接（OwlMail 独有）
+- ✅ **SMTPS** - 启用 SMTP TLS 时支持端口 465 的直接 TLS 连接
 
 ### 增强功能
 
@@ -227,8 +227,8 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | 自动中继规则文件 |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | Webhook 消息转发 JSON 配置文件 |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Webhook 邮件并发投递数；`0` 表示不限制 |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP 认证用户名 |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP 认证密码 |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 入站 SMTP 用户名设置；当前未强制执行 |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 入站 SMTP 密码设置；当前未强制执行 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
@@ -237,6 +237,20 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 
 启用 HTTP Basic Auth 后，浏览器 API 与 WebSocket 请求仅允许来自 OwlMail
 自身源。命令行和服务端客户端不携带浏览器 `Origin` 请求头时仍可正常访问。
+
+只配置一项 Web 认证凭据时，OwlMail 也会安全补全，而不会静默关闭认证：
+
+| 已配置内容 | 最终凭据 |
+|---|---|
+| 用户名和密码均未配置 | 关闭认证 |
+| 只配置用户名 | 保留用户名，生成 32 字符密码，并在启动时向 stderr 输出一次 |
+| 只配置密码 | 使用默认用户名 `admin` 和已配置密码 |
+| 用户名和密码均已配置 | 原样使用 |
+
+自动生成的密码会在每次重启后变化。可从进程输出中读取（容器示例使用
+`docker logs owlmail`），需要稳定凭据时应同时配置用户名和密码；如果无法将
+自动生成的密码写入 stderr，OwlMail 会启动失败。Basic Auth 只应在 localhost
+或 HTTPS 上使用。
 
 ### 环境变量兼容性
 
@@ -458,14 +472,12 @@ Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义�
   -web 1080
 ```
 
-### 使用 SMTP 认证
+### 入站 SMTP 认证限制
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` 与 `-smtp-password` 当前只会写入配置，SMTP 会话不会拒绝未认证
+> 发送方。不要把 SMTP 监听器暴露给不可信网络，也不要把这些参数当成访问控制
+> 边界；请使用接口绑定、防火墙规则或私有隧道进行隔离。
 
 ### 使用 TLS
 
@@ -477,7 +489,7 @@ Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义�
   -smtp 1025
 ```
 
-**注意**：启用 TLS 时，OwlMail 会自动在 465 端口启动 SMTPS 服务器，除了常规 SMTP 服务器外。SMTPS 服务器使用直接 TLS 连接（无需 STARTTLS）。这是 OwlMail 的独有功能。
+**注意**：启用 TLS 时，OwlMail 会在常规 SMTP 服务器之外自动监听 465 端口提供 SMTPS。SMTPS 使用直接 TLS 连接（无需 STARTTLS）。
 
 ### 使用 UUID 作为邮件 ID
 
@@ -586,7 +598,11 @@ OwlMail/
 │   ├── maildev/          # MailDev 兼容层
 │   ├── mailserver/       # SMTP 服务器实现
 │   ├── outgoing/         # 邮件转发实现
-│   └── types/            # 类型定义
+│   ├── types/            # 类型定义
+│   └── webhook/          # Webhook 过滤、模板、签名与投递
+├── docs/                 # API、运维、Webhook 与迁移文档
+├── examples/             # 可运行的集成示例
+├── tests/                # 浏览器与文档契约测试
 ├── web/                  # 嵌入式 Web 前端和本地帮助资源
 ├── go.mod                # Go 模块定义
 └── README.md             # 本文档

@@ -9,7 +9,9 @@ MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一
 默认基础地址为 `http://localhost:1080`。除 HTML、纯文本、附件、EML 和 ZIP
 下载端点外，响应均为 JSON。
 
-未配置 Web 用户名和密码时，HTTP Basic Auth 关闭。只配置一项时按下表补全：
+使用 `-web-user` / `OWLMAIL_WEB_USER` 与 `-web-password` /
+`OWLMAIL_WEB_PASSWORD` 配置 HTTP Basic Auth。两项 Web 凭据都未配置时认证
+关闭；只配置一项时按下表补全：
 
 | 配置 | 实际凭据 |
 |---|---|
@@ -18,10 +20,11 @@ MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一
 | 只设置密码 | 使用默认用户名 `admin` 和已配置密码 |
 | 两项都设置 | 使用已配置用户名和密码 |
 
-自动生成的密码会在每次重启时变化；需要固定凭据时请显式配置两项。健康检查
-端点不要求鉴权。启用 Basic Auth 后，携带 `Origin` 的浏览器请求和 WebSocket
-升级必须来自 OwlMail 自身源；不携带 `Origin` 的服务端客户端仍可访问。离开
-可信本地开发环境时应同时启用 HTTPS。
+自动生成的密码会在每次重启时变化；需要固定凭据时请显式配置两项。如果无法
+将该密码写入 stderr，OwlMail 会启动失败，因为此时不存在可恢复的有效凭据。
+健康检查端点不要求鉴权。启用 Basic Auth 后，携带 `Origin` 的浏览器请求和
+WebSocket 升级必须来自 OwlMail 自身源；不携带 `Origin` 的服务端客户端仍可
+访问。离开可信本地开发环境时应同时启用 HTTPS。
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
@@ -124,7 +127,9 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 | `POST /api/v1/emails/:id/actions/relay` | 按邮件原收件人中继 |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | 中继到一个明确地址 |
 
-中继路由要求先配置出站 SMTP；`relayTo` 路径参数必须是有效邮箱地址。
+中继路由要求先配置出站 SMTP。成功响应只表示 OwlMail 接受了进程内中继请求，
+**不表示**下游 SMTP 已经投递邮件。API 在入队前不会对 `relayTo` 做完整邮箱地址
+语法校验；HTTP 响应之后发生的下游错误只会记录到进程日志。
 
 ### 设置与系统
 
@@ -141,6 +146,9 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 出站设置请求体支持 `host`、`port`、`user`、`password`、`secure`、
 `autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。`host` 必填，`port`
 必须在 1 到 65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。
+
+设置端点返回的 `smtpAuth` 对象只反映配置值；当前不会强制执行入站 SMTP 鉴权，
+详见[运维与排障](./Operations.md#smtp-入口限制与鉴权现状)。
 
 ```bash
 curl -u admin:secret \

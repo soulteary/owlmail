@@ -39,9 +39,9 @@ API レスポンスと WebSocket プロトコルは独自です。API や Socket
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
+- ⚠️ **受信 SMTP 認証** - 設定項目はありますが、現在は未認証の送信者を拒否しません
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
-- ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
+- ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
 ### Enhanced Features
 
@@ -213,13 +213,28 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | 同時 Webhook 配信数。`0` は上限なし |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 受信 SMTP ユーザー名。現在は強制されません |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 受信 SMTP パスワード。現在は強制されません |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
+
+Web 認証の設定値が片方だけの場合でも、認証が暗黙に無効になることはありません。
+
+| 設定値 | 実際の認証情報 |
+|---|---|
+| どちらも未設定 | 認証は無効 |
+| ユーザー名のみ | 指定したユーザー名と、暗号学的に安全な 32 文字の一時パスワード。起動時に一度だけ stderr に出力されます |
+| パスワードのみ | ユーザー名 `admin` と指定したパスワード |
+| 両方 | 指定したユーザー名とパスワード |
+
+生成されたパスワードは再起動ごとに変わります。プロセス出力
+（コンテナ例では `docker logs owlmail`）で確認するか、固定した認証情報が
+必要な場合は両方を設定してください。生成したパスワードを stderr に出力
+できない場合、OwlMail は起動に失敗します。Basic Auth は localhost または
+HTTPS 経由でのみ使用してください。
 
 ### Environment Variable Compatibility
 
@@ -429,14 +444,12 @@ EOF
   -web 1080
 ```
 
-### Using SMTP Authentication
+### 受信 SMTP 認証の制限
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` と `-smtp-password` は現在設定を保持するだけで、SMTP
+> セッションは未認証の送信者を拒否しません。信頼できるインターフェース、
+> ファイアウォール、またはプライベートトンネルで SMTP リスナーを隔離してください。
 
 ### Using TLS
 
@@ -448,7 +461,7 @@ EOF
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required). This is an OwlMail exclusive feature.
+**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
 
 ### Using UUID for Email IDs
 
@@ -559,7 +572,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering, templates, signing, and delivery
+├── docs/                 # API, operations, webhook, and migration documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation contract tests
 ├── web/                  # Web frontend files
 ├── go.mod                # Go module definition
 └── README.md             # This document

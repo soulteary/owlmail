@@ -39,9 +39,9 @@ WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO �
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
+- ⚠️ **인바운드 SMTP 인증** - 설정 항목은 있지만 현재 인증되지 않은 발신자를 거부하지 않습니다
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
-- ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
+- ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
 ### Enhanced Features
 
@@ -213,13 +213,28 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | 동시 Webhook 전달 수; `0`은 제한 없음 |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 인바운드 SMTP 사용자 이름; 현재 강제되지 않음 |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 인바운드 SMTP 비밀번호; 현재 강제되지 않음 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
+
+웹 인증 값 중 하나만 설정해도 인증이 조용히 비활성화되지 않습니다.
+
+| 설정된 값 | 실제 자격 증명 |
+|---|---|
+| 둘 다 없음 | 인증 비활성화 |
+| 사용자 이름만 | 지정한 사용자 이름과 암호학적으로 안전한 32자 임시 비밀번호. 시작할 때 stderr에 한 번 출력됩니다 |
+| 비밀번호만 | 사용자 이름 `admin`과 지정한 비밀번호 |
+| 둘 다 | 지정한 사용자 이름과 비밀번호 |
+
+생성된 비밀번호는 재시작할 때마다 바뀝니다. 프로세스 출력(컨테이너
+예제에서는 `docker logs owlmail`)에서 확인하거나, 고정된 자격 증명이
+필요하면 두 값을 모두 설정하세요. 생성된 비밀번호를 stderr에 쓸 수 없으면
+OwlMail은 시작에 실패합니다. Basic Auth는 localhost 또는 HTTPS를 통해서만
+사용하세요.
 
 ### Environment Variable Compatibility
 
@@ -429,14 +444,12 @@ EOF
   -web 1080
 ```
 
-### Using SMTP Authentication
+### 인바운드 SMTP 인증 제한
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user`와 `-smtp-password`는 현재 설정만 채우며 SMTP 세션은 인증되지
+> 않은 발신자를 거부하지 않습니다. 신뢰할 수 있는 인터페이스, 방화벽 규칙 또는
+> 비공개 터널로 SMTP 리스너를 격리하세요.
 
 ### Using TLS
 
@@ -448,7 +461,7 @@ EOF
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required). This is an OwlMail exclusive feature.
+**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
 
 ### Using UUID for Email IDs
 
@@ -559,7 +572,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering, templates, signing, and delivery
+├── docs/                 # API, operations, webhook, and migration documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation contract tests
 ├── web/                  # Web frontend files
 ├── go.mod                # Go module definition
 └── README.md             # This document

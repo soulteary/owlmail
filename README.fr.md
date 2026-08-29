@@ -40,9 +40,9 @@ client API ou Socket.IO.
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
+- ⚠️ **Authentification SMTP entrante** - Les paramètres existent, mais les expéditeurs non authentifiés ne sont actuellement pas refusés
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
-- ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
+- ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
 ### Enhanced Features
 
@@ -214,13 +214,28 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Livraisons Webhook simultanées ; `0` désactive la limite |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nom d’utilisateur SMTP entrant ; pas encore appliqué |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Mot de passe SMTP entrant ; pas encore appliqué |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
+
+Une configuration incomplète de l’authentification Web n’est pas désactivée silencieusement :
+
+| Valeurs configurées | Identifiants effectifs |
+|---|---|
+| Aucune | Authentification désactivée |
+| Nom d’utilisateur uniquement | Le nom d’utilisateur et un mot de passe temporaire aléatoire cryptographiquement sûr de 32 caractères, affiché une fois sur stderr au démarrage |
+| Mot de passe uniquement | Nom d’utilisateur `admin` et mot de passe configuré |
+| Les deux valeurs | Nom d’utilisateur et mot de passe configurés |
+
+Un mot de passe généré change à chaque redémarrage. Consultez la sortie du
+processus (`docker logs owlmail` pour l’exemple avec conteneur), ou configurez
+les deux valeurs pour conserver des identifiants stables. OwlMail ne démarre pas
+si le mot de passe généré ne peut pas être écrit sur stderr. Utilisez Basic Auth
+uniquement via localhost ou HTTPS.
 
 ### Environment Variable Compatibility
 
@@ -431,14 +446,12 @@ EOF
   -web 1080
 ```
 
-### Using SMTP Authentication
+### Limite de l’authentification SMTP entrante
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` et `-smtp-password` renseignent actuellement la configuration,
+> mais la session SMTP ne refuse pas les expéditeurs non authentifiés. Isolez
+> l’écoute SMTP avec une interface de confiance, un pare-feu ou un tunnel privé.
 
 ### Using TLS
 
@@ -450,7 +463,7 @@ EOF
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required). This is an OwlMail exclusive feature.
+**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
 
 ### Using UUID for Email IDs
 
@@ -561,7 +574,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering, templates, signing, and delivery
+├── docs/                 # API, operations, webhook, and migration documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation contract tests
 ├── web/                  # Web frontend files
 ├── go.mod                # Go module definition
 └── README.md             # This document
