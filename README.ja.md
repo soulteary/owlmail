@@ -1,10 +1,10 @@
 # OwlMail
 
-> 🦉 A Go implementation of a mail development and testing tool, fully compatible with MailDev, providing better performance and richer features
+> 🦉 MailDev 風ワークフローと OwlMail 独自 API を備えた Go 製メール開発・テストサーバー
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
@@ -14,7 +14,10 @@
 
 ---
 
-OwlMail is an SMTP server and web interface for development and testing environments that captures and displays all sent emails. It's a Go implementation of [MailDev](https://github.com/maildev/maildev) with 100% API compatibility, while providing better performance, lower resource usage, and richer features.
+OwlMail は開発・テスト環境向けの SMTP サーバーと Web UI です。
+[MailDev](https://github.com/maildev/maildev) の一般的なワークフローを扱いますが、
+API レスポンスと WebSocket プロトコルは独自です。API や Socket.IO クライアントを
+移行する前に、文書化された相違点を確認してください。
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -24,10 +27,7 @@ OwlMail is an SMTP server and web interface for development and testing environm
 
 ## 🎥 デモ動画
 
-<video width="100%" controls>
-  <source src=".github/assets/realtime.mp4" type="video/mp4">
-  お使いのブラウザは動画タグをサポートしていません。
-</video>
+![デモ動画](.github/assets/realtime.gif)
 
 ## ✨ Features
 
@@ -46,25 +46,30 @@ OwlMail is an SMTP server and web interface for development and testing environm
 ### Enhanced Features
 
 - 🆕 **Batch Operations** - Batch delete, batch mark as read
+- 🆕 **ブラウザ通知** - 新着メールの任意リアルタイム通知
 - 🆕 **Email Statistics** - Get email statistics
 - 🆕 **Email Preview** - Lightweight email preview API
 - 🆕 **Email Export** - Export emails as ZIP files
 - 🆕 **Configuration Management API** - Complete configuration management (GET/PUT/PATCH)
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
+- 🆕 **内蔵ヘルプ** - 受信トレイまたは `/help` から開けるローカル二言語ガイド
 
 ### Compatibility
 
-- ✅ **100% MailDev API Compatible** - All MailDev API endpoints are supported
-- ✅ **Environment Variables Fully Compatible** - Prioritizes MailDev environment variables, no configuration changes needed
-- ✅ **Auto Relay Rules Compatible** - JSON configuration file format fully compatible
+- ✅ **MailDev 風ワークフロールート** - 一般的なメール、リレー、設定、ヘルスチェックを提供
+- ✅ **選択された MailDev 環境変数エイリアス** - 対応する `MAILDEV_*` は設定表に記載
+- ✅ **自動リレールール** - MailDev 風 JSON allow/deny ルールをサポート
+- ⚠️ **文書化された相違点** - API プレフィックス、ペイロード、既読状態、リアルタイム通信は同一ではない
 
-### Performance Advantages
+### デプロイ特性
 
-- ⚡ **Single Binary** - Compiled as a single executable, no runtime required
-- ⚡ **Low Resource Usage** - Go compiled, lower memory footprint
-- ⚡ **Fast Startup** - Faster startup time
-- ⚡ **High Concurrency** - Go goroutines, better concurrent performance
+- ⚡ **単一バイナリ** - UI とヘルプを埋め込み
+- ⚡ **言語ランタイム不要** - 配布バイナリは Node.js や Go を必要としない
+- ⚡ **明示的な同時実行制御** - Webhook は上限付き、または意図的に無制限に設定可能
+
+リポジトリには再現可能なプロジェクト間ベンチマークはありません。実際の負荷で
+起動時間、メモリ、スループットを測定してください。
 
 ## 🚀 Quick Start
 
@@ -207,6 +212,7 @@ docker buildx build \
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
+| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | 同時 Webhook 配信数。`0` は上限なし |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
@@ -217,7 +223,8 @@ docker buildx build \
 
 ### Environment Variable Compatibility
 
-OwlMail **fully supports MailDev environment variables**, prioritizing MailDev environment variables, and falling back to OwlMail environment variables if not present. This means you can use MailDev's configuration directly without modification.
+OwlMail は表に記載された MailDev 環境変数エイリアスをサポートし、対応する
+`OWLMAIL_*` より優先します。記載のない MailDev オプションは自動的には使えません。
 
 ```bash
 # Use MailDev environment variables directly (recommended)
@@ -269,9 +276,11 @@ When using the `:id` parameter in API requests, you can use either format. For e
 - `GET /email/aB3dEfGh` - Using random string ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
 
-### MailDev Compatible API
+### MailDev 風互換ルート
 
-OwlMail is fully compatible with all MailDev API endpoints:
+OwlMail は一般的なワークフロー用に非バージョンルートを残していますが、現在の
+MailDev API と完全に同じではありません。
+[API リファレンス](./docs/en/API-Reference.md#maildev-migration-boundary)を参照してください。
 
 #### Email Operations
 
@@ -285,7 +294,7 @@ OwlMail is fully compatible with all MailDev API endpoints:
     - `dateFrom` - Filter by date from (YYYY-MM-DD format)
     - `dateTo` - Filter by date to (YYYY-MM-DD format)
     - `read` - Filter by read status (true/false)
-    - `sortBy` - Sort by field (time, subject)
+    - `sortBy` - Sort by field (time, subject, from, size)
     - `sortOrder` - Sort order (asc, desc, default: desc)
   - Example: `GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - Get single email
@@ -360,7 +369,8 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/health` - Health check
 - `GET /api/v1/ws` - WebSocket connection
 
-For detailed API documentation, including sub-resources (raw, attachments, relay), see: [API Refactoring Record](./docs/ja/internal/API_Refactoring_Record.md)
+サブリソース、認証、レスポンス、WebSocket イベントを含む現在の仕様は
+[API リファレンス](./docs/en/API-Reference.md)を参照してください。
 
 ## 🔧 Usage Examples
 
@@ -472,11 +482,14 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 ## 🔄 Migrating from MailDev
 
-OwlMail is fully compatible with MailDev and can be used as a drop-in replacement:
+OwlMail は一般的な MailDev ワークフローを扱いますが、現在のクライアントには
+明示的な修正が必要な場合があります。
+[移行ガイド](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)に従ってください。
 
 ### 1. Environment Variable Compatibility
 
-OwlMail prioritizes MailDev environment variables, no configuration changes needed:
+OwlMail は設定表に記載された MailDev 変数を受け付けます。実際に使用する変数を
+すべて確認してください：
 
 ```bash
 # MailDev configuration
@@ -484,20 +497,21 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
-# Use OwlMail directly (no need to change environment variables)
+# OwlMail もこれらの記載済み変数を読み取れる
 ./owlmail
 ```
 
 ### 2. API Compatibility
 
-All MailDev API endpoints are supported, existing client code requires no changes:
+API パスとペイロードは異なります。新規連携ではバージョン付き OwlMail API を使い、
+既存クライアントは明示的に修正してください：
 
 ```bash
-# MailDev API
-curl http://localhost:1080/email
+# 現在の MailDev API
+curl http://localhost:1080/api/email
 
-# OwlMail fully compatible
-curl http://localhost:1080/email
+# OwlMail API
+curl http://localhost:1080/api/v1/emails
 ```
 
 ### 3. WebSocket Adaptation
@@ -576,7 +590,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [API Refactoring Record](./docs/ja/internal/API_Refactoring_Record.md)
+- [API リファレンス (English)](./docs/en/API-Reference.md)
+- [運用・トラブルシューティング (English)](./docs/en/Operations.md)
+- [API リファクタリング記録（履歴）](./docs/ja/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
 
@@ -588,4 +604,4 @@ If this project helps you, please give it a Star ⭐!
 
 ---
 
-**OwlMail** - A Go implementation of a mail development and testing tool, fully compatible with MailDev 🦉
+**OwlMail** - MailDev 移行手順を明示した Go 製メール開発・テストサーバー 🦉

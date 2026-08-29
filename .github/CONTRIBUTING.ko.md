@@ -200,7 +200,7 @@ Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) to keep the community fr
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same [MIT License](LICENSE) as the project.
+By contributing, you agree that your contributions will be licensed under the same [MIT License](../LICENSE) as the project.
 
 ---
 

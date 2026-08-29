@@ -1,10 +1,10 @@
 # OwlMail
 
-> 🦉 一个用 Go 语言实现的邮件开发测试工具，完全兼容 MailDev，提供更好的性能和更丰富的功能
+> 🦉 一个用 Go 实现的邮件开发测试服务，支持常见 MailDev 工作流并提供 OwlMail 专属 API
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
@@ -14,7 +14,10 @@
 
 ---
 
-OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，可以捕获和查看所有发送的邮件。它是 [MailDev](https://github.com/maildev/maildev) 的 Go 语言实现，提供 100% API 兼容性，同时带来更好的性能、更低的资源占用和更丰富的功能。
+OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持常见
+[MailDev](https://github.com/maildev/maildev) 工作流，并提供自己的版本化 API、
+原生 WebSocket、Webhook 和浏览器通知。迁移 API 或 Socket.IO 客户端前，请先
+核对文档中的兼容边界。
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -54,16 +57,19 @@ OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，�
 
 ### 兼容性
 
-- ✅ **100% MailDev API 兼容** - 所有 MailDev API 端点都得到支持
-- ✅ **环境变量完全兼容** - 优先使用 MailDev 环境变量，无需修改配置
-- ✅ **自动中继规则兼容** - JSON 配置文件格式完全兼容
+- ✅ **MailDev 风格工作流路由** - 覆盖常用邮件、转发、配置与健康检查流程
+- ✅ **部分 MailDev 环境变量别名** - 支持范围以配置表中的 `MAILDEV_*` 为准
+- ✅ **自动中继规则** - 支持 MailDev 风格 JSON allow/deny 规则
+- ⚠️ **明确记录差异** - API 前缀与载荷、已读副作用、实时协议并不相同
 
-### 性能优势
+### 部署特性
 
-- ⚡ **单一二进制** - 编译为单一可执行文件，无需运行时
-- ⚡ **低资源占用** - Go 语言编译，内存占用更低
-- ⚡ **快速启动** - 启动速度更快
-- ⚡ **高并发** - Go 协程，并发性能更好
+- ⚡ **单一二进制** - UI 与帮助资源均内嵌到可执行文件
+- ⚡ **无需语言运行时** - 部署后的二进制不依赖 Node.js 或 Go
+- ⚡ **明确的并发控制** - Webhook 投递可设置上限，也可显式使用无限并发
+
+仓库目前没有发布可复现的跨项目基准。请按实际邮件量、存储、TLS 和 Webhook
+目标测量启动时间、内存与吞吐，不应直接把实现语言当作容量结论。
 
 ## 🚀 快速开始
 
@@ -234,7 +240,8 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 
 ### 环境变量兼容性
 
-OwlMail **完全支持 MailDev 环境变量**，优先使用 MailDev 环境变量，如果不存在则使用 OwlMail 环境变量。这意味着你可以直接使用 MailDev 的配置，无需修改。
+OwlMail 支持上表列出的 MailDev 环境变量别名，并优先于对应的 `OWLMAIL_*`
+变量；未列出的 MailDev 选项不会自动生效。
 
 ```bash
 # 直接使用 MailDev 环境变量（推荐）
@@ -286,9 +293,10 @@ OwlMail 支持两种邮件 ID 格式，所有 API 端点都兼容这两种格式
 - `GET /email/aB3dEfGh` - 使用随机字符串 ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - 使用 UUID ID
 
-### MailDev 兼容 API
+### MailDev 风格兼容路由
 
-OwlMail 完全兼容 MailDev 的所有 API 端点：
+OwlMail 保留无版本路由以覆盖常见 MailDev 风格工作流，但它们不是当前 MailDev
+API 的精确等价实现；差异见 [API 参考](./docs/zh-CN/API-Reference.md#maildev-迁移边界)。
 
 #### 邮件操作
 
@@ -302,7 +310,7 @@ OwlMail 完全兼容 MailDev 的所有 API 端点：
     - `dateFrom` - 按起始日期过滤（YYYY-MM-DD 格式）
     - `dateTo` - 按结束日期过滤（YYYY-MM-DD 格式）
     - `read` - 按已读状态过滤（true/false）
-    - `sortBy` - 排序字段（time, subject）
+    - `sortBy` - 排序字段（time、subject、from、size）
     - `sortOrder` - 排序顺序（asc, desc，默认: desc）
   - 示例：`GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - 获取单个邮件
@@ -378,7 +386,8 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/version` - 版本信息
 - `GET /api/v1/ws` - WebSocket 连接
 
-详细 API 文档（含原文、附件、转发等子资源与操作路径）请参考：[API 重构记录](./docs/zh-CN/internal/API_Refactoring_Record.md)
+完整的子资源、鉴权、响应结构和 WebSocket 事件见
+[API 参考](./docs/zh-CN/API-Reference.md)。
 
 ## 🔧 使用示例
 
@@ -502,11 +511,12 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 ## 🔄 从 MailDev 迁移
 
-OwlMail 完全兼容 MailDev，可以无缝替换：
+OwlMail 覆盖常见 MailDev 工作流，但当前 MailDev 客户端可能需要少量明确适配。
+请遵循[迁移指南](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)。
 
 ### 1. 环境变量兼容
 
-OwlMail 优先使用 MailDev 环境变量，无需修改配置：
+OwlMail 接受配置表中列出的 MailDev 环境变量；请逐项核对部署实际使用的变量：
 
 ```bash
 # MailDev 配置
@@ -514,20 +524,21 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
-# 直接使用 OwlMail（无需修改环境变量）
+# 上述已列出的变量也可被 OwlMail 读取
 ./owlmail
 ```
 
 ### 2. API 兼容
 
-所有 MailDev API 端点都得到支持，现有客户端代码无需修改：
+当前 MailDev 与 OwlMail 的 API 路径和载荷不同。新集成请使用 OwlMail 版本化
+API，并显式适配现有客户端：
 
 ```bash
-# MailDev API
-curl http://localhost:1080/email
+# 当前 MailDev API
+curl http://localhost:1080/api/email
 
-# OwlMail 完全兼容
-curl http://localhost:1080/email
+# OwlMail API
+curl http://localhost:1080/api/v1/emails
 ```
 
 ### 3. WebSocket 适配
@@ -606,7 +617,9 @@ OwlMail/
 ## 📚 相关文档
 
 - [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [API 重构记录](./docs/zh-CN/internal/API_Refactoring_Record.md)
+- [API 参考](./docs/zh-CN/API-Reference.md)
+- [运维与排障](./docs/zh-CN/Operations.md)
+- [API 重构记录（历史资料）](./docs/zh-CN/internal/API_Refactoring_Record.md)
 
 ## 🐛 问题反馈
 
@@ -618,4 +631,4 @@ OwlMail/
 
 ---
 
-**OwlMail** - 用 Go 语言实现的邮件开发测试工具，完全兼容 MailDev 🦉
+**OwlMail** - 用 Go 实现、提供明确 MailDev 迁移路径的邮件开发测试服务 🦉

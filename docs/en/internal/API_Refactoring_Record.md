@@ -1,8 +1,15 @@
 # API Refactoring Record
 
+> **Historical document.** This record explains an internal route refactor. It
+> is not a current MailDev compatibility contract. Use the
+> [API Reference](../API-Reference.md) for implemented behavior and migration
+> differences.
+
 ## Overview
 
-This document records the API refactoring process of OwlMail, documenting the migration from MailDev-compatible API endpoints to a new RESTful API design (`/api/v1/`). The refactoring maintains full backward compatibility while introducing improved API design patterns.
+This document records the addition of OwlMail's RESTful API design (`/api/v1/`)
+while retaining its pre-existing unversioned routes. Retaining route names does
+not guarantee identical behavior with current MailDev releases.
 
 ## Refactoring Objectives
 
@@ -125,9 +132,9 @@ The refactoring was initiated to address several API design issues:
 
 ## Refactored API Design
 
-### MailDev-Compatible API (Maintained for Backward Compatibility)
+### Legacy-style API (retained for OwlMail clients)
 
-All original MailDev API endpoints are preserved to ensure backward compatibility:
+The unversioned OwlMail routes were retained alongside `/api/v1`:
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -143,7 +150,7 @@ All original MailDev API endpoints are preserved to ensure backward compatibilit
 - `dateFrom` - Filter by date from (YYYY-MM-DD format)
 - `dateTo` - Filter by date to (YYYY-MM-DD format)
 - `read` - Filter by read status (true/false)
-- `sortBy` - Sort by field (time, subject)
+- `sortBy` - Sort by field (time, subject, from, size)
 - `sortOrder` - Sort order (asc, desc, default: desc)
 | GET | `/email/:id/html` | Get email HTML |
 | GET | `/email/:id/attachment/:filename` | Download attachment |
@@ -464,11 +471,12 @@ GET /api/v1/ws
 - ✅ Use lowercase letters and hyphens (kebab-case)
 - ✅ Avoid camelCase naming
 
-## Compatibility Guarantee
+## Route Preservation
 
-While the frontend has been migrated to the new API, the backend still maintains all MailDev-compatible original API endpoints, ensuring:
+While the frontend has been migrated to the new API, the backend still exposes
+the earlier OwlMail routes, enabling:
 
-- ✅ Existing client code can continue using the old API
+- ✅ Existing OwlMail client code can continue using the old route names after behavior is verified
 - ✅ New clients can use the improved API
 - ✅ Both API designs can be used simultaneously
 - ✅ Smooth migration path
@@ -490,19 +498,21 @@ After migration, the following functionality should be tested:
 ## Best Practices
 
 1. **New Projects**: Recommended to use the new `/api/v1/` API
-2. **Existing Projects**: Can continue using MailDev-compatible API, migrate gradually
+2. **Existing Projects**: Can continue using unversioned OwlMail routes and migrate gradually
 3. **Mixed Usage**: Both APIs can be used simultaneously, choose based on needs
 
 ## Summary
 
 Through this API refactoring, we have:
 
-1. ✅ Maintained full backward compatibility (all MailDev APIs are preserved)
+1. ✅ Retained the pre-existing OwlMail route set alongside `/api/v1/`
 2. ✅ Provided a new API design that better conforms to RESTful best practices
 3. ✅ Unified resource naming conventions (using plural forms)
 4. ✅ Improved HTTP method usage (more semantic)
 5. ✅ Added API versioning (support for future evolution)
 6. ✅ Enhanced API readability and maintainability
 
-These improvements make the API more standard and user-friendly while maintaining compatibility with existing systems. The frontend interface has been successfully migrated to the new RESTful API design, with all API calls using the `/api/v1/` prefix and more standard resource naming. This improves code maintainability and extensibility while maintaining full compatibility with the backend.
-
+These improvements make the API more consistent while retaining OwlMail's
+unversioned routes. Exact client compatibility still depends on path prefixes,
+response shapes, side effects, error status, and WebSocket protocol; consult the
+current API reference before migrating.

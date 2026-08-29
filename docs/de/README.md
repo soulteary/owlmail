@@ -1,6 +1,7 @@
 # OwlMail Dokumentation
 
-Willkommen im OwlMail-Dokumentationsverzeichnis. Dieses Verzeichnis enthält technische Dokumentation, Migrationsleitfäden und API-Referenzmaterialien.
+Willkommen im OwlMail-Dokumentationsverzeichnis. Die Dokumente sind nach Sprache
+in eigenen Verzeichnissen organisiert.
 
 ## 📸 Vorschau
 
@@ -10,64 +11,42 @@ Willkommen im OwlMail-Dokumentationsverzeichnis. Dieses Verzeichnis enthält tec
 
 ![Demo-Video](../../.github/assets/realtime.gif)
 
-## 📚 Dokumentationsstruktur
+## 🌍 Sprachen
 
-### Hauptdokumente
+- [English](../en/README.md) | [简体中文](../zh-CN/README.md) | [Deutsch](./README.md) | [Français](../fr/README.md) | [Italiano](../it/README.md) | [日本語](../ja/README.md) | [한국어](../ko/README.md)
 
-- **[Webhook-Weiterleitung](../en/Webhook-Forwarding.md)** (Englisch, [中文](../zh-CN/Webhook-Forwarding.md))
-  - Regeln, benutzerdefinierte Nachrichten, HMAC-Signaturen und die Integration mit `soulteary/webhook` konfigurieren.
+## 📚 Dokumente
 
-- **[OwlMail × MailDev - Vollständiger Funktions- und API-Vergleich sowie Migrations-Whitepaper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)** (Englisch)
-  - [中文版本](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-  - Ein umfassender Vergleich zwischen OwlMail und MailDev, einschließlich API-Kompatibilität, Funktionsparität und Migrationsleitfaden.
+### Betriebsreferenzen
 
-### Interne Dokumentation
+- **[API-Referenz](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
+  - Endpunkte, Authentifizierung, Antwortformate, WebSocket-Ereignisse und
+    dokumentierte MailDev-Unterschiede.
+- **[Betrieb und Fehlerbehebung](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
+  - Bereitstellungsprofile, Persistenz, Sicherheit, TLS, Kapazität und Diagnose.
+- **[Webhook-Weiterleitung](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))
+  - Filter, benutzerdefinierte Payloads, HMAC-Signaturen, Wiederholungen und
+    die Integration mit `soulteary/webhook`.
+- **[Ausführbare Webhook-Beispiele](../../examples/webhooks/README.md)** (English, [中文](../../examples/webhooks/README.zh-CN.md))
 
-- **[API-Refactoring-Aufzeichnung](./internal/API_Refactoring_Record.md)** (Englisch)
-  - [中文版本](../zh-CN/internal/API_Refactoring_Record.md)
-  - Dokumentiert den API-Refactoring-Prozess von MailDev-kompatiblen Endpunkten zum neuen RESTful API-Design (`/api/v1/`).
+### Vergleich und Migration
 
-## 🌍 Mehrsprachige Unterstützung
+- **[OwlMail × MailDev – Vergleich und Migrations-Whitepaper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+  - Diese Übersetzung ist noch unvollständig; für den aktuellen vollständigen
+    Stand siehe [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+    oder [中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
 
-Alle Dokumente folgen der Namenskonvention: `filename.md` (Englisch, Standard) und `filename.LANG.md` für andere Sprachen.
+### Historische interne Dokumentation
 
-### Unterstützte Sprachen
-
-- **English** (`en`) - Standard, kein Sprachcode-Suffix
-- **简体中文** (`zh-CN`) - Chinesisch (Vereinfacht)
-- **Deutsch** (`de`) - Deutsch
-
-### Sprachcode-Format
-
-Die Sprachcodes folgen dem [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1)-Standard:
-- `zh-CN` - Chinesisch (Vereinfacht)
-- `de` - Deutsch
-- `fr` - Französisch (zukünftig)
-- `it` - Italienisch (zukünftig)
-- `ja` - Japanisch (zukünftig)
-- `ko` - Koreanisch (zukünftig)
-
-## 📖 So lesen Sie die Dokumentation
-
-1. **Standardsprache**: Dokumente ohne Sprachcode-Suffix sind auf Englisch (Standard).
-2. **Andere Sprachen**: Dokumente mit Sprachcode-Suffix (z. B. `.zh-CN.md`) sind Übersetzungen.
-3. **Verzeichnisstruktur**: Dokumente sind nach Themen organisiert, interne Dokumentation befindet sich im Unterverzeichnis `internal/`.
+- **[API-Refactoring-Aufzeichnung](./internal/API_Refactoring_Record.md)**
+  - Historische Implementierungsnotizen. Die aktuelle Schnittstelle wird durch
+    die API-Referenz definiert.
 
 ## 🔄 Beitragen
 
-Beim Hinzufügen neuer Dokumentation:
+Neue Dokumente werden zuerst unter `docs/en/` erstellt; Übersetzungen verwenden
+das gleiche Dateinamenschema im jeweiligen Sprachverzeichnis. Aktualisieren Sie
+beim Hinzufügen einer Übersetzung auch [den Hauptindex](../README.md). Weitere
+Hinweise stehen im [Beitragsleitfaden](../../.github/CONTRIBUTING.de.md).
 
-1. Erstellen Sie zuerst die englische Version (Standard, kein Sprachcode).
-2. Fügen Sie Übersetzungen mit dem entsprechenden Sprachcode-Suffix hinzu.
-3. Aktualisieren Sie dieses README, um Links zu neuen Dokumenten aufzunehmen.
-4. Befolgen Sie die bestehenden Namenskonventionen.
-
-## 📝 Dokumentkategorien
-
-- **Migrationsleitfäden**: Helfen Benutzern bei der Migration von MailDev zu OwlMail
-- **API-Dokumentation**: Technische API-Referenz und Refactoring-Aufzeichnungen
-- **Interne Dokumentation**: Entwicklungsnotizen und interne Prozesse
-
----
-
-Weitere Informationen zu OwlMail finden Sie im [Haupt-README](../../README.de.md).
+Weitere Informationen finden Sie im [Haupt-README](../../README.de.md).

@@ -1,10 +1,10 @@
 # OwlMail
 
-> 🦉 A Go implementation of a mail development and testing tool, fully compatible with MailDev, providing better performance and richer features
+> 🦉 A Go mail development and testing server with MailDev-style workflow compatibility and OwlMail-specific APIs
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
@@ -14,7 +14,11 @@
 
 ---
 
-OwlMail is an SMTP server and web interface for development and testing environments that captures and displays all sent emails. It's a Go implementation of [MailDev](https://github.com/maildev/maildev) with 100% API compatibility, while providing better performance, lower resource usage, and richer features.
+OwlMail is an SMTP server and web interface for development and testing
+environments. It supports common [MailDev](https://github.com/maildev/maildev)
+workflows while providing its own versioned API, native WebSocket protocol,
+webhooks, and browser notifications. Review the documented compatibility
+boundary before migrating API or Socket.IO clients.
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -54,16 +58,20 @@ OwlMail is an SMTP server and web interface for development and testing environm
 
 ### Compatibility
 
-- ✅ **100% MailDev API Compatible** - All MailDev API endpoints are supported
-- ✅ **Environment Variables Fully Compatible** - Prioritizes MailDev environment variables, no configuration changes needed
-- ✅ **Auto Relay Rules Compatible** - JSON configuration file format fully compatible
+- ✅ **MailDev-style Workflow Routes** - Common email, relay, configuration, and health workflows have OwlMail routes
+- ✅ **Selected MailDev Environment Aliases** - Supported `MAILDEV_*` names are listed in the configuration table
+- ✅ **Auto Relay Rules** - Supports MailDev-style JSON allow/deny rules
+- ⚠️ **Documented Differences** - API prefixes and payloads, read side effects, and live-event protocols are not identical
 
-### Performance Advantages
+### Deployment Characteristics
 
-- ⚡ **Single Binary** - Compiled as a single executable, no runtime required
-- ⚡ **Low Resource Usage** - Go compiled, lower memory footprint
-- ⚡ **Fast Startup** - Faster startup time
-- ⚡ **High Concurrency** - Go goroutines, better concurrent performance
+- ⚡ **Single Binary** - Compiled executable with the UI and help assets embedded
+- ⚡ **No Language Runtime** - The deployed binary does not require Node.js or Go
+- ⚡ **Explicit Concurrency Controls** - Webhook delivery can be bounded or intentionally unlimited
+
+The repository does not publish a reproducible cross-project benchmark. Measure
+startup, memory, and throughput with your own mail volume, storage, TLS, and
+webhook targets before making capacity claims.
 
 ## 🚀 Quick Start
 
@@ -238,7 +246,9 @@ browser `Origin` header continue to work normally.
 
 ### Environment Variable Compatibility
 
-OwlMail **fully supports MailDev environment variables**, prioritizing MailDev environment variables, and falling back to OwlMail environment variables if not present. This means you can use MailDev's configuration directly without modification.
+OwlMail supports the MailDev environment aliases shown in the table above,
+preferring them over the corresponding `OWLMAIL_*` variables. Options that are
+not listed are not supported automatically.
 
 ```bash
 # Use MailDev environment variables directly (recommended)
@@ -290,9 +300,11 @@ When using the `:id` parameter in API requests, you can use either format. For e
 - `GET /email/aB3dEfGh` - Using random string ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
 
-### MailDev Compatible API
+### MailDev-style Compatibility API
 
-OwlMail is fully compatible with all MailDev API endpoints:
+OwlMail retains unversioned routes for common MailDev-style workflows. They are
+not exact current MailDev API equivalents; see the compatibility boundary in
+the [API reference](./docs/en/API-Reference.md#maildev-migration-boundary).
 
 #### Email Operations
 
@@ -306,7 +318,7 @@ OwlMail is fully compatible with all MailDev API endpoints:
     - `dateFrom` - Filter by date from (YYYY-MM-DD format)
     - `dateTo` - Filter by date to (YYYY-MM-DD format)
     - `read` - Filter by read status (true/false)
-    - `sortBy` - Sort by field (time, subject)
+    - `sortBy` - Sort by field (time, subject, from, size)
     - `sortOrder` - Sort order (asc, desc, default: desc)
   - Example: `GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - Get single email
@@ -382,7 +394,8 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/version` - Version info
 - `GET /api/v1/ws` - WebSocket connection
 
-For detailed API documentation, including sub-resources (raw, attachments, relay), see: [API Refactoring Record](./docs/en/internal/API_Refactoring_Record.md)
+For the current contract, including sub-resources, authentication, response
+shapes, and WebSocket events, see the [API Reference](./docs/en/API-Reference.md).
 
 ## 🔧 Usage Examples
 
@@ -506,11 +519,14 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 ## 🔄 Migrating from MailDev
 
-OwlMail is fully compatible with MailDev and can be used as a drop-in replacement:
+OwlMail covers common MailDev workflows, but current MailDev clients may require
+small, explicit adaptations. Follow the
+[migration guide](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
 
 ### 1. Environment Variable Compatibility
 
-OwlMail prioritizes MailDev environment variables, no configuration changes needed:
+OwlMail accepts the MailDev environment variables listed in the configuration
+table. Verify every variable used by your deployment:
 
 ```bash
 # MailDev configuration
@@ -518,20 +534,21 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
-# Use OwlMail directly (no need to change environment variables)
+# These listed variables can also be read by OwlMail
 ./owlmail
 ```
 
 ### 2. API Compatibility
 
-All MailDev API endpoints are supported, existing client code requires no changes:
+API paths and payloads differ in current MailDev. Use OwlMail's versioned API for
+new integrations and adapt existing clients deliberately:
 
 ```bash
-# MailDev API
-curl http://localhost:1080/email
+# Current MailDev API
+curl http://localhost:1080/api/email
 
-# OwlMail fully compatible
-curl http://localhost:1080/email
+# OwlMail API
+curl http://localhost:1080/api/v1/emails
 ```
 
 ### 3. WebSocket Adaptation
@@ -610,7 +627,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [API Refactoring Record](./docs/en/internal/API_Refactoring_Record.md)
+- [API Reference](./docs/en/API-Reference.md)
+- [Operations and Troubleshooting](./docs/en/Operations.md)
+- [API Refactoring Record (historical)](./docs/en/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
 
@@ -622,4 +641,4 @@ If this project helps you, please give it a Star ⭐!
 
 ---
 
-**OwlMail** - A Go implementation of a mail development and testing tool, fully compatible with MailDev 🦉
+**OwlMail** - A Go mail development and testing server with documented MailDev migration paths 🦉
