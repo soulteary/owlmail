@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -192,6 +193,61 @@ func TestAPISetupRoutes(t *testing.T) {
 	for _, path := range testCases {
 		req, _ := http.NewRequest("GET", path, nil)
 		_, _ = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	}
+}
+
+func TestEmbeddedWebAssets(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	// Embedded assets must not depend on the process being started from the
+	// repository root (for example, after `go install`).
+	t.Chdir(t.TempDir())
+
+	tests := []struct {
+		path        string
+		contentType string
+		contains    string
+	}{
+		{path: "/", contentType: "text/html", contains: `href="/help"`},
+		{path: "/some-page", contentType: "text/html", contains: "OwlMail"},
+		{path: "/help", contentType: "text/html", contains: "OwlMail Help"},
+		{path: "/help/", contentType: "text/html", contains: "快速上手 OwlMail"},
+		{path: "/style.css", contentType: "text/css", contains: ".header"},
+		{path: "/app.js", contentType: "text/javascript", contains: "connectWebSocket"},
+		{path: "/help.css", contentType: "text/css", contains: ".help-shell"},
+		{path: "/help.js", contentType: "text/javascript", contains: "applyLanguage"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, tt.path, nil)
+			if err != nil {
+				t.Fatalf("NewRequest(%q) error: %v", tt.path, err)
+			}
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatalf("GET %s failed: %v", tt.path, err)
+			}
+			body, readErr := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if readErr != nil {
+				t.Fatalf("reading %s response: %v", tt.path, readErr)
+			}
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want %d", tt.path, resp.StatusCode, http.StatusOK)
+			}
+			if got := resp.Header.Get("Content-Type"); !strings.HasPrefix(got, tt.contentType) {
+				t.Errorf("GET %s Content-Type = %q, want prefix %q", tt.path, got, tt.contentType)
+			}
+			if !strings.Contains(string(body), tt.contains) {
+				t.Errorf("GET %s body does not contain %q", tt.path, tt.contains)
+			}
+		})
 	}
 }
 

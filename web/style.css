@@ -90,6 +90,13 @@ body {
     transition: all 0.3s;
 }
 
+.btn-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-decoration: none;
+}
+
 .btn:hover {
     opacity: 0.9;
     transform: translateY(-1px);
@@ -666,4 +673,3 @@ body.dark-theme ::-webkit-scrollbar-thumb {
 body.dark-theme ::-webkit-scrollbar-thumb:hover {
     background: #777;
 }
-

@@ -49,6 +49,7 @@ OwlMail is an SMTP server and web interface for development and testing environm
 - 🆕 **Configuration Management API** - Complete configuration management (GET/PUT/PATCH)
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
+- 🆕 **Built-in Help** - Local bilingual guide available from the inbox or at `/help`
 
 ### Compatibility
 
@@ -102,6 +103,10 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 ./owlmail
 ```
+
+Open `http://localhost:1080` for the inbox. The **Help** button opens the local
+guide at `http://localhost:1080/help`. Both pages and their assets are embedded
+in the executable, so installed binaries do not need a separate `web` folder.
 
 ### Docker Usage
 
@@ -553,7 +558,7 @@ OwlMail/
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
 │   └── types/            # Type definitions
-├── web/                  # Web frontend files
+├── web/                  # Embedded web frontend and local help assets
 ├── go.mod                # Go module definition
 └── README.md             # This document
 ```

@@ -14,6 +14,7 @@ import (
 	"github.com/soulteary/health-kit/v2"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
+	webassets "github.com/soulteary/owlmail/web"
 	"github.com/soulteary/version-kit/v2"
 )
 
@@ -86,9 +87,12 @@ func (api *API) setupRoutes() {
 		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/api/v1/health"))
 	}
 
-	// Static files (web UI)
-	app.Get("/style.css", func(c fiber.Ctx) error { return c.SendFile("./web/style.css") })
-	app.Get("/app.js", func(c fiber.Ctx) error { return c.SendFile("./web/app.js") })
+	// Static files are embedded in the executable so the UI and help page work
+	// regardless of the process working directory.
+	app.Get("/style.css", serveWebAsset("style.css", "text/css; charset=utf-8"))
+	app.Get("/app.js", serveWebAsset("app.js", "text/javascript; charset=utf-8"))
+	app.Get("/help.css", serveWebAsset("help.css", "text/css; charset=utf-8"))
+	app.Get("/help.js", serveWebAsset("help.js", "text/javascript; charset=utf-8"))
 
 	// ============================================================================
 	// MailDev-compatible API routes (maintains backward compatibility)
@@ -100,10 +104,10 @@ func (api *API) setupRoutes() {
 	// ============================================================================
 	api.setupImprovedAPIRoutes(app)
 
-	// Root route - serve index.html
-	app.Get("/", func(c fiber.Ctx) error {
-		return c.SendFile("./web/index.html")
-	})
+	// Browser UI and local help.
+	app.Get("/", serveWebAsset("index.html", "text/html; charset=utf-8"))
+	app.Get("/help", serveWebAsset("help.html", "text/html; charset=utf-8"))
+	app.Get("/help/", serveWebAsset("help.html", "text/html; charset=utf-8"))
 
 	// Serve index.html for all non-API routes (NoRoute equivalent)
 	app.All("*", func(c fiber.Ctx) error {
@@ -114,13 +118,27 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/socket.io") ||
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
-			strings.HasPrefix(path, "/app.js") {
+			strings.HasPrefix(path, "/app.js") ||
+			strings.HasPrefix(path, "/help.css") ||
+			strings.HasPrefix(path, "/help.js") {
 			return c.Next()
 		}
-		return c.SendFile("./web/index.html")
+		return serveWebAsset("index.html", "text/html; charset=utf-8")(c)
 	})
 
 	api.app = app
+}
+
+// serveWebAsset returns a handler for a build-time embedded browser asset.
+func serveWebAsset(name, contentType string) fiber.Handler {
+	return func(c fiber.Ctx) error {
+		content, err := webassets.ReadFile(name)
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).SendString("embedded web asset unavailable")
+		}
+		c.Set(fiber.HeaderContentType, contentType)
+		return c.Send(content)
+	}
 }
 
 // setupImprovedAPIRoutes sets up improved RESTful API routes

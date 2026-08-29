@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en" data-language="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Local OwlMail setup, usage, API, security, and troubleshooting guide.">
+    <title>OwlMail Help</title>
+    <link rel="stylesheet" href="/help.css">
+</head>
+<body class="light-theme">
+    <div class="help-shell">
+        <header class="help-header">
+            <a class="brand" href="/" aria-label="OwlMail inbox">🦉 <span>OwlMail</span></a>
+            <nav class="help-actions" aria-label="Page controls">
+                <label class="sr-only" for="helpLanguage">Language</label>
+                <select id="helpLanguage" class="control" aria-label="Language">
+                    <option value="en">English</option>
+                    <option value="zh-CN">简体中文</option>
+                </select>
+                <button id="helpTheme" class="control icon-button" type="button" aria-label="Toggle theme">🌙</button>
+                <a class="control back-link" href="/">
+                    <span class="lang-copy lang-en">Back to inbox</span>
+                    <span class="lang-copy lang-zh">返回收件箱</span>
+                </a>
+            </nav>
+        </header>
+
+        <main>
+            <section class="hero">
+                <p class="eyebrow">LOCAL GUIDE · 本地指南</p>
+                <h1>
+                    <span class="lang-copy lang-en">Get productive with OwlMail</span>
+                    <span class="lang-copy lang-zh">快速上手 OwlMail</span>
+                </h1>
+                <p class="hero-copy lang-copy lang-en">Everything needed to receive, inspect, persist, and relay development email—served locally by this OwlMail instance.</p>
+                <p class="hero-copy lang-copy lang-zh">接收、检查、持久化和转发开发邮件所需的核心说明，由当前 OwlMail 实例在本地直接提供。</p>
+            </section>
+
+            <article class="language-panel" data-language="en">
+                <nav class="toc" aria-label="On this page">
+                    <a href="#en-quick-start">Quick start</a>
+                    <a href="#en-workflow">Inbox workflow</a>
+                    <a href="#en-config">Configuration</a>
+                    <a href="#en-api">API</a>
+                    <a href="#en-security">Security</a>
+                    <a href="#en-troubleshooting">Troubleshooting</a>
+                </nav>
+
+                <section id="en-quick-start" class="help-card">
+                    <div class="section-heading"><span>01</span><h2>Quick start</h2></div>
+                    <p>OwlMail listens for SMTP on <code>localhost:1025</code> and serves the inbox on <code>http://localhost:1080</code> by default.</p>
+                    <ol class="steps">
+                        <li>
+                            <strong>Point your application at OwlMail.</strong>
+                            <pre><code>SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_SECURE=false</code></pre>
+                        </li>
+                        <li>
+                            <strong>Send a message from your application</strong>, or run this smoke test if your curl build supports SMTP:
+                            <pre><code>printf 'From: dev@example.test\r\nTo: inbox@example.test\r\nSubject: OwlMail test\r\n\r\nHello from OwlMail.\r\n' \
+  | curl --url smtp://localhost:1025 \
+      --mail-from dev@example.test \
+      --mail-rcpt inbox@example.test \
+      --upload-file -</code></pre>
+                        </li>
+                        <li><strong>Open the inbox.</strong> New messages appear live through WebSocket updates.</li>
+                    </ol>
+                    <aside class="note"><strong>Container networking:</strong> another container should use the OwlMail service name, not <code>localhost</code>. A host application connecting to Docker Desktop can continue to use the published port.</aside>
+                </section>
+
+                <section id="en-workflow" class="help-card">
+                    <div class="section-heading"><span>02</span><h2>Inbox workflow</h2></div>
+                    <div class="feature-grid">
+                        <div><h3>Inspect</h3><p>Search messages, view HTML or text bodies, inspect recipient metadata, and download attachments.</p></div>
+                        <div><h3>Debug</h3><p>Use <strong>View Source</strong> for raw headers and MIME structure, or download the original <code>.eml</code>.</p></div>
+                        <div><h3>Manage</h3><p>Mark all messages read, delete one message, or clear the inbox. Deletion is permanent.</p></div>
+                        <div><h3>Relay</h3><p>Configure an outgoing SMTP server before relaying captured messages to a real recipient.</p></div>
+                    </div>
+                </section>
+
+                <section id="en-config" class="help-card">
+                    <div class="section-heading"><span>03</span><h2>Essential configuration</h2></div>
+                    <p>CLI flags take precedence over <code>MAILDEV_*</code> variables, then <code>OWLMAIL_*</code> variables. Restart OwlMail after changing startup configuration.</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>Purpose</th><th>Flag</th><th>Environment</th><th>Default</th></tr></thead>
+                            <tbody>
+                                <tr><td>SMTP listener</td><td><code>-smtp</code>, <code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>, <code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>, <code>localhost</code></td></tr>
+                                <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
+                                <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
+                                <tr><td>Web authentication</td><td><code>-web-user</code>, <code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>, <code>OWLMAIL_WEB_PASSWORD</code></td><td>Disabled</td></tr>
+                                <tr><td>SMTP authentication</td><td><code>-smtp-user</code>, <code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>, <code>OWLMAIL_SMTP_PASSWORD</code></td><td>Disabled</td></tr>
+                                <tr><td>SMTP TLS</td><td><code>-tls</code>, <code>-tls-cert</code>, <code>-tls-key</code></td><td><code>OWLMAIL_TLS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
+                                <tr><td>Web HTTPS</td><td><code>-https</code>, <code>-https-cert</code>, <code>-https-key</code></td><td><code>OWLMAIL_HTTPS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <h3>Persistent Docker example</h3>
+                    <pre><code>docker run -d --name owlmail \
+  -p 1025:1025 -p 1080:1080 \
+  -v owlmail-data:/app/mail \
+  ghcr.io/soulteary/owlmail:latest</code></pre>
+                </section>
+
+                <section id="en-api" class="help-card">
+                    <div class="section-heading"><span>04</span><h2>API essentials</h2></div>
+                    <div class="endpoint-list">
+                        <div><code>GET /api/v1/emails</code><span>List and search messages</span></div>
+                        <div><code>GET /api/v1/emails/:id</code><span>Read a message</span></div>
+                        <div><code>GET /api/v1/emails/:id/raw</code><span>Download the original message</span></div>
+                        <div><code>DELETE /api/v1/emails/:id</code><span>Delete a message</span></div>
+                        <div><code>GET /api/v1/health</code><span>Health check</span></div>
+                        <div><code>GET /api/v1/version</code><span>Build/version information</span></div>
+                        <div><code>GET /api/v1/ws</code><span>Live WebSocket events</span></div>
+                    </div>
+                    <p class="muted">MailDev-compatible endpoints under <code>/email</code>, <code>/config</code>, <code>/healthz</code>, and <code>/socket.io</code> remain available.</p>
+                </section>
+
+                <section id="en-security" class="help-card">
+                    <div class="section-heading"><span>05</span><h2>Security checklist</h2></div>
+                    <ul class="checklist">
+                        <li>Keep the default loopback binding for local-only development.</li>
+                        <li>If exposed to a network, set both web credentials and SMTP credentials; terminate TLS as appropriate.</li>
+                        <li>Captured messages can contain credentials, reset links, and personal data. Protect the storage directory and backups.</li>
+                        <li>Use development or test messages only. Review recipients carefully before enabling outgoing relay or auto-relay.</li>
+                    </ul>
+                </section>
+
+                <section id="en-troubleshooting" class="help-card">
+                    <div class="section-heading"><span>06</span><h2>Troubleshooting</h2></div>
+                    <details><summary>The application cannot connect to SMTP</summary><p>Confirm host and port, check whether OwlMail is bound to the expected interface, and verify Docker port publishing. TLS must match on both sides.</p></details>
+                    <details><summary>The inbox is empty after restart</summary><p>Set <code>-mail-directory</code> or <code>OWLMAIL_MAIL_DIR</code>. In Docker, mount a volume at <code>/app/mail</code>.</p></details>
+                    <details><summary>Live updates stopped</summary><p>Refresh the page and check that proxies allow WebSocket upgrade requests to <code>/api/v1/ws</code>.</p></details>
+                    <details><summary>HTML looks different from a real mailbox</summary><p>OwlMail previews captured HTML in an isolated frame. Email clients apply different CSS and security rules, so validate important templates in target clients too.</p></details>
+                </section>
+            </article>
+
+            <article class="language-panel" data-language="zh-CN" hidden>
+                <nav class="toc" aria-label="本页目录">
+                    <a href="#zh-quick-start">快速开始</a>
+                    <a href="#zh-workflow">收件箱操作</a>
+                    <a href="#zh-config">配置</a>
+                    <a href="#zh-api">API</a>
+                    <a href="#zh-security">安全</a>
+                    <a href="#zh-troubleshooting">问题排查</a>
+                </nav>
+
+                <section id="zh-quick-start" class="help-card">
+                    <div class="section-heading"><span>01</span><h2>快速开始</h2></div>
+                    <p>默认情况下，OwlMail 在 <code>localhost:1025</code> 接收 SMTP 邮件，并在 <code>http://localhost:1080</code> 提供收件箱界面。</p>
+                    <ol class="steps">
+                        <li>
+                            <strong>将应用的 SMTP 指向 OwlMail。</strong>
+                            <pre><code>SMTP_HOST=localhost
+SMTP_PORT=1025
+SMTP_SECURE=false</code></pre>
+                        </li>
+                        <li>
+                            <strong>从应用发送邮件</strong>；如果本机 curl 支持 SMTP，也可以运行以下冒烟测试：
+                            <pre><code>printf 'From: dev@example.test\r\nTo: inbox@example.test\r\nSubject: OwlMail test\r\n\r\nHello from OwlMail.\r\n' \
+  | curl --url smtp://localhost:1025 \
+      --mail-from dev@example.test \
+      --mail-rcpt inbox@example.test \
+      --upload-file -</code></pre>
+                        </li>
+                        <li><strong>打开收件箱。</strong>新邮件会通过 WebSocket 实时出现。</li>
+                    </ol>
+                    <aside class="note"><strong>容器网络：</strong>其他容器应使用 OwlMail 的服务名，而不是 <code>localhost</code>；宿主机应用可继续连接已映射的端口。</aside>
+                </section>
+
+                <section id="zh-workflow" class="help-card">
+                    <div class="section-heading"><span>02</span><h2>收件箱操作</h2></div>
+                    <div class="feature-grid">
+                        <div><h3>检查</h3><p>搜索邮件、查看 HTML 或纯文本正文、检查收件人信息并下载附件。</p></div>
+                        <div><h3>调试</h3><p>通过“查看源码”检查原始邮件头与 MIME 结构，或下载原始 <code>.eml</code>。</p></div>
+                        <div><h3>管理</h3><p>可全部标记为已读、删除单封邮件或清空收件箱。删除后不可恢复。</p></div>
+                        <div><h3>转发</h3><p>需要先配置外发 SMTP，才能把捕获的邮件转发给真实收件人。</p></div>
+                    </div>
+                </section>
+
+                <section id="zh-config" class="help-card">
+                    <div class="section-heading"><span>03</span><h2>核心配置</h2></div>
+                    <p>优先级依次为命令行参数、<code>MAILDEV_*</code> 环境变量、<code>OWLMAIL_*</code> 环境变量。修改启动配置后需要重启 OwlMail。</p>
+                    <div class="table-wrap">
+                        <table>
+                            <thead><tr><th>用途</th><th>参数</th><th>环境变量</th><th>默认值</th></tr></thead>
+                            <tbody>
+                                <tr><td>SMTP 监听</td><td><code>-smtp</code>、<code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>、<code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>、<code>localhost</code></td></tr>
+                                <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
+                                <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
+                                <tr><td>Web 认证</td><td><code>-web-user</code>、<code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>、<code>OWLMAIL_WEB_PASSWORD</code></td><td>关闭</td></tr>
+                                <tr><td>SMTP 认证</td><td><code>-smtp-user</code>、<code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>、<code>OWLMAIL_SMTP_PASSWORD</code></td><td>关闭</td></tr>
+                                <tr><td>SMTP TLS</td><td><code>-tls</code>、证书和私钥参数</td><td><code>OWLMAIL_TLS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
+                                <tr><td>Web HTTPS</td><td><code>-https</code>、证书和私钥参数</td><td><code>OWLMAIL_HTTPS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <h3>Docker 持久化示例</h3>
+                    <pre><code>docker run -d --name owlmail \
+  -p 1025:1025 -p 1080:1080 \
+  -v owlmail-data:/app/mail \
+  ghcr.io/soulteary/owlmail:latest</code></pre>
+                </section>
+
+                <section id="zh-api" class="help-card">
+                    <div class="section-heading"><span>04</span><h2>常用 API</h2></div>
+                    <div class="endpoint-list">
+                        <div><code>GET /api/v1/emails</code><span>列出和搜索邮件</span></div>
+                        <div><code>GET /api/v1/emails/:id</code><span>读取单封邮件</span></div>
+                        <div><code>GET /api/v1/emails/:id/raw</code><span>下载原始邮件</span></div>
+                        <div><code>DELETE /api/v1/emails/:id</code><span>删除单封邮件</span></div>
+                        <div><code>GET /api/v1/health</code><span>健康检查</span></div>
+                        <div><code>GET /api/v1/version</code><span>构建和版本信息</span></div>
+                        <div><code>GET /api/v1/ws</code><span>实时 WebSocket 事件</span></div>
+                    </div>
+                    <p class="muted"><code>/email</code>、<code>/config</code>、<code>/healthz</code> 和 <code>/socket.io</code> 下兼容 MailDev 的接口仍然可用。</p>
+                </section>
+
+                <section id="zh-security" class="help-card">
+                    <div class="section-heading"><span>05</span><h2>安全检查清单</h2></div>
+                    <ul class="checklist">
+                        <li>仅用于本地开发时，保留默认的回环地址监听。</li>
+                        <li>暴露到网络时，同时设置 Web 和 SMTP 凭据，并按场景启用或终止 TLS。</li>
+                        <li>捕获的邮件可能包含凭据、重置链接和个人信息，请保护存储目录及备份。</li>
+                        <li>只处理开发或测试邮件；开启外发转发或自动转发前，请仔细检查收件人。</li>
+                    </ul>
+                </section>
+
+                <section id="zh-troubleshooting" class="help-card">
+                    <div class="section-heading"><span>06</span><h2>问题排查</h2></div>
+                    <details><summary>应用无法连接 SMTP</summary><p>确认主机和端口，检查 OwlMail 是否监听预期网卡，并核对 Docker 端口映射。客户端和服务端的 TLS 设置必须一致。</p></details>
+                    <details><summary>重启后收件箱为空</summary><p>设置 <code>-mail-directory</code> 或 <code>OWLMAIL_MAIL_DIR</code>。在 Docker 中，需要把数据卷挂载到 <code>/app/mail</code>。</p></details>
+                    <details><summary>实时更新停止</summary><p>刷新页面，并确认代理允许 <code>/api/v1/ws</code> 的 WebSocket 升级请求。</p></details>
+                    <details><summary>HTML 与真实邮箱显示不同</summary><p>OwlMail 在隔离框架中预览捕获的 HTML。不同邮件客户端会应用不同的 CSS 和安全规则，重要模板仍应在目标客户端中验证。</p></details>
+                </section>
+            </article>
+        </main>
+
+        <footer>
+            <span class="lang-copy lang-en">Need the complete reference?</span>
+            <span class="lang-copy lang-zh">需要完整参考资料？</span>
+            <a href="https://github.com/soulteary/owlmail/tree/main/docs" target="_blank" rel="noopener noreferrer">
+                <span class="lang-copy lang-en">Open project documentation ↗</span>
+                <span class="lang-copy lang-zh">打开项目文档 ↗</span>
+            </a>
+        </footer>
+    </div>
+    <script src="/help.js"></script>
+</body>
+</html>
