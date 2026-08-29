@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "soulteary-webhook",
+      "url": "http://webhook:9000/hooks/owlmail",
+      "method": "POST",
+      "contentType": "application/json",
+      "secret": "${OWLMAIL_WEBHOOK_SECRET}",
+      "timeout": "5s",
+      "retries": 2,
+      "match": {
+        "subject": ["*alert*", "*verification*", "*验证码*"],
+        "to": ["*"]
+      },
+      "bodyTemplate": "{\"event\":\"email.received\",\"emailId\":{{ json .ID }},\"title\":{{ json .Subject }},\"message\":{{ json .Text }},\"from\":{{ json .From }},\"to\":{{ json .To }},\"receivedAt\":{{ json .Time }}}"
+    }
+  ]
+}

@@ -26,6 +26,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API Refactoring Record](./en/internal/API_Refactoring_Record.md)
+- [Webhook Forwarding](./en/Webhook-Forwarding.md)
 
 ---
 
@@ -37,6 +38,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API 重构记录](./zh-CN/internal/API_Refactoring_Record.md)
+- [Webhook 消息转发](./zh-CN/Webhook-Forwarding.md)
 
 ---
 

@@ -14,6 +14,9 @@ OwlMail ドキュメントディレクトリへようこそ。このディレク
 
 ### メインドキュメント
 
+- **[Webhook 転送](../en/Webhook-Forwarding.md)** (英語、[中文](../zh-CN/Webhook-Forwarding.md))
+  - ルール、カスタムメッセージ、HMAC 署名、`soulteary/webhook` 連携の設定方法。
+
 - **[OwlMail × MailDev - 機能と API の完全比較および移行ホワイトペーパー](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)** (英語)
   - [中文版本](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
   - OwlMail と MailDev の包括的な比較。API 互換性、機能パリティ、移行ガイドを含みます。

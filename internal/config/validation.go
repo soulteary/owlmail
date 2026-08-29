@@ -59,6 +59,11 @@ func ValidateConfig(cfg *Config) error {
 			return fmt.Errorf("auto relay rules file: %w", err)
 		}
 	}
+	if cfg.WebhookConfig != "" {
+		if _, err := ValidatePath(cfg.WebhookConfig); err != nil {
+			return fmt.Errorf("webhook config file: %w", err)
+		}
+	}
 
 	return nil
 }

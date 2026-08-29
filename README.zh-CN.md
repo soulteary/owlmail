@@ -35,6 +35,7 @@ OwlMail 是一个用于开发和测试环境的 SMTP 服务器和 Web 界面，�
 - ✅ **邮件持久化** - 邮件保存为 `.eml` 文件，支持从目录加载
 - ✅ **邮件转发** - 支持将邮件转发到真实的 SMTP 服务器
 - ✅ **自动中继** - 支持自动转发所有邮件，带规则过滤
+- ✅ **Webhook 消息转发** - 按规则把新邮件转换为自定义消息并发送到通用 HTTP Webhook
 - ✅ **SMTP 认证** - 支持 PLAIN/LOGIN 认证
 - ✅ **TLS/STARTTLS** - 支持加密连接
 - ✅ **SMTPS** - 支持端口 465 的直接 TLS 连接（OwlMail 独有）
@@ -202,6 +203,7 @@ docker buildx build \
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | 启用自动中继 |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | 自动中继地址 |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | 自动中继规则文件 |
+| `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | Webhook 消息转发 JSON 配置文件 |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP 认证用户名 |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP 认证密码 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
@@ -404,6 +406,15 @@ EOF
   -auto-relay \
   -auto-relay-rules relay-rules.json
 ```
+
+### Webhook 消息转发
+
+```bash
+export OWLMAIL_WEBHOOK_SECRET='请替换为随机密钥'
+./owlmail -webhook-config ./examples/webhooks.json
+```
+
+Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义请求体模板、环境变量密钥、HMAC-SHA256 签名、超时和有限重试。完整配置和 `soulteary/webhook` 对接方式见 [Webhook 消息转发指南](./docs/zh-CN/Webhook-Forwarding.md)。
 
 ### 使用 HTTPS
 

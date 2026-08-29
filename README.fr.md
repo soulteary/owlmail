@@ -38,6 +38,7 @@ OwlMail is an SMTP server and web interface for development and testing environm
 - ✅ **Email Persistence** - Emails saved as `.eml` files, supports loading from directory
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
+- ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
 - ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
 - ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
@@ -205,6 +206,7 @@ docker buildx build \
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Enable auto relay |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
+| `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |

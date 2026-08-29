@@ -38,6 +38,7 @@ OwlMail è un server SMTP e un'interfaccia web per ambienti di sviluppo e test c
 - ✅ **Persistenza Email** - Le email vengono salvate come file `.eml`, supporta il caricamento da directory
 - ✅ **Inoltro Email** - Supporta l'inoltro di email a server SMTP reali
 - ✅ **Inoltro Automatico** - Supporta l'inoltro automatico di tutte le email con filtri basati su regole
+- ✅ **Inoltro Webhook** - Invia le nuove email corrispondenti a webhook HTTP con modelli di messaggio personalizzati
 - ✅ **Autenticazione SMTP** - Supporta autenticazione PLAIN/LOGIN
 - ✅ **TLS/STARTTLS** - Supporta connessioni crittografate
 - ✅ **SMTPS** - Supporta connessione TLS diretta sulla porta 465 (esclusivo OwlMail)
@@ -205,6 +206,7 @@ docker buildx build \
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Abilita inoltro automatico |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Indirizzo inoltro automatico |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | File regole inoltro automatico |
+| `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | File JSON di configurazione dell'inoltro webhook |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente autenticazione SMTP |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password autenticazione SMTP |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Abilita TLS SMTP |

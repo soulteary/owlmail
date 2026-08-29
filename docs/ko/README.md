@@ -14,6 +14,9 @@ OwlMail 문서 디렉토리에 오신 것을 환영합니다. 이 디렉토리�
 
 ### 주요 문서
 
+- **[Webhook 전달](../en/Webhook-Forwarding.md)** (영어, [中文](../zh-CN/Webhook-Forwarding.md))
+  - 규칙, 사용자 지정 메시지, HMAC 서명 및 `soulteary/webhook` 연동 구성 방법.
+
 - **[OwlMail × MailDev - 전체 기능 및 API 비교 및 마이그레이션 백서](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)** (영어)
   - [中文版本](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
   - OwlMail과 MailDev 간의 포괄적인 비교, API 호환성, 기능 패리티 및 마이그레이션 가이드를 포함합니다.

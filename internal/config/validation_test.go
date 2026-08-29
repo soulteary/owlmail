@@ -209,6 +209,15 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("webhook config with path traversal", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.WebhookConfig = "../../../etc/passwd"
+		err := ValidateConfig(cfg)
+		if err == nil {
+			t.Error("ValidateConfig with path traversal in webhook config should return error")
+		}
+	})
+
 	t.Run("valid full config", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.SMTPPort = 2525

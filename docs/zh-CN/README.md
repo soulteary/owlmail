@@ -20,6 +20,10 @@
 
 ### 主要文档
 
+- **[Webhook 消息转发](./Webhook-Forwarding.md)**
+  - 配置邮件过滤、自定义消息模板、HMAC 签名、失败重试，以及与 `soulteary/webhook` 的对接。
+  - **其他语言**：[English](../en/Webhook-Forwarding.md)
+
 - **[OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
   - OwlMail 与 MailDev 的全面对比，包括 API 兼容性、功能对等性和迁移指南。
   - **其他语言**: [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Deutsch](../de/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Français](../fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Italiano](../it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [日本語](../ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [한국어](../ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
