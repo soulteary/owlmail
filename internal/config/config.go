@@ -224,6 +224,9 @@ type Config struct {
 
 	// Email ID configuration
 	UseUUIDForEmailID bool
+
+	// Webhook forwarding configuration
+	WebhookConfig string
 }
 
 // DefaultConfig returns a Config with default values
@@ -254,6 +257,7 @@ func DefaultConfig() *Config {
 		TLSKeyFile:        "",
 		LogLevel:          "normal",
 		UseUUIDForEmailID: false,
+		WebhookConfig:     "",
 	}
 }
 
@@ -284,6 +288,7 @@ type FlagRefs struct {
 	TLSKeyFile        *string
 	LogLevel          *string
 	UseUUIDForEmailID *bool
+	WebhookConfig     *string
 }
 
 // DefineFlags defines all configuration flags on the given FlagSet.
@@ -316,6 +321,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		TLSKeyFile:        fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
 		LogLevel:          fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
 		UseUUIDForEmailID: fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
+		WebhookConfig:     fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
 	}
 }
 
@@ -356,6 +362,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		LogLevel: resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
 
 		UseUUIDForEmailID: resolveBoolWithFlag(fs, "use-uuid-for-email-id", "OWLMAIL_USE_UUID_FOR_EMAIL_ID", *refs.UseUUIDForEmailID),
+		WebhookConfig:     resolveStringWithFlag(fs, "webhook-config", "OWLMAIL_WEBHOOK_CONFIG", *refs.WebhookConfig),
 	}
 }
 

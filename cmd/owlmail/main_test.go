@@ -2,6 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
@@ -13,6 +15,7 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
 
 // loggerEventTestMu serializes tests that use common.InitLogger or registerEventHandlers,
@@ -262,6 +265,77 @@ func TestSetupOutgoingConfig(t *testing.T) {
 	if err == nil {
 		t.Error("setupOutgoingConfig() error = nil, want error")
 	}
+}
+
+func TestSetupWebhookDispatcher(t *testing.T) {
+	if _, err := setupWebhookDispatcher(nil); err == nil {
+		t.Fatal("setupWebhookDispatcher(nil) should fail")
+	}
+
+	dispatcher, err := setupWebhookDispatcher(&config.Config{})
+	if err != nil || dispatcher != nil {
+		t.Fatalf("empty setupWebhookDispatcher() = %v, %v", dispatcher, err)
+	}
+
+	filePath := filepath.Join(t.TempDir(), "webhooks.json")
+	if err := os.WriteFile(filePath, []byte(`{"version":1,"targets":[{"name":"test","url":"https://example.com/hook"}]}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dispatcher, err = setupWebhookDispatcher(&config.Config{WebhookConfig: filePath})
+	if err != nil {
+		t.Fatalf("setupWebhookDispatcher() error = %v", err)
+	}
+	if dispatcher.TargetCount() != 1 {
+		t.Fatalf("TargetCount() = %d", dispatcher.TargetCount())
+	}
+
+	if _, err := setupWebhookDispatcher(&config.Config{WebhookConfig: filepath.Join(t.TempDir(), "missing.json")}); err == nil {
+		t.Fatal("missing webhook config should fail")
+	}
+}
+
+func TestRegisterWebhookHandlerDispatchesNewEmail(t *testing.T) {
+	received := make(chan struct{}, 1)
+	hookServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		received <- struct{}{}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer hookServer.Close()
+
+	dispatcher, err := webhooknotify.NewDispatcher(webhooknotify.Config{Targets: []webhooknotify.Target{{
+		Name: "test",
+		URL:  hookServer.URL,
+	}}}, hookServer.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	registerWebhookHandler(server, dispatcher)
+
+	email := &mailserver.Email{Subject: "Webhook integration"}
+	envelope := &mailserver.Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}}
+	if err := server.SaveEmailToStore("webhook-test", false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-received:
+	case <-time.After(time.Second):
+		t.Fatal("webhook request was not received")
+	}
+}
+
+func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
+	registerWebhookHandler(nil, nil)
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	registerWebhookHandler(server, nil)
 }
 
 func TestSetupAuthConfig(t *testing.T) {

@@ -274,6 +274,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UseUUIDForEmailID != false {
 		t.Errorf("DefaultConfig().UseUUIDForEmailID = %v, want %v", cfg.UseUUIDForEmailID, false)
 	}
+	if cfg.WebhookConfig != "" {
+		t.Errorf("DefaultConfig().WebhookConfig = %q, want empty", cfg.WebhookConfig)
+	}
 }
 
 func TestDefineAndResolveConfig(t *testing.T) {
@@ -304,7 +307,7 @@ func TestDefineAndResolveConfig(t *testing.T) {
 	t.Run("CLI flags override defaults", func(t *testing.T) {
 		fs := flag.NewFlagSet("test-cli", flag.ContinueOnError)
 		refs := DefineFlags(fs)
-		_ = fs.Parse([]string{"-smtp", "2025", "-ip", "0.0.0.0", "-web", "8080"})
+		_ = fs.Parse([]string{"-smtp", "2025", "-ip", "0.0.0.0", "-web", "8080", "-webhook-config", "cli-webhooks.json"})
 		cfg := ResolveConfig(fs, refs)
 
 		if cfg.SMTPPort != 2025 {
@@ -316,11 +319,15 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		if cfg.WebPort != 8080 {
 			t.Errorf("ResolveConfig().WebPort = %d, want %d", cfg.WebPort, 8080)
 		}
+		if cfg.WebhookConfig != "cli-webhooks.json" {
+			t.Errorf("ResolveConfig().WebhookConfig = %q", cfg.WebhookConfig)
+		}
 	})
 
 	t.Run("environment variables work", func(t *testing.T) {
 		_ = envMgr.Set("OWLMAIL_SMTP_PORT", "3025")
 		_ = envMgr.Set("OWLMAIL_SMTP_HOST", "192.168.1.1")
+		_ = envMgr.Set("OWLMAIL_WEBHOOK_CONFIG", "env-webhooks.json")
 		defer envMgr.Cleanup()
 
 		fs := flag.NewFlagSet("test-env", flag.ContinueOnError)
@@ -333,6 +340,9 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		}
 		if cfg.SMTPHost != "192.168.1.1" {
 			t.Errorf("ResolveConfig().SMTPHost = %q, want %q", cfg.SMTPHost, "192.168.1.1")
+		}
+		if cfg.WebhookConfig != "env-webhooks.json" {
+			t.Errorf("ResolveConfig().WebhookConfig = %q", cfg.WebhookConfig)
 		}
 	})
 

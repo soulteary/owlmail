@@ -20,6 +20,10 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[Webhook Forwarding](./Webhook-Forwarding.md)**
+  - Configure filtering, custom payload templates, HMAC signatures, retries, and integration with `soulteary/webhook`.
+  - **Other languages**: [简体中文](../zh-CN/Webhook-Forwarding.md)
+
 - **[OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
   - A comprehensive comparison between OwlMail and MailDev, including API compatibility, feature parity, and migration guide.
   - **Other languages**: [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Deutsch](../de/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Français](../fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Italiano](../it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [日本語](../ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [한국어](../ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
+	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
 
 // parseLogLevel parses log level string and returns LogLevel
@@ -119,6 +121,38 @@ func registerEventHandlers(server *mailserver.MailServer) {
 	})
 }
 
+func setupWebhookDispatcher(cfg *config.Config) (*webhooknotify.Dispatcher, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if cfg.WebhookConfig == "" {
+		return nil, nil
+	}
+
+	dispatcher, err := webhooknotify.Load(cfg.WebhookConfig, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load webhook forwarding config: %w", err)
+	}
+	return dispatcher, nil
+}
+
+func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhooknotify.Dispatcher) {
+	if server == nil || dispatcher == nil {
+		return
+	}
+
+	server.On("new", func(email *mailserver.Email) {
+		for _, result := range dispatcher.Dispatch(context.Background(), email) {
+			if result.Err != nil {
+				common.Error("Webhook delivery to %q failed after %d attempt(s): %v", result.Target, result.Attempts, result.Err)
+				continue
+			}
+			common.Verbose("Webhook delivery to %q succeeded with HTTP %d", result.Target, result.StatusCode)
+		}
+	})
+	common.Log("Webhook forwarding enabled with %d target(s)", dispatcher.TargetCount())
+}
+
 // startAPIServer creates and starts the API server
 func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API, error) {
 	if server == nil {
@@ -189,6 +223,12 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		return nil, fmt.Errorf("config is nil")
 	}
 
+	// Validate and compile webhook configuration before starting server resources.
+	webhookDispatcher, err := setupWebhookDispatcher(cfg)
+	if err != nil {
+		return nil, err
+	}
+
 	// Setup outgoing mail config if provided
 	outgoingConfig, err := setupOutgoingConfig(cfg)
 	if err != nil {
@@ -209,6 +249,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Register event handlers
 	registerEventHandlers(server)
+	registerWebhookHandler(server, webhookDispatcher)
 
 	return server, nil
 }
