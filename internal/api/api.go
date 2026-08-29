@@ -46,6 +46,7 @@ func NewAPIWithAuth(mailServer *mailserver.MailServer, port int, host, user, pas
 
 // NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
 func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
+	authEnabled := user != "" && password != ""
 	api := &API{
 		mailServer:    mailServer,
 		port:          port,
@@ -58,7 +59,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		httpsKeyFile:  keyFile,
 		wsUpgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins
+				return !authEnabled || originMatchesHost(r.Header.Get("Origin"), r.Host)
 			},
 		},
 	}
@@ -73,17 +74,23 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 func (api *API) setupRoutes() {
 	app := fiber.New(fiber.Config{})
 
-	// Enable CORS (match original: allow all origins, AllowCredentials, AllowHeaders, AllowMethods)
-	// Fiber disallows AllowCredentials with AllowOrigins "*", so use AllowOriginsFunc to allow all.
-	app.Use(cors.New(cors.Config{
-		AllowOriginsFunc: func(origin string) bool { return true },
-		AllowCredentials: true,
-		AllowHeaders:     []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
-		AllowMethods:     []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
-	}))
+	authEnabled := api.authUser != "" && api.authPassword != ""
+	if authEnabled {
+		// Browsers must not reuse cached Basic Auth credentials from an unrelated
+		// origin. Non-browser API clients normally omit Origin and remain allowed.
+		app.Use(sameOriginMiddleware())
+	} else {
+		// Preserve the open development API's cross-origin compatibility. There
+		// are no browser credentials to expose when authentication is disabled.
+		app.Use(cors.New(cors.Config{
+			AllowOrigins: []string{"*"},
+			AllowHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
+			AllowMethods: []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
+		}))
+	}
 
 	// HTTP Basic Auth middleware if configured
-	if api.authUser != "" && api.authPassword != "" {
+	if authEnabled {
 		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/api/v1/health"))
 	}
 

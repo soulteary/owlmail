@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -32,6 +33,85 @@ func TestCorsMiddleware(t *testing.T) {
 	allowOrigin := resp.Header.Get("Access-Control-Allow-Origin")
 	if allowOrigin != "*" && allowOrigin != "http://example.com" {
 		t.Errorf("CORS Access-Control-Allow-Origin should be set, got %q", allowOrigin)
+	}
+}
+
+func TestAuthenticatedAPIRejectsCrossOriginBrowserRequest(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	req, _ := http.NewRequest(http.MethodGet, "http://owlmail.test/api/v1/emails", nil)
+	req.Header.Set("Origin", "https://attacker.example")
+	req.SetBasicAuth("user", "pass")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+	if origin := resp.Header.Get("Access-Control-Allow-Origin"); origin != "" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want empty", origin)
+	}
+}
+
+func TestAuthenticatedAPIAllowsSameOriginAndNonBrowserRequests(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	for _, origin := range []string{"http://owlmail.test", ""} {
+		req, _ := http.NewRequest(http.MethodGet, "http://owlmail.test/api/v1/emails", nil)
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		req.SetBasicAuth("user", "pass")
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("origin %q: status = %d, want %d", origin, resp.StatusCode, http.StatusOK)
+		}
+	}
+}
+
+func TestAuthenticatedWebSocketOriginPolicy(t *testing.T) {
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	tests := []struct {
+		origin string
+		want   bool
+	}{
+		{origin: "", want: true},
+		{origin: "http://owlmail.test", want: true},
+		{origin: "https://attacker.example", want: false},
+		{origin: "://invalid", want: false},
+	}
+	for _, test := range tests {
+		req := httptest.NewRequest(http.MethodGet, "http://owlmail.test/api/v1/ws", nil)
+		if test.origin != "" {
+			req.Header.Set("Origin", test.origin)
+		}
+		if got := api.wsUpgrader.CheckOrigin(req); got != test.want {
+			t.Errorf("origin %q: CheckOrigin() = %v, want %v", test.origin, got, test.want)
+		}
 	}
 }
 
