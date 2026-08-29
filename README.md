@@ -236,6 +236,20 @@ When HTTP Basic Auth is enabled, browser API and WebSocket requests are limited
 to OwlMail's own origin. Command-line and server-to-server clients that omit the
 browser `Origin` header continue to work normally.
 
+Web authentication also fails closed when only one credential is configured:
+
+| Configured values | Effective credentials |
+|---|---|
+| Neither value | Authentication disabled |
+| Username only | The username plus a cryptographically random 32-character temporary password, printed once to stderr at startup |
+| Password only | Username `admin` plus the configured password |
+| Both values | The configured username and password |
+
+A generated password changes on every restart. Read it from the process output
+(`docker logs owlmail` for the container example), or configure both values for
+stable credentials. Startup fails if the generated password cannot be written
+to stderr. Basic Auth credentials should only be used over localhost or HTTPS.
+
 ### Environment Variable Compatibility
 
 OwlMail **fully supports MailDev environment variables**, prioritizing MailDev environment variables, and falling back to OwlMail environment variables if not present. This means you can use MailDev's configuration directly without modification.

@@ -207,6 +207,7 @@ docker buildx build \
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
+| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Livraisons Webhook simultanées ; `0` désactive la limite |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
@@ -214,6 +215,21 @@ docker buildx build \
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
+
+Une configuration incomplète de l’authentification Web n’est pas désactivée silencieusement :
+
+| Valeurs configurées | Identifiants effectifs |
+|---|---|
+| Aucune | Authentification désactivée |
+| Nom d’utilisateur uniquement | Le nom d’utilisateur et un mot de passe temporaire aléatoire cryptographiquement sûr de 32 caractères, affiché une fois sur stderr au démarrage |
+| Mot de passe uniquement | Nom d’utilisateur `admin` et mot de passe configuré |
+| Les deux valeurs | Nom d’utilisateur et mot de passe configurés |
+
+Un mot de passe généré change à chaque redémarrage. Consultez la sortie du
+processus (`docker logs owlmail` pour l’exemple avec conteneur), ou configurez
+les deux valeurs pour conserver des identifiants stables. OwlMail ne démarre pas
+si le mot de passe généré ne peut pas être écrit sur stderr. Utilisez Basic Auth
+uniquement via localhost ou HTTPS.
 
 ### Environment Variable Compatibility
 

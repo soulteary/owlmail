@@ -207,6 +207,7 @@ docker buildx build \
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
+| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | 同時 Webhook 配信数。`0` は上限なし |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
@@ -214,6 +215,21 @@ docker buildx build \
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
+
+Web 認証の設定値が片方だけの場合でも、認証が暗黙に無効になることはありません。
+
+| 設定値 | 実際の認証情報 |
+|---|---|
+| どちらも未設定 | 認証は無効 |
+| ユーザー名のみ | 指定したユーザー名と、暗号学的に安全な 32 文字の一時パスワード。起動時に一度だけ stderr に出力されます |
+| パスワードのみ | ユーザー名 `admin` と指定したパスワード |
+| 両方 | 指定したユーザー名とパスワード |
+
+生成されたパスワードは再起動ごとに変わります。プロセス出力
+（コンテナ例では `docker logs owlmail`）で確認するか、固定した認証情報が
+必要な場合は両方を設定してください。生成したパスワードを stderr に出力
+できない場合、OwlMail は起動に失敗します。Basic Auth は localhost または
+HTTPS 経由でのみ使用してください。
 
 ### Environment Variable Compatibility
 
