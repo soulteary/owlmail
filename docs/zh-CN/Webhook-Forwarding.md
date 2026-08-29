@@ -92,7 +92,7 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 | `match` | 否 | 不区分大小写的通配符规则，语义见下文。 |
 | `bodyTemplate` | 否 | 自定义请求体的 Go 文本模板；省略时发送默认事件结构。 |
 
-`url`、请求头值和 `secret` 支持 `${VARIABLE}` 占位符。如果变量不存在，OwlMail 会在启动阶段报错，不会静默发送缺少鉴权信息的请求。
+`url`、请求头值和 `secret` 支持 `${VARIABLE}` 占位符。如果变量不存在或值为空，OwlMail 会在启动阶段报错，不会静默发送缺少鉴权信息的请求。
 
 只有带花括号的 `${VARIABLE}` 会展开，`$VARIABLE` 会作为普通文本。环境变量
 不会展开到 `name`、`contentType`、匹配规则或 `bodyTemplate`。

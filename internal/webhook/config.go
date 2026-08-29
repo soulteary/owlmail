@@ -299,17 +299,25 @@ func validateMatch(match Match) error {
 }
 
 func expandEnvironmentVariables(value string) (string, error) {
-	var missing string
+	var invalidName string
+	var invalidReason string
 	expanded := environmentVariablePattern.ReplaceAllStringFunc(value, func(token string) string {
 		name := environmentVariablePattern.FindStringSubmatch(token)[1]
 		resolved, exists := os.LookupEnv(name)
-		if !exists && missing == "" {
-			missing = name
+		if invalidName == "" {
+			switch {
+			case !exists:
+				invalidName = name
+				invalidReason = "is not set"
+			case resolved == "":
+				invalidName = name
+				invalidReason = "is empty"
+			}
 		}
 		return resolved
 	})
-	if missing != "" {
-		return "", fmt.Errorf("environment variable %s is not set", missing)
+	if invalidName != "" {
+		return "", fmt.Errorf("environment variable %s %s", invalidName, invalidReason)
 	}
 	return expanded, nil
 }

@@ -112,7 +112,7 @@ an address reachable from the OwlMail container. The
 
 ## Validate before deployment
 
-OwlMail validates and compiles the complete file at startup. A missing
+OwlMail validates and compiles the complete file at startup. A missing or empty
 environment variable, unknown JSON field, bad duration, invalid wildcard, or
 invalid template prevents the service from starting. After changing a file,
 restart OwlMail; webhook configuration is not hot-reloaded.

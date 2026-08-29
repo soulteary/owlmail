@@ -149,6 +149,19 @@ func TestCompileConfigRejectsMissingEnvironment(t *testing.T) {
 	}
 }
 
+func TestCompileConfigRejectsEmptyEnvironment(t *testing.T) {
+	const variable = "OWLMAIL_TEST_EMPTY_SECRET_42C1"
+	t.Setenv(variable, "")
+	_, err := NewDispatcher(Config{Targets: []Target{{
+		Name:   "primary",
+		URL:    "https://example.com/hooks/owlmail",
+		Secret: "${" + variable + "}",
+	}}}, nil)
+	if err == nil || !strings.Contains(err.Error(), variable+" is empty") {
+		t.Fatalf("NewDispatcher() error = %v, want empty environment variable error", err)
+	}
+}
+
 func TestCompileConfigLimitsTargets(t *testing.T) {
 	targets := make([]Target, maxTargets+1)
 	for index := range targets {

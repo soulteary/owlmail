@@ -93,7 +93,7 @@ loopback-only receiver, exact startup commands, and a test SMTP message.
 | `match` | No | Case-insensitive wildcard rules. See the rule semantics below. |
 | `bodyTemplate` | No | Go text template for a custom body. When omitted, OwlMail sends the default event payload. |
 
-`${VARIABLE}` placeholders are supported in `url`, header values, and `secret`. OwlMail fails at startup if a referenced variable is missing, rather than silently sending an unauthenticated request.
+`${VARIABLE}` placeholders are supported in `url`, header values, and `secret`. OwlMail fails at startup if a referenced variable is missing or empty, rather than silently sending an unauthenticated request.
 
 Only the braced `${VARIABLE}` form is expanded; `$VARIABLE` is treated as
 literal text. Environment expansion does not apply to `name`, `contentType`,
