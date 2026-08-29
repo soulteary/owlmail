@@ -46,6 +46,7 @@ const i18n = {
         minutesAgo: '{minutes} 分钟前',
         hoursAgo: '{hours} 小时前',
         daysAgo: '{days} 天前',
+        help: '帮助',
         toggleTheme: '切换主题',
         switchLanguage: '切换语言',
         // API Error Codes
@@ -114,6 +115,7 @@ const i18n = {
         minutesAgo: '{minutes} minutes ago',
         hoursAgo: '{hours} hours ago',
         daysAgo: '{days} days ago',
+        help: 'Help',
         toggleTheme: 'Toggle Theme',
         switchLanguage: 'Switch Language',
         // API Error Codes
@@ -182,6 +184,7 @@ const i18n = {
         minutesAgo: 'vor {minutes} Minuten',
         hoursAgo: 'vor {hours} Stunden',
         daysAgo: 'vor {days} Tagen',
+        help: 'Hilfe',
         toggleTheme: 'Design umschalten',
         switchLanguage: 'Sprache wechseln',
         // API Error Codes
@@ -250,6 +253,7 @@ const i18n = {
         minutesAgo: '{minutes} minuti fa',
         hoursAgo: '{hours} ore fa',
         daysAgo: '{days} giorni fa',
+        help: 'Aiuto',
         toggleTheme: 'Cambia Tema',
         switchLanguage: 'Cambia Lingua',
         // API Error Codes
@@ -318,6 +322,7 @@ const i18n = {
         minutesAgo: 'il y a {minutes} minutes',
         hoursAgo: 'il y a {hours} heures',
         daysAgo: 'il y a {days} jours',
+        help: 'Aide',
         toggleTheme: 'Changer le Thème',
         switchLanguage: 'Changer la Langue',
         // API Error Codes
@@ -386,6 +391,7 @@ const i18n = {
         minutesAgo: '{minutes}분 전',
         hoursAgo: '{hours}시간 전',
         daysAgo: '{days}일 전',
+        help: '도움말',
         toggleTheme: '테마 전환',
         switchLanguage: '언어 전환',
         // API Error Codes
@@ -454,6 +460,7 @@ const i18n = {
         minutesAgo: '{minutes}分前',
         hoursAgo: '{hours}時間前',
         daysAgo: '{days}日前',
+        help: 'ヘルプ',
         toggleTheme: 'テーマを切り替え',
         switchLanguage: '言語を切り替え',
         // API Error Codes
@@ -778,6 +785,12 @@ function updateUI() {
     
     const deleteAllBtn = document.getElementById('deleteAllBtn');
     if (deleteAllBtn) deleteAllBtn.textContent = t('deleteAll');
+
+    const helpBtn = document.getElementById('helpBtn');
+    if (helpBtn) {
+        helpBtn.textContent = t('help');
+        helpBtn.title = t('help');
+    }
     
     // Update search
     const searchInput = document.getElementById('searchInput');
@@ -1301,4 +1314,3 @@ window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
 window.t = t; // Make translation function available globally
-

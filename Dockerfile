@@ -39,9 +39,6 @@ WORKDIR /app
 # Copy binary from builder stage
 COPY --from=builder /build/owlmail /app/owlmail
 
-# Copy web static files
-COPY --from=builder /build/web /app/web
-
 # Create mail storage directory
 RUN mkdir -p /app/mail && \
     chown -R owlmail:owlmail /app

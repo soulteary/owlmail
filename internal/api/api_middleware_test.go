@@ -61,6 +61,30 @@ func TestBasicAuthMiddleware(t *testing.T) {
 	}
 }
 
+func TestHelpPageRequiresBasicAuth(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	req, _ := http.NewRequest(http.MethodGet, "/help", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("Expected help page status 401, got %d", resp.StatusCode)
+	}
+}
+
 func TestBasicAuthMiddlewareSuccess(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
