@@ -110,7 +110,7 @@ export OWLMAIL_WEBHOOK_SECRET='replace-this-development-secret'
 
 ## 部署前验证
 
-OwlMail 会在启动时校验并编译整个配置文件。缺少环境变量、未知 JSON 字段、
+OwlMail 会在启动时校验并编译整个配置文件。环境变量缺失或值为空、未知 JSON 字段、
 非法时长、无效通配符或错误模板都会阻止服务启动。修改配置后需要重启 OwlMail；
 Webhook 配置不会热加载。
 
