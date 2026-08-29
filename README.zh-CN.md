@@ -223,6 +223,19 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 
 启用 HTTP Basic Auth 后，浏览器 API 与 WebSocket 请求仅允许来自 OwlMail
 自身源。命令行和服务端客户端不携带浏览器 `Origin` 请求头时仍可正常访问。
+
+只配置一项 Web 认证凭据时，OwlMail 也会安全补全，而不会静默关闭认证：
+
+| 已配置内容 | 最终凭据 |
+|---|---|
+| 用户名和密码均未配置 | 关闭认证 |
+| 只配置用户名 | 保留用户名，生成 32 字符密码，并在启动时向 stderr 输出一次 |
+| 只配置密码 | 使用默认用户名 `admin` 和已配置密码 |
+| 用户名和密码均已配置 | 原样使用 |
+
+自动生成的密码会在每次重启后变化。可从进程输出中读取（容器示例使用
+`docker logs owlmail`），需要稳定凭据时应同时配置用户名和密码。Basic Auth
+只应在 localhost 或 HTTPS 上使用。
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP 认证用户名 |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP 认证密码 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |

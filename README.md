@@ -227,6 +227,20 @@ the message body; clicking one focuses OwlMail and opens the message.
 When HTTP Basic Auth is enabled, browser API and WebSocket requests are limited
 to OwlMail's own origin. Command-line and server-to-server clients that omit the
 browser `Origin` header continue to work normally.
+
+Web authentication also fails closed when only one credential is configured:
+
+| Configured values | Effective credentials |
+|---|---|
+| Neither value | Authentication disabled |
+| Username only | The username plus a cryptographically random 32-character temporary password, printed once to stderr at startup |
+| Password only | Username `admin` plus the configured password |
+| Both values | The configured username and password |
+
+A generated password changes on every restart. Read it from the process output
+(`docker logs owlmail` for the container example), or configure both values for
+stable credentials. Basic Auth credentials should only be used over localhost
+or HTTPS.
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |

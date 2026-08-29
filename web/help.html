@@ -90,7 +90,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP listener</td><td><code>-smtp</code>, <code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>, <code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>, <code>localhost</code></td></tr>
                                 <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
                                 <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
-                                <tr><td>Web authentication</td><td><code>-web-user</code>, <code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>, <code>OWLMAIL_WEB_PASSWORD</code></td><td>Disabled</td></tr>
+                                <tr><td>Web authentication</td><td><code>-web-user</code>, <code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>, <code>OWLMAIL_WEB_PASSWORD</code></td><td>Disabled; partial credentials are completed safely</td></tr>
                                 <tr><td>SMTP authentication</td><td><code>-smtp-user</code>, <code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>, <code>OWLMAIL_SMTP_PASSWORD</code></td><td>Disabled</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>, <code>-tls-cert</code>, <code>-tls-key</code></td><td><code>OWLMAIL_TLS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>, <code>-https-cert</code>, <code>-https-key</code></td><td><code>OWLMAIL_HTTPS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
@@ -98,6 +98,8 @@ SMTP_SECURE=false</code></pre>
                             </tbody>
                         </table>
                     </div>
+                    <h3>Web authentication defaults</h3>
+                    <p>With only a username, OwlMail generates a random 32-character password and prints it once to stderr at startup. With only a password, the username defaults to <code>admin</code>. Supplying neither value disables authentication; supplying both uses them unchanged. Generated passwords change after every restart, so configure both values when credentials must remain stable. Use Basic Auth only over localhost or HTTPS.</p>
                     <h3>Persistent Docker example</h3>
                     <pre><code>docker run -d --name owlmail \
   -p 1025:1025 -p 1080:1080 \
@@ -217,7 +219,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP 监听</td><td><code>-smtp</code>、<code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>、<code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>、<code>localhost</code></td></tr>
                                 <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
                                 <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
-                                <tr><td>Web 认证</td><td><code>-web-user</code>、<code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>、<code>OWLMAIL_WEB_PASSWORD</code></td><td>关闭</td></tr>
+                                <tr><td>Web 认证</td><td><code>-web-user</code>、<code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>、<code>OWLMAIL_WEB_PASSWORD</code></td><td>关闭；单项凭据会安全补全</td></tr>
                                 <tr><td>SMTP 认证</td><td><code>-smtp-user</code>、<code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>、<code>OWLMAIL_SMTP_PASSWORD</code></td><td>关闭</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>、证书和私钥参数</td><td><code>OWLMAIL_TLS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>、证书和私钥参数</td><td><code>OWLMAIL_HTTPS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
@@ -225,6 +227,8 @@ SMTP_SECURE=false</code></pre>
                             </tbody>
                         </table>
                     </div>
+                    <h3>Web 认证默认策略</h3>
+                    <p>只配置用户名时，OwlMail 会生成 32 字符随机密码，并在启动时向 stderr 输出一次；只配置密码时，用户名默认为 <code>admin</code>。两项均不配置表示关闭认证，两项均配置则原样使用。自动密码会在每次重启后变化，需要稳定凭据时应同时配置两项。Basic Auth 只应在 localhost 或 HTTPS 上使用。</p>
                     <h3>Docker 持久化示例</h3>
                     <pre><code>docker run -d --name owlmail \
   -p 1025:1025 -p 1080:1080 \
