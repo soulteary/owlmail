@@ -21,18 +21,24 @@ The smallest valid configuration needs only a target name and an HTTP(S) URL:
 Save it and pass it to OwlMail:
 
 ```bash
-./owlmail -webhook-config ./webhooks.json
+./owlmail -webhook-config ./webhooks.json -webhook-max-concurrency 8
 ```
 
 The environment variable form is equivalent:
 
 ```bash
 export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
+export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 ```
 
 If neither the flag nor environment variable is set, webhook forwarding is
 disabled. The configuration is validated once at startup; restart OwlMail after
 editing it.
+
+The recommended default permits eight emails to be delivered concurrently.
+Set `-webhook-max-concurrency 0` (or the environment variable to `0`) for
+unlimited concurrency when all receivers are trusted, fast, and the incoming
+load is controlled.
 
 ## Choose a runnable example
 
@@ -112,6 +118,22 @@ matching rules, or `bodyTemplate`.
   requests for that target.
 - All targets and templates are compiled before SMTP and Web servers start, so
   a configuration error fails fast without partially enabling forwarding.
+
+## Concurrency and backpressure
+
+`-webhook-max-concurrency` limits concurrent email delivery jobs across all
+targets. The default of `8` is appropriate for local development and small CI
+environments. A useful starting estimate is peak emails per second multiplied
+by the receiver's p95 response time in seconds, rounded up.
+
+The limit is acquired before OwlMail creates the webhook handler goroutine. If
+all slots are busy, the email is already persisted and event processing waits
+for a slot; lightweight logging and WebSocket listeners are still started
+first. This prevents slow receivers from creating an unbounded goroutine pile.
+Within one job, matching targets are delivered sequentially.
+
+Use `0` only when unlimited fan-out is intentional. It preserves the previous
+behavior and can consume large amounts of memory and sockets during a burst.
 
 ## Matching rules
 

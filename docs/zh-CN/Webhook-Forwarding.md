@@ -21,17 +21,21 @@ OwlMail 可以把符合规则的新邮件发送到一个或多个 HTTP 端点。
 保存配置，并在启动时传给 OwlMail：
 
 ```bash
-./owlmail -webhook-config ./webhooks.json
+./owlmail -webhook-config ./webhooks.json -webhook-max-concurrency 8
 ```
 
 也可以使用等价的环境变量：
 
 ```bash
 export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
+export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 ```
 
 没有设置参数或环境变量时，Webhook 转发保持关闭。配置只在启动时校验一次；
 修改文件后需要重启 OwlMail。
+
+建议默认值允许同时投递 8 封邮件。仅当所有接收端可信、响应足够快且入口负载
+可控时，才使用 `-webhook-max-concurrency 0`（或把环境变量设为 `0`）取消限制。
 
 ## 选择可运行示例
 
@@ -105,6 +109,19 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 - 单次超时必须大于零且不超过一分钟，默认每次尝试五秒；
 - `retries` 表示额外尝试次数，例如 `2` 表示最多请求三次；
 - SMTP 和 Web 服务启动前，会先编译全部目标与模板，因此错误配置不会造成部分启用。
+
+## 并发与背压
+
+`-webhook-max-concurrency` 限制所有目标共享的并发邮件投递任务数。默认值 `8`
+适合本地开发和小型 CI 环境。估算初始值时，可以用“峰值每秒邮件数 × 接收端
+p95 响应秒数”，然后向上取整。
+
+OwlMail 会在创建 Webhook 处理 goroutine 之前获取并发槽位。槽位耗尽时，邮件已经
+持久化，事件处理会等待空闲槽位；轻量日志和 WebSocket 监听器仍会优先启动。
+因此慢接收端不会制造无限增长的 goroutine。单个任务内的匹配目标仍按顺序投递。
+
+`0` 会保留旧版的无限并发行为，只应在明确需要无限制分发时使用；突发流量下可能
+消耗大量内存和连接。
 
 ## 匹配规则
 

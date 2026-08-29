@@ -117,6 +117,10 @@ environment variable, unknown JSON field, bad duration, invalid wildcard, or
 invalid template prevents the service from starting. After changing a file,
 restart OwlMail; webhook configuration is not hot-reloaded.
 
+OwlMail runs at most eight email webhook jobs concurrently by default. Keep the
+recommended limit for most development and CI workloads; use
+`-webhook-max-concurrency 0` only for deliberately unlimited concurrency.
+
 See the [full English reference](../../docs/en/Webhook-Forwarding.md) or
 [中文参考](../../docs/zh-CN/Webhook-Forwarding.md) for every field, payload,
 header, matching rule, retry behavior, and security boundary.

@@ -114,6 +114,9 @@ OwlMail 会在启动时校验并编译整个配置文件。环境变量缺失或
 非法时长、无效通配符或错误模板都会阻止服务启动。修改配置后需要重启 OwlMail；
 Webhook 配置不会热加载。
 
+OwlMail 默认最多并发处理 8 个邮件 Webhook 任务，适合多数开发和 CI 负载。
+仅在明确需要无限并发时使用 `-webhook-max-concurrency 0`。
+
 所有字段、默认请求体、请求头、规则、重试行为和安全边界见
 [中文完整参考](../../docs/zh-CN/Webhook-Forwarding.md) 或
 [English reference](../../docs/en/Webhook-Forwarding.md)。
