@@ -207,6 +207,7 @@ docker buildx build \
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Indirizzo inoltro automatico |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | File regole inoltro automatico |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | File JSON di configurazione dell'inoltro webhook |
+| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Consegne Webhook simultanee; `0` disabilita il limite |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente autenticazione SMTP |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password autenticazione SMTP |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Abilita TLS SMTP |
@@ -214,6 +215,20 @@ docker buildx build \
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | File chiave privata TLS SMTP |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Usa UUID per ID email (predefinito: stringa casuale di 8 caratteri) |
+
+Una configurazione incompleta dell’autenticazione Web non viene disabilitata silenziosamente:
+
+| Valori configurati | Credenziali effettive |
+|---|---|
+| Nessuno | Autenticazione disabilitata |
+| Solo nome utente | Il nome utente e una password temporanea casuale crittograficamente sicura di 32 caratteri, stampata una volta su stderr all’avvio |
+| Solo password | Nome utente `admin` e password configurata |
+| Entrambi i valori | Nome utente e password configurati |
+
+Una password generata cambia a ogni riavvio. Leggila dall’output del processo
+(`docker logs owlmail` nell’esempio con container), oppure configura entrambi i
+valori per ottenere credenziali stabili. OwlMail non si avvia se non può scrivere
+la password generata su stderr. Usa Basic Auth solo tramite localhost o HTTPS.
 
 ### Compatibilità Variabili d'Ambiente
 

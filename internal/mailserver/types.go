@@ -36,6 +36,11 @@ type TLSConfig struct {
 	Enabled  bool
 }
 
+type eventListener struct {
+	handler func(*types.Email)
+	slots   chan struct{}
+}
+
 // MailServer represents the SMTP mail server
 type MailServer struct {
 	store          []*types.Email
@@ -46,7 +51,7 @@ type MailServer struct {
 	smtpServer     *smtp.Server
 	smtpsServer    *smtp.Server // SMTPS server (direct TLS on 465)
 	eventChan      chan Event
-	listeners      map[string][]func(*types.Email)
+	listeners      map[string][]eventListener
 	listenersMutex sync.RWMutex
 	outgoing       interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))

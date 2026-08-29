@@ -93,6 +93,48 @@ func TestCompleteWebAuthConfig(t *testing.T) {
 	})
 }
 
+func TestReportWebAuthCompletion(t *testing.T) {
+	t.Run("generated password is disclosed", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "operator", WebPassword: "generated-secret"}
+		var output bytes.Buffer
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{generatedPassword: true}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(output.Bytes(), []byte(`user "operator": generated-secret`)) {
+			t.Fatalf("generated credential was not disclosed: %q", output.String())
+		}
+	})
+
+	t.Run("generated password output failure is fatal", func(t *testing.T) {
+		readEnd, writeEnd, err := os.Pipe()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := readEnd.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := writeEnd.Close(); err != nil {
+			t.Fatal(err)
+		}
+
+		cfg := &config.Config{WebUser: "operator", WebPassword: "generated-secret"}
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{generatedPassword: true}, writeEnd); err == nil {
+			t.Fatal("writing the only copy of a generated password should fail startup")
+		}
+	})
+
+	t.Run("default username is reported", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "admin", WebPassword: "configured-secret"}
+		var output bytes.Buffer
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{defaultedUsername: true}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Contains(output.Bytes(), []byte(`username to "admin"`)) {
+			t.Fatalf("default username was not reported: %q", output.String())
+		}
+	})
+}
+
 func TestLoadAutoRelayRules(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()
@@ -384,7 +426,12 @@ func TestRegisterWebhookHandlerDispatchesNewEmail(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	registerWebhookHandler(server, dispatcher)
+	if err := registerWebhookHandler(server, dispatcher, -1); err == nil {
+		t.Fatal("negative webhook concurrency should fail")
+	}
+	if err := registerWebhookHandler(server, dispatcher, 8); err != nil {
+		t.Fatal(err)
+	}
 
 	email := &mailserver.Email{Subject: "Webhook integration"}
 	envelope := &mailserver.Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}}
@@ -399,13 +446,17 @@ func TestRegisterWebhookHandlerDispatchesNewEmail(t *testing.T) {
 }
 
 func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
-	registerWebhookHandler(nil, nil)
+	if err := registerWebhookHandler(nil, nil, 8); err != nil {
+		t.Fatal(err)
+	}
 	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	registerWebhookHandler(server, nil)
+	if err := registerWebhookHandler(server, nil, 8); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSetupAuthConfig(t *testing.T) {

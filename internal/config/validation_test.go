@@ -218,6 +218,14 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("negative webhook concurrency", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.WebhookMaxConcurrency = -1
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("ValidateConfig with negative webhook concurrency should return error")
+		}
+	})
+
 	t.Run("valid full config", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.SMTPPort = 2525

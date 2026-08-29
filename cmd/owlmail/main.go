@@ -50,6 +50,21 @@ func completeWebAuthConfig(cfg *config.Config, randomSource io.Reader) (webAuthC
 	}
 }
 
+func reportWebAuthCompletion(cfg *config.Config, completion webAuthCompletion, output io.Writer) error {
+	if completion.generatedPassword {
+		if output == nil {
+			return fmt.Errorf("print generated HTTP Basic Auth password: output is nil")
+		}
+		if _, err := fmt.Fprintf(output, "OwlMail generated a temporary HTTP Basic Auth password for user %q: %s (set -web-password or OWLMAIL_WEB_PASSWORD for a stable password)\n", cfg.WebUser, cfg.WebPassword); err != nil {
+			return fmt.Errorf("print generated HTTP Basic Auth password: %w", err)
+		}
+	}
+	if completion.defaultedUsername && output != nil {
+		_, _ = fmt.Fprintln(output, "OwlMail defaulted the HTTP Basic Auth username to \"admin\" because only a password was configured")
+	}
+	return nil
+}
+
 // parseLogLevel parses log level string and returns LogLevel
 func parseLogLevel(levelStr string) common.LogLevel {
 	switch levelStr {
@@ -170,12 +185,12 @@ func setupWebhookDispatcher(cfg *config.Config) (*webhooknotify.Dispatcher, erro
 	return dispatcher, nil
 }
 
-func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhooknotify.Dispatcher) {
+func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhooknotify.Dispatcher, maxConcurrency int) error {
 	if server == nil || dispatcher == nil {
-		return
+		return nil
 	}
 
-	server.On("new", func(email *mailserver.Email) {
+	err := server.OnWithConcurrency("new", maxConcurrency, func(email *mailserver.Email) {
 		for _, result := range dispatcher.Dispatch(context.Background(), email) {
 			if result.Err != nil {
 				common.Error("Webhook delivery to %q failed after %d attempt(s): %v", result.Target, result.Attempts, result.Err)
@@ -184,7 +199,15 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 			common.Verbose("Webhook delivery to %q succeeded with HTTP %d", result.Target, result.StatusCode)
 		}
 	})
-	common.Log("Webhook forwarding enabled with %d target(s)", dispatcher.TargetCount())
+	if err != nil {
+		return fmt.Errorf("register webhook handler: %w", err)
+	}
+	if maxConcurrency == 0 {
+		common.Log("Webhook forwarding enabled with %d target(s), unlimited concurrency", dispatcher.TargetCount())
+	} else {
+		common.Log("Webhook forwarding enabled with %d target(s), concurrency limit %d", dispatcher.TargetCount(), maxConcurrency)
+	}
+	return nil
 }
 
 // startAPIServer creates and starts the API server
@@ -252,13 +275,7 @@ func initializeApplication(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
-	if completion.generatedPassword {
-		_, _ = fmt.Fprintf(os.Stderr, "OwlMail generated a temporary HTTP Basic Auth password for user %q: %s (set -web-password or OWLMAIL_WEB_PASSWORD for a stable password)\n", cfg.WebUser, cfg.WebPassword)
-	}
-	if completion.defaultedUsername {
-		_, _ = fmt.Fprintln(os.Stderr, "OwlMail defaulted the HTTP Basic Auth username to \"admin\" because only a password was configured")
-	}
-	return nil
+	return reportWebAuthCompletion(cfg, completion, os.Stderr)
 }
 
 // createMailServer creates and configures the mail server
@@ -293,7 +310,10 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Register event handlers
 	registerEventHandlers(server)
-	registerWebhookHandler(server, webhookDispatcher)
+	if err := registerWebhookHandler(server, webhookDispatcher, cfg.WebhookMaxConcurrency); err != nil {
+		_ = server.Close()
+		return nil, err
+	}
 
 	return server, nil
 }

@@ -207,6 +207,7 @@ docker buildx build \
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto-Relay-Adresse |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto-Relay-Regeldatei |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON-Konfigurationsdatei für Webhook-Weiterleitung |
+| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Gleichzeitige Webhook-Zustellungen; `0` deaktiviert die Begrenzung |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP-Authentifizierungsbenutzername |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP-Authentifizierungspasswort |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | SMTP TLS aktivieren |
@@ -214,6 +215,21 @@ docker buildx build \
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS-Private-Key-Datei |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Protokollierungsstufe |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | UUID für E-Mail-IDs verwenden (Standard: 8-Zeichen-Zufallszeichenfolge) |
+
+Eine unvollständige Web-Authentifizierung wird nicht stillschweigend deaktiviert:
+
+| Konfigurierte Werte | Effektive Zugangsdaten |
+|---|---|
+| Keine | Authentifizierung deaktiviert |
+| Nur Benutzername | Der Benutzername und ein kryptografisch zufälliges temporäres Passwort mit 32 Zeichen; das Passwort wird beim Start einmal auf stderr ausgegeben |
+| Nur Passwort | Benutzername `admin` und das konfigurierte Passwort |
+| Beide Werte | Der konfigurierte Benutzername und das konfigurierte Passwort |
+
+Ein generiertes Passwort ändert sich bei jedem Neustart. Lesen Sie es aus der
+Prozessausgabe (`docker logs owlmail` beim Container-Beispiel), oder konfigurieren
+Sie beide Werte für stabile Zugangsdaten. OwlMail startet nicht, wenn das
+generierte Passwort nicht auf stderr geschrieben werden kann. Verwenden Sie
+Basic Auth nur über localhost oder HTTPS.
 
 ### Umgebungsvariablen-Kompatibilität
 
