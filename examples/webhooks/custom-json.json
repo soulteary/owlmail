@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "authenticated-api",
+      "url": "${OWLMAIL_WEBHOOK_URL}",
+      "headers": {
+        "Authorization": "Bearer ${OWLMAIL_WEBHOOK_TOKEN}",
+        "X-Source": "owlmail"
+      },
+      "contentType": "application/json",
+      "secret": "${OWLMAIL_WEBHOOK_SECRET}",
+      "timeout": "5s",
+      "retries": 3,
+      "bodyTemplate": "{\"type\":\"owlmail.email.received\",\"id\":{{ json .ID }},\"receivedAt\":{{ json .Time }},\"subject\":{{ json .Subject }},\"preview\":{{ json (truncate .Text 500) }},\"sender\":{{ json (join .From \",\") }},\"recipients\":{{ json .To }},\"attachmentCount\":{{ .AttachmentCount }}}"
+    }
+  ]
+}

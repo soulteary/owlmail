@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
+}

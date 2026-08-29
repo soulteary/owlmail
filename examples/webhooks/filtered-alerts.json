@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "filtered-alerts",
+      "url": "http://127.0.0.1:18080/alerts",
+      "timeout": "3s",
+      "retries": 2,
+      "match": {
+        "to": ["alerts@*", "ops@*"],
+        "subject": ["*alert*", "*critical*", "*verification*", "*验证码*"]
+      }
+    }
+  ]
+}

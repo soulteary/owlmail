@@ -429,11 +429,14 @@ EOF
 ### Webhook Forwarding
 
 ```bash
-export OWLMAIL_WEBHOOK_SECRET='replace-with-a-random-secret'
-./owlmail -webhook-config ./examples/webhooks.json
+# Terminal 1: local test receiver
+go run ./examples/webhooks/receiver
+
+# Terminal 2: forward every new email with the default JSON payload
+./owlmail -webhook-config ./examples/webhooks/minimal.json
 ```
 
-Webhook targets support case-insensitive wildcard rules, custom JSON-safe body templates, environment-backed secrets, HMAC-SHA256 signatures, timeouts, and bounded retries. See the [Webhook forwarding guide](./docs/en/Webhook-Forwarding.md), including a ready-to-use `soulteary/webhook` example.
+Webhook targets support case-insensitive wildcard rules, custom JSON-safe body templates, environment-backed secrets, HMAC-SHA256 signatures, timeouts, and bounded retries. See the [scenario examples](./examples/webhooks/README.md) for filtering, custom APIs, multiple targets, plain text, and a runnable `soulteary/webhook` stack. The [Webhook forwarding guide](./docs/en/Webhook-Forwarding.md) is the complete reference.
 
 ### Using HTTPS
 

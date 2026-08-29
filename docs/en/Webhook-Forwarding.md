@@ -4,10 +4,23 @@ OwlMail can send every matching new email to one or more HTTP endpoints. The fea
 
 ## Enable forwarding
 
-Create a JSON file and pass it to OwlMail:
+The smallest valid configuration needs only a target name and an HTTP(S) URL:
+
+```json
+{
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
+}
+```
+
+Save it and pass it to OwlMail:
 
 ```bash
-export OWLMAIL_WEBHOOK_SECRET='replace-with-a-random-secret'
 ./owlmail -webhook-config ./webhooks.json
 ```
 
@@ -17,7 +30,24 @@ The environment variable form is equivalent:
 export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 ```
 
-See [`examples/webhooks.json`](../../examples/webhooks.json) for a complete configuration.
+If neither the flag nor environment variable is set, webhook forwarding is
+disabled. The configuration is validated once at startup; restart OwlMail after
+editing it.
+
+## Choose a runnable example
+
+| Scenario | Configuration |
+|---|---|
+| Minimal forwarding with the default payload | [`examples/webhooks/minimal.json`](../../examples/webhooks/minimal.json) |
+| Recipient and subject filtering | [`examples/webhooks/filtered-alerts.json`](../../examples/webhooks/filtered-alerts.json) |
+| Authenticated custom JSON and HMAC | [`examples/webhooks/custom-json.json`](../../examples/webhooks/custom-json.json) |
+| Archive plus filtered incident fan-out | [`examples/webhooks/multiple-targets.json`](../../examples/webhooks/multiple-targets.json) |
+| Plain-text request body | [`examples/webhooks/plain-text.json`](../../examples/webhooks/plain-text.json) |
+| Complete OwlMail + `soulteary/webhook` Compose stack | [`examples/webhooks/soulteary-webhook/`](../../examples/webhooks/soulteary-webhook/) |
+| Most options in one target | [`examples/webhooks.json`](../../examples/webhooks.json) |
+
+The [example walkthrough](../../examples/webhooks/README.md) includes a
+loopback-only receiver, exact startup commands, and a test SMTP message.
 
 ## Configuration format
 
@@ -52,10 +82,10 @@ See [`examples/webhooks.json`](../../examples/webhooks.json) for a complete conf
 |---|---:|---|
 | `version` | No | Configuration version. Omitted and `1` both mean version 1. |
 | `targets` | Yes | One to 32 destinations. Target names must be unique. |
-| `name` | Yes | Safe identifier used in logs; the full URL and configured secrets are never logged. |
-| `url` | Yes | Fixed `http` or `https` URL. Redirects are not followed. |
+| `name` | Yes | Safe identifier used in logs; maximum 100 characters with no newline. The full URL and configured secrets are never logged. |
+| `url` | Yes | Fixed `http` or `https` URL. User information and fragments are rejected; redirects are not followed. |
 | `method` | No | `POST` by default; `POST`, `PUT`, and `PATCH` are accepted. |
-| `headers` | No | Static request headers. `Host` and `Content-Length` cannot be overridden. |
+| `headers` | No | Static request headers. Header names and values are validated; `Host` and `Content-Length` cannot be overridden. |
 | `contentType` | No | `application/json` by default. An explicit `Content-Type` header takes precedence. |
 | `secret` | No | Generates `X-OwlMail-Signature: sha256=<hex>` over the exact request body. |
 | `timeout` | No | Per-attempt timeout; default `5s`, maximum `1m`. |
@@ -65,15 +95,40 @@ See [`examples/webhooks.json`](../../examples/webhooks.json) for a complete conf
 
 `${VARIABLE}` placeholders are supported in `url`, header values, and `secret`. OwlMail fails at startup if a referenced variable is missing, rather than silently sending an unauthenticated request.
 
+Only the braced `${VARIABLE}` form is expanded; `$VARIABLE` is treated as
+literal text. Environment expansion does not apply to `name`, `contentType`,
+matching rules, or `bodyTemplate`.
+
+### Validation and limits
+
+- The configuration file is limited to 1 MiB, must contain exactly one JSON
+  value, and rejects unknown fields.
+- Version 1 accepts 1–32 uniquely named targets.
+- A rendered request body is limited to 2 MiB. Oversized bodies fail before an
+  HTTP request is made.
+- Target timeout must be greater than zero and no more than one minute. The
+  default is five seconds per attempt.
+- `retries` counts extra attempts. For example, `2` means at most three total
+  requests for that target.
+- All targets and templates are compiled before SMTP and Web servers start, so
+  a configuration error fails fast without partially enabling forwarding.
+
 ## Matching rules
 
-The `from`, `to`, `subject`, and `text` fields accept arrays of shell-style patterns using `*` and `?`.
+The `from`, `to`, `subject`, and `text` fields accept arrays of Go
+shell-style patterns: `*`, `?`, character classes such as `[a-z]`, and `\`
+escapes. As with Go's `path.Match`, `*` does not match `/`.
 
 - Patterns inside one field are ORed.
 - Different non-empty fields are ANDed.
 - Empty fields match every email.
 - Matching is case-insensitive.
 - `to` considers envelope recipients as well as To, Cc, and Bcc headers.
+- `from` considers parsed From addresses and the SMTP envelope sender.
+- `text` matches the parsed plain-text body only; it does not search HTML or
+  attachments. An HTML-only email normally has an empty text value.
+- Matching by arbitrary headers is not supported. Use `.Headers` in a custom
+  template when the receiver needs header values.
 
 For example, this rule forwards alerts from any `example.com` sender only when their text contains a verification code:
 
@@ -105,6 +160,11 @@ Available helpers are:
 - `join STRINGS SEPARATOR`: join an address array.
 - `truncate STRING LENGTH`: truncate by Unicode code points.
 
+Templates use `missingkey=error`; a missing map key or template execution error
+fails that target delivery. Parsed addresses contain mailbox addresses without
+display names. `.Headers` may contain strings, arrays, or other parsed values,
+so pass it through `json` instead of assuming every value is a string.
+
 Always use `json` when placing email-controlled text into JSON:
 
 ```json
@@ -116,22 +176,65 @@ Without a template, OwlMail sends:
 ```json
 {
   "event": "email.received",
-  "message": "Subject followed by plain-text content",
+  "message": "Example\nMessage body",
   "email": {
     "id": "email-id",
+    "time": "2026-08-29T12:00:00Z",
     "subject": "Example",
     "from": ["sender@example.com"],
     "to": ["recipient@example.com"],
-    "text": "Message body"
+    "envelopeFrom": "sender@example.com",
+    "envelopeTo": ["recipient@example.com"],
+    "text": "Message body",
+    "html": "<p>Message body</p>",
+    "size": 123,
+    "sizeHuman": "123 B",
+    "attachments": [
+      {
+        "fileName": "report.txt",
+        "contentType": "text/plain",
+        "size": 42
+      }
+    ],
+    "attachmentCount": 1
   }
 }
 ```
 
-The exact email ID is also sent as `X-OwlMail-Email-ID`, which receivers can use as an idempotency key when retries produce a duplicate request.
+Empty optional arrays and strings such as `cc`, `bcc`, `html`, envelope fields,
+and `attachments` are omitted. `headers` is intentionally excluded from the
+default payload and is exposed only to explicit templates. Attachment bytes and
+local storage paths are never included.
+
+## Request headers
+
+| Header | Value |
+|---|---|
+| `Content-Type` | Target `contentType`, defaulting to `application/json`; an explicit custom header wins. |
+| `User-Agent` | `OwlMail-Webhook/1`, unless overridden by a custom header. |
+| `X-OwlMail-Event` | Always `email.received`. |
+| `X-OwlMail-Email-ID` | Exact OwlMail email ID; use it as an idempotency key. |
+| `X-OwlMail-Signature` | Present only when `secret` is set; `sha256=` plus lowercase hex HMAC over the exact body bytes. |
+
+Retries send the same body and email ID, so receivers should deduplicate before
+performing a non-idempotent action.
 
 ## Send to `soulteary/webhook`
 
-Use the hook URL exposed by [`soulteary/webhook`](https://github.com/soulteary/webhook):
+The runnable example starts both projects, validates HMAC, maps payload fields
+to environment variables, and executes a visible demo command:
+
+```bash
+cd examples/webhooks/soulteary-webhook
+export OWLMAIL_WEBHOOK_SECRET='replace-with-a-long-random-secret'
+docker compose up --build
+```
+
+Follow the [complete integration walkthrough](../../examples/webhooks/soulteary-webhook/README.md)
+to send a test message and inspect the result.
+
+For a manual deployment, use the hook URL exposed by
+[`soulteary/webhook`](https://github.com/soulteary/webhook):
 
 ```json
 {
@@ -147,9 +250,11 @@ Use the hook URL exposed by [`soulteary/webhook`](https://github.com/soulteary/w
 }
 ```
 
-One matching `soulteary/webhook` hook configuration is:
+One matching `soulteary/webhook` hook configuration is shown below. This is a
+Go-template source file, so it is intentionally not valid JSON until
+`soulteary/webhook -template` renders it:
 
-```json
+```text
 [
   {
     "id": "owlmail",
@@ -164,7 +269,7 @@ One matching `soulteary/webhook` hook configuration is:
     "trigger-rule": {
       "match": {
         "type": "payload-hmac-sha256",
-        "secret": "{{ getenv \"OWLMAIL_WEBHOOK_SECRET\" | js }}",
+        "secret": "{{ getenv "OWLMAIL_WEBHOOK_SECRET" | js }}",
         "parameter": { "source": "header", "name": "X-OwlMail-Signature" }
       }
     }
@@ -172,7 +277,45 @@ One matching `soulteary/webhook` hook configuration is:
 ]
 ```
 
-Start `soulteary/webhook` with its `-template` option when using `getenv` in the hook file. Give both containers the same `OWLMAIL_WEBHOOK_SECRET` value.
+Start `soulteary/webhook` with its `-template` option when using `getenv` in the
+hook file. Give both containers the same `OWLMAIL_WEBHOOK_SECRET` value.
+
+## Delivery lifecycle and troubleshooting
+
+1. OwlMail parses and stores the SMTP message first.
+2. The `new` event starts webhook delivery asynchronously, so a slow or failed
+   target does not change the SMTP result.
+3. Targets matching one email are called sequentially in configuration order.
+   Different email events may be delivered concurrently.
+4. A 2xx response completes the target. Network errors, 408, 425, 429, and 5xx
+   responses retry after approximately 100 ms, 200 ms, 400 ms, 800 ms, and
+   1.6 s as needed. `Retry-After` is not interpreted.
+5. Other 3xx/4xx responses fail immediately. Response bodies are not used.
+
+Forwarding has no persistent delivery queue or dead-letter store. After the
+configured attempts are exhausted, OwlMail keeps the email and logs the failure;
+it does not retry that event after a restart.
+
+For a local check, run the bundled receiver and the minimal configuration in
+separate terminals:
+
+```bash
+go run ./examples/webhooks/receiver
+go run ./cmd/owlmail -webhook-config ./examples/webhooks/minimal.json
+```
+
+When debugging:
+
+- A startup error normally means invalid JSON, an unknown field, a missing
+  `${VARIABLE}`, an invalid wildcard/duration, or a template parse error.
+- No request usually means the target did not match. Temporarily remove `match`
+  or start with `minimal.json`.
+- In containers, `127.0.0.1` points back to OwlMail. Use the receiver's service
+  name and container port.
+- HTTP 401/403 usually means the custom token or HMAC secret differs. HMAC covers
+  the exact body bytes; do not reformat the body before verifying it.
+- Successful deliveries are logged at verbose level. Failures are logged with
+  the safe target name, status, and attempt count, without the full URL or secret.
 
 ## Operational and security notes
 
@@ -182,3 +325,8 @@ Start `soulteary/webhook` with its `-template` option when using `getenv` in the
 - A successful response is any 2xx status. Redirects and other non-2xx responses are failures.
 - Delivery is asynchronous relative to SMTP storage. A failed webhook does not reject or delete the received email.
 - Retries can duplicate a request. Deduplicate with `email.id` or `X-OwlMail-Email-ID` before performing non-idempotent actions.
+- Default payloads may contain both plain-text and HTML email bodies. Use a
+  custom template to minimize data when a receiver needs only a title or code.
+- Webhook delivery is intended for notifications and automation, not as a
+  guaranteed message queue. Use a durable downstream endpoint when delivery
+  guarantees are required.
