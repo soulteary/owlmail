@@ -28,6 +28,7 @@ type deliveryQueue interface {
 	Claim(context.Context) (*queueReceipt, error)
 	Ack(context.Context, *queueReceipt) error
 	DeadLetter(context.Context, *queueReceipt, []Result) error
+	Renew(context.Context, *queueReceipt) error
 	Pending(context.Context) (int64, error)
 	Close() error
 }
@@ -160,6 +161,26 @@ func (queue *redisDeliveryQueue) Ack(ctx context.Context, receipt *queueReceipt)
 	})
 	if err != nil {
 		return fmt.Errorf("acknowledge webhook job: %w", err)
+	}
+	return nil
+}
+
+// Renew resets the pending entry's idle time while its HTTP delivery is still
+// active. JUSTID avoids inflating Redis' delivery-attempt counter on each
+// heartbeat.
+func (queue *redisDeliveryQueue) Renew(ctx context.Context, receipt *queueReceipt) error {
+	if receipt == nil {
+		return nil
+	}
+	ids, err := queue.client.XClaimJustID(ctx, &redis.XClaimArgs{
+		Stream: queue.stream, Group: redisConsumerGroup, Consumer: queue.consumer,
+		MinIdle: 0, Messages: []string{receipt.id},
+	}).Result()
+	if err != nil {
+		return fmt.Errorf("renew webhook job lease: %w", err)
+	}
+	if len(ids) != 1 || ids[0] != receipt.id {
+		return fmt.Errorf("renew webhook job lease: entry %s is no longer pending", receipt.id)
 	}
 	return nil
 }
