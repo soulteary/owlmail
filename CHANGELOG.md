@@ -17,6 +17,20 @@ All notable changes to OwlMail are documented in this file. The format follows
 - The in-memory mail store now uses an ID map with ordered IDs and returns deep
   snapshots to API, WebSocket, webhook, and other event consumers.
 
+### Release engineering
+
+- CI now runs the race-enabled coverage suite once and reuses its output for
+  the Job Summary and a seven-day HTML artifact. The duplicate Codecov workflow
+  and silently ignored external upload failures were removed.
+- Pull requests now build once on Ubuntu, main cross-compiles snapshots on
+  Ubuntu with seven-day retention, and only the release workflow handles tag
+  binaries and versioned container images. Build workflows cancel superseded
+  branch runs and skip documentation-only changes.
+- Formal releases now publish per-binary SPDX SBOMs, GitHub provenance
+  attestations, a keyless Sigstore signature for the checksum manifest, signed
+  container manifests, BuildKit SBOM/provenance attestations, and explicit OCI
+  source, revision, version, and license labels.
+
 ### Fixed
 
 - Incoming messages and attachments are staged, synced, and atomically renamed
