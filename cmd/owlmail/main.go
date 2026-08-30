@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/soulteary/owlmail/internal/api"
 	"github.com/soulteary/owlmail/internal/common"
@@ -131,6 +132,26 @@ func setupTLSConfig(cfg *config.Config) *mailserver.TLSConfig {
 		KeyFile:  cfg.TLSKeyFile,
 		Enabled:  true,
 	}
+}
+
+func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
+	if cfg == nil {
+		return mailserver.StoragePolicy{}, fmt.Errorf("config is nil")
+	}
+	interval := cfg.MailCleanupInterval
+	if interval == "" {
+		interval = config.DefaultMailCleanupInterval
+	}
+	cleanupInterval, err := time.ParseDuration(interval)
+	if err != nil || cleanupInterval <= 0 {
+		return mailserver.StoragePolicy{}, fmt.Errorf("invalid mail cleanup interval %q", interval)
+	}
+	return mailserver.StoragePolicy{
+		MaxAge:          time.Duration(cfg.MailRetentionDays) * 24 * time.Hour,
+		MaxMessages:     cfg.MailMaxMessages,
+		MaxDiskBytes:    int64(cfg.MailMaxDiskMB) * 1024 * 1024,
+		CleanupInterval: cleanupInterval,
+	}, nil
 }
 
 // registerEventHandlers registers event handlers for the mail server
@@ -306,6 +327,15 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	server, err := mailserver.NewMailServerWithFullConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig, cfg.UseUUIDForEmailID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
+	}
+	storagePolicy, err := setupStoragePolicy(cfg)
+	if err != nil {
+		_ = server.Close()
+		return nil, err
+	}
+	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
+		_ = server.Close()
+		return nil, fmt.Errorf("configure storage policy: %w", err)
 	}
 
 	// Register event handlers

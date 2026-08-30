@@ -10,6 +10,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 - The in-memory mail store now uses an ID map with ordered IDs and returns deep
   snapshots to API, WebSocket, webhook, and other event consumers.
+- Mailboxes can enforce age, count, and disk limits with background cleanup;
+  read state uses atomic sidecar metadata and ZIP exports stream with hard
+  source-count and byte limits.
 
 ## [0.5.0]
 

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/soulteary/cli-kit/validator"
 )
@@ -26,6 +27,13 @@ func ValidateConfig(cfg *Config) error {
 		if err := ValidatePort(cfg.OutgoingPort, "Outgoing port"); err != nil {
 			return err
 		}
+	}
+	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
+		return fmt.Errorf("mail retention limits cannot be negative")
+	}
+	cleanupInterval, err := time.ParseDuration(cfg.MailCleanupInterval)
+	if err != nil || cleanupInterval <= 0 {
+		return fmt.Errorf("mail cleanup interval must be a positive duration")
 	}
 
 	// Validate log level

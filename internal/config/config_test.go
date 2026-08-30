@@ -280,6 +280,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WebhookMaxConcurrency != 8 {
 		t.Errorf("DefaultConfig().WebhookMaxConcurrency = %d, want 8", cfg.WebhookMaxConcurrency)
 	}
+	if cfg.MailRetentionDays != 0 || cfg.MailMaxMessages != 0 || cfg.MailMaxDiskMB != 0 || cfg.MailCleanupInterval != "1h" {
+		t.Errorf("unexpected default storage policy: %#v", cfg)
+	}
 }
 
 func TestDefineAndResolveConfig(t *testing.T) {

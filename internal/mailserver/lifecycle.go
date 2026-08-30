@@ -37,6 +37,10 @@ func (ms *MailServer) Listen() error {
 
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
+	if ms.cleanupCancel != nil {
+		ms.cleanupCancel()
+		ms.cleanupWG.Wait()
+	}
 	if ms.outgoing != nil {
 		ms.outgoing.Close()
 	}

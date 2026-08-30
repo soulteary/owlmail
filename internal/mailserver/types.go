@@ -1,7 +1,9 @@
 package mailserver
 
 import (
+	"context"
 	"sync"
+	"time"
 
 	"github.com/emersion/go-smtp"
 	"github.com/soulteary/owlmail/internal/types"
@@ -45,6 +47,7 @@ type eventListener struct {
 type MailServer struct {
 	storeByID      map[string]*types.Email
 	storeOrder     []string
+	receivedAtByID map[string]time.Time
 	storeMutex     sync.RWMutex
 	mailDir        string
 	port           int
@@ -61,9 +64,14 @@ type MailServer struct {
 		IsAutoRelayEnabled() bool
 		Close()
 	}
-	authConfig   *SMTPAuthConfig
-	tlsConfig    *TLSConfig
-	useUUIDForID bool
+	authConfig          *SMTPAuthConfig
+	tlsConfig           *TLSConfig
+	useUUIDForID        bool
+	storagePolicy       StoragePolicy
+	cleanupCancel       context.CancelFunc
+	cleanupWG           sync.WaitGroup
+	storageMetricsMutex sync.RWMutex
+	storageMetrics      StorageMetrics
 }
 
 // GetHost returns the SMTP server host
