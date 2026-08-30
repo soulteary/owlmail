@@ -168,3 +168,11 @@ test('insecure contexts report notifications as unavailable', () => {
     assert.equal(harness.notificationToggle.attributes.get('aria-pressed'), 'false');
     assert.equal(harness.storage.get('owlmail.browserNotifications.enabled'), 'true');
 });
+
+test('address formatting tolerates null and undefined values', () => {
+    const harness = createHarness();
+
+    assert.equal(harness.run('formatAddress(null)'), 'Unknown');
+    assert.equal(harness.run('formatAddress(undefined)'), 'Unknown');
+    assert.equal(harness.run('formatAddress({ Name: "Sender", Address: "sender@example.test" })'), 'Sender <sender@example.test>');
+});

@@ -1412,6 +1412,7 @@ function formatTime(timeStr) {
 
 function formatAddress(addr) {
     if (typeof addr === 'string') return addr;
+    if (!addr || typeof addr !== 'object') return t('unknown');
     
     // 支持大小写两种字段名格式（Name/Address 或 name/address）
     const name = addr.Name || addr.name || '';
