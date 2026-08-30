@@ -52,9 +52,8 @@
    # 创建 PR 前运行与本地 CI 一致的检查
    go test -race ./...
    go vet ./...
-   node --check web/app.js
-   node --check web/help.js
-   node --test tests/web/*.test.js tests/docs/*.test.js
+   bun build ./web/*.js --target=browser --outdir=./.bun-check
+   bun test ./tests/web ./tests/docs
    ```
 
 5. **提交更改**
