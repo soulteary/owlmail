@@ -285,6 +285,18 @@ test('URL validation rejects normalized whitespace and opaque HTTP URLs', () => 
     assert.ok(codes(result).includes('urlHost'));
 });
 
+test('URL validation accepts and preserves trailing spaces in paths', () => {
+    const url = 'https://example.com/hook ';
+    const result = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{ name: 'trailing-space', url }]
+    }));
+
+    assert.deepEqual(codes(result), []);
+    assert.equal(result.config.targets[0].url, url);
+    assert.ok(source.includes("url: value('[data-field=\"url\"]')"));
+});
+
 test('URL validation rejects Go-incompatible authority syntax', () => {
     const result = configurator.validateConfig({
         version: 1,

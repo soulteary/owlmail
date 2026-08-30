@@ -284,6 +284,7 @@
     }
 
     const goTrimSpacePattern = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$/g;
+    const goLeadingSpacePattern = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+/;
 
     function goTrimSpace(value) {
         return value.replace(goTrimSpacePattern, '');
@@ -448,7 +449,7 @@
             errors.push(issue('urlRequired', path));
             return;
         }
-        if (value !== value.trim() || value !== goTrimSpace(value) || /[\u0000-\u001F\u007F]/.test(value)) {
+        if (value !== value.trimStart() || goLeadingSpacePattern.test(value) || /[\u0000-\u001F\u007F]/.test(value)) {
             errors.push(issue('urlInvalid', path));
             return;
         }
@@ -943,7 +944,7 @@
         const value = (selector) => card.querySelector(selector).value;
         const target = {
             name: goTrimSpace(value('[data-field="name"]')),
-            url: goTrimSpace(value('[data-field="url"]'))
+            url: value('[data-field="url"]')
         };
         const method = goTrimSpace(value('[data-field="method"]')).toUpperCase();
         const timeout = goTrimSpace(value('[data-field="timeout"]'));
