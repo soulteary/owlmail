@@ -6,6 +6,17 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional Redis Streams-backed Webhook delivery with restart recovery,
+  dead-letter records, stable delivery IDs, graceful drain, and replay-aware
+  HMAC headers containing a timestamp and nonce.
+
+### Changed
+
+- The in-memory mail store now uses an ID map with ordered IDs and returns deep
+  snapshots to API, WebSocket, webhook, and other event consumers.
+
 ### Release engineering
 
 - CI now runs the race-enabled coverage suite once and reuses its output for

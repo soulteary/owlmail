@@ -14,6 +14,8 @@ import (
 // DefaultWebhookMaxConcurrency is the recommended concurrent email delivery
 // limit. Zero remains available as an explicit unlimited mode.
 const DefaultWebhookMaxConcurrency = 8
+const DefaultWebhookRedisPrefix = "owlmail:webhooks"
+const DefaultWebhookShutdownTimeout = "15s"
 
 // EnvMapping defines the mapping from MailDev environment variables to OwlMail environment variables.
 // This maintains backward compatibility with MailDev deployments.
@@ -230,72 +232,81 @@ type Config struct {
 	UseUUIDForEmailID bool
 
 	// Webhook forwarding configuration
-	WebhookConfig         string
-	WebhookMaxConcurrency int
+	WebhookConfig          string
+	WebhookMaxConcurrency  int
+	WebhookRedisURL        string
+	WebhookRedisPrefix     string
+	WebhookShutdownTimeout string
 }
 
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
-		SMTPPort:              1025,
-		SMTPHost:              "localhost",
-		MailDir:               "",
-		WebPort:               1080,
-		WebHost:               "localhost",
-		WebUser:               "",
-		WebPassword:           "",
-		HTTPSEnabled:          false,
-		HTTPSCertFile:         "",
-		HTTPSKeyFile:          "",
-		OutgoingHost:          "",
-		OutgoingPort:          587,
-		OutgoingUser:          "",
-		OutgoingPass:          "",
-		OutgoingSecure:        false,
-		AutoRelay:             false,
-		AutoRelayAddr:         "",
-		AutoRelayRules:        "",
-		SMTPUser:              "",
-		SMTPPassword:          "",
-		TLSEnabled:            false,
-		TLSCertFile:           "",
-		TLSKeyFile:            "",
-		LogLevel:              "normal",
-		UseUUIDForEmailID:     false,
-		WebhookConfig:         "",
-		WebhookMaxConcurrency: DefaultWebhookMaxConcurrency,
+		SMTPPort:               1025,
+		SMTPHost:               "localhost",
+		MailDir:                "",
+		WebPort:                1080,
+		WebHost:                "localhost",
+		WebUser:                "",
+		WebPassword:            "",
+		HTTPSEnabled:           false,
+		HTTPSCertFile:          "",
+		HTTPSKeyFile:           "",
+		OutgoingHost:           "",
+		OutgoingPort:           587,
+		OutgoingUser:           "",
+		OutgoingPass:           "",
+		OutgoingSecure:         false,
+		AutoRelay:              false,
+		AutoRelayAddr:          "",
+		AutoRelayRules:         "",
+		SMTPUser:               "",
+		SMTPPassword:           "",
+		TLSEnabled:             false,
+		TLSCertFile:            "",
+		TLSKeyFile:             "",
+		LogLevel:               "normal",
+		UseUUIDForEmailID:      false,
+		WebhookConfig:          "",
+		WebhookMaxConcurrency:  DefaultWebhookMaxConcurrency,
+		WebhookRedisURL:        "",
+		WebhookRedisPrefix:     DefaultWebhookRedisPrefix,
+		WebhookShutdownTimeout: DefaultWebhookShutdownTimeout,
 	}
 }
 
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
-	SMTPPort              *int
-	SMTPHost              *string
-	MailDir               *string
-	WebPort               *int
-	WebHost               *string
-	WebUser               *string
-	WebPassword           *string
-	HTTPSEnabled          *bool
-	HTTPSCertFile         *string
-	HTTPSKeyFile          *string
-	OutgoingHost          *string
-	OutgoingPort          *int
-	OutgoingUser          *string
-	OutgoingPass          *string
-	OutgoingSecure        *bool
-	AutoRelay             *bool
-	AutoRelayAddr         *string
-	AutoRelayRules        *string
-	SMTPUser              *string
-	SMTPPassword          *string
-	TLSEnabled            *bool
-	TLSCertFile           *string
-	TLSKeyFile            *string
-	LogLevel              *string
-	UseUUIDForEmailID     *bool
-	WebhookConfig         *string
-	WebhookMaxConcurrency *int
+	SMTPPort               *int
+	SMTPHost               *string
+	MailDir                *string
+	WebPort                *int
+	WebHost                *string
+	WebUser                *string
+	WebPassword            *string
+	HTTPSEnabled           *bool
+	HTTPSCertFile          *string
+	HTTPSKeyFile           *string
+	OutgoingHost           *string
+	OutgoingPort           *int
+	OutgoingUser           *string
+	OutgoingPass           *string
+	OutgoingSecure         *bool
+	AutoRelay              *bool
+	AutoRelayAddr          *string
+	AutoRelayRules         *string
+	SMTPUser               *string
+	SMTPPassword           *string
+	TLSEnabled             *bool
+	TLSCertFile            *string
+	TLSKeyFile             *string
+	LogLevel               *string
+	UseUUIDForEmailID      *bool
+	WebhookConfig          *string
+	WebhookMaxConcurrency  *int
+	WebhookRedisURL        *string
+	WebhookRedisPrefix     *string
+	WebhookShutdownTimeout *string
 }
 
 // DefineFlags defines all configuration flags on the given FlagSet.
@@ -303,33 +314,36 @@ type FlagRefs struct {
 func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 	cfg := DefaultConfig()
 	return &FlagRefs{
-		SMTPPort:              fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
-		SMTPHost:              fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
-		MailDir:               fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
-		WebPort:               fs.Int("web", cfg.WebPort, "Web API port"),
-		WebHost:               fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
-		WebUser:               fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
-		WebPassword:           fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
-		HTTPSEnabled:          fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
-		HTTPSCertFile:         fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
-		HTTPSKeyFile:          fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
-		OutgoingHost:          fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
-		OutgoingPort:          fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
-		OutgoingUser:          fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
-		OutgoingPass:          fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
-		OutgoingSecure:        fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use TLS for outgoing SMTP"),
-		AutoRelay:             fs.Bool("auto-relay", cfg.AutoRelay, "Automatically relay all emails"),
-		AutoRelayAddr:         fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
-		AutoRelayRules:        fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
-		SMTPUser:              fs.String("smtp-user", cfg.SMTPUser, "SMTP server username for authentication"),
-		SMTPPassword:          fs.String("smtp-password", cfg.SMTPPassword, "SMTP server password for authentication"),
-		TLSEnabled:            fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
-		TLSCertFile:           fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
-		TLSKeyFile:            fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
-		LogLevel:              fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
-		UseUUIDForEmailID:     fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
-		WebhookConfig:         fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
-		WebhookMaxConcurrency: fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
+		SMTPPort:               fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
+		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
+		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
+		WebPort:                fs.Int("web", cfg.WebPort, "Web API port"),
+		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
+		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
+		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		HTTPSEnabled:           fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
+		HTTPSCertFile:          fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
+		HTTPSKeyFile:           fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
+		OutgoingHost:           fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
+		OutgoingPort:           fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
+		OutgoingUser:           fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
+		OutgoingPass:           fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
+		OutgoingSecure:         fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use TLS for outgoing SMTP"),
+		AutoRelay:              fs.Bool("auto-relay", cfg.AutoRelay, "Automatically relay all emails"),
+		AutoRelayAddr:          fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
+		AutoRelayRules:         fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
+		SMTPUser:               fs.String("smtp-user", cfg.SMTPUser, "SMTP server username for authentication"),
+		SMTPPassword:           fs.String("smtp-password", cfg.SMTPPassword, "SMTP server password for authentication"),
+		TLSEnabled:             fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
+		TLSCertFile:            fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
+		TLSKeyFile:             fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
+		LogLevel:               fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
+		UseUUIDForEmailID:      fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
+		WebhookConfig:          fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
+		WebhookMaxConcurrency:  fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
+		WebhookRedisURL:        fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
+		WebhookRedisPrefix:     fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
+		WebhookShutdownTimeout: fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
 	}
 }
 
@@ -369,9 +383,12 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 
 		LogLevel: resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
 
-		UseUUIDForEmailID:     resolveBoolWithFlag(fs, "use-uuid-for-email-id", "OWLMAIL_USE_UUID_FOR_EMAIL_ID", *refs.UseUUIDForEmailID),
-		WebhookConfig:         resolveStringWithFlag(fs, "webhook-config", "OWLMAIL_WEBHOOK_CONFIG", *refs.WebhookConfig),
-		WebhookMaxConcurrency: resolveIntWithFlag(fs, "webhook-max-concurrency", "OWLMAIL_WEBHOOK_MAX_CONCURRENCY", *refs.WebhookMaxConcurrency),
+		UseUUIDForEmailID:      resolveBoolWithFlag(fs, "use-uuid-for-email-id", "OWLMAIL_USE_UUID_FOR_EMAIL_ID", *refs.UseUUIDForEmailID),
+		WebhookConfig:          resolveStringWithFlag(fs, "webhook-config", "OWLMAIL_WEBHOOK_CONFIG", *refs.WebhookConfig),
+		WebhookMaxConcurrency:  resolveIntWithFlag(fs, "webhook-max-concurrency", "OWLMAIL_WEBHOOK_MAX_CONCURRENCY", *refs.WebhookMaxConcurrency),
+		WebhookRedisURL:        resolveStringWithFlag(fs, "webhook-redis-url", "OWLMAIL_WEBHOOK_REDIS_URL", *refs.WebhookRedisURL),
+		WebhookRedisPrefix:     resolveStringWithFlag(fs, "webhook-redis-prefix", "OWLMAIL_WEBHOOK_REDIS_PREFIX", *refs.WebhookRedisPrefix),
+		WebhookShutdownTimeout: resolveStringWithFlag(fs, "webhook-shutdown-timeout", "OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT", *refs.WebhookShutdownTimeout),
 	}
 }
 

@@ -42,6 +42,14 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 ```
 
+如需持久且可跨重启恢复的交接，可配置 Redis 6.2 或更高版本：
+
+```bash
+export OWLMAIL_WEBHOOK_REDIS_URL=redis://redis:6379/0
+export OWLMAIL_WEBHOOK_REDIS_PREFIX=owlmail:webhooks
+export OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT=15s
+```
+
 没有设置参数或环境变量时，Webhook 转发保持关闭。配置只在启动时校验一次；
 修改文件后需要重启 OwlMail。
 
@@ -101,7 +109,7 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 | `method` | 否 | 默认 `POST`，支持 `POST`、`PUT`、`PATCH`。 |
 | `headers` | 否 | 静态请求头；名称和值会被校验，不能覆盖 `Host` 和 `Content-Length`。 |
 | `contentType` | 否 | 默认 `application/json`；显式 `Content-Type` 请求头优先。 |
-| `secret` | 否 | 对最终请求体生成 `X-OwlMail-Signature: sha256=<hex>`。 |
+| `secret` | 否 | 生成防重放的 `X-OwlMail-Signature-V2`，同时保留旧版仅正文签名。 |
 | `timeout` | 否 | 每次请求的超时，默认 `5s`，最大 `1m`。 |
 | `retries` | 否 | 0～5 次额外尝试；仅网络错误、408、425、429 和 5xx 会重试。 |
 | `match` | 否 | 不区分大小写的通配符规则，语义见下文。 |
@@ -121,16 +129,30 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 - `retries` 表示额外尝试次数，例如 `2` 表示最多请求三次；
 - SMTP 和 Web 服务启动前，会先编译全部目标与模板，因此错误配置不会造成部分启用。
 
+## 持久投递、死信与退出排空
+
+设置 `OWLMAIL_WEBHOOK_REDIS_URL` 后，OwlMail 会先把已存储邮件的事件写入 Redis
+Stream，再结束事件交接。consumer group worker 仅在所有匹配目标成功后确认并删除
+条目；进程崩溃遗留的 pending 条目会在 30 秒后被重新认领。目标耗尽自身重试后，
+包含投递错误的记录会写入 `<prefix>:dead-letter`，随后移除活动条目。
+
+该语义是“至少一次”：若接收端已经成功、但进程在确认 Redis 前崩溃，重启后会
+重复投递。接收端应使用稳定的 `X-OwlMail-Delivery-ID` 去重。Redis 必须在启动时
+可访问；当前 consumer 配置面向每个前缀单个活动 OwlMail 实例。
+
+退出时会先停止 SMTP 入口和新的队列交接，在 `-webhook-shutdown-timeout` 内排空排队
+及执行中的投递，超时后再取消共享上下文。未配置 Redis 时同样会排空，但队列
+无法在进程或主机故障后恢复。
+
 ## 并发与背压
 
 `-webhook-max-concurrency` 限制所有目标共享的并发邮件投递任务数。默认值 `8`
 适合本地开发和小型 CI 环境。估算初始值时，可以用“峰值每秒邮件数 × 接收端
 p95 响应秒数”，然后向上取整。
 
-OwlMail 会在创建 Webhook 处理 goroutine 之前获取并发槽位。槽位耗尽时，邮件已经
-持久化，事件处理会等待空闲槽位；轻量日志和 WebSocket 监听器仍会优先启动。
-因此即使邮件已经保存，SMTP `DATA` 命令也可能等待投递槽位后才完成；这种主动
-背压可避免慢接收端制造无限增长的 goroutine。单个任务内的匹配目标仍按顺序投递。
+该限制决定队列 consumer 数量，而不是等待信号量的 goroutine 数量。SMTP `DATA` 命令
+只等待队列交接（持久模式包括 Redis append），不等待目标 HTTP 请求。单个任务内
+的匹配目标仍按顺序投递。
 
 `0` 会保留旧版的无限并发行为，只应在明确需要无限制分发时使用；突发流量下可能
 消耗大量内存和连接。
@@ -231,10 +253,14 @@ OwlMail 会在创建 Webhook 处理 goroutine 之前获取并发槽位。槽位�
 | `Content-Type` | 目标的 `contentType`，默认为 `application/json`；显式自定义请求头优先。 |
 | `User-Agent` | 默认为 `OwlMail-Webhook/1`，可用自定义请求头覆盖。 |
 | `X-OwlMail-Event` | 固定为 `email.received`。 |
-| `X-OwlMail-Email-ID` | OwlMail 邮件 ID，可作为幂等键。 |
-| `X-OwlMail-Signature` | 只在配置 `secret` 时发送；格式为 `sha256=` 加上对原始请求体计算的十六进制小写 HMAC。 |
+| `X-OwlMail-Email-ID` | OwlMail 邮件 ID。 |
+| `X-OwlMail-Delivery-ID` | 稳定的队列任务 ID，接收端应以此作为幂等键。 |
+| `X-OwlMail-Timestamp` | 配置 `secret` 时发送的 UTC RFC 3339 签名时间。 |
+| `X-OwlMail-Nonce` | 每次 HTTP 尝试使用的新随机值。 |
+| `X-OwlMail-Signature-V2` | `v2=` 加上对 `timestamp + "." + nonce + "." + 原始请求体` 计算的 HMAC-SHA256。接收端应要求此头、限制时间窗口并拒绝重复 nonce。 |
+| `X-OwlMail-Signature` | 为兼容旧接收端保留的仅正文签名，不具备防重放能力。 |
 
-重试会使用相同的请求体和邮件 ID。接收端在执行非幂等操作前应先去重。
+重试使用相同请求体和 delivery ID，但每次生成新的时间戳与 nonce。
 
 ## 发送到 `soulteary/webhook`
 

@@ -46,7 +46,8 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	}
 
 	ms := &MailServer{
-		store:        make([]*types.Email, 0),
+		storeByID:    make(map[string]*types.Email),
+		storeOrder:   make([]string, 0),
 		mailDir:      mailDir,
 		port:         port,
 		host:         host,

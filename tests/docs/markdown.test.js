@@ -271,8 +271,8 @@ test("security-sensitive authentication limitations remain explicit", () => {
   }
 
   const capacityReferences = [
-    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "does not drain", "100 UTF-8 bytes"]],
-    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "不会等待正在进行", "100 个 UTF-8 字节"]],
+    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "drains queued", "100 UTF-8 bytes"]],
+    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "排空排队", "100 个 UTF-8 字节"]],
   ];
   for (const [reference, markers] of capacityReferences) {
     const markdown = fs.readFileSync(path.join(root, reference), "utf8");

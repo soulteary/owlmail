@@ -37,6 +37,40 @@ func TestMailServerOn(t *testing.T) {
 	}
 }
 
+func TestEventListenersReceiveIndependentSnapshots(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	mutated := make(chan struct{})
+	observed := make(chan string, 1)
+	server.On("isolated", func(email *Email) {
+		email.Subject = "mutated"
+		email.Envelope.To[0] = "mutated@example.test"
+		close(mutated)
+	})
+	server.On("isolated", func(email *Email) {
+		<-mutated
+		observed <- email.Subject + ":" + email.Envelope.To[0]
+	})
+
+	original := &Email{Subject: "original", Envelope: &Envelope{To: []string{"receiver@example.test"}}}
+	server.emit("isolated", original)
+	select {
+	case got := <-observed:
+		if got != "original:receiver@example.test" {
+			t.Fatalf("listener observed another listener's mutation: %s", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("listeners did not finish")
+	}
+	if original.Subject != "original" || original.Envelope.To[0] != "receiver@example.test" {
+		t.Fatal("listener mutated the emitter-owned object")
+	}
+}
+
 func TestOnWithConcurrencyBoundsHandlersBeforeStartingGoroutines(t *testing.T) {
 	server, err := NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
