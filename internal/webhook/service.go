@@ -68,7 +68,7 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	service := &Service{
-		dispatcher: dispatcher, ctx: ctx, cancel: cancel,
+		dispatcher: dispatcher.withMaxConcurrency(options.MaxConcurrency), ctx: ctx, cancel: cancel,
 		shutdownTimeout: options.ShutdownTimeout, onResults: options.OnResults,
 		workerCount: options.MaxConcurrency, unlimited: options.MaxConcurrency == 0,
 	}

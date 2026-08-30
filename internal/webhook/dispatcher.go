@@ -27,8 +27,9 @@ const (
 
 // Dispatcher sends matching email events to configured targets.
 type Dispatcher struct {
-	targets []compiledTarget
-	client  *http.Client
+	targets       []compiledTarget
+	client        *http.Client
+	deliverySlots chan struct{}
 }
 
 // Result describes one target delivery attempt.
@@ -83,6 +84,32 @@ func (dispatcher *Dispatcher) TargetCount() int {
 	return len(dispatcher.targets)
 }
 
+func (dispatcher *Dispatcher) withMaxConcurrency(limit int) *Dispatcher {
+	limited := *dispatcher
+	if limit > 0 {
+		limited.deliverySlots = make(chan struct{}, limit)
+	}
+	return &limited
+}
+
+func (dispatcher *Dispatcher) acquireDeliverySlot(ctx context.Context) error {
+	if dispatcher.deliverySlots == nil {
+		return nil
+	}
+	select {
+	case dispatcher.deliverySlots <- struct{}{}:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (dispatcher *Dispatcher) releaseDeliverySlot() {
+	if dispatcher.deliverySlots != nil {
+		<-dispatcher.deliverySlots
+	}
+}
+
 // Dispatch synchronously sends an email to every matching target. MailServer
 // invokes event listeners asynchronously, so this never blocks SMTP storage.
 func (dispatcher *Dispatcher) Dispatch(ctx context.Context, email *types.Email) []Result {
@@ -103,19 +130,24 @@ func (dispatcher *Dispatcher) DispatchDelivery(ctx context.Context, email *types
 	}
 
 	payload := newEmailPayload(email)
-	matchingTargets := make([]compiledTarget, 0, len(dispatcher.targets))
+	matching := make([]compiledTarget, 0, len(dispatcher.targets))
 	for _, target := range dispatcher.targets {
-		if target.matches(payload) {
-			matchingTargets = append(matchingTargets, target)
+		if !target.matches(payload) {
+			continue
 		}
+		matching = append(matching, target)
 	}
-
-	results := make([]Result, len(matchingTargets))
+	results := make([]Result, len(matching))
 	var deliveries sync.WaitGroup
-	deliveries.Add(len(matchingTargets))
-	for index, target := range matchingTargets {
+	for index, target := range matching {
+		deliveries.Add(1)
 		go func() {
 			defer deliveries.Done()
+			if err := dispatcher.acquireDeliverySlot(ctx); err != nil {
+				results[index] = Result{Target: target.name, Err: err}
+				return
+			}
+			defer dispatcher.releaseDeliverySlot()
 			results[index] = dispatcher.deliver(ctx, target, payload, deliveryID)
 		}()
 	}

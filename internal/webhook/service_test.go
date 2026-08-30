@@ -6,9 +6,61 @@ import (
 	"net/http/httptest"
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestServiceConcurrencyLimitAppliesToIndividualTargets(t *testing.T) {
+	var active atomic.Int32
+	var maximum atomic.Int32
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		current := active.Add(1)
+		defer active.Add(-1)
+		for {
+			observed := maximum.Load()
+			if current <= observed || maximum.CompareAndSwap(observed, current) {
+				break
+			}
+		}
+		time.Sleep(20 * time.Millisecond)
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{
+		{Name: "first", URL: receiver.URL},
+		{Name: "second", URL: receiver.URL},
+	}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := make(chan []Result, 1)
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency:  1,
+		ShutdownTimeout: time.Second,
+		OnResults: func(_ string, results []Result) {
+			completed <- results
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = service.Close() }()
+	if err := service.Enqueue(testEmail()); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case results := <-completed:
+		if len(results) != 2 {
+			t.Fatalf("result count = %d, want 2", len(results))
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for deliveries")
+	}
+	if got := maximum.Load(); got != 1 {
+		t.Fatalf("maximum concurrent target requests = %d, want 1", got)
+	}
+}
 
 func TestServiceCloseDrainsInFlightDelivery(t *testing.T) {
 	started := make(chan struct{})
