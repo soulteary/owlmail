@@ -76,10 +76,10 @@ test('minimal configuration imports and normalizes defaults', () => {
 test('import matches known JSON field names case-insensitively like Go', () => {
     const result = configurator.parseConfigText(JSON.stringify({
         Version: 1,
-        Targets: [{
+        'targetſ': [{
             Name: 'primary',
             URL: 'https://example.com/hooks/owlmail',
-            Match: { Subject: ['build*'] }
+            Match: { 'ſubject': ['build*'] }
         }]
     }));
 

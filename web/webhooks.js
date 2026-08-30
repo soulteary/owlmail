@@ -283,12 +283,29 @@
         return value !== null && typeof value === 'object' && !Array.isArray(value);
     }
 
+    function foldJSONFieldName(value) {
+        let folded = '';
+        for (const character of value) {
+            const codePoint = character.codePointAt(0);
+            if (codePoint >= 0x61 && codePoint <= 0x7A) {
+                folded += String.fromCharCode(codePoint - 0x20);
+            } else if (codePoint === 0x017F) {
+                folded += 'S';
+            } else if (codePoint === 0x212A) {
+                folded += 'K';
+            } else {
+                folded += character;
+            }
+        }
+        return folded;
+    }
+
     function canonicalizeKnownObject(value, allowed) {
         if (!isPlainObject(value)) return value;
-        const canonicalNames = new Map(Array.from(allowed, (name) => [name.toLowerCase(), name]));
+        const canonicalNames = new Map(Array.from(allowed, (name) => [foldJSONFieldName(name), name]));
         const result = Object.create(null);
         Object.entries(value).forEach(([name, item]) => {
-            result[canonicalNames.get(name.toLowerCase()) || name] = item;
+            result[canonicalNames.get(foldJSONFieldName(name)) || name] = item;
         });
         return result;
     }
