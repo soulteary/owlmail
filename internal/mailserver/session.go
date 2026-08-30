@@ -1,10 +1,7 @@
 package mailserver
 
 import (
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 
 	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-smtp"
@@ -73,27 +70,8 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 
 // Data handles the DATA command
 func (s *Session) Data(r io.Reader) error {
-	// Generate unique ID
 	id := makeID(s.mailServer.useUUIDForID)
-
-	// Save raw email
-	emlPath := filepath.Join(s.mailServer.mailDir, id+".eml")
-	emlFile, err := os.Create(emlPath)
-	if err != nil {
-		return fmt.Errorf("failed to create email file: %w", err)
-	}
-	defer func() {
-		if err := emlFile.Close(); err != nil {
-			common.Verbose("Failed to close email file: %v", err)
-		}
-	}()
-
-	// Copy email data to file and parse
-	tee := io.TeeReader(r, emlFile)
-
-	// Parse email
-	_, err = s.mailServer.parseEmail(id, tee, s, true, false)
-	return err
+	return s.mailServer.storeIncomingEmail(id, r, s)
 }
 
 // Reset resets the session

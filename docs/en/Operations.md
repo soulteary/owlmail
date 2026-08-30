@@ -36,6 +36,15 @@ Back up the directory before changing OwlMail versions or testing an archive
 created by another product. Attachment files are stored alongside OwlMail's
 mail data; copying only selected files may produce incomplete messages.
 
+OwlMail stages and syncs raw messages and attachments in the same directory,
+commits attachments first, and uses the final atomic `.eml` rename as the
+complete-message marker. Parse, attachment-write, or in-memory commit failures
+roll back the current transaction. Startup recovery moves temporary artifacts,
+orphan attachment directories, and unparseable `.eml` files into
+`<mail-directory>/quarantine/` instead of loading or silently deleting damaged
+data. Operators may remove reviewed entries; do not move them directly back
+into the live mail directory while troubleshooting.
+
 ### 3. Persistent Docker deployment
 
 ```bash
