@@ -268,12 +268,24 @@ test('URL validation rejects Go-incompatible authority syntax', () => {
         targets: [
             { name: 'backslash', url: 'https://example.com\\hook' },
             { name: 'empty-user', url: 'https://@example.com/hook' },
-            { name: 'empty-user-password', url: 'https://:@example.com/hook' }
+            { name: 'empty-user-password', url: 'https://:@example.com/hook' },
+            { name: 'opening-brace', url: 'https://example{.com/hook' },
+            { name: 'closing-brace', url: 'https://example}.com/hook' },
+            { name: 'backtick', url: 'https://example`.com/hook' }
         ]
     });
 
-    assert.ok(codes(result).includes('urlInvalid'));
+    assert.equal(codes(result).filter((code) => code === 'urlInvalid').length, 4);
     assert.equal(codes(result).filter((code) => code === 'urlCredentials').length, 2);
+});
+
+test('URL validation accepts Go-compatible IPv6 zone identifiers', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'scoped-ipv6', url: 'https://[fe80::1%25eth0]/hook' }]
+    });
+
+    assert.deepEqual(codes(result), []);
 });
 
 test('glob validation follows Go path.Match character-class grammar', () => {

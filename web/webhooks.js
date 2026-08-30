@@ -378,19 +378,49 @@
         return true;
     }
 
-    function authorityHasInvalidHostEscape(authority) {
-        const hostPort = authority.slice(authority.lastIndexOf('@') + 1);
+    const goHostASCIICharacters = new Set(
+        "!$&'()*+,-.0123456789:;<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~"
+    );
+    goHostASCIICharacters.add('"');
+
+    function validGoHostString(value, zone) {
+        for (let index = 0; index < value.length; index++) {
+            const character = value[index];
+            if (character === '%') {
+                const token = value.slice(index, index + 3);
+                if (!/^%[0-9A-Fa-f]{2}$/.test(token)) return false;
+                const decoded = Number.parseInt(token.slice(1), 16);
+                if (zone) {
+                    if (token.toLowerCase() !== '%25' && decoded !== 0x20 &&
+                        decoded < 0x80 && !goHostASCIICharacters.has(String.fromCharCode(decoded))) {
+                        return false;
+                    }
+                } else if (decoded < 0x80 && token.toLowerCase() !== '%25') {
+                    return false;
+                }
+                index += 2;
+                continue;
+            }
+            if (character.charCodeAt(0) < 0x80 && !goHostASCIICharacters.has(character)) return false;
+        }
+        return true;
+    }
+
+    function authorityHasInvalidHost(authority) {
+        const staticAuthority = authority.replace(environmentPattern, 'placeholder');
+        const hostPort = staticAuthority.slice(staticAuthority.lastIndexOf('@') + 1);
         if (hostPort.startsWith('[')) {
             const bracketEnd = hostPort.indexOf(']');
             if (bracketEnd < 0) return false;
             const address = hostPort.slice(1, bracketEnd);
             const zoneDelimiter = address.indexOf('%25');
-            const addressWithoutZone = zoneDelimiter < 0 ? address : address.slice(0, zoneDelimiter);
-            return addressWithoutZone.includes('%');
+            if (zoneDelimiter < 0) return !validGoHostString(address, false);
+            return !validGoHostString(address.slice(0, zoneDelimiter), false) ||
+                !validGoHostString(address.slice(zoneDelimiter), true);
         }
         const portSeparator = hostPort.lastIndexOf(':');
         const host = portSeparator < 0 ? hostPort : hostPort.slice(0, portSeparator);
-        return host.includes('%');
+        return !validGoHostString(host, false);
     }
 
     function validateURL(value, path, errors, warnings) {
@@ -436,7 +466,7 @@
         const authorityHasUserInfo = authority.includes('@');
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
         if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
-        if (authorityHasInvalidHostEscape(authority)) {
+        if (authorityHasInvalidHost(authority)) {
             errors.push(issue('urlInvalid', path));
             return;
         }
@@ -467,9 +497,10 @@
             if (lastColon > closingBracket) return '443';
             return 'placeholder.invalid';
         });
+        const browserParseValue = parseableValue.replace(/\[([^\]]+?)%25[^\]]*\]/g, '[$1]');
         let parsed;
         try {
-            parsed = new URL(parseableValue);
+            parsed = new URL(browserParseValue);
         } catch (_) {
             errors.push(issue('urlInvalid', path));
             return;
@@ -1157,7 +1188,7 @@
         patternsFromEditorValue,
         editorValueFromPreserved,
         createHeaderMap,
-        authorityHasInvalidHostEscape
+        authorityHasInvalidHost
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);
