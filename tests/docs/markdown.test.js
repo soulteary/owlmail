@@ -25,6 +25,23 @@ test("Webhook demo publishes host ports on loopback only", () => {
   assert.doesNotMatch(compose, /^\s*-\s*["']?(?:9000|1025|1080):/m);
 });
 
+test("Webhook demo distinguishes HTTP proxying from SMTP network controls", () => {
+  const english = fs.readFileSync(
+    path.join(root, "examples/webhooks/soulteary-webhook/README.md"),
+    "utf8",
+  );
+  assert.match(english, /This does not\s+protect SMTP/);
+  assert.ok(english.includes("network policy, a firewall, or a private tunnel"));
+
+  const chinese = fs.readFileSync(
+    path.join(root, "examples/webhooks/soulteary-webhook/README.zh-CN.md"),
+    "utf8",
+  );
+  assert.ok(chinese.includes("不能保护 SMTP"));
+  assert.ok(chinese.includes("网络策略、防火墙"));
+  assert.ok(chinese.includes("私有隧道"));
+});
+
 function walkMarkdown(directory) {
   const files = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {

@@ -86,9 +86,10 @@ owlmail -webhook-config owlmail.json
 ```
 
 示例将所有宿主机端口绑定到 `127.0.0.1`，在共享主机上不要移除此边界。
-生产环境中，请将 OwlMail 和 WebHook 都保持为私有服务或置于经过身份验证的反向代理之后，
-为 OwlMail 配置 Web Basic Auth 并限制 SMTP 入口；同时保留 HMAC 校验，限制允许执行的
-命令路径、执行时间与并发，并避免记录完整邮件正文。
+生产环境中，HTTP 界面可以置于经过身份验证的反向代理之后，并应继续启用 OwlMail Web
+Basic Auth；但这不能保护 SMTP。请将 1025 端口限制在可信接口，或通过网络策略、防火墙
+或私有隧道进行隔离。同时保留 HMAC 校验，限制允许执行的命令路径、执行时间与并发，
+并避免记录完整邮件正文。
 
 [English](./README.md) ·
 [Webhook 消息转发参考](../../../docs/zh-CN/Webhook-Forwarding.md) ·
