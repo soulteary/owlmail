@@ -108,7 +108,7 @@ func verifySignature(signature, timestamp, nonce string, body []byte, secret str
 	if !hmac.Equal(provided, mac.Sum(nil)) {
 		return false, fmt.Errorf("X-OwlMail-Signature-V2 verification failed")
 	}
-	if nonces != nil && !nonces.use(nonce, now.Add(maxSignatureAge), now) {
+	if nonces != nil && !nonces.use(nonce, signedAt.Add(maxSignatureAge), now) {
 		return false, fmt.Errorf("webhook nonce was already used")
 	}
 	return true, nil
