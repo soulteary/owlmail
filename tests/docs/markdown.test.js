@@ -385,6 +385,43 @@ test("0.5.0 release documentation and workflow stay connected", () => {
   }
 });
 
+test("release workflow preserves supply-chain evidence", () => {
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
+  for (const marker of [
+    "id-token: write",
+    "attestations: write",
+    "anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26",
+    "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
+    "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6",
+    "subject-checksums: checksums.txt",
+    "checksums.txt.sigstore.json",
+    "sbom: true",
+    "provenance: mode=max",
+    "push-to-registry: true",
+    "org.opencontainers.image.source",
+    "org.opencontainers.image.revision",
+    "org.opencontainers.image.version",
+    "org.opencontainers.image.licenses=MIT",
+    'cosign sign --yes "${REGISTRY}/${IMAGE_NAME}@${IMAGE_DIGEST}"',
+    '"${GITHUB_REF}" != "refs/tags/${VERSION}"',
+  ]) {
+    assert.ok(workflow.includes(marker), `.github/workflows/release.yml is missing ${marker}`);
+  }
+
+  for (const guide of ["docs/en/Releasing.md", "docs/zh-CN/Releasing.md"]) {
+    const markdown = fs.readFileSync(path.join(root, guide), "utf8");
+    for (const marker of [
+      "checksums.txt.sigstore.json",
+      "gh attestation verify",
+      "cosign verify-blob",
+      "cosign verify",
+      "--ref v0.5.0",
+    ]) {
+      assert.ok(markdown.includes(marker), `${guide} is missing supply-chain marker ${marker}`);
+    }
+  }
+});
+
 test("browser and documentation tests use the pinned Bun runner", () => {
   const legacyRunner = `node:${"test"}`;
   for (const testFile of [

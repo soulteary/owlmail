@@ -15,6 +15,10 @@ All notable changes to OwlMail are documented in this file. The format follows
   Ubuntu with seven-day retention, and only the release workflow handles tag
   binaries and versioned container images. Build workflows cancel superseded
   branch runs and skip documentation-only changes.
+- Formal releases now publish per-binary SPDX SBOMs, GitHub provenance
+  attestations, a keyless Sigstore signature for the checksum manifest, signed
+  container manifests, BuildKit SBOM/provenance attestations, and explicit OCI
+  source, revision, version, and license labels.
 
 ## [0.5.0]
 
