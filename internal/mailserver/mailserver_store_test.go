@@ -208,14 +208,6 @@ func TestMailServerGetAllEmail(t *testing.T) {
 	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
 		t.Fatalf("Failed to save email 2: %v", err)
 	}
-	quarantinePath := filepath.Join(tmpDir, quarantineDirName, "recoverable-message", "message.eml")
-	if err := os.MkdirAll(filepath.Dir(quarantinePath), 0750); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(quarantinePath, []byte("recoverable"), 0600); err != nil {
-		t.Fatal(err)
-	}
-
 	emails = server.GetAllEmail()
 	if len(emails) != 2 {
 		t.Errorf("Expected 2 emails, got %d", len(emails))
@@ -291,6 +283,13 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	}
 	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
 		t.Fatalf("Failed to save email 2: %v", err)
+	}
+	quarantinePath := filepath.Join(tmpDir, quarantineDirName, "recoverable-message", "message.eml")
+	if err := os.MkdirAll(filepath.Dir(quarantinePath), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(quarantinePath, []byte("recoverable"), 0600); err != nil {
+		t.Fatal(err)
 	}
 
 	// Delete all
