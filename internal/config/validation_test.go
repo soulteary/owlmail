@@ -226,6 +226,19 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid webhook drain settings", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.WebhookShutdownTimeout = "never"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("invalid webhook shutdown timeout should fail")
+		}
+		cfg = DefaultConfig()
+		cfg.WebhookRedisPrefix = " "
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("empty webhook Redis prefix should fail")
+		}
+	})
+
 	t.Run("valid full config", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.SMTPPort = 2525

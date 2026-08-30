@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -83,6 +85,12 @@ func (dispatcher *Dispatcher) TargetCount() int {
 // Dispatch synchronously sends an email to every matching target. MailServer
 // invokes event listeners asynchronously, so this never blocks SMTP storage.
 func (dispatcher *Dispatcher) Dispatch(ctx context.Context, email *types.Email) []Result {
+	return dispatcher.DispatchDelivery(ctx, email, "")
+}
+
+// DispatchDelivery sends an email using a stable delivery ID. Durable queue
+// consumers use this ID as the receiver's idempotency key.
+func (dispatcher *Dispatcher) DispatchDelivery(ctx context.Context, email *types.Email, deliveryID string) []Result {
 	if dispatcher == nil {
 		return nil
 	}
@@ -99,12 +107,12 @@ func (dispatcher *Dispatcher) Dispatch(ctx context.Context, email *types.Email) 
 		if !target.matches(payload) {
 			continue
 		}
-		results = append(results, dispatcher.deliver(ctx, target, payload))
+		results = append(results, dispatcher.deliver(ctx, target, payload, deliveryID))
 	}
 	return results
 }
 
-func (dispatcher *Dispatcher) deliver(ctx context.Context, target compiledTarget, payload EmailPayload) Result {
+func (dispatcher *Dispatcher) deliver(ctx context.Context, target compiledTarget, payload EmailPayload, deliveryID string) Result {
 	result := Result{Target: target.name}
 	body, err := renderBody(target, payload)
 	if err != nil {
@@ -118,7 +126,7 @@ func (dispatcher *Dispatcher) deliver(ctx context.Context, target compiledTarget
 
 	for attempt := 0; attempt <= target.retries; attempt++ {
 		result.Attempts = attempt + 1
-		statusCode, retry, requestErr := dispatcher.sendAttempt(ctx, target, payload.ID, body)
+		statusCode, retry, requestErr := dispatcher.sendAttempt(ctx, target, payload.ID, deliveryID, body)
 		result.StatusCode = statusCode
 		if requestErr == nil {
 			result.Err = nil
@@ -156,7 +164,7 @@ func renderBody(target compiledTarget, payload EmailPayload) ([]byte, error) {
 	return body.Bytes(), nil
 }
 
-func (dispatcher *Dispatcher) sendAttempt(ctx context.Context, target compiledTarget, emailID string, body []byte) (int, bool, error) {
+func (dispatcher *Dispatcher) sendAttempt(ctx context.Context, target compiledTarget, emailID, deliveryID string, body []byte) (int, bool, error) {
 	attemptContext, cancel := context.WithTimeout(ctx, target.timeout)
 	defer cancel()
 
@@ -173,7 +181,21 @@ func (dispatcher *Dispatcher) sendAttempt(ctx context.Context, target compiledTa
 	}
 	request.Header.Set("X-OwlMail-Event", "email.received")
 	request.Header.Set("X-OwlMail-Email-ID", emailID)
+	if deliveryID == "" {
+		deliveryID = emailID
+	}
+	request.Header.Set("X-OwlMail-Delivery-ID", deliveryID)
 	if target.secret != "" {
+		timestamp := time.Now().UTC().Format(time.RFC3339)
+		nonce, nonceErr := newSignatureNonce()
+		if nonceErr != nil {
+			return 0, false, nonceErr
+		}
+		request.Header.Set("X-OwlMail-Timestamp", timestamp)
+		request.Header.Set("X-OwlMail-Nonce", nonce)
+		request.Header.Set("X-OwlMail-Signature-V2", signPayloadV2(target.secret, timestamp, nonce, body))
+		// Retain the body-only signature for existing receivers. New receivers
+		// should require Signature-V2 and reject stale or repeated nonces.
 		request.Header.Set("X-OwlMail-Signature", signPayload(target.secret, body))
 	}
 
@@ -209,6 +231,24 @@ func signPayload(secret string, payload []byte) string {
 	mac := hmac.New(sha256.New, []byte(secret))
 	_, _ = mac.Write(payload)
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func signPayloadV2(secret, timestamp, nonce string, payload []byte) string {
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write([]byte(nonce))
+	_, _ = mac.Write([]byte("."))
+	_, _ = mac.Write(payload)
+	return "v2=" + hex.EncodeToString(mac.Sum(nil))
+}
+
+func newSignatureNonce() (string, error) {
+	buffer := make([]byte, 18)
+	if _, err := io.ReadFull(rand.Reader, buffer); err != nil {
+		return "", fmt.Errorf("generate signature nonce: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buffer), nil
 }
 
 func waitForRetry(ctx context.Context, attempt int) bool {

@@ -11,13 +11,22 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 )
 
 const (
-	listenAddress  = "127.0.0.1:18080"
-	maxRequestBody = 2 << 20
+	listenAddress   = "127.0.0.1:18080"
+	maxRequestBody  = 2 << 20
+	maxSignatureAge = 5 * time.Minute
 )
+
+var replayNonces = &nonceCache{seen: make(map[string]time.Time)}
+
+type nonceCache struct {
+	mu   sync.Mutex
+	seen map[string]time.Time
+}
 
 func main() {
 	server := &http.Server{
@@ -43,7 +52,12 @@ func receive(writer http.ResponseWriter, request *http.Request) {
 		return
 	}
 
-	verified, err := verifySignature(request.Header.Get("X-OwlMail-Signature"), body, os.Getenv("OWLMAIL_WEBHOOK_SECRET"))
+	verified, err := verifySignature(
+		request.Header.Get("X-OwlMail-Signature-V2"),
+		request.Header.Get("X-OwlMail-Timestamp"),
+		request.Header.Get("X-OwlMail-Nonce"),
+		body, os.Getenv("OWLMAIL_WEBHOOK_SECRET"), time.Now().UTC(), replayNonces,
+	)
 	if err != nil {
 		http.Error(writer, err.Error(), http.StatusUnauthorized)
 		return
@@ -62,10 +76,10 @@ func receive(writer http.ResponseWriter, request *http.Request) {
 	writer.WriteHeader(http.StatusNoContent)
 }
 
-func verifySignature(signature string, body []byte, secret string) (bool, error) {
+func verifySignature(signature, timestamp, nonce string, body []byte, secret string, now time.Time, nonces *nonceCache) (bool, error) {
 	if signature == "" {
 		if secret != "" {
-			return false, fmt.Errorf("X-OwlMail-Signature is required when OWLMAIL_WEBHOOK_SECRET is set")
+			return false, fmt.Errorf("X-OwlMail-Signature-V2 is required when OWLMAIL_WEBHOOK_SECRET is set")
 		}
 		return false, nil
 	}
@@ -73,18 +87,44 @@ func verifySignature(signature string, body []byte, secret string) (bool, error)
 		return false, nil
 	}
 
-	const prefix = "sha256="
+	if timestamp == "" || nonce == "" {
+		return false, fmt.Errorf("timestamp and nonce are required")
+	}
+	signedAt, err := time.Parse(time.RFC3339, timestamp)
+	if err != nil || signedAt.After(now.Add(time.Minute)) || now.Sub(signedAt) > maxSignatureAge {
+		return false, fmt.Errorf("webhook signature timestamp is outside the accepted window")
+	}
+	const prefix = "v2="
 	if len(signature) <= len(prefix) || signature[:len(prefix)] != prefix {
-		return false, fmt.Errorf("invalid X-OwlMail-Signature format")
+		return false, fmt.Errorf("invalid X-OwlMail-Signature-V2 format")
 	}
 	provided, err := hex.DecodeString(signature[len(prefix):])
 	if err != nil {
-		return false, fmt.Errorf("invalid X-OwlMail-Signature encoding")
+		return false, fmt.Errorf("invalid X-OwlMail-Signature-V2 encoding")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp + "." + nonce + "."))
 	_, _ = mac.Write(body)
 	if !hmac.Equal(provided, mac.Sum(nil)) {
-		return false, fmt.Errorf("X-OwlMail-Signature verification failed")
+		return false, fmt.Errorf("X-OwlMail-Signature-V2 verification failed")
+	}
+	if nonces != nil && !nonces.use(nonce, now.Add(maxSignatureAge), now) {
+		return false, fmt.Errorf("webhook nonce was already used")
 	}
 	return true, nil
+}
+
+func (cache *nonceCache) use(nonce string, expiresAt, now time.Time) bool {
+	cache.mu.Lock()
+	defer cache.mu.Unlock()
+	for value, expiry := range cache.seen {
+		if !expiry.After(now) {
+			delete(cache.seen, value)
+		}
+	}
+	if _, exists := cache.seen[nonce]; exists {
+		return false
+	}
+	cache.seen[nonce] = expiresAt
+	return true
 }

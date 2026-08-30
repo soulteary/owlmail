@@ -376,7 +376,11 @@ func (api *API) batchReadEmails(c fiber.Ctx) error {
 		}
 
 		if !email.Read {
-			email.Read = true
+			if err := api.mailServer.ReadEmail(id); err != nil {
+				failedCount++
+				failedIDs = append(failedIDs, id)
+				continue
+			}
 			successCount++
 		}
 	}
