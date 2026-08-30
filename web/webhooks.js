@@ -387,6 +387,10 @@
             errors.push(issue('urlRequired', path));
             return;
         }
+        if (value !== value.trim() || /[\u0000-\u001F\u007F]/.test(value)) {
+            errors.push(issue('urlInvalid', path));
+            return;
+        }
 
         const environmentMatches = value.match(environmentPattern);
         if (environmentMatches) {
@@ -400,19 +404,11 @@
         }
 
         const schemeEnd = value.indexOf('://');
+        let placeholderInScheme = false;
         if (environmentMatches && schemeEnd >= 0) {
             const scheme = value.slice(0, schemeEnd);
-            const placeholderInScheme = environmentPattern.test(scheme);
+            placeholderInScheme = environmentPattern.test(scheme);
             environmentPattern.lastIndex = 0;
-            if (placeholderInScheme) {
-                const authorityStart = schemeEnd + 3;
-                const authorityEndOffset = value.slice(authorityStart).search(/[/?#]/);
-                const authorityEnd = authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset;
-                const authority = value.slice(authorityStart, authorityEnd);
-                if (authority.includes('@')) errors.push(issue('urlCredentials', path));
-                if (value.includes('#')) errors.push(issue('urlFragment', path));
-                return;
-            }
         }
 
         const authorityStart = schemeEnd >= 0 ? schemeEnd + 3 : -1;
@@ -420,11 +416,26 @@
         const authorityEnd = authorityStart < 0
             ? -1
             : (authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset);
+        const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
+        if (authorityIsStaticallyEmpty) {
+            errors.push(issue('urlHost', path));
+        }
         const parseableValue = value.replace(environmentPattern, (token, offset) => {
+            if (placeholderInScheme && offset < schemeEnd) return 'https';
             if (offset < authorityStart || offset >= authorityEnd) return 'value';
             const authorityPrefix = value.slice(authorityStart, offset);
             const afterCredentials = authorityPrefix.slice(authorityPrefix.lastIndexOf('@') + 1);
+            const openingBracket = afterCredentials.lastIndexOf('[');
             const closingBracket = afterCredentials.lastIndexOf(']');
+            if (openingBracket > closingBracket) {
+                const authoritySuffix = value.slice(offset + token.length, authorityEnd);
+                const bracketEnd = authoritySuffix.indexOf(']');
+                if (bracketEnd >= 0) {
+                    const beforePlaceholder = afterCredentials.slice(openingBracket + 1);
+                    const afterPlaceholder = authoritySuffix.slice(0, bracketEnd);
+                    return beforePlaceholder === '' && afterPlaceholder === '' ? '::1' : '1';
+                }
+            }
             const lastColon = afterCredentials.lastIndexOf(':');
             if (lastColon > closingBracket) return '443';
             return 'placeholder.invalid';
@@ -436,8 +447,13 @@
             errors.push(issue('urlInvalid', path));
             return;
         }
-        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') errors.push(issue('urlScheme', path));
-        if (!parsed.hostname) errors.push(issue('urlHost', path));
+        if (!placeholderInScheme && parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+            errors.push(issue('urlScheme', path));
+        }
+        if (schemeEnd < 0 && (parsed.protocol === 'http:' || parsed.protocol === 'https:')) {
+            errors.push(issue('urlHost', path));
+        }
+        if (!parsed.hostname && !authorityIsStaticallyEmpty) errors.push(issue('urlHost', path));
         if (parsed.username || parsed.password) errors.push(issue('urlCredentials', path));
         if (parsed.hash) errors.push(issue('urlFragment', path));
     }
@@ -645,6 +661,10 @@
         return splitPatternLines(value);
     }
 
+    function createHeaderMap() {
+        return Object.create(null);
+    }
+
     function utf8ByteLength(value) {
         return typeof TextEncoder === 'function'
             ? new TextEncoder().encode(value).byteLength
@@ -830,7 +850,7 @@
         if (secret) target.secret = secret;
         if (bodyTemplate) target.bodyTemplate = bodyTemplate;
 
-        const headers = {};
+        const headers = createHeaderMap();
         const headerNames = new Set();
         card.querySelectorAll('.header-row').forEach((row) => {
             const name = row.querySelector('[data-header="name"]').value.trim();
@@ -1088,7 +1108,8 @@
         validateGeneratedConfig,
         utf8ByteLength,
         validGlobPattern,
-        patternsFromEditorValue
+        patternsFromEditorValue,
+        createHeaderMap
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);

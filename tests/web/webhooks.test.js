@@ -211,17 +211,29 @@ test('generated configurations use the same 1 MiB limit as OwlMail', () => {
 
 test('URL validation defers environment-backed schemes and ports to runtime', () => {
     const schemePlaceholder = '$' + '{SCHEME}';
+    const hostPlaceholder = '$' + '{HOST}';
     const portPlaceholder = '$' + '{PORT}';
     const result = configurator.validateConfig({
         version: 1,
         targets: [
             { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
-            { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' }
+            { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' },
+            { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' }
         ]
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 2);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 3);
+});
+
+test('URL validation still checks static authority with a placeholder scheme', () => {
+    const schemePlaceholder = '$' + '{SCHEME}';
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'missing-host', url: schemePlaceholder + ':///hook' }]
+    });
+
+    assert.ok(codes(result).includes('urlHost'));
 });
 
 test('URL validation rejects escapes that Go net/url cannot parse', () => {
@@ -231,6 +243,20 @@ test('URL validation rejects escapes that Go net/url cannot parse', () => {
     });
 
     assert.ok(codes(result).includes('urlInvalid'));
+});
+
+test('URL validation rejects normalized whitespace and opaque HTTP URLs', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [
+            { name: 'leading-space', url: ' https://example.com/hook' },
+            { name: 'control', url: 'https://exa\nmple.com/hook' },
+            { name: 'opaque', url: 'https:example.com' }
+        ]
+    });
+
+    assert.equal(codes(result).filter((code) => code === 'urlInvalid').length, 2);
+    assert.ok(codes(result).includes('urlHost'));
 });
 
 test('glob validation follows Go path.Match character-class grammar', () => {
@@ -291,4 +317,12 @@ test('sub-nanosecond timeouts are rejected after Go-compatible quantization', ()
     });
 
     assert.ok(codes(result).includes('timeoutRange'));
+});
+
+test('generated header maps preserve Object prototype property names', () => {
+    const headers = configurator.createHeaderMap();
+    headers.__proto__ = 'kept';
+
+    assert.equal(Object.prototype.hasOwnProperty.call(headers, '__proto__'), true);
+    assert.equal(JSON.parse(JSON.stringify(headers)).__proto__, 'kept');
 });
