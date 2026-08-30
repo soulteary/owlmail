@@ -54,6 +54,7 @@ API レスポンスと WebSocket プロトコルは独自です。API や Socket
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **内蔵ヘルプ** - 受信トレイまたは `/help` から開けるローカル二言語ガイド
+- 🆕 **Webhook 設定ツール** - `/webhooks` で転送ルールの作成、インポート、検証、コピー、ダウンロードができる組み込みローカルエディター
 
 ### Compatibility
 

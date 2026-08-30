@@ -36,7 +36,8 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - **Other languages**: [简体中文](../zh-CN/Operations.md)
 
 - **[Webhook Forwarding](./Webhook-Forwarding.md)**
-  - Configure filtering, custom payload templates, HMAC signatures, retries, and integration with `soulteary/webhook`.
+  - Use the embedded `/webhooks` configurator, or configure filtering, custom
+    payload templates, HMAC signatures, retries, and integration with `soulteary/webhook` manually.
   - **Runnable examples**: [minimal, filtered, custom, multi-target, plain text, and Compose](../../examples/webhooks/README.md)
   - **Other languages**: [简体中文](../zh-CN/Webhook-Forwarding.md)
 

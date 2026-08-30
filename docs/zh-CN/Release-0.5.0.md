@@ -1,8 +1,9 @@
 # OwlMail 0.5.0 发布说明
 
 OwlMail 0.5.0 在保持单一二进制部署方式的同时，把本地收件箱扩展为更完整的
-集成端点。本版本新增可配置 Webhook 转发、内置帮助、按需浏览器通知、明确的
-Webhook 容量控制，并改进了 Web Basic Auth 只配置一项凭据时的行为。
+集成端点。本版本新增可配置 Webhook 转发、内置 Webhook 配置器、内置帮助、
+按需浏览器通知、明确的 Webhook 容量控制，并改进了 Web Basic Auth 只配置一项
+凭据时的行为。
 
 只有在发布 `v0.5.0` 标签后，引用 `v0.5.0` 或容器标签 `0.5.0` 的命令才会生效。
 
@@ -22,6 +23,16 @@ Webhook 容量控制，并改进了 Web Basic Auth 只配置一项凭据时的�
 使用 `-webhook-config` 或 `OWLMAIL_WEBHOOK_CONFIG` 指定 JSON 文件。进程级
 `-webhook-max-concurrency` / `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` 默认值为 `8`；
 只有明确需要无限投递并发时才设置为 `0`。
+
+### 浏览器 Webhook 配置器
+
+收件箱提供 `/webhooks` 入口，可使用中英文编辑器生成新的版本 1 配置，或导入、
+校验、复制和下载已有配置。所有编辑都在浏览器本地完成；OwlMail 不会上传配置或
+其中的密钥。
+
+下载配置不会自动启用规则。请把 JSON 文件挂载或放置到服务端可读位置，通过
+`-webhook-config` 或 `OWLMAIL_WEBHOOK_CONFIG` 指定它，然后重启 OwlMail。
+运行时环境变量占位符会被原样保留，并在 OwlMail 启动时校验。
 
 ### 内置运维帮助
 
@@ -91,10 +102,11 @@ chmod +x owlmail-linux-amd64
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.5.0
 ```
 
-下载的发布二进制在运行时不需要 Go 或 Node.js。
+下载的发布二进制在运行时不需要 Go、Bun 或 Node.js。
 
 发布二进制与镜像会嵌入 `version`、`commit`、`build_date` 和来源标签，可通过
-`GET /api/v1/version` 检查；发布工作流会在上传文件前冒烟验证版本与提交。
+`GET /api/v1/version` 检查；发布工作流会在上传文件前重新执行 Go 与 Bun 测试、
+运行 `govulncheck`，并冒烟验证版本与提交。
 
 ### 容器镜像
 

@@ -2,6 +2,21 @@
 
 OwlMail can send every matching new email to one or more HTTP endpoints. The feature is configured at startup, runs on the server even when no browser is open, and does not alter MailDev-compatible APIs.
 
+## Build or import a configuration in the browser
+
+Open `http://localhost:1080/webhooks`, or use the **Webhooks** button in the
+inbox, to build a version 1 configuration. The embedded English/Chinese editor
+can also import an existing JSON file by picker, drag and drop, or pasted text.
+It validates the same documented target limits and can copy or download the
+normalized result.
+
+The editor is local-only: it does not upload the configuration and cannot
+change the running server. After downloading the JSON, place it where OwlMail
+can read it, select it with `-webhook-config` or
+`OWLMAIL_WEBHOOK_CONFIG`, and restart OwlMail. Values such as
+`${OWLMAIL_WEBHOOK_SECRET}` remain placeholders and must exist in the server's
+environment at startup.
+
 ## Enable forwarding
 
 The smallest valid configuration needs only a target name and an HTTP(S) URL:
@@ -88,7 +103,7 @@ loopback-only receiver, exact startup commands, and a test SMTP message.
 |---|---:|---|
 | `version` | No | Configuration version. Omitted and `1` both mean version 1. |
 | `targets` | Yes | One to 32 destinations. Target names must be unique. |
-| `name` | Yes | Safe identifier used in logs; maximum 100 characters with no newline. The full URL and configured secrets are never logged. |
+| `name` | Yes | Safe identifier used in logs; maximum 100 UTF-8 bytes with no newline. The full URL and configured secrets are never logged. |
 | `url` | Yes | Fixed `http` or `https` URL. User information and fragments are rejected; redirects are not followed. |
 | `method` | No | `POST` by default; `POST`, `PUT`, and `PATCH` are accepted. |
 | `headers` | No | Static request headers. Header names and values are validated; `Host` and `Content-Length` cannot be overridden. |

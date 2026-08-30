@@ -55,6 +55,7 @@ client API ou Socket.IO.
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **Aide intégrée** - Guide local bilingue depuis la boîte de réception ou `/help`
+- 🆕 **Configurateur Webhook** - Éditeur local intégré sous `/webhooks` pour créer, importer, valider, copier et télécharger les règles de transfert
 
 ### Compatibility
 

@@ -54,6 +54,7 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 - 🆕 **Leistungsstarke Suche** - Volltextsuche, Datumsbereichsfilterung, Sortierung
 - 🆕 **Verbesserte RESTful API** - Standardisierteres API-Design (`/api/v1/*`)
 - 🆕 **Integrierte Hilfe** - Lokaler zweisprachiger Leitfaden im Posteingang oder unter `/help`
+- 🆕 **Webhook-Konfigurator** - Eingebetteter lokaler Editor unter `/webhooks` zum Erstellen, Importieren, Prüfen, Kopieren und Herunterladen von Weiterleitungsregeln
 
 ### Kompatibilität
 

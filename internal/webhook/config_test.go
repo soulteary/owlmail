@@ -85,6 +85,7 @@ func TestCompileConfigValidation(t *testing.T) {
 		{name: "duplicate names", config: Config{Targets: []Target{validTarget(), validTarget()}}, wantError: "duplicate name"},
 		{name: "missing name", config: Config{Targets: []Target{{URL: "https://example.com"}}}, wantError: "name is required"},
 		{name: "name newline", config: Config{Targets: []Target{{Name: "bad\nname", URL: "https://example.com"}}}, wantError: "no newlines"},
+		{name: "name exceeds UTF-8 byte limit", config: Config{Targets: []Target{{Name: strings.Repeat("猫", 34), URL: "https://example.com"}}}, wantError: "100 UTF-8 bytes"},
 		{name: "bad scheme", config: Config{Targets: []Target{{Name: "bad", URL: "file:///tmp/hook"}}}, wantError: "scheme"},
 		{name: "missing host", config: Config{Targets: []Target{{Name: "bad", URL: "http:///hook"}}}, wantError: "host"},
 		{name: "url credentials", config: Config{Targets: []Target{{Name: "bad", URL: "https://user:pass@example.com"}}}, wantError: "user information"},

@@ -54,6 +54,7 @@ prima di migrare client API o Socket.IO.
 - 🆕 **Ricerca Potente** - Ricerca full-text, filtri per intervallo di date, ordinamento
 - 🆕 **API RESTful Migliorata** - Design API più standardizzato (`/api/v1/*`)
 - 🆕 **Guida integrata** - Guida locale bilingue dalla casella di posta o su `/help`
+- 🆕 **Configuratore Webhook** - Editor locale integrato in `/webhooks` per creare, importare, validare, copiare e scaricare le regole di inoltro
 
 ### Compatibilità
 

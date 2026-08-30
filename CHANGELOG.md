@@ -6,17 +6,15 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.5.0]
+
 ### Added
 
 - An embedded English/Chinese Webhook Configurator at `/webhooks` for building,
   importing, validating, copying, and downloading version 1 forwarding rules.
   Configuration is processed locally in the browser and is not activated until
-  the downloaded file is mounted and OwlMail is restarted.
-
-## [0.5.0]
-
-### Added
-
+  the downloaded file is selected with `-webhook-config` and OwlMail is
+  restarted.
 - Generic outgoing webhook delivery for newly received email, including
   multiple targets, wildcard filters, JSON-safe and plain-text templates,
   environment-backed values, HMAC-SHA256 signatures, bounded retries, and
@@ -50,6 +48,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Release engineering
 
+- Browser and documentation checks now use the repository-pinned Bun 1.4.0
+  toolchain, and the release workflow repeats those checks against the exact
+  release tag before publishing assets.
+- The release workflow also gates publication on dependency verification,
+  formatting, `go vet`, race-enabled Go tests, and `govulncheck`.
 - Release notes are versioned in the repository and prepended to GitHub's
   generated change list.
 - Manual release workflow runs must reference an existing semantic-version tag

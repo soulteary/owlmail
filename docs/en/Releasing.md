@@ -24,11 +24,14 @@ file.
 - [ ] Required checks on the exact `main` commit are green.
 - [ ] `go test -race ./...`, `go vet ./...`, `go mod verify`, browser tests, and documentation tests pass.
 - [ ] `govulncheck ./...` reports no reachable vulnerability, or every exception is documented.
+- [ ] `.bun-version` and the release workflow's pinned Go, Bun, and
+  `govulncheck` versions match the intended release toolchain.
 - [ ] A multi-architecture Docker build succeeds.
 - [ ] The complete mail directory has been backed up for any upgrade smoke test using persistent data.
 
-For 0.5.0, also confirm the Go 1.27 dependency upgrade and repository-local Go
-Report Card changes are merged before tagging.
+For 0.5.0, also confirm the Go 1.27 dependency upgrade, repository-local Go
+Report Card, Bun migration, and embedded webhook configurator are merged and
+described by the release notes before tagging.
 
 ## Create the release tag
 
@@ -48,7 +51,9 @@ make a new patch version.
 
 The tag push starts both release workflows. A manual run of the binary release
 workflow is only a retry mechanism: provide an existing tag, and the workflow
-checks out that tag before building.
+checks out that tag before building. Before publishing assets, the job reruns
+dependency verification, formatting, `go vet`, race-enabled Go tests,
+`govulncheck`, and the Bun browser/documentation checks against the tag.
 
 ## Verify published artifacts
 

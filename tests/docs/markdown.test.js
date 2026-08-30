@@ -271,8 +271,8 @@ test("security-sensitive authentication limitations remain explicit", () => {
   }
 
   const capacityReferences = [
-    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "does not drain"]],
-    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "不会等待正在进行"]],
+    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "does not drain", "100 UTF-8 bytes"]],
+    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "不会等待正在进行", "100 个 UTF-8 字节"]],
   ];
   for (const [reference, markers] of capacityReferences) {
     const markdown = fs.readFileSync(path.join(root, reference), "utf8");
@@ -295,18 +295,32 @@ test("English and Chinese API references cover every registered API route", () =
 
 test("0.5.0 release documentation and workflow stay connected", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
-  for (const marker of ["## [0.5.0]", "outgoing webhook delivery", "Go 1.27.0", "[0.5.0]:"]) {
-    assert.ok(changelog.includes(marker), `CHANGELOG.md is missing ${marker}`);
+  const releaseStart = changelog.indexOf("## [0.5.0]");
+  const releaseEnd = changelog.indexOf("## [0.4.0]", releaseStart);
+  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.5.0 release section");
+  const releaseSection = changelog.slice(releaseStart, releaseEnd);
+  for (const marker of [
+    "outgoing webhook delivery",
+    "Webhook Configurator",
+    "Go 1.27.0",
+    "Bun 1.4.0",
+  ]) {
+    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.5.0 section is missing ${marker}`);
   }
+  assert.ok(changelog.includes("[0.5.0]:"), "CHANGELOG.md is missing the 0.5.0 comparison link");
+  assert.ok(
+    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Webhook Configurator"),
+    "CHANGELOG.md still classifies the 0.5.0 configurator as unreleased",
+  );
 
   const releaseNotes = [
     [
       "docs/en/Release-0.5.0.md",
-      ["Webhook forwarding", "Browser notifications", "Known limitations", "owlmail-linux-amd64"],
+      ["Webhook forwarding", "Browser webhook configurator", "Browser notifications", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
       "docs/zh-CN/Release-0.5.0.md",
-      ["Webhook 消息转发", "浏览器通知", "已知限制", "owlmail-linux-amd64"],
+      ["Webhook 消息转发", "浏览器 Webhook 配置器", "浏览器通知", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
   for (const [releaseNote, markers] of releaseNotes) {
@@ -320,6 +334,7 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
     assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${readme} does not pin the release image`);
     assert.ok(markdown.includes("Release-0.5.0.md"), `${readme} does not link the release notes`);
+    assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
   }
 
   for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {
@@ -342,6 +357,10 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     'NOTES="docs/en/Release-${VERSION#v}.md"',
     "github.com/soulteary/version-kit/v2.Version",
     "Verify embedded release metadata",
+    "Run release preflight checks",
+    "Scan for reachable Go vulnerabilities",
+    "Verify browser assets and documentation",
+    "govulncheck@${GOVULNCHECK_VERSION}",
     "body_path: ${{ steps.release.outputs.notes }}",
     "fail_on_unmatched_files: true",
   ]) {
@@ -363,4 +382,22 @@ test("0.5.0 release documentation and workflow stay connected", () => {
   ]) {
     assert.ok(dockerWorkflow.includes(marker), `.github/workflows/docker.yml is missing ${marker}`);
   }
+});
+
+test("browser and documentation tests use the pinned Bun runner", () => {
+  const legacyRunner = `node:${"test"}`;
+  for (const testFile of [
+    "tests/web/app.test.js",
+    "tests/web/webhooks.test.js",
+    "tests/docs/markdown.test.js",
+  ]) {
+    const source = fs.readFileSync(path.join(root, testFile), "utf8");
+    assert.ok(source.includes('require("bun:test")') || source.includes("require('bun:test')"), `${testFile} does not use bun:test`);
+    assert.ok(
+      !source.includes(`require("${legacyRunner}")`) && !source.includes(`require('${legacyRunner}')`),
+      `${testFile} still uses ${legacyRunner}`,
+    );
+  }
+
+  assert.equal(fs.readFileSync(path.join(root, ".bun-version"), "utf8").trim(), "1.4.0");
 });
