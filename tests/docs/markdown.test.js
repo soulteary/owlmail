@@ -335,6 +335,7 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${readme} does not pin the release image`);
     assert.ok(markdown.includes("Release-0.5.0.md"), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
+    assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);
   }
 
   for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {

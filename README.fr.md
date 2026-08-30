@@ -67,7 +67,7 @@ client API ou Socket.IO.
 ### Caractéristiques de déploiement
 
 - ⚡ **Binaire unique** - L'interface et l'aide sont intégrées
-- ⚡ **Sans runtime de langage** - Le binaire déployé ne requiert ni Node.js ni Go
+- ⚡ **Sans runtime de langage** - Le binaire déployé ne requiert ni Go, ni Bun, ni Node.js
 - ⚡ **Concurrence explicite** - Les Webhooks peuvent être limités ou volontairement illimités
 
 Le dépôt ne publie pas de benchmark comparatif reproductible. Mesurez démarrage,

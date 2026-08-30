@@ -67,7 +67,7 @@ boundary before migrating API or Socket.IO clients.
 ### Deployment Characteristics
 
 - ⚡ **Single Binary** - Compiled executable with the UI and help assets embedded
-- ⚡ **No Language Runtime** - The deployed binary does not require Node.js or Go
+- ⚡ **No Language Runtime** - The deployed binary does not require Go, Bun, or Node.js
 - ⚡ **Explicit Concurrency Controls** - Webhook delivery can be bounded or intentionally unlimited
 
 The repository does not publish a reproducible cross-project benchmark. Measure

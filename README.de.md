@@ -66,7 +66,7 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 ### Bereitstellungseigenschaften
 
 - ⚡ **Einzelne Binärdatei** - UI und Hilfe sind eingebettet
-- ⚡ **Keine Sprachlaufzeit** - Die Binärdatei benötigt weder Node.js noch Go
+- ⚡ **Keine Sprachlaufzeit** - Die Binärdatei benötigt weder Go noch Bun oder Node.js
 - ⚡ **Explizite Parallelitätssteuerung** - Webhook-Zustellung kann begrenzt oder bewusst unbegrenzt sein
 
 Das Repository veröffentlicht keinen reproduzierbaren Projektvergleich. Messen

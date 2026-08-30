@@ -66,7 +66,7 @@ prima di migrare client API o Socket.IO.
 ### Caratteristiche di distribuzione
 
 - ⚡ **Binario singolo** - Interfaccia e guida sono incorporate
-- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Node.js o Go
+- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Go, Bun o Node.js
 - ⚡ **Concorrenza esplicita** - I Webhook possono essere limitati o intenzionalmente illimitati
 
 Il repository non pubblica benchmark comparativi riproducibili. Misura avvio,
