@@ -107,7 +107,10 @@ If you find a bug or have a feature suggestion, please:
 ### Prerequisites
 
 - Go 1.27.0 or higher
+- Bun version pinned in `.bun-version`
 - Git
+
+Install Bun using the [official instructions](https://bun.sh/docs/installation), then run `bun --version` and confirm it matches `.bun-version` before executing the browser and documentation checks.
 
 ### Setup Steps
 

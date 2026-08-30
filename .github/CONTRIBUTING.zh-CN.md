@@ -107,7 +107,10 @@
 ### 前置要求
 
 - Go 1.27.0 或更高版本
+- `.bun-version` 中固定的 Bun 版本
 - Git
+
+请按照 [Bun 官方安装说明](https://bun.sh/docs/installation)安装，然后运行 `bun --version`，确认版本与 `.bun-version` 一致，再执行浏览器和文档检查。
 
 ### 设置步骤
 
