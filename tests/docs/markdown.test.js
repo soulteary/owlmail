@@ -14,6 +14,17 @@ const translatedReadmes = [
   "README.ko.md",
 ];
 
+test("Webhook demo publishes host ports on loopback only", () => {
+  const compose = fs.readFileSync(
+    path.join(root, "examples/webhooks/soulteary-webhook/compose.yaml"),
+    "utf8",
+  );
+  for (const port of ["9000", "1025", "1080"]) {
+    assert.match(compose, new RegExp(`127\\.0\\.0\\.1:${port}:${port}`));
+  }
+  assert.doesNotMatch(compose, /^\s*-\s*["']?(?:9000|1025|1080):/m);
+});
+
 function walkMarkdown(directory) {
   const files = [];
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
