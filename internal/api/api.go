@@ -59,7 +59,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		httpsKeyFile:  keyFile,
 		wsUpgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return !authEnabled || originMatchesHost(r.Header.Get("Origin"), r.Host)
+				return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), requestScheme(r), r.Host)
 			},
 		},
 	}

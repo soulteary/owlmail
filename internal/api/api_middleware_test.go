@@ -62,6 +62,28 @@ func TestAuthenticatedAPIRejectsCrossOriginBrowserRequest(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedAPIRejectsCrossSchemeBrowserRequest(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	req, _ := http.NewRequest(http.MethodGet, "http://owlmail.test/api/v1/emails", nil)
+	req.Header.Set("Origin", "https://owlmail.test")
+	req.SetBasicAuth("user", "pass")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusForbidden)
+	}
+}
+
 func TestAuthenticatedAPIAllowsSameOriginAndNonBrowserRequests(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
@@ -101,6 +123,7 @@ func TestAuthenticatedWebSocketOriginPolicy(t *testing.T) {
 	}{
 		{origin: "", want: true},
 		{origin: "http://owlmail.test", want: true},
+		{origin: "https://owlmail.test", want: false},
 		{origin: "https://attacker.example", want: false},
 		{origin: "://invalid", want: false},
 	}
