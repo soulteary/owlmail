@@ -248,6 +248,8 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
 
+When TLS terminates at a reverse proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME` to `https`.
+
 When HTTP Basic Auth is enabled, browser API and WebSocket requests are limited
 to OwlMail's own origin. Command-line and server-to-server clients that omit the
 browser `Origin` header continue to work normally.

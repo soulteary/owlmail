@@ -268,6 +268,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	if err := apiServer.SetExternalScheme(cfg.WebExternalScheme); err != nil {
+		return nil, err
+	}
 
 	protocol := "http"
 	if cfg.HTTPSEnabled {

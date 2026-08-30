@@ -20,18 +20,19 @@ import (
 
 // API represents the REST API server
 type API struct {
-	mailServer    *mailserver.MailServer
-	app           *fiber.App
-	port          int
-	host          string
-	wsUpgrader    websocket.Upgrader
-	wsClients     map[*websocket.Conn]*sync.Mutex
-	wsClientsLock sync.RWMutex
-	authUser      string
-	authPassword  string
-	httpsEnabled  bool
-	httpsCertFile string
-	httpsKeyFile  string
+	mailServer     *mailserver.MailServer
+	app            *fiber.App
+	port           int
+	host           string
+	wsUpgrader     websocket.Upgrader
+	wsClients      map[*websocket.Conn]*sync.Mutex
+	wsClientsLock  sync.RWMutex
+	authUser       string
+	authPassword   string
+	httpsEnabled   bool
+	httpsCertFile  string
+	httpsKeyFile   string
+	externalScheme string
 }
 
 // NewAPI creates a new API server instance
@@ -57,15 +58,35 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		httpsEnabled:  httpsEnabled,
 		httpsCertFile: certFile,
 		httpsKeyFile:  keyFile,
-		wsUpgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return !authEnabled || originMatchesHost(r.Header.Get("Origin"), r.Host)
-			},
-		},
+		wsUpgrader:    websocket.Upgrader{},
+	}
+	api.wsUpgrader.CheckOrigin = func(r *http.Request) bool {
+		return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, api.requestScheme())
 	}
 	api.setupRoutes()
 	api.setupEventListeners()
 	return api
+}
+
+func (api *API) requestScheme() string {
+	if api.externalScheme != "" {
+		return api.externalScheme
+	}
+	if api.httpsEnabled {
+		return "https"
+	}
+	return "http"
+}
+
+// SetExternalScheme configures the browser-visible scheme when TLS terminates
+// at a reverse proxy. It must be called before the API server starts.
+func (api *API) SetExternalScheme(scheme string) error {
+	scheme = strings.ToLower(strings.TrimSpace(scheme))
+	if scheme != "" && scheme != "http" && scheme != "https" {
+		return fmt.Errorf("external web scheme must be http or https")
+	}
+	api.externalScheme = scheme
+	return nil
 }
 
 // setupRoutes configures all API routes
@@ -78,7 +99,9 @@ func (api *API) setupRoutes() {
 	if authEnabled {
 		// Browsers must not reuse cached Basic Auth credentials from an unrelated
 		// origin. Non-browser API clients normally omit Origin and remain allowed.
-		app.Use(sameOriginMiddleware())
+		app.Use(func(c fiber.Ctx) error {
+			return sameOriginMiddleware(api.requestScheme())(c)
+		})
 	} else {
 		// Preserve the open development API's cross-origin compatibility. There
 		// are no browser credentials to expose when authentication is disabled.

@@ -339,6 +339,7 @@ func TestDefineAndResolveConfig(t *testing.T) {
 	t.Run("environment variables work", func(t *testing.T) {
 		_ = envMgr.Set("OWLMAIL_SMTP_PORT", "3025")
 		_ = envMgr.Set("OWLMAIL_SMTP_HOST", "192.168.1.1")
+		_ = envMgr.Set("OWLMAIL_WEB_EXTERNAL_SCHEME", "https")
 		_ = envMgr.Set("OWLMAIL_WEBHOOK_CONFIG", "env-webhooks.json")
 		_ = envMgr.Set("OWLMAIL_WEBHOOK_MAX_CONCURRENCY", "24")
 		_ = envMgr.Set("OWLMAIL_WEBHOOK_REDIS_URL", "rediss://redis.example.test:6380/0")
@@ -356,6 +357,9 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		}
 		if cfg.SMTPHost != "192.168.1.1" {
 			t.Errorf("ResolveConfig().SMTPHost = %q, want %q", cfg.SMTPHost, "192.168.1.1")
+		}
+		if cfg.WebExternalScheme != "https" {
+			t.Errorf("ResolveConfig().WebExternalScheme = %q, want https", cfg.WebExternalScheme)
 		}
 		if cfg.WebhookConfig != "env-webhooks.json" {
 			t.Errorf("ResolveConfig().WebhookConfig = %q", cfg.WebhookConfig)

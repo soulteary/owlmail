@@ -9,10 +9,10 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// originMatchesHost implements the browser same-origin host check used for
+// originMatchesRequest implements the browser same-origin check used for
 // authenticated HTTP and WebSocket requests. Requests without an Origin header
 // are non-browser clients and remain allowed.
-func originMatchesHost(origin, host string) bool {
+func originMatchesRequest(origin, host, scheme string) bool {
 	if origin == "" {
 		return true
 	}
@@ -20,12 +20,12 @@ func originMatchesHost(origin, host string) bool {
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return false
 	}
-	return parsed.User == nil && strings.EqualFold(parsed.Host, host)
+	return parsed.User == nil && strings.EqualFold(parsed.Host, host) && strings.EqualFold(parsed.Scheme, scheme)
 }
 
-func sameOriginMiddleware() fiber.Handler {
+func sameOriginMiddleware(scheme string) fiber.Handler {
 	return func(c fiber.Ctx) error {
-		if !originMatchesHost(c.Get(fiber.HeaderOrigin), c.Host()) {
+		if !originMatchesRequest(c.Get(fiber.HeaderOrigin), c.Host(), scheme) {
 			return c.SendStatus(http.StatusForbidden)
 		}
 		return c.Next()

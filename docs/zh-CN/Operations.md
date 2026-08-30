@@ -81,6 +81,10 @@ Basic Auth 保护 UI、API、静态资源和 WebSocket，但 `/healthz` 与
 `/api/v1/health` 会有意保持公开，便于探针检查。凭据通过网络传输时，应启用
 HTTPS 或可信反向代理。
 
+若 TLS 在反向代理终止，请设置 `OWLMAIL_WEB_EXTERNAL_SCHEME=https`，让已鉴权的
+HTTP 与 WebSocket 同源检查使用浏览器可见协议。应显式配置该值，不要信任客户端
+可以伪造的转发请求头。
+
 ## HTTPS 与 TLS
 
 Web HTTPS 与 SMTP TLS 是两组独立设置：
