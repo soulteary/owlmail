@@ -84,6 +84,46 @@ func TestDispatchDefaultPayload(t *testing.T) {
 	}
 }
 
+func TestDispatchIsolatesTargetDeliverySchedules(t *testing.T) {
+	firstStarted := make(chan struct{})
+	releaseFirst := make(chan struct{})
+	secondStarted := make(chan struct{})
+	first := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		close(firstStarted)
+		<-releaseFirst
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer first.Close()
+	second := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		close(secondStarted)
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer second.Close()
+
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{
+		{Name: "slow", URL: first.URL},
+		{Name: "healthy", URL: second.URL},
+	}}, first.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan []Result, 1)
+	go func() { done <- dispatcher.Dispatch(context.Background(), testEmail()) }()
+
+	<-firstStarted
+	select {
+	case <-secondStarted:
+	case <-time.After(time.Second):
+		close(releaseFirst)
+		t.Fatal("healthy target was blocked behind the slow target")
+	}
+	close(releaseFirst)
+	results := <-done
+	if len(results) != 2 || results[0].Target != "slow" || results[1].Target != "healthy" {
+		t.Fatalf("results lost configuration order: %#v", results)
+	}
+}
+
 func TestDispatchCustomTemplateHeadersAndSignature(t *testing.T) {
 	const secret = "shared-secret"
 	var receivedBody []byte
