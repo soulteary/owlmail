@@ -1,8 +1,12 @@
 # API 重构记录
 
+> **历史文档。** 本文记录内部路由重构，不是当前 MailDev 兼容性承诺。实际行为
+> 与迁移差异以 [API 参考](../API-Reference.md)为准。
+
 ## 概述
 
-本文档记录了 OwlMail 的 API 重构过程，记录了从 MailDev 兼容的 API 端点迁移到新的 RESTful API 设计（`/api/v1/`）的过程。重构在引入改进的 API 设计模式的同时，保持了完全的向后兼容性。
+本文档记录 OwlMail 在保留原有无版本路由的同时新增 RESTful API（`/api/v1/`）
+的过程。保留路由名称不代表与当前 MailDev 版本的行为完全相同。
 
 ## 重构目标
 
@@ -143,7 +147,7 @@
 - `dateFrom` - 按起始日期过滤（YYYY-MM-DD 格式）
 - `dateTo` - 按结束日期过滤（YYYY-MM-DD 格式）
 - `read` - 按已读状态过滤（true/false）
-- `sortBy` - 排序字段（time, subject）
+- `sortBy` - 排序字段（time、subject、from、size）
 - `sortOrder` - 排序顺序（asc, desc，默认: desc）
 | GET | `/email/:id/html` | 获取邮件 HTML |
 | GET | `/email/:id/attachment/:filename` | 下载附件 |
@@ -464,11 +468,11 @@ GET /api/v1/ws
 - ✅ 使用小写字母和连字符（kebab-case）
 - ✅ 避免驼峰命名
 
-## 兼容性保证
+## 路由保留范围
 
-虽然前端已迁移到新 API，但后端仍保留所有 MailDev 兼容的原始 API 端点，确保：
+前端迁移到新 API 后，后端仍保留 OwlMail 早期路由，因此：
 
-- ✅ 现有客户端代码可以继续使用旧 API
+- ✅ 现有 OwlMail 客户端可在验证行为后继续使用旧路由名
 - ✅ 新客户端可以使用改进的 API
 - ✅ 两种 API 设计可以同时使用
 - ✅ 平滑的迁移路径
@@ -490,18 +494,20 @@ GET /api/v1/ws
 ## 最佳实践
 
 1. **新项目**：推荐使用新的 `/api/v1/` API
-2. **现有项目**：可以继续使用 MailDev 兼容的 API，逐步迁移
+2. **现有项目**：可以继续使用 OwlMail 无版本路由，逐步迁移
 3. **混合使用**：两种 API 可以同时使用，根据需求选择
 
 ## 总结
 
 通过这次 API 重构，我们实现了：
 
-1. ✅ 保持完全的向后兼容性（所有 MailDev API 都保留）
+1. ✅ 在 `/api/v1/` 之外保留 OwlMail 原有路由集合
 2. ✅ 提供了更符合 RESTful 最佳实践的新 API 设计
 3. ✅ 统一了资源命名约定（使用复数形式）
 4. ✅ 改进了 HTTP 方法使用（更语义化）
 5. ✅ 添加了 API 版本控制（支持未来演进）
 6. ✅ 增强了 API 可读性和可维护性
 
-这些改进使 API 更加标准和用户友好，同时保持与现有系统的兼容性。前端界面已成功迁移到新的 RESTful API 设计，所有 API 调用都使用 `/api/v1/` 前缀和更标准的资源命名。这提高了代码的可维护性和可扩展性，同时保持了与后端的完全兼容性。
+这些改进使 API 更一致，并保留 OwlMail 的无版本路由。客户端是否兼容仍取决于
+路径前缀、响应结构、副作用、错误状态和 WebSocket 协议；迁移前应查阅当前 API
+参考。

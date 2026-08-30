@@ -48,6 +48,13 @@ If you find a bug or have a feature suggestion, please:
    
    # Run tests for specific packages
    go test ./internal/api/...
+
+   # Match the local CI checks before opening a pull request
+   go test -race ./...
+   go vet ./...
+   node --check web/app.js
+   node --check web/help.js
+   node --test tests/web/*.test.js tests/docs/*.test.js
    ```
 
 5. **Commit Changes**
@@ -80,7 +87,7 @@ If you find a bug or have a feature suggestion, please:
 
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - Use `gofmt` to format code
-- Use `golint` to check code style
+- Run `golangci-lint run --timeout=5m` to match the lint workflow
 - Keep functions concise with single responsibility
 
 ### Testing Requirements
@@ -143,7 +150,7 @@ If you find a bug or have a feature suggestion, please:
 
 3. Ensure code is formatted
    ```bash
-   gofmt -w .
+   go fmt ./...
    ```
 
 4. Create Pull Request
@@ -169,7 +176,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering and delivery
+├── docs/                 # User-facing and historical documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation tests
 ├── web/                  # Web frontend files
 └── .github/              # GitHub configuration files
 ```
@@ -200,7 +211,7 @@ Please follow our [Code of Conduct](CODE_OF_CONDUCT.md) to keep the community fr
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same [MIT License](LICENSE) as the project.
+By contributing, you agree that your contributions will be licensed under the same [MIT License](../LICENSE) as the project.
 
 ---
 

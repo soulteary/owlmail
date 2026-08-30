@@ -20,19 +20,31 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[API Reference](./API-Reference.md)**
+  - Complete route inventory, request/response conventions, authentication,
+    native WebSocket events, curl examples, and the current MailDev migration boundary.
+  - **Other languages**: [简体中文](../zh-CN/API-Reference.md)
+
+- **[Operations and Troubleshooting](./Operations.md)**
+  - Local and Docker profiles, persistence, security defaults, TLS, readiness,
+    webhook capacity, backup/upgrade, shutdown boundaries, and failure diagnosis.
+  - **Other languages**: [简体中文](../zh-CN/Operations.md)
+
 - **[Webhook Forwarding](./Webhook-Forwarding.md)**
   - Configure filtering, custom payload templates, HMAC signatures, retries, and integration with `soulteary/webhook`.
   - **Runnable examples**: [minimal, filtered, custom, multi-target, plain text, and Compose](../../examples/webhooks/README.md)
   - **Other languages**: [简体中文](../zh-CN/Webhook-Forwarding.md)
 
 - **[OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
-  - A comprehensive comparison between OwlMail and MailDev, including API compatibility, feature parity, and migration guide.
+  - A source-checked comparison of capability differences, API incompatibilities,
+    and the migration checklist.
   - **Other languages**: [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Deutsch](../de/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Français](../fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Italiano](../it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [日本語](../ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [한국어](../ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 
-### Internal Documentation
+### Historical Internal Documentation
 
 - **[API Refactoring Record](./internal/API_Refactoring_Record.md)**
-  - Documents the API refactoring process from MailDev-compatible endpoints to the new RESTful API design (`/api/v1/`).
+  - Historical implementation notes for the move from unversioned routes to `/api/v1/`.
+    Use the API Reference above as the current contract.
   - **Other languages**: [简体中文](../zh-CN/internal/API_Refactoring_Record.md) | [Deutsch](../de/internal/API_Refactoring_Record.md) | [Français](../fr/internal/API_Refactoring_Record.md) | [Italiano](../it/internal/API_Refactoring_Record.md) | [日本語](../ja/internal/API_Refactoring_Record.md) | [한국어](../ko/internal/API_Refactoring_Record.md)
 
 ## 📖 How to Read Documentation
@@ -40,7 +52,7 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 Documents are organized by language in separate directories. Each language directory contains:
 - `README.md` - Documentation index for that language
 - Main documents (e.g., Migration White Paper)
-- `internal/` subdirectory - Internal documentation
+- `internal/` subdirectory - Historical implementation records
 
 To switch languages, use the language selector at the top of this page or visit the [main documentation index](../README.md).
 
@@ -56,7 +68,7 @@ When adding new documentation:
 ## 📝 Document Categories
 
 - **Migration Guides**: Help users migrate from MailDev to OwlMail
-- **API Documentation**: Technical API reference and refactoring records
+- **API Documentation**: Current technical contract and historical refactoring records
 - **Internal Documentation**: Development notes and internal processes
 
 ---

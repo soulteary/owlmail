@@ -1,73 +1,47 @@
 # OwlMail ドキュメント
 
-OwlMail ドキュメントディレクトリへようこそ。このディレクトリには、技術ドキュメント、移行ガイド、API リファレンス資料が含まれています。
+OwlMail のドキュメントへようこそ。文書は言語別のディレクトリで管理されています。
 
 ## 📸 プレビュー
 
 ![OwlMail プレビュー](../../.github/assets/preview.png)
 
-## 🎥 デモ動画
+## 🎥 デモ
 
-![デモ動画](../../.github/assets/realtime.gif)
+![デモ](../../.github/assets/realtime.gif)
 
-## 📚 ドキュメント構造
+## 🌍 言語
 
-### メインドキュメント
+- [English](../en/README.md) | [简体中文](../zh-CN/README.md) | [Deutsch](../de/README.md) | [Français](../fr/README.md) | [Italiano](../it/README.md) | [日本語](./README.md) | [한국어](../ko/README.md)
 
-- **[Webhook 転送](../en/Webhook-Forwarding.md)** (英語、[中文](../zh-CN/Webhook-Forwarding.md))
-  - ルール、カスタムメッセージ、HMAC 署名、`soulteary/webhook` 連携の設定方法。
+## 📚 ドキュメント
 
-- **[OwlMail × MailDev - 機能と API の完全比較および移行ホワイトペーパー](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)** (英語)
-  - [中文版本](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-  - OwlMail と MailDev の包括的な比較。API 互換性、機能パリティ、移行ガイドを含みます。
+### 運用リファレンス
 
-### 内部ドキュメント
+- **[API リファレンス](../en/API-Reference.md)** (English、[中文](../zh-CN/API-Reference.md))
+  - ルート、認証、レスポンス形式、WebSocket イベント、および MailDev との相違点。
+- **[運用・トラブルシューティング](../en/Operations.md)** (English、[中文](../zh-CN/Operations.md))
+  - デプロイ、永続化、セキュリティ、TLS、容量、障害診断。
+- **[Webhook 転送](../en/Webhook-Forwarding.md)** (English、[中文](../zh-CN/Webhook-Forwarding.md))
+  - フィルター、カスタムペイロード、HMAC 署名、再試行、`soulteary/webhook` 連携。
+- **[実行可能な Webhook 例](../../examples/webhooks/README.md)** (English、[中文](../../examples/webhooks/README.zh-CN.md))
 
-- **[API リファクタリング記録](./internal/API_Refactoring_Record.md)** (英語)
-  - [中文版本](../zh-CN/internal/API_Refactoring_Record.md)
-  - MailDev 互換エンドポイントから新しい RESTful API 設計 (`/api/v1/`) への API リファクタリングプロセスを文書化しています。
+### 比較と移行
 
-## 🌍 多言語サポート
+- **[OwlMail × MailDev – 比較・移行ガイド](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+  - この翻訳は未完成です。完全な内容は
+    [英語版](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+    または[中国語版](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)を参照してください。
 
-すべてのドキュメントは、命名規則に従います：`filename.md`（英語、デフォルト）および他の言語の `filename.LANG.md`。
+### 過去の内部資料
 
-### サポートされている言語
+- **[API リファクタリング記録](./internal/API_Refactoring_Record.md)**
+  - 過去の実装記録です。現在の契約は API リファレンスを参照してください。
 
-- **English** (`en`) - デフォルト、言語コードサフィックスなし
-- **简体中文** (`zh-CN`) - 中国語（簡体字）
-- **日本語** (`ja`) - 日本語
+## 🔄 コントリビューション
 
-### 言語コード形式
+新規文書はまず `docs/en/` に作成し、翻訳は各言語ディレクトリで同じファイル名を
+使用します。[メインインデックス](../README.md)も更新してください。詳細は
+[コントリビューションガイド](../../.github/CONTRIBUTING.ja.md)を参照してください。
 
-言語コードは [ISO 639-1](https://en.wikipedia.org/wiki/ISO_639-1) 標準に従います：
-- `zh-CN` - 中国語（簡体字）
-- `de` - ドイツ語（将来）
-- `fr` - フランス語（将来）
-- `it` - イタリア語（将来）
-- `ja` - 日本語
-- `ko` - 韓国語（将来）
-
-## 📖 ドキュメントの読み方
-
-1. **デフォルト言語**: 言語コードサフィックスのないドキュメントは英語（デフォルト）です。
-2. **他の言語**: 言語コードサフィックス付きのドキュメント（例：`.zh-CN.md`）は翻訳版です。
-3. **ディレクトリ構造**: ドキュメントはトピック別に整理され、内部ドキュメントは `internal/` サブディレクトリにあります。
-
-## 🔄 貢献
-
-新しいドキュメントを追加する場合：
-
-1. まず英語版を作成します（デフォルト、言語コードなし）。
-2. 適切な言語コードサフィックスで翻訳を追加します。
-3. この README を更新して、新しいドキュメントへのリンクを含めます。
-4. 既存の命名規則に従います。
-
-## 📝 ドキュメントカテゴリ
-
-- **移行ガイド**: ユーザーが MailDev から OwlMail に移行するのを支援
-- **API ドキュメント**: 技術 API リファレンスとリファクタリング記録
-- **内部ドキュメント**: 開発ノートと内部プロセス
-
----
-
-OwlMail の詳細については、[メイン README](../../README.ja.md) をご覧ください。
+詳細は[メイン README](../../README.ja.md)をご覧ください。

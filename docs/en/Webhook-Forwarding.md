@@ -129,8 +129,10 @@ by the receiver's p95 response time in seconds, rounded up.
 The limit is acquired before OwlMail creates the webhook handler goroutine. If
 all slots are busy, the email is already persisted and event processing waits
 for a slot; lightweight logging and WebSocket listeners are still started
-first. This prevents slow receivers from creating an unbounded goroutine pile.
-Within one job, matching targets are delivered sequentially.
+first. SMTP `DATA` completion can therefore wait for a slot even though the
+message has already been stored. This intentional backpressure prevents slow
+receivers from creating an unbounded goroutine pile. Within one job, matching
+targets are delivered sequentially.
 
 Use `0` only when unlimited fan-out is intentional. It preserves the previous
 behavior and can consume large amounts of memory and sockets during a burst.
@@ -305,8 +307,10 @@ hook file. Give both containers the same `OWLMAIL_WEBHOOK_SECRET` value.
 ## Delivery lifecycle and troubleshooting
 
 1. OwlMail parses and stores the SMTP message first.
-2. The `new` event starts webhook delivery asynchronously, so a slow or failed
-   target does not change the SMTP result.
+2. The `new` event starts the HTTP delivery asynchronously, so a slow or failed
+   target does not change the stored message or eventual SMTP result. If the
+   process-wide concurrency limit is saturated, SMTP acknowledgment can wait
+   for a delivery slot as described above.
 3. Targets matching one email are called sequentially in configuration order.
    Different email events may be delivered concurrently.
 4. A 2xx response completes the target. Network errors, 408, 425, 429, and 5xx
@@ -316,7 +320,9 @@ hook file. Give both containers the same `OWLMAIL_WEBHOOK_SECRET` value.
 
 Forwarding has no persistent delivery queue or dead-letter store. After the
 configured attempts are exhausted, OwlMail keeps the email and logs the failure;
-it does not retry that event after a restart.
+it does not retry that event after a restart. Process shutdown does not drain
+in-flight webhook deliveries; see the
+[shutdown guidance](./Operations.md#shutdown-and-delivery-guarantees).
 
 For a local check, run the bundled receiver and the minimal configuration in
 separate terminals:

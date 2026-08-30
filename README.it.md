@@ -1,10 +1,10 @@
 # OwlMail
 
-> 🦉 Un'implementazione in Go di uno strumento di sviluppo e test per email, completamente compatibile con MailDev, che offre prestazioni migliori e funzionalità più ricche
+> 🦉 Un server Go per lo sviluppo e il test delle email, con workflow in stile MailDev e API specifiche di OwlMail
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
@@ -14,7 +14,10 @@
 
 ---
 
-OwlMail è un server SMTP e un'interfaccia web per ambienti di sviluppo e test che cattura e visualizza tutte le email inviate. È un'implementazione in Go di [MailDev](https://github.com/maildev/maildev) con compatibilità API al 100%, offrendo prestazioni migliori, minore utilizzo di risorse e funzionalità più ricche.
+OwlMail è un server SMTP con interfaccia web per ambienti di sviluppo e test.
+Supporta workflow comuni di [MailDev](https://github.com/maildev/maildev), ma usa
+risposte API e un protocollo WebSocket propri. Verifica le differenze documentate
+prima di migrare client API o Socket.IO.
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -24,10 +27,7 @@ OwlMail è un server SMTP e un'interfaccia web per ambienti di sviluppo e test c
 
 ## 🎥 Video dimostrativo
 
-<video width="100%" controls>
-  <source src=".github/assets/realtime.mp4" type="video/mp4">
-  Il tuo browser non supporta il tag video.
-</video>
+![Video dimostrativo](.github/assets/realtime.gif)
 
 ## ✨ Funzionalità
 
@@ -39,32 +39,37 @@ OwlMail è un server SMTP e un'interfaccia web per ambienti di sviluppo e test c
 - ✅ **Inoltro Email** - Supporta l'inoltro di email a server SMTP reali
 - ✅ **Inoltro Automatico** - Supporta l'inoltro automatico di tutte le email con filtri basati su regole
 - ✅ **Inoltro Webhook** - Invia le nuove email corrispondenti a webhook HTTP con modelli di messaggio personalizzati
-- ✅ **Autenticazione SMTP** - Supporta autenticazione PLAIN/LOGIN
+- ⚠️ **Autenticazione SMTP in ingresso** - I parametri esistono, ma i mittenti non autenticati non vengono attualmente rifiutati
 - ✅ **TLS/STARTTLS** - Supporta connessioni crittografate
-- ✅ **SMTPS** - Supporta connessione TLS diretta sulla porta 465 (esclusivo OwlMail)
+- ✅ **SMTPS** - Supporta la connessione TLS diretta sulla porta 465 quando SMTP TLS è abilitato
 
 ### Funzionalità Avanzate
 
 - 🆕 **Operazioni Batch** - Eliminazione batch, segnatura batch come lette
+- 🆕 **Notifiche browser** - Notifiche live opzionali per le nuove email
 - 🆕 **Statistiche Email** - Ottieni statistiche sulle email
 - 🆕 **Anteprima Email** - API leggera per l'anteprima delle email
 - 🆕 **Esportazione Email** - Esporta email come file ZIP
 - 🆕 **API di Gestione Configurazione** - Gestione completa della configurazione (GET/PUT/PATCH)
 - 🆕 **Ricerca Potente** - Ricerca full-text, filtri per intervallo di date, ordinamento
 - 🆕 **API RESTful Migliorata** - Design API più standardizzato (`/api/v1/*`)
+- 🆕 **Guida integrata** - Guida locale bilingue dalla casella di posta o su `/help`
 
 ### Compatibilità
 
-- ✅ **100% Compatibile con API MailDev** - Tutti gli endpoint API di MailDev sono supportati
-- ✅ **Variabili d'Ambiente Completamente Compatibili** - Priorizza le variabili d'ambiente MailDev, nessuna modifica alla configurazione necessaria
-- ✅ **Regole di Inoltro Automatico Compatibili** - Formato file di configurazione JSON completamente compatibile
+- ✅ **Route per workflow in stile MailDev** - Flussi comuni per email, relay, configurazione e health check
+- ✅ **Alias selezionati per variabili MailDev** - I nomi `MAILDEV_*` supportati sono nella tabella di configurazione
+- ✅ **Regole di inoltro automatico** - Regole JSON allow/deny in stile MailDev
+- ⚠️ **Differenze documentate** - Prefissi API, payload, stato di lettura e protocollo live non sono identici
 
-### Vantaggi Prestazionali
+### Caratteristiche di distribuzione
 
-- ⚡ **Binario Singolo** - Compilato come un singolo eseguibile, nessun runtime richiesto
-- ⚡ **Basso Utilizzo di Risorse** - Compilato in Go, minore footprint di memoria
-- ⚡ **Avvio Rapido** - Tempo di avvio più veloce
-- ⚡ **Alta Concorrenza** - Goroutine Go, migliore prestazione concorrente
+- ⚡ **Binario singolo** - Interfaccia e guida sono incorporate
+- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Node.js o Go
+- ⚡ **Concorrenza esplicita** - I Webhook possono essere limitati o intenzionalmente illimitati
+
+Il repository non pubblica benchmark comparativi riproducibili. Misura avvio,
+memoria e throughput con il tuo carico reale.
 
 ## 🚀 Quick Start
 
@@ -208,8 +213,8 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | File regole inoltro automatico |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | File JSON di configurazione dell'inoltro webhook |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Consegne Webhook simultanee; `0` disabilita il limite |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente autenticazione SMTP |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password autenticazione SMTP |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nome utente SMTP in ingresso; attualmente non applicato |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Password SMTP in ingresso; attualmente non applicata |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Abilita TLS SMTP |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | File certificato TLS SMTP |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | File chiave privata TLS SMTP |
@@ -232,7 +237,9 @@ la password generata su stderr. Usa Basic Auth solo tramite localhost o HTTPS.
 
 ### Compatibilità Variabili d'Ambiente
 
-OwlMail **supporta completamente le variabili d'ambiente MailDev**, dando priorità alle variabili d'ambiente MailDev e utilizzando quelle OwlMail se non presenti. Ciò significa che puoi utilizzare la configurazione MailDev direttamente senza modifiche.
+OwlMail supporta gli alias MailDev elencati nella tabella e li preferisce alle
+corrispondenti variabili `OWLMAIL_*`. Le opzioni MailDev non elencate non sono
+supportate automaticamente.
 
 ```bash
 # Usa direttamente le variabili d'ambiente MailDev (consigliato)
@@ -284,9 +291,11 @@ Quando usi il parametro `:id` nelle richieste API, puoi usare entrambi i formati
 - `GET /email/aB3dEfGh` - Usando ID stringa casuale
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - Usando ID UUID
 
-### API Compatibile MailDev
+### Route di compatibilità in stile MailDev
 
-OwlMail è completamente compatibile con tutti gli endpoint API di MailDev:
+OwlMail mantiene route senza versione per i workflow comuni, ma non sono
+equivalenti esatti dell'API MailDev corrente. Consulta il
+[riferimento API](./docs/en/API-Reference.md#maildev-migration-boundary).
 
 #### Operazioni Email
 
@@ -300,7 +309,7 @@ OwlMail è completamente compatibile con tutti gli endpoint API di MailDev:
     - `dateFrom` - Filtra per data da (formato YYYY-MM-DD)
     - `dateTo` - Filtra per data fino a (formato YYYY-MM-DD)
     - `read` - Filtra per stato di lettura (true/false)
-    - `sortBy` - Ordina per campo (time, subject)
+    - `sortBy` - Ordina per campo (time, subject, from, size)
     - `sortOrder` - Ordine di ordinamento (asc, desc, predefinito: desc)
   - Esempio: `GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - Ottieni singola email
@@ -375,7 +384,8 @@ OwlMail fornisce un design API RESTful più standardizzato:
 - `GET /api/v1/health` - Controllo salute
 - `GET /api/v1/ws` - Connessione WebSocket
 
-Per documentazione API dettagliata (incl. sottorisorse: raw, attachments, relay), vedi: [Registro Refactoring API](./docs/it/internal/API_Refactoring_Record.md)
+Il contratto corrente, incluse sottorisorse, autenticazione, risposte ed eventi
+WebSocket, è nel [riferimento API](./docs/en/API-Reference.md).
 
 ## 🔧 Esempi di Utilizzo
 
@@ -434,14 +444,12 @@ EOF
   -web 1080
 ```
 
-### Usa Autenticazione SMTP
+### Limite dell’autenticazione SMTP in ingresso
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user` e `-smtp-password` compilano attualmente la configurazione, ma
+> la sessione SMTP non rifiuta i mittenti non autenticati. Isola il listener
+> SMTP tramite binding dell’interfaccia, firewall o tunnel privato.
 
 ### Usa TLS
 
@@ -453,7 +461,7 @@ EOF
   -smtp 1025
 ```
 
-**Nota**: Quando TLS è abilitato, OwlMail avvia automaticamente un server SMTPS sulla porta 465 oltre al server SMTP regolare. Il server SMTPS utilizza una connessione TLS diretta (non è richiesto STARTTLS). Questa è una funzionalità esclusiva di OwlMail.
+**Nota**: Quando TLS è abilitato, OwlMail avvia automaticamente un server SMTPS sulla porta 465 oltre al server SMTP regolare. Il server SMTPS utilizza una connessione TLS diretta (non è richiesto STARTTLS).
 
 ### Usa UUID per ID Email
 
@@ -487,11 +495,14 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 ## 🔄 Migrazione da MailDev
 
-OwlMail è completamente compatibile con MailDev e può essere usato come sostituto diretto:
+OwlMail copre workflow comuni di MailDev, ma i client correnti possono richiedere
+adattamenti espliciti. Segui la
+[guida alla migrazione](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
 
 ### 1. Compatibilità Variabili d'Ambiente
 
-OwlMail dà priorità alle variabili d'ambiente MailDev, nessuna modifica alla configurazione necessaria:
+OwlMail accetta le variabili MailDev elencate nella tabella di configurazione.
+Verifica tutte quelle usate nella distribuzione:
 
 ```bash
 # Configurazione MailDev
@@ -499,20 +510,21 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
-# Usa OwlMail direttamente (nessun bisogno di cambiare variabili d'ambiente)
+# OwlMail può leggere queste variabili elencate
 ./owlmail
 ```
 
 ### 2. Compatibilità API
 
-Tutti gli endpoint API MailDev sono supportati, il codice client esistente non richiede modifiche:
+I percorsi e i payload API sono diversi. Usa l'API OwlMail versionata per le
+nuove integrazioni e adatta esplicitamente i client esistenti:
 
 ```bash
-# API MailDev
-curl http://localhost:1080/email
+# API MailDev corrente
+curl http://localhost:1080/api/email
 
-# OwlMail completamente compatibile
-curl http://localhost:1080/email
+# API OwlMail
+curl http://localhost:1080/api/v1/emails
 ```
 
 ### 3. Adattamento WebSocket
@@ -560,7 +572,11 @@ OwlMail/
 │   ├── maildev/          # Livello compatibilità MailDev
 │   ├── mailserver/       # Implementazione server SMTP
 │   ├── outgoing/         # Implementazione inoltro email
-│   └── types/            # Definizioni di tipo
+│   ├── types/            # Definizioni di tipo
+│   └── webhook/          # Filtri, modelli, firme e consegna Webhook
+├── docs/                 # Documentazione API, operativa, Webhook e migrazione
+├── examples/             # Esempi di integrazione eseguibili
+├── tests/                # Test del browser e del contratto documentale
 ├── web/                  # File frontend web
 ├── go.mod                # Definizione modulo Go
 └── README.md             # Questo documento
@@ -591,7 +607,9 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 ## 📚 Documentazione Correlata
 
 - [OwlMail × MailDev: Confronto Completo Funzionalità e API e White Paper di Migrazione](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [Registro Refactoring API](./docs/it/internal/API_Refactoring_Record.md)
+- [Riferimento API (English)](./docs/en/API-Reference.md)
+- [Operazioni e risoluzione problemi (English)](./docs/en/Operations.md)
+- [Registro Refactoring API (storico)](./docs/it/internal/API_Refactoring_Record.md)
 
 ## 🐛 Segnalazione Problemi
 
@@ -603,4 +621,4 @@ Se questo progetto ti aiuta, per favore dagli una Star ⭐!
 
 ---
 
-**OwlMail** - Un'implementazione in Go di uno strumento di sviluppo e test per email, completamente compatibile con MailDev 🦉
+**OwlMail** - Un server Go per test email con percorsi di migrazione MailDev documentati 🦉

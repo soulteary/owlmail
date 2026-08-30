@@ -25,8 +25,8 @@ jobs:
           node --check web/app.js
           node --check web/help.js
 
-      - name: Test browser notifications
-        run: node --test tests/web/*.test.js
+      - name: Test browser and documentation
+        run: node --test tests/web/*.test.js tests/docs/*.test.js
 
   test:
     name: Test

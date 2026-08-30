@@ -1,8 +1,13 @@
 # API-Refactoring-Aufzeichnung
 
+> **Historisches Dokument.** Dies ist keine aktuelle MailDev-Kompatibilitätsgarantie.
+> Maßgeblich ist die [API-Referenz](../../en/API-Reference.md).
+
 ## Übersicht
 
-Dieses Dokument zeichnet den API-Refactoring-Prozess von OwlMail auf und dokumentiert die Migration von MailDev-kompatiblen API-Endpunkten zu einem neuen RESTful API-Design (`/api/v1/`). Das Refactoring behält vollständige Rückwärtskompatibilität bei und führt gleichzeitig verbesserte API-Designmuster ein.
+Dieses Dokument zeichnet die Einführung des RESTful API-Designs (`/api/v1/`)
+bei gleichzeitiger Beibehaltung älterer OwlMail-Routen auf. Gleiche Routennamen
+garantieren kein identisches Verhalten mit aktuellen MailDev-Versionen.
 
 ## Refactoring-Ziele
 
@@ -271,11 +276,13 @@ const API_BASE = `${window.location.origin}/api/v1`;
 - ✅ Kleinbuchstaben und Bindestriche verwenden (kebab-case)
 - ✅ CamelCase-Benennung vermeiden
 
-## Kompatibilitätsgarantie
+## Beibehaltene Routen
 
-Während das Frontend zur neuen API migriert wurde, behält das Backend alle MailDev-kompatiblen ursprünglichen API-Endpunkte bei, um sicherzustellen:
+Während das Frontend zur neuen API migriert wurde, behält das Backend frühere
+OwlMail-Routen bei. Dadurch können beide API-Designs parallel verwendet werden;
+das Verhalten muss dennoch anhand der aktuellen API-Referenz geprüft werden.
 
-- ✅ Bestehender Client-Code kann weiterhin die alte API verwenden
+- ✅ Bestehende OwlMail-Clients können nach einer Verhaltensprüfung die alten Routen verwenden
 - ✅ Neue Clients können die verbesserte API verwenden
 - ✅ Beide API-Designs können gleichzeitig verwendet werden
 - ✅ Sanfter Migrationspfad
@@ -297,14 +304,14 @@ Nach der Migration sollten die folgenden Funktionalitäten getestet werden:
 ## Best Practices
 
 1. **Neue Projekte**: Empfohlen, die neue `/api/v1/`-API zu verwenden
-2. **Bestehende Projekte**: Können weiterhin die MailDev-kompatible API verwenden, schrittweise migrieren
+2. **Bestehende Projekte**: Können weiterhin unversionierte OwlMail-Routen verwenden und schrittweise migrieren
 3. **Gemischte Verwendung**: Beide APIs können gleichzeitig verwendet werden, je nach Bedarf wählen
 
 ## Zusammenfassung
 
 Durch dieses API-Refactoring haben wir:
 
-1. ✅ Vollständige Rückwärtskompatibilität beibehalten (alle MailDev-APIs sind erhalten)
+1. ✅ Frühere OwlMail-Routen zusätzlich zu `/api/v1/` beibehalten
 2. ✅ Ein neues API-Design bereitgestellt, das besser den RESTful-Best-Practices entspricht
 3. ✅ Ressourcennamenkonventionen vereinheitlicht (Pluralformen verwenden)
 4. ✅ HTTP-Methodenverwendung verbessert (semantischer)

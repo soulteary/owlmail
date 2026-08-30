@@ -1,10 +1,10 @@
 # OwlMail
 
-> 🦉 A Go implementation of a mail development and testing tool, fully compatible with MailDev, providing better performance and richer features
+> 🦉 MailDev 스타일 워크플로와 OwlMail 전용 API를 제공하는 Go 이메일 개발·테스트 서버
 
 [![Go Version](https://img.shields.io/badge/Go-1.26.6+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Compatible](https://img.shields.io/badge/MailDev-Compatible-blue.svg)](https://github.com/maildev/maildev)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](https://goreportcard.com/badge/github.com/soulteary/owlmail)](https://goreportcard.com/report/github.com/soulteary/owlmail)
 [![codecov](https://codecov.io/gh/soulteary/owlmail/graph/badge.svg?token=AY59NGM1FV)](https://codecov.io/gh/soulteary/owlmail)
 
@@ -14,7 +14,10 @@
 
 ---
 
-OwlMail is an SMTP server and web interface for development and testing environments that captures and displays all sent emails. It's a Go implementation of [MailDev](https://github.com/maildev/maildev) with 100% API compatibility, while providing better performance, lower resource usage, and richer features.
+OwlMail은 개발 및 테스트 환경을 위한 SMTP 서버와 Web UI입니다. 일반적인
+[MailDev](https://github.com/maildev/maildev) 워크플로를 지원하지만 API 응답과
+WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO 클라이언트를
+마이그레이션하기 전에 문서화된 차이를 확인하세요.
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -24,10 +27,7 @@ OwlMail is an SMTP server and web interface for development and testing environm
 
 ## 🎥 데모 비디오
 
-<video width="100%" controls>
-  <source src=".github/assets/realtime.mp4" type="video/mp4">
-  브라우저가 비디오 태그를 지원하지 않습니다.
-</video>
+![데모 비디오](.github/assets/realtime.gif)
 
 ## ✨ Features
 
@@ -39,32 +39,37 @@ OwlMail is an SMTP server and web interface for development and testing environm
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ✅ **SMTP Authentication** - Supports PLAIN/LOGIN authentication
+- ⚠️ **인바운드 SMTP 인증** - 설정 항목은 있지만 현재 인증되지 않은 발신자를 거부하지 않습니다
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
-- ✅ **SMTPS** - Supports direct TLS connection on port 465 (OwlMail exclusive)
+- ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
 ### Enhanced Features
 
 - 🆕 **Batch Operations** - Batch delete, batch mark as read
+- 🆕 **브라우저 알림** - 새 이메일에 대한 선택적 실시간 알림
 - 🆕 **Email Statistics** - Get email statistics
 - 🆕 **Email Preview** - Lightweight email preview API
 - 🆕 **Email Export** - Export emails as ZIP files
 - 🆕 **Configuration Management API** - Complete configuration management (GET/PUT/PATCH)
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
+- 🆕 **내장 도움말** - 받은 편지함 또는 `/help`에서 여는 로컬 이중 언어 가이드
 
 ### Compatibility
 
-- ✅ **100% MailDev API Compatible** - All MailDev API endpoints are supported
-- ✅ **Environment Variables Fully Compatible** - Prioritizes MailDev environment variables, no configuration changes needed
-- ✅ **Auto Relay Rules Compatible** - JSON configuration file format fully compatible
+- ✅ **MailDev 스타일 워크플로 경로** - 일반적인 이메일, 릴레이, 설정 및 상태 확인 흐름
+- ✅ **선택된 MailDev 환경 변수 별칭** - 지원되는 `MAILDEV_*` 이름은 설정 표에 명시
+- ✅ **자동 릴레이 규칙** - MailDev 스타일 JSON allow/deny 규칙 지원
+- ⚠️ **문서화된 차이** - API 접두사, 페이로드, 읽음 상태 및 실시간 프로토콜이 동일하지 않음
 
-### Performance Advantages
+### 배포 특성
 
-- ⚡ **Single Binary** - Compiled as a single executable, no runtime required
-- ⚡ **Low Resource Usage** - Go compiled, lower memory footprint
-- ⚡ **Fast Startup** - Faster startup time
-- ⚡ **High Concurrency** - Go goroutines, better concurrent performance
+- ⚡ **단일 바이너리** - UI와 도움말이 내장됨
+- ⚡ **언어 런타임 불필요** - 배포 바이너리는 Node.js나 Go가 필요하지 않음
+- ⚡ **명시적 동시성 제어** - Webhook 전달은 제한하거나 의도적으로 무제한 설정 가능
+
+저장소에는 재현 가능한 프로젝트 간 벤치마크가 없습니다. 실제 부하로 시작 시간,
+메모리 및 처리량을 측정하세요.
 
 ## 🚀 Quick Start
 
@@ -208,8 +213,8 @@ docker buildx build \
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
 | `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
 | `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | 동시 Webhook 전달 수; `0`은 제한 없음 |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | SMTP authentication username |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | SMTP authentication password |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 인바운드 SMTP 사용자 이름; 현재 강제되지 않음 |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 인바운드 SMTP 비밀번호; 현재 강제되지 않음 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -233,7 +238,8 @@ OwlMail은 시작에 실패합니다. Basic Auth는 localhost 또는 HTTPS를 �
 
 ### Environment Variable Compatibility
 
-OwlMail **fully supports MailDev environment variables**, prioritizing MailDev environment variables, and falling back to OwlMail environment variables if not present. This means you can use MailDev's configuration directly without modification.
+OwlMail은 표에 나열된 MailDev 환경 변수 별칭을 지원하며 해당 `OWLMAIL_*`
+변수보다 우선합니다. 표에 없는 MailDev 옵션은 자동으로 지원되지 않습니다.
 
 ```bash
 # Use MailDev environment variables directly (recommended)
@@ -285,9 +291,11 @@ When using the `:id` parameter in API requests, you can use either format. For e
 - `GET /email/aB3dEfGh` - Using random string ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
 
-### MailDev Compatible API
+### MailDev 스타일 호환 경로
 
-OwlMail is fully compatible with all MailDev API endpoints:
+OwlMail은 일반적인 워크플로를 위해 버전 없는 경로를 유지하지만 현재 MailDev API와
+완전히 같지는 않습니다.
+[API 참조](./docs/en/API-Reference.md#maildev-migration-boundary)를 확인하세요.
 
 #### Email Operations
 
@@ -301,7 +309,7 @@ OwlMail is fully compatible with all MailDev API endpoints:
     - `dateFrom` - Filter by date from (YYYY-MM-DD format)
     - `dateTo` - Filter by date to (YYYY-MM-DD format)
     - `read` - Filter by read status (true/false)
-    - `sortBy` - Sort by field (time, subject)
+    - `sortBy` - Sort by field (time, subject, from, size)
     - `sortOrder` - Sort order (asc, desc, default: desc)
   - Example: `GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
 - `GET /email/:id` - Get single email
@@ -376,7 +384,8 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/health` - Health check
 - `GET /api/v1/ws` - WebSocket connection
 
-For detailed API documentation, including sub-resources (raw, attachments, relay), see: [API Refactoring Record](./docs/ko/internal/API_Refactoring_Record.md)
+하위 리소스, 인증, 응답 및 WebSocket 이벤트를 포함한 현재 계약은
+[API 참조](./docs/en/API-Reference.md)를 확인하세요.
 
 ## 🔧 Usage Examples
 
@@ -435,14 +444,12 @@ EOF
   -web 1080
 ```
 
-### Using SMTP Authentication
+### 인바운드 SMTP 인증 제한
 
-```bash
-./owlmail \
-  -smtp-user admin \
-  -smtp-password secret \
-  -smtp 1025
-```
+> [!WARNING]
+> `-smtp-user`와 `-smtp-password`는 현재 설정만 채우며 SMTP 세션은 인증되지
+> 않은 발신자를 거부하지 않습니다. 신뢰할 수 있는 인터페이스, 방화벽 규칙 또는
+> 비공개 터널로 SMTP 리스너를 격리하세요.
 
 ### Using TLS
 
@@ -454,7 +461,7 @@ EOF
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required). This is an OwlMail exclusive feature.
+**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
 
 ### Using UUID for Email IDs
 
@@ -488,11 +495,14 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 ## 🔄 Migrating from MailDev
 
-OwlMail is fully compatible with MailDev and can be used as a drop-in replacement:
+OwlMail은 일반적인 MailDev 워크플로를 다루지만 현재 클라이언트에는 명시적인
+수정이 필요할 수 있습니다.
+[마이그레이션 가이드](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)를 따르세요.
 
 ### 1. Environment Variable Compatibility
 
-OwlMail prioritizes MailDev environment variables, no configuration changes needed:
+OwlMail은 설정 표에 나열된 MailDev 변수를 허용합니다. 배포에서 사용하는 변수를
+모두 확인하세요:
 
 ```bash
 # MailDev configuration
@@ -500,20 +510,21 @@ export MAILDEV_SMTP_PORT=1025
 export MAILDEV_WEB_PORT=1080
 export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
-# Use OwlMail directly (no need to change environment variables)
+# OwlMail도 위에 나열된 변수를 읽을 수 있음
 ./owlmail
 ```
 
 ### 2. API Compatibility
 
-All MailDev API endpoints are supported, existing client code requires no changes:
+API 경로와 페이로드는 다릅니다. 새 연동은 버전이 지정된 OwlMail API를 사용하고
+기존 클라이언트는 명시적으로 수정하세요:
 
 ```bash
-# MailDev API
-curl http://localhost:1080/email
+# 현재 MailDev API
+curl http://localhost:1080/api/email
 
-# OwlMail fully compatible
-curl http://localhost:1080/email
+# OwlMail API
+curl http://localhost:1080/api/v1/emails
 ```
 
 ### 3. WebSocket Adaptation
@@ -561,7 +572,11 @@ OwlMail/
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
 │   ├── outgoing/         # Email relay implementation
-│   └── types/            # Type definitions
+│   ├── types/            # Type definitions
+│   └── webhook/          # Webhook filtering, templates, signing, and delivery
+├── docs/                 # API, operations, webhook, and migration documentation
+├── examples/             # Runnable integration examples
+├── tests/                # Browser and documentation contract tests
 ├── web/                  # Web frontend files
 ├── go.mod                # Go module definition
 └── README.md             # This document
@@ -592,7 +607,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-- [API Refactoring Record](./docs/ko/internal/API_Refactoring_Record.md)
+- [API 참조 (English)](./docs/en/API-Reference.md)
+- [운영 및 문제 해결 (English)](./docs/en/Operations.md)
+- [API 리팩토링 기록(과거 자료)](./docs/ko/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
 
@@ -604,4 +621,4 @@ If this project helps you, please give it a Star ⭐!
 
 ---
 
-**OwlMail** - A Go implementation of a mail development and testing tool, fully compatible with MailDev 🦉
+**OwlMail** - MailDev 마이그레이션 경로가 문서화된 Go 이메일 개발·테스트 서버 🦉

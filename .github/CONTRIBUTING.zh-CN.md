@@ -48,6 +48,13 @@
    
    # 运行特定包的测试
    go test ./internal/api/...
+
+   # 创建 PR 前运行与本地 CI 一致的检查
+   go test -race ./...
+   go vet ./...
+   node --check web/app.js
+   node --check web/help.js
+   node --test tests/web/*.test.js tests/docs/*.test.js
    ```
 
 5. **提交更改**
@@ -80,7 +87,7 @@
 
 - 遵循 [Effective Go](https://go.dev/doc/effective_go) 和 [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
 - 使用 `gofmt` 格式化代码
-- 使用 `golint` 检查代码风格
+- 运行 `golangci-lint run --timeout=5m`，与 lint 工作流保持一致
 - 保持函数简洁，单一职责
 
 ### 测试要求
@@ -143,7 +150,7 @@
 
 3. 确保代码格式化
    ```bash
-   gofmt -w .
+   go fmt ./...
    ```
 
 4. 创建 Pull Request
@@ -169,7 +176,11 @@ OwlMail/
 │   ├── maildev/          # MailDev 兼容层
 │   ├── mailserver/       # SMTP 服务器实现
 │   ├── outgoing/         # 邮件转发实现
-│   └── types/            # 类型定义
+│   ├── types/            # 类型定义
+│   └── webhook/          # Webhook 过滤与投递
+├── docs/                 # 用户文档与历史记录
+├── examples/             # 可运行的集成示例
+├── tests/                # 浏览器与文档测试
 ├── web/                  # Web 前端文件
 └── .github/              # GitHub 配置文件
 ```
@@ -200,7 +211,7 @@ OwlMail/
 
 ## 许可证
 
-通过贡献，您同意您的贡献将在与项目相同的 [MIT 许可证](LICENSE) 下授权。
+通过贡献，您同意您的贡献将在与项目相同的 [MIT 许可证](../LICENSE) 下授权。
 
 ---
 

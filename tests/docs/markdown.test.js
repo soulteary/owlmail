@@ -1,0 +1,294 @@
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const test = require("node:test");
+
+const root = path.resolve(__dirname, "../..");
+const translatedReadmes = [
+  "README.md",
+  "README.zh-CN.md",
+  "README.de.md",
+  "README.fr.md",
+  "README.it.md",
+  "README.ja.md",
+  "README.ko.md",
+];
+
+function walkMarkdown(directory) {
+  const files = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === ".git" || entry.name === "node_modules") continue;
+    const fullPath = path.join(directory, entry.name);
+    if (entry.isDirectory()) files.push(...walkMarkdown(fullPath));
+    if (entry.isFile() && entry.name.endsWith(".md")) files.push(fullPath);
+  }
+  return files;
+}
+
+function withoutFencedCode(markdown) {
+  const output = [];
+  let fence = null;
+
+  for (const line of markdown.split(/\r?\n/)) {
+    const match = line.match(/^\s*(`{3,}|~{3,})/);
+    if (match) {
+      const marker = match[1][0];
+      if (fence === null) fence = marker;
+      else if (fence === marker) fence = null;
+      output.push("");
+      continue;
+    }
+    output.push(fence === null ? line : "");
+  }
+
+  return { text: output.join("\n"), openFence: fence };
+}
+
+function localDestinations(markdown) {
+  const destinations = [];
+  const inlineLink = /!?\[[^\]]*\]\(([^)]+)\)/g;
+  const referenceLink = /^\s*\[[^\]]+\]:\s*(\S+)/gm;
+  const htmlLink = /\b(?:href|src)=["']([^"']+)["']/gi;
+
+  for (const expression of [inlineLink, referenceLink, htmlLink]) {
+    for (const match of markdown.matchAll(expression)) {
+      let destination = match[1].trim();
+      if (destination.startsWith("<") && destination.endsWith(">")) {
+        destination = destination.slice(1, -1);
+      } else {
+        destination = destination.split(/\s+["']/)[0];
+      }
+
+      if (
+        destination === "" ||
+        destination.startsWith("/") ||
+        destination.startsWith("//") ||
+        /^[a-z][a-z\d+.-]*:/i.test(destination)
+      ) {
+        continue;
+      }
+
+      destinations.push(destination);
+    }
+  }
+
+  return destinations;
+}
+
+function githubHeadingAnchors(markdown) {
+  const { text } = withoutFencedCode(markdown);
+  const anchors = new Set();
+  const counts = new Map();
+
+  for (const line of text.split(/\r?\n/)) {
+    const heading = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/);
+    if (heading) {
+      const label = heading[1]
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .replace(/<[^>]+>/g, "")
+        .replace(/[`*_~]/g, "")
+        .trim()
+        .toLowerCase();
+      const base = label
+        .replace(/[^\p{L}\p{N}\s_-]/gu, "")
+        .replace(/\s+/g, "-");
+      const count = counts.get(base) || 0;
+      anchors.add(count === 0 ? base : `${base}-${count}`);
+      counts.set(base, count + 1);
+    }
+
+    for (const id of line.matchAll(/\bid=["']([^"']+)["']/gi)) {
+      anchors.add(id[1]);
+    }
+  }
+
+  return anchors;
+}
+
+function extractConfigContract() {
+  const source = fs.readFileSync(path.join(root, "internal/config/config.go"), "utf8");
+  const constants = new Map(
+    [...source.matchAll(/^const\s+(\w+)\s*=\s*([^\n]+)$/gm)].map((match) => [match[1], match[2].trim()]),
+  );
+  const defaultStart = source.indexOf("func DefaultConfig()");
+  const defaultEnd = source.indexOf("// FlagRefs holds", defaultStart);
+  const defaultBlock = source.slice(defaultStart, defaultEnd);
+  const defaults = new Map(
+    [...defaultBlock.matchAll(/^\s*(\w+):\s*([^,\n]+),/gm)].map((match) => [match[1], match[2].trim()]),
+  );
+  const flags = [...source.matchAll(/fs\.(?:Bool|Int|String)\("([^"]+)",\s*cfg\.(\w+),/g)].map(
+    (match) => ({ name: match[1], field: match[2] }),
+  );
+  const environment = [
+    ...new Set([...source.matchAll(/\b(?:OWLMAIL|MAILDEV)_[A-Z0-9_]+\b/g)].map((match) => match[0])),
+  ].sort();
+
+  function resolveLiteral(raw) {
+    if (constants.has(raw)) return resolveLiteral(constants.get(raw));
+    if (raw === "true" || raw === "false" || /^-?\d+$/.test(raw)) return raw;
+    if (raw.startsWith('"')) return JSON.parse(raw);
+    throw new Error(`unsupported default literal ${raw}`);
+  }
+
+  return {
+    environment,
+    flags: flags.map((flag) => {
+      assert.ok(defaults.has(flag.field), `missing default for config field ${flag.field}`);
+      const value = resolveLiteral(defaults.get(flag.field));
+      return { ...flag, defaultValue: value === "" ? "-" : value };
+    }),
+  };
+}
+
+function configRows(markdown) {
+  const rows = new Map();
+  for (const line of markdown.split(/\r?\n/)) {
+    const match = line.match(/^\|\s*`-([^`]+)`\s*\|\s*([^|]*)\|\s*([^|]*)\|/);
+    if (match) rows.set(match[1], { environment: match[2].trim(), defaultValue: match[3].trim() });
+  }
+  return rows;
+}
+
+function extractAPIRoutes() {
+  const source = fs.readFileSync(path.join(root, "internal/api/api.go"), "utf8");
+  const sections = [
+    source.slice(source.indexOf("func (api *API) setupImprovedAPIRoutes"), source.indexOf("// Start starts the API server")),
+    source.slice(source.indexOf("func (api *API) setupMailDevCompatibleRoutes")),
+  ];
+  const routes = [];
+
+  for (const section of sections) {
+    const prefixes = new Map([["app", ""]]);
+    for (const match of section.matchAll(/(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"\)/g)) {
+      const [, name, parent, segment] = match;
+      assert.ok(prefixes.has(parent), `unknown API route group ${parent}`);
+      prefixes.set(name, prefixes.get(parent) + segment);
+    }
+    for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete)\("([^"]*)"/g)) {
+      const [, group, method, route] = match;
+      assert.ok(prefixes.has(group), `unknown API route group ${group}`);
+      routes.push(`${method.toUpperCase()} ${prefixes.get(group)}${route}`);
+    }
+  }
+
+  return [...new Set(routes)].sort();
+}
+
+test("Markdown has balanced fences and valid local links", () => {
+  const failures = [];
+  const anchorCache = new Map();
+
+  for (const file of walkMarkdown(root)) {
+    const relative = path.relative(root, file);
+    const markdown = fs.readFileSync(file, "utf8");
+    const { text, openFence } = withoutFencedCode(markdown);
+    if (openFence !== null) failures.push(`${relative}: unclosed ${openFence} fence`);
+
+    for (const destination of localDestinations(text)) {
+      const [beforeFragment, fragment = ""] = destination.split("#", 2);
+      const filePart = beforeFragment.split("?", 1)[0];
+      const decodedPath = decodeURIComponent(filePart);
+      const resolved = decodedPath === "" ? file : path.resolve(path.dirname(file), decodedPath);
+      if (!fs.existsSync(resolved)) {
+        failures.push(`${relative}: missing ${decodedPath}`);
+        continue;
+      }
+
+      if (fragment !== "" && path.extname(resolved).toLowerCase() === ".md") {
+        if (!anchorCache.has(resolved)) {
+          anchorCache.set(resolved, githubHeadingAnchors(fs.readFileSync(resolved, "utf8")));
+        }
+        const decodedFragment = decodeURIComponent(fragment);
+        if (!anchorCache.get(resolved).has(decodedFragment)) {
+          failures.push(`${relative}: missing anchor ${destination}`);
+        }
+      }
+    }
+  }
+
+  assert.deepEqual(failures, []);
+});
+
+test("root README configuration tables match flags, defaults, and environment aliases", () => {
+  const contract = extractConfigContract();
+  assert.ok(contract.flags.length > 0, "no configuration flags found");
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    const rows = configRows(markdown);
+
+    for (const flag of contract.flags) {
+      assert.ok(rows.has(flag.name), `${readme} is missing -${flag.name}`);
+      assert.equal(
+        rows.get(flag.name).defaultValue,
+        flag.defaultValue,
+        `${readme} has the wrong default for -${flag.name}`,
+      );
+    }
+
+    const missingEnvironment = contract.environment.filter((name) => !markdown.includes(`\`${name}\``));
+    assert.deepEqual(missingEnvironment, [], `${readme} is missing environment variables`);
+  }
+});
+
+test("security-sensitive authentication limitations remain explicit", () => {
+  const smtpWarnings = new Map([
+    ["README.md", "not currently enforced"],
+    ["README.zh-CN.md", "当前未强制执行"],
+    ["README.de.md", "derzeit nicht erzwungen"],
+    ["README.fr.md", "pas encore appliqué"],
+    ["README.it.md", "attualmente non applicato"],
+    ["README.ja.md", "現在は強制されません"],
+    ["README.ko.md", "현재 강제되지 않음"],
+  ]);
+
+  for (const [readme, warning] of smtpWarnings) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes(warning), `${readme} obscures the inbound SMTP auth limitation`);
+  }
+
+  const references = [
+    ["docs/en/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "Startup fails", "not currently enforced"]],
+    ["docs/zh-CN/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "启动失败", "不会强制执行"]],
+  ];
+  for (const [reference, markers] of references) {
+    const markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    for (const marker of markers) {
+      assert.ok(markdown.includes(marker), `${reference} is missing security contract marker ${marker}`);
+    }
+  }
+
+  const help = fs.readFileSync(path.join(root, "web/help.html"), "utf8");
+  for (const marker of [
+    "do not reject unauthenticated senders",
+    "不会拒绝未认证发送方",
+    "1 MiB",
+    "50 recipients",
+    "50 个收件人",
+  ]) {
+    assert.ok(help.includes(marker), `web/help.html is missing SMTP ingress marker ${marker}`);
+  }
+
+  const capacityReferences = [
+    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "does not drain"]],
+    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "不会等待正在进行"]],
+  ];
+  for (const [reference, markers] of capacityReferences) {
+    const markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    for (const marker of markers) {
+      assert.ok(markdown.includes(marker), `${reference} is missing delivery boundary marker ${marker}`);
+    }
+  }
+});
+
+test("English and Chinese API references cover every registered API route", () => {
+  const routes = extractAPIRoutes();
+  assert.ok(routes.length > 0, "no API routes found");
+
+  for (const reference of ["docs/en/API-Reference.md", "docs/zh-CN/API-Reference.md"]) {
+    const markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    const missing = routes.filter((route) => !markdown.includes(`\`${route}\``));
+    assert.deepEqual(missing, [], `${reference} is missing API routes`);
+  }
+});

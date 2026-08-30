@@ -14,8 +14,10 @@
 
 ## 📋 Executive Summary
 
-Dopo una revisione sistematica di entrambi i codici sorgente e delle API, **OwlMail (Go)** e **MailDev (Node.js)** sono completamente equivalenti nelle loro **funzionalità principali e API compatibili**.
-Inoltre, OwlMail fornisce **design RESTful più forte, operazioni batch, statistiche, strumenti di esportazione e supporto SMTPS (465) nativo** — tutto fornito come **singolo binario**, risultando in prestazioni superiori e semplicità di distribuzione.
+OwlMail e MailDev coprono gli stessi flussi di sviluppo fondamentali, ma **non
+sono equivalenti a livello di protocollo né intercambiabili senza verifica**.
+Prefissi API, risposte, stato di lettura e protocollo in tempo reale differiscono.
+Consulta il [riferimento API](../en/API-Reference.md).
 
 > **Nota**: Il contenuto completo sarà disponibile una volta completata la traduzione. Nel frattempo, si prega di fare riferimento alla versione inglese per i dettagli completi.
 
