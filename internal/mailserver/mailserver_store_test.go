@@ -208,6 +208,13 @@ func TestMailServerGetAllEmail(t *testing.T) {
 	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
 		t.Fatalf("Failed to save email 2: %v", err)
 	}
+	quarantineFile := filepath.Join(tmpDir, quarantineDirName, "evidence", "message.eml")
+	if err := os.MkdirAll(filepath.Dir(quarantineFile), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(quarantineFile, []byte("corrupt evidence"), 0600); err != nil {
+		t.Fatal(err)
+	}
 
 	emails = server.GetAllEmail()
 	if len(emails) != 2 {
@@ -285,6 +292,14 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	if err := server.SaveEmailToStore("id2", false, envelope, email2); err != nil {
 		t.Fatalf("Failed to save email 2: %v", err)
 	}
+	quarantineDir := filepath.Join(tmpDir, quarantineDirName)
+	if err := os.MkdirAll(quarantineDir, 0755); err != nil {
+		t.Fatalf("Failed to create quarantine directory: %v", err)
+	}
+	quarantineFile := filepath.Join(quarantineDir, "damaged.eml")
+	if err := os.WriteFile(quarantineFile, []byte("evidence"), 0600); err != nil {
+		t.Fatalf("Failed to create quarantine evidence: %v", err)
+	}
 
 	// Delete all
 	err = server.DeleteAllEmail()
@@ -296,6 +311,9 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	emails := server.GetAllEmail()
 	if len(emails) != 0 {
 		t.Errorf("Expected 0 emails, got %d", len(emails))
+	}
+	if _, err := os.Stat(quarantineFile); err != nil {
+		t.Fatalf("quarantine evidence was removed: %v", err)
 	}
 }
 

@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/common"
 )
 
 const (
@@ -132,7 +134,7 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 			continue
 		}
 		if err := ms.quarantinePath(filepath.Join(ms.mailDir, entry.Name()), "incomplete"); err != nil {
-			return fmt.Errorf("quarantine incomplete artifact %s: %w", entry.Name(), err)
+			common.Error("Failed to quarantine incomplete artifact %s: %v", entry.Name(), err)
 		}
 	}
 	return nil
@@ -199,7 +201,7 @@ func (ms *MailServer) quarantineOrphanAttachmentDirectories() error {
 		if !entry.IsDir() || entry.Name() == quarantineDirName || strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
-		if err := validateEmailID(entry.Name()); err != nil {
+		if !isGeneratedEmailID(entry.Name()) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(ms.mailDir, entry.Name()+".eml")); err == nil {

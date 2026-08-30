@@ -113,7 +113,10 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, storageTempPrefix+"partial.eml.tmp"), []byte("partial"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(dir, "orphan-id"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "orphan01"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "backups"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -124,7 +127,7 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	if got := len(server.GetAllEmail()); got != 0 {
 		t.Fatalf("corrupt email was published: %d", got)
 	}
-	for _, name := range []string{"corrupt.eml", storageTempPrefix + "partial.eml.tmp", "orphan-id"} {
+	for _, name := range []string{"corrupt.eml", storageTempPrefix + "partial.eml.tmp", "orphan01"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
 			t.Fatalf("artifact %s was not moved to quarantine: %v", name, err)
 		}
@@ -135,5 +138,30 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	}
 	if len(quarantined) != 3 {
 		t.Fatalf("expected three quarantine entries, got %d", len(quarantined))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "backups")); err != nil {
+		t.Fatalf("unrelated directory was quarantined: %v", err)
+	}
+}
+
+func TestRecoveryFailureDoesNotHideCommittedMail(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "valid001.eml"), validMessage("valid"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, storageTempPrefix+"partial.eml.tmp"), []byte("partial"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, quarantineDirName), []byte("blocks quarantine directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("valid committed mail count = %d, want 1", got)
 	}
 }

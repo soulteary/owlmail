@@ -170,6 +170,22 @@ func validateEmailID(id string) error {
 	return nil
 }
 
+// isGeneratedEmailID reports whether id has one of the two formats emitted by
+// makeID. It is intentionally stricter than validateEmailID, which also accepts
+// human-readable IDs used by API clients and tests.
+func isGeneratedEmailID(id string) bool {
+	if len(id) == 8 {
+		for _, r := range id {
+			if (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && (r < '0' || r > '9') {
+				return false
+			}
+		}
+		return true
+	}
+	parsed, err := uuid.Parse(id)
+	return err == nil && parsed.String() == strings.ToLower(id)
+}
+
 // validatePath ensures the resolved path is within the base directory to prevent path traversal
 func validatePath(baseDir, resolvedPath string) error {
 	// Get absolute paths
