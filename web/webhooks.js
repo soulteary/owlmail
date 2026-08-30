@@ -452,6 +452,19 @@
         return separator < 0 ? -1 : hostPortStart + separator;
     }
 
+    function transformURLAuthority(value, transform) {
+        const schemeEnd = value.indexOf('://');
+        if (schemeEnd < 0) return value;
+        const authorityStart = schemeEnd + 3;
+        const authorityEndOffset = value.slice(authorityStart).search(/[/?#]/);
+        const authorityEnd = authorityEndOffset < 0
+            ? value.length
+            : authorityStart + authorityEndOffset;
+        return value.slice(0, authorityStart) +
+            transform(value.slice(authorityStart, authorityEnd)) +
+            value.slice(authorityEnd);
+    }
+
     function validateURL(value, path, errors, warnings) {
         if (typeof value !== 'string') {
             if (value === undefined || value === null || value === '') errors.push(issue('urlRequired', path));
@@ -486,20 +499,35 @@
             return;
         }
 
-        const schemeEnd = value.indexOf('://');
+        let structuralValue = value;
+        if (!value.includes('://') && environmentMatches) {
+            const firstEnvironmentOffset = value.search(environmentPattern);
+            environmentPattern.lastIndex = 0;
+            const staticSchemePrefix = value.slice(0, firstEnvironmentOffset).toLowerCase();
+            const surrogatePrefix = ['http://', 'https://'].find((candidate) =>
+                candidate.startsWith(staticSchemePrefix));
+            if (surrogatePrefix) {
+                const token = value.slice(firstEnvironmentOffset).match(leadingEnvironmentPattern)[0];
+                structuralValue = value.slice(0, firstEnvironmentOffset) +
+                    surrogatePrefix.slice(staticSchemePrefix.length) +
+                    value.slice(firstEnvironmentOffset + token.length);
+            }
+        }
+
+        const schemeEnd = structuralValue.indexOf('://');
         let placeholderInScheme = false;
         if (environmentMatches && schemeEnd >= 0) {
-            const scheme = value.slice(0, schemeEnd);
+            const scheme = structuralValue.slice(0, schemeEnd);
             placeholderInScheme = environmentPattern.test(scheme);
             environmentPattern.lastIndex = 0;
         }
 
         const authorityStart = schemeEnd >= 0 ? schemeEnd + 3 : -1;
-        const authorityEndOffset = authorityStart >= 0 ? value.slice(authorityStart).search(/[/?#]/) : -1;
+        const authorityEndOffset = authorityStart >= 0 ? structuralValue.slice(authorityStart).search(/[/?#]/) : -1;
         const authorityEnd = authorityStart < 0
             ? -1
-            : (authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset);
-        const authority = authorityStart < 0 ? '' : value.slice(authorityStart, authorityEnd);
+            : (authorityEndOffset < 0 ? structuralValue.length : authorityStart + authorityEndOffset);
+        const authority = authorityStart < 0 ? '' : structuralValue.slice(authorityStart, authorityEnd);
         const authorityHasUserInfo = authority.includes('@');
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
         const bracketStart = authority.indexOf('[');
@@ -507,6 +535,8 @@
         const bracketedHostHasEnvironment = bracketStart >= 0 && bracketEnd > bracketStart &&
             environmentPattern.test(authority.slice(bracketStart + 1, bracketEnd));
         environmentPattern.lastIndex = 0;
+        const bracketedHostHasZone = bracketStart >= 0 && bracketEnd > bracketStart &&
+            authority.slice(bracketStart + 1, bracketEnd).includes('%25');
         const portSeparator = authorityPortSeparator(authority);
         const portHasEnvironment = portSeparator >= 0 && environmentPattern.test(authority.slice(portSeparator + 1));
         environmentPattern.lastIndex = 0;
@@ -522,15 +552,15 @@
         if (authorityIsStaticallyEmpty) {
             errors.push(issue('urlHost', path));
         }
-        const parseableValue = value.replace(environmentPattern, (token, offset) => {
+        const parseableValue = structuralValue.replace(environmentPattern, (token, offset) => {
             if (placeholderInScheme && offset < schemeEnd) return 'https';
             if (offset < authorityStart || offset >= authorityEnd) return 'value';
-            const authorityPrefix = value.slice(authorityStart, offset);
+            const authorityPrefix = structuralValue.slice(authorityStart, offset);
             const afterCredentials = authorityPrefix.slice(authorityPrefix.lastIndexOf('@') + 1);
             const openingBracket = afterCredentials.lastIndexOf('[');
             const closingBracket = afterCredentials.lastIndexOf(']');
             if (openingBracket > closingBracket) {
-                const authoritySuffix = value.slice(offset + token.length, authorityEnd);
+                const authoritySuffix = structuralValue.slice(offset + token.length, authorityEnd);
                 const bracketEnd = authoritySuffix.indexOf(']');
                 if (bracketEnd >= 0) {
                     const beforePlaceholder = afterCredentials.slice(openingBracket + 1);
@@ -551,18 +581,24 @@
             browserParseValue = browserParseValue.replace(/\[[^\]]*\]/, '[::1]');
         }
         if (portHasEnvironment) {
-            const browserSchemeEnd = browserParseValue.indexOf('://');
-            const browserAuthorityStart = browserSchemeEnd + 3;
-            const browserAuthorityEndOffset = browserParseValue.slice(browserAuthorityStart).search(/[/?#]/);
-            const browserAuthorityEnd = browserAuthorityEndOffset < 0
-                ? browserParseValue.length
-                : browserAuthorityStart + browserAuthorityEndOffset;
-            const browserAuthority = browserParseValue.slice(browserAuthorityStart, browserAuthorityEnd);
-            const browserPortSeparator = authorityPortSeparator(browserAuthority);
-            browserParseValue = browserParseValue.slice(0, browserAuthorityStart + browserPortSeparator + 1) +
-                '443' + browserParseValue.slice(browserAuthorityEnd);
+            browserParseValue = transformURLAuthority(browserParseValue, (browserAuthority) => {
+                const browserPortSeparator = authorityPortSeparator(browserAuthority);
+                return browserAuthority.slice(0, browserPortSeparator + 1) + '443';
+            });
         }
-        browserParseValue = browserParseValue.replace(/\[([^\]]+?)%25[^\]]*\]/g, '[$1]');
+        if (bracketedHostHasZone) {
+            browserParseValue = transformURLAuthority(browserParseValue, (browserAuthority) => {
+                const browserBracketStart = browserAuthority.indexOf('[');
+                const browserBracketEnd = browserAuthority.indexOf(']', browserBracketStart + 1);
+                if (browserBracketStart < 0 || browserBracketEnd < 0) return browserAuthority;
+                const browserAddress = browserAuthority.slice(browserBracketStart + 1, browserBracketEnd);
+                const zoneDelimiter = browserAddress.indexOf('%25');
+                if (zoneDelimiter < 0) return browserAuthority;
+                return browserAuthority.slice(0, browserBracketStart + 1) +
+                    browserAddress.slice(0, zoneDelimiter) +
+                    browserAuthority.slice(browserBracketEnd);
+            });
+        }
         let parsed;
         try {
             parsed = new URL(browserParseValue);
@@ -630,9 +666,12 @@
 
         validateURL(target.url, path + '.url', errors, warnings);
 
-        if (validateOptionalString(target.method, path + '.method', errors) && target.method) {
+        if (validateOptionalString(target.method, path + '.method', errors) &&
+            typeof target.method === 'string') {
             const method = goTrimSpace(target.method).toUpperCase();
-            if (!['POST', 'PUT', 'PATCH'].includes(method)) errors.push(issue('unsupportedMethod', path + '.method'));
+            if (method && !['POST', 'PUT', 'PATCH'].includes(method)) {
+                errors.push(issue('unsupportedMethod', path + '.method'));
+            }
         }
 
         if (target.headers !== undefined && target.headers !== null) {
@@ -664,9 +703,10 @@
 
         if (validateOptionalString(target.contentType, path + '.contentType', errors) &&
             typeof target.contentType === 'string') {
-            if (/[\r\n]/.test(target.contentType)) {
+            const contentType = goTrimSpace(target.contentType);
+            if (/[\r\n]/.test(contentType)) {
                 errors.push(issue('contentTypeNewline', path + '.contentType'));
-            } else if (hasInvalidHTTPFieldValue(target.contentType)) {
+            } else if (hasInvalidHTTPFieldValue(contentType)) {
                 errors.push(issue('contentTypeControl', path + '.contentType'));
             }
         }

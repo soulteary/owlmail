@@ -73,6 +73,34 @@ test('minimal configuration imports and normalizes defaults', () => {
     });
 });
 
+test('whitespace-only methods normalize to the backend default', () => {
+    const result = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{
+            name: 'primary',
+            url: 'https://example.com/hooks/owlmail',
+            method: ' \u0085 '
+        }]
+    }));
+
+    assert.deepEqual(codes(result), []);
+    assert.equal(Object.hasOwn(result.config.targets[0], 'method'), false);
+});
+
+test('content types apply backend whitespace normalization before validation', () => {
+    const result = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{
+            name: 'primary',
+            url: 'https://example.com/hooks/owlmail',
+            contentType: ' text/plain\r\n'
+        }]
+    }));
+
+    assert.deepEqual(codes(result), []);
+    assert.equal(result.config.targets[0].contentType, 'text/plain');
+});
+
 test('full configuration survives import parsing', () => {
     const sourceConfig = {
         version: 1,
@@ -212,6 +240,7 @@ test('generated configurations use the same 1 MiB limit as OwlMail', () => {
 test('URL validation defers environment-backed schemes and ports to runtime', () => {
     const schemePlaceholder = '$' + '{SCHEME}';
     const schemePrefixPlaceholder = '$' + '{SCHEME_PREFIX}';
+    const separatorPlaceholder = '$' + '{URL_SEPARATOR}';
     const hostPlaceholder = '$' + '{HOST}';
     const ipv6PrefixPlaceholder = '$' + '{IPV6_PREFIX}';
     const portPlaceholder = '$' + '{PORT}';
@@ -221,6 +250,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
         targets: [
             { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
             { name: 'scheme-composed', url: schemePrefixPlaceholder + 'ps://example.com/hook' },
+            { name: 'separator', url: 'https' + separatorPlaceholder + 'example.com/hook' },
             { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' },
             { name: 'port-composed', url: 'https://example.com:' + portPlaceholder + '000/hook' },
             { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' },
@@ -230,7 +260,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 7);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 8);
 });
 
 test('URL validation still checks static authority with a placeholder scheme', () => {
@@ -324,6 +354,24 @@ test('URL validation accepts Go-compatible IPv6 zone identifiers', () => {
     });
 
     assert.deepEqual(codes(result), []);
+});
+
+test('IPv6 zone normalization stays inside a balanced URL authority', () => {
+    const malformedAuthority = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'unbalanced-zone', url: 'https://[::1%25x#]' }]
+    });
+    const hostPlaceholder = '$' + '{HOST}';
+    const pathFragment = configurator.validateConfig({
+        version: 1,
+        targets: [{
+            name: 'path-fragment',
+            url: 'https://[' + hostPlaceholder + '%25zone]/[path%25x#]'
+        }]
+    });
+
+    assert.ok(codes(malformedAuthority).includes('urlInvalid'));
+    assert.ok(codes(pathFragment).includes('urlFragment'));
 });
 
 test('glob validation follows Go path.Match character-class grammar', () => {
