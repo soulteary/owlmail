@@ -259,6 +259,7 @@
     let actionStatusTimer = null;
     let elements = {};
     const preservedMatchPatterns = new WeakMap();
+    const preservedControlValues = new WeakMap();
 
     function tr(key, params) {
         const table = translations[currentLanguage] || translations.en;
@@ -416,7 +417,14 @@
         const authorityEnd = authorityStart < 0
             ? -1
             : (authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset);
+        const authority = authorityStart < 0 ? '' : value.slice(authorityStart, authorityEnd);
+        const authorityHasUserInfo = authority.includes('@');
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
+        if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
+        if (authority.includes('\\')) {
+            errors.push(issue('urlInvalid', path));
+            return;
+        }
         if (authorityIsStaticallyEmpty) {
             errors.push(issue('urlHost', path));
         }
@@ -454,7 +462,9 @@
             errors.push(issue('urlHost', path));
         }
         if (!parsed.hostname && !authorityIsStaticallyEmpty) errors.push(issue('urlHost', path));
-        if (parsed.username || parsed.password) errors.push(issue('urlCredentials', path));
+        if ((parsed.username || parsed.password) && !authorityHasUserInfo) {
+            errors.push(issue('urlCredentials', path));
+        }
         if (parsed.hash) errors.push(issue('urlFragment', path));
     }
 
@@ -661,6 +671,17 @@
         return splitPatternLines(value);
     }
 
+    function editorValueFromPreserved(value, preserved) {
+        if (preserved && value === preserved.displayValue) return preserved.value;
+        return value;
+    }
+
+    function setPreservedControlValue(control, value) {
+        control.value = value;
+        preservedControlValues.set(control, { displayValue: control.value, value });
+        control.addEventListener('input', () => preservedControlValues.delete(control), { once: true });
+    }
+
     function createHeaderMap() {
         return Object.create(null);
     }
@@ -781,8 +802,8 @@
         card.querySelector('[data-field="timeout"]').value = source.timeout || '5s';
         card.querySelector('[data-field="retries"]').value = source.retries === undefined || source.retries === null ? '0' : String(source.retries);
         card.querySelector('[data-field="contentType"]').value = source.contentType || 'application/json';
-        card.querySelector('[data-field="secret"]').value = source.secret || '';
-        card.querySelector('[data-field="bodyTemplate"]').value = source.bodyTemplate || '';
+        setPreservedControlValue(card.querySelector('[data-field="secret"]'), source.secret || '');
+        setPreservedControlValue(card.querySelector('[data-field="bodyTemplate"]'), source.bodyTemplate || '');
 
         matchKeys.forEach((field) => {
             const patterns = source.match && Array.isArray(source.match[field]) ? source.match[field] : [];
@@ -792,6 +813,7 @@
                 displayValue: control.value,
                 patterns: patterns.slice()
             });
+            control.addEventListener('input', () => preservedMatchPatterns.delete(control), { once: true });
         });
 
         const headerContainer = card.querySelector('[data-role="headers"]');
@@ -840,8 +862,13 @@
         const timeout = value('[data-field="timeout"]').trim();
         const retriesText = value('[data-field="retries"]').trim();
         const contentType = value('[data-field="contentType"]').trim();
-        const secret = value('[data-field="secret"]');
-        const bodyTemplate = value('[data-field="bodyTemplate"]');
+        const secretControl = card.querySelector('[data-field="secret"]');
+        const bodyTemplateControl = card.querySelector('[data-field="bodyTemplate"]');
+        const secret = editorValueFromPreserved(secretControl.value, preservedControlValues.get(secretControl));
+        const bodyTemplate = editorValueFromPreserved(
+            bodyTemplateControl.value,
+            preservedControlValues.get(bodyTemplateControl)
+        );
 
         if (method && method !== 'POST') target.method = method;
         if (timeout && timeout !== '5s') target.timeout = timeout;
@@ -1109,6 +1136,7 @@
         utf8ByteLength,
         validGlobPattern,
         patternsFromEditorValue,
+        editorValueFromPreserved,
         createHeaderMap
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;

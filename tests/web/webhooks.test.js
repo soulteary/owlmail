@@ -259,6 +259,20 @@ test('URL validation rejects normalized whitespace and opaque HTTP URLs', () => 
     assert.ok(codes(result).includes('urlHost'));
 });
 
+test('URL validation rejects Go-incompatible authority syntax', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [
+            { name: 'backslash', url: 'https://example.com\\hook' },
+            { name: 'empty-user', url: 'https://@example.com/hook' },
+            { name: 'empty-user-password', url: 'https://:@example.com/hook' }
+        ]
+    });
+
+    assert.ok(codes(result).includes('urlInvalid'));
+    assert.equal(codes(result).filter((code) => code === 'urlCredentials').length, 2);
+});
+
 test('glob validation follows Go path.Match character-class grammar', () => {
     for (const pattern of ['[a-]', '[-a]', '[a-b-c]']) {
         assert.equal(configurator.validGlobPattern(pattern), false, pattern + ' should be rejected');
@@ -304,6 +318,15 @@ test('imported match patterns retain significant whitespace and embedded newline
         Array.from(configurator.patternsFromEditorValue(' leading*\ntrailing* ', null)),
         [' leading*', 'trailing* ']
     );
+});
+
+test('unmodified secret and template values survive control normalization', () => {
+    const normalizedDisplay = 'line\nvalue';
+    const originalValue = 'line\r\nvalue';
+    const preserved = { displayValue: normalizedDisplay, value: originalValue };
+
+    assert.equal(configurator.editorValueFromPreserved(normalizedDisplay, preserved), originalValue);
+    assert.equal(configurator.editorValueFromPreserved('edited', preserved), 'edited');
 });
 
 test('sub-nanosecond timeouts are rejected after Go-compatible quantization', () => {
