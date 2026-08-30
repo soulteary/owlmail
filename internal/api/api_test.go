@@ -222,7 +222,7 @@ func TestEmbeddedWebAssets(t *testing.T) {
 		{path: "/help.css", contentType: "text/css", contains: ".help-shell"},
 		{path: "/help.js", contentType: "text/javascript", contains: "applyLanguage"},
 		{path: "/webhooks", contentType: "text/html", contains: "Webhook Configurator"},
-		{path: "/webhooks/", contentType: "text/html", contains: "生成 Webhook 配置"},
+		{path: "/webhooks/", contentType: "text/html", contains: `id="targetList"`},
 		{path: "/webhooks.css", contentType: "text/css", contains: ".webhook-workspace"},
 		{path: "/webhooks.js", contentType: "text/javascript", contains: "parseConfigText"},
 	}
