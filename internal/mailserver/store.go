@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -539,8 +540,10 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
+	var loadErrors []error
 	if err := ms.recoverStorageArtifacts(); err != nil {
-		return err
+		common.Error("Storage recovery completed with errors: %v", err)
+		loadErrors = append(loadErrors, err)
 	}
 	files, err := os.ReadDir(ms.mailDir)
 	if err != nil {
@@ -595,8 +598,8 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		}
 	}
 	if err := ms.quarantineOrphanAttachmentDirectories(); err != nil {
-		return err
+		loadErrors = append(loadErrors, err)
 	}
 
-	return nil
+	return errors.Join(loadErrors...)
 }
