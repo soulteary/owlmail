@@ -2725,6 +2725,36 @@ func TestAPIExportEmailsWithNonExistentIDs(t *testing.T) {
 	}
 }
 
+func TestAPIExportEmailsRejectsOversizedSourceBeforeStreaming(t *testing.T) {
+	api, server, tmpDir := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	emlPath := filepath.Join(tmpDir, "large.eml")
+	file, err := os.Create(emlPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := file.Truncate(maxExportBytes + 1); err != nil {
+		_ = file.Close()
+		t.Fatal(err)
+	}
+	_ = file.Close()
+	if err := server.SaveEmailToStore("large", false, &types.Envelope{To: []string{"to@example.test"}}, &types.Email{Subject: "large"}); err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, "/api/v1/emails/export?ids=large", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusRequestEntityTooLarge)
+	}
+	if contentType := resp.Header.Get("Content-Type"); !strings.Contains(contentType, "application/json") {
+		t.Fatalf("Content-Type = %q, want JSON preflight error", contentType)
+	}
+}
+
 func TestApplyEmailSorting(t *testing.T) {
 	now := time.Now()
 	emails := []*types.Email{

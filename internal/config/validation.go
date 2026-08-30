@@ -29,6 +29,13 @@ func ValidateConfig(cfg *Config) error {
 			return err
 		}
 	}
+	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
+		return fmt.Errorf("mail retention limits cannot be negative")
+	}
+	cleanupInterval, err := time.ParseDuration(cfg.MailCleanupInterval)
+	if err != nil || cleanupInterval <= 0 {
+		return fmt.Errorf("mail cleanup interval must be a positive duration")
+	}
 
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {

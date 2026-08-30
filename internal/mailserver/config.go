@@ -46,16 +46,17 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	}
 
 	ms := &MailServer{
-		storeByID:    make(map[string]*types.Email),
-		storeOrder:   make([]string, 0),
-		mailDir:      mailDir,
-		port:         port,
-		host:         host,
-		eventChan:    make(chan Event, 100),
-		listeners:    make(map[string][]eventListener),
-		authConfig:   authConfig,
-		tlsConfig:    tlsConfig,
-		useUUIDForID: useUUIDForID,
+		storeByID:      make(map[string]*types.Email),
+		storeOrder:     make([]string, 0),
+		receivedAtByID: make(map[string]time.Time),
+		mailDir:        mailDir,
+		port:           port,
+		host:           host,
+		eventChan:      make(chan Event, 100),
+		listeners:      make(map[string][]eventListener),
+		authConfig:     authConfig,
+		tlsConfig:      tlsConfig,
+		useUUIDForID:   useUUIDForID,
 	}
 
 	// Setup outgoing mail if config provided

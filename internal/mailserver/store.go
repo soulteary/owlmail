@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -58,11 +59,39 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
-	if _, exists := ms.storeByID[id]; !exists {
+	previousEmail, existed := ms.storeByID[id]
+	previousReceivedAt, hadReceivedAt := ms.receivedAtByID[id]
+	if !existed {
 		ms.storeOrder = append(ms.storeOrder, id)
+	}
+	if !hadReceivedAt {
+		ms.receivedAtByID[id] = time.Now().UTC()
 	}
 	ms.storeByID[id] = storedEmail
 	ms.storeMutex.Unlock()
+	if err := ms.persistEmailMetadata(storedEmail); err != nil {
+		ms.storeMutex.Lock()
+		if ms.storeByID[id] == storedEmail {
+			if existed {
+				ms.storeByID[id] = previousEmail
+			} else {
+				delete(ms.storeByID, id)
+				for i, storedID := range ms.storeOrder {
+					if storedID == id {
+						ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)
+						break
+					}
+				}
+			}
+			if hadReceivedAt {
+				ms.receivedAtByID[id] = previousReceivedAt
+			} else {
+				delete(ms.receivedAtByID, id)
+			}
+		}
+		ms.storeMutex.Unlock()
+		return fmt.Errorf("persist email metadata: %w", err)
+	}
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
@@ -171,18 +200,25 @@ func (ms *MailServer) GetAllEmail() []*Email {
 
 // DeleteEmail deletes an email by ID
 func (ms *MailServer) DeleteEmail(id string) error {
-	ms.storeMutex.Lock()
-	defer ms.storeMutex.Unlock()
-
-	email, exists := ms.storeByID[id]
-	if !exists {
-		return fmt.Errorf("email not found")
-	}
-
 	// Validate email ID to prevent path traversal
 	if err := validateEmailID(id); err != nil {
 		return fmt.Errorf("invalid email ID: %w", err)
 	}
+	ms.storeMutex.Lock()
+	email, exists := ms.storeByID[id]
+	if !exists {
+		ms.storeMutex.Unlock()
+		return fmt.Errorf("email not found")
+	}
+	delete(ms.storeByID, id)
+	delete(ms.receivedAtByID, id)
+	for i, storedID := range ms.storeOrder {
+		if storedID == id {
+			ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)
+			break
+		}
+	}
+	ms.storeMutex.Unlock()
 
 	// Delete raw email file
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
@@ -203,17 +239,11 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	if err := os.RemoveAll(attachmentDir); err != nil {
 		common.Verbose("Error deleting attachment directory: %v", err)
 	}
+	if err := ms.deleteEmailMetadata(id); err != nil {
+		common.Verbose("Error deleting email metadata: %v", err)
+	}
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
-
-	// Remove from store
-	delete(ms.storeByID, id)
-	for i, storedID := range ms.storeOrder {
-		if storedID == id {
-			ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)
-			break
-		}
-	}
 
 	// Emit delete event
 	ms.emit("delete", email)
@@ -226,7 +256,10 @@ func (ms *MailServer) DeleteAllEmail() error {
 	common.Log("Deleting all email")
 
 	ms.storeMutex.Lock()
-	defer ms.storeMutex.Unlock()
+	ms.storeByID = make(map[string]*Email)
+	ms.storeOrder = make([]string, 0)
+	ms.receivedAtByID = make(map[string]time.Time)
+	ms.storeMutex.Unlock()
 
 	// Clear mail directory
 	files, err := os.ReadDir(ms.mailDir)
@@ -238,8 +271,6 @@ func (ms *MailServer) DeleteAllEmail() error {
 		}
 	}
 
-	ms.storeByID = make(map[string]*Email)
-	ms.storeOrder = make([]string, 0)
 	return nil
 }
 
@@ -330,13 +361,20 @@ func (ms *MailServer) GetEmailAttachment(id, filename string) (string, string, e
 // ReadAllEmail marks all emails as read
 func (ms *MailServer) ReadAllEmail() int {
 	ms.storeMutex.Lock()
-	defer ms.storeMutex.Unlock()
 
 	count := 0
+	changed := make([]*Email, 0)
 	for _, email := range ms.storeByID {
 		if !email.Read {
 			email.Read = true
+			changed = append(changed, cloneEmail(email))
 			count++
+		}
+	}
+	ms.storeMutex.Unlock()
+	for _, email := range changed {
+		if err := ms.persistEmailMetadata(email); err != nil {
+			common.Error("Failed to persist read state for %s: %v", email.ID, err)
 		}
 	}
 	return count
@@ -345,19 +383,26 @@ func (ms *MailServer) ReadAllEmail() int {
 // ReadEmail marks a single email as read
 func (ms *MailServer) ReadEmail(id string) error {
 	ms.storeMutex.Lock()
-	defer ms.storeMutex.Unlock()
-
 	if email, exists := ms.storeByID[id]; exists {
+		previous := email.Read
 		email.Read = true
+		snapshot := cloneEmail(email)
+		receivedAt := ms.receivedAtByID[id]
+		if err := ms.persistEmailMetadataAt(snapshot, receivedAt); err != nil {
+			email.Read = previous
+			ms.storeMutex.Unlock()
+			return fmt.Errorf("persist read state: %w", err)
+		}
+		ms.storeMutex.Unlock()
 		return nil
 	}
+	ms.storeMutex.Unlock()
 	return fmt.Errorf("email not found")
 }
 
 // GetEmailStats returns email statistics
 func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	ms.storeMutex.RLock()
-	defer ms.storeMutex.RUnlock()
 
 	stats := make(map[string]interface{})
 	total := len(ms.storeByID)
@@ -378,6 +423,8 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	stats["unread"] = unread
 	stats["read"] = total - unread
 	stats["byDate"] = byDate
+	ms.storeMutex.RUnlock()
+	stats["storage"] = ms.storageStats()
 
 	return stats
 }
@@ -577,9 +624,24 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 			continue
 		}
 
-		// Close the file before a possible quarantine rename. Windows does not
-		// permit renaming an open file.
-		email, parseErr := ms.parseEmail(id, emailFile, nil, false, true)
+		markAsRead := false
+		if metadata, metadataErr := ms.loadEmailMetadata(id); metadataErr == nil {
+			markAsRead = metadata.Read
+			ms.storeMutex.Lock()
+			ms.receivedAtByID[id] = metadata.Sequence
+			ms.storeMutex.Unlock()
+		} else if !os.IsNotExist(metadataErr) {
+			common.Error("Ignoring invalid metadata for %s: %v", id, metadataErr)
+		} else if stat, statErr := file.Info(); statErr == nil {
+			ms.storeMutex.Lock()
+			ms.receivedAtByID[id] = stat.ModTime().UTC()
+			ms.storeMutex.Unlock()
+		}
+
+		// Parse email. Legacy messages without metadata start unread instead of
+		// being silently marked read during recovery. Close the file before a
+		// possible quarantine rename because Windows cannot rename an open file.
+		email, parseErr := ms.parseEmail(id, emailFile, nil, false, markAsRead)
 		closeErr := emailFile.Close()
 		if parseErr == nil && closeErr == nil {
 			common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
@@ -594,6 +656,11 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 			}
 		}
 	}
+	ms.storeMutex.Lock()
+	sort.SliceStable(ms.storeOrder, func(i, j int) bool {
+		return ms.receivedAtByID[ms.storeOrder[i]].Before(ms.receivedAtByID[ms.storeOrder[j]])
+	})
+	ms.storeMutex.Unlock()
 	if err := ms.quarantineOrphanAttachmentDirectories(); err != nil {
 		return err
 	}

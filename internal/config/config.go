@@ -11,6 +11,9 @@ import (
 	"github.com/soulteary/cli-kit/flagutil"
 )
 
+// DefaultMailCleanupInterval balances prompt retention with filesystem load.
+const DefaultMailCleanupInterval = "1h"
+
 // DefaultWebhookMaxConcurrency is the recommended concurrent email delivery
 // limit. Zero remains available as an explicit unlimited mode.
 const DefaultWebhookMaxConcurrency = 8
@@ -191,9 +194,13 @@ func ResolveLogLevel(fs *flag.FlagSet, flagName, defaultValue string) string {
 // Config holds all application configuration
 type Config struct {
 	// SMTP server configuration
-	SMTPPort int
-	SMTPHost string
-	MailDir  string
+	SMTPPort            int
+	SMTPHost            string
+	MailDir             string
+	MailRetentionDays   int
+	MailMaxMessages     int
+	MailMaxDiskMB       int
+	MailCleanupInterval string
 
 	// Web API configuration
 	WebPort     int
@@ -245,6 +252,10 @@ func DefaultConfig() *Config {
 		SMTPPort:               1025,
 		SMTPHost:               "localhost",
 		MailDir:                "",
+		MailRetentionDays:      0,
+		MailMaxMessages:        0,
+		MailMaxDiskMB:          0,
+		MailCleanupInterval:    DefaultMailCleanupInterval,
 		WebPort:                1080,
 		WebHost:                "localhost",
 		WebUser:                "",
@@ -280,6 +291,10 @@ type FlagRefs struct {
 	SMTPPort               *int
 	SMTPHost               *string
 	MailDir                *string
+	MailRetentionDays      *int
+	MailMaxMessages        *int
+	MailMaxDiskMB          *int
+	MailCleanupInterval    *string
 	WebPort                *int
 	WebHost                *string
 	WebUser                *string
@@ -317,6 +332,10 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		SMTPPort:               fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
 		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
+		MailRetentionDays:      fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
+		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
+		MailMaxDiskMB:          fs.Int("mail-max-disk-mb", cfg.MailMaxDiskMB, "Maximum mailbox disk usage in MiB (0 = unlimited)"),
+		MailCleanupInterval:    fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
 		WebPort:                fs.Int("web", cfg.WebPort, "Web API port"),
 		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
@@ -352,9 +371,13 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 // Priority: CLI flags > MAILDEV_* env > OWLMAIL_* env > default values
 func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	return &Config{
-		SMTPPort: resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
-		SMTPHost: resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
-		MailDir:  resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
+		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
+		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
+		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
+		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
+		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),
+		MailMaxDiskMB:       resolveIntWithFlag(fs, "mail-max-disk-mb", "OWLMAIL_MAIL_MAX_DISK_MB", *refs.MailMaxDiskMB),
+		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
 
 		WebPort:     resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
 		WebHost:     resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),

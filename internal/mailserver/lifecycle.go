@@ -61,6 +61,10 @@ func (ms *MailServer) Close() error {
 	if err := ms.smtpServer.Close(); err != nil {
 		closeErrors = append(closeErrors, err)
 	}
+	if ms.cleanupCancel != nil {
+		ms.cleanupCancel()
+		ms.cleanupWG.Wait()
+	}
 
 	ms.closersMutex.Lock()
 	closers := append([]io.Closer(nil), ms.closers...)

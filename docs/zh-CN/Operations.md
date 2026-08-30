@@ -4,6 +4,26 @@
 关闭行为和常见故障。协议细节见 [API 参考](./API-Reference.md)与
 [Webhook 消息转发](./Webhook-Forwarding.md)。
 
+## 邮箱保留策略与状态
+
+OwlMail 可以同时限制邮件年龄、封数和磁盘占用：
+
+```bash
+owlmail \
+  -mail-retention-days 14 \
+  -mail-max-messages 10000 \
+  -mail-max-disk-mb 2048 \
+  -mail-cleanup-interval 10m
+```
+
+单项设置为零表示不限制。服务会在启动时执行一次清理，之后由后台任务定期删除
+最旧邮件，直到全部限制都满足。现有邮件统计响应会包含磁盘字节数、限制值、清理
+次数、删除封数、回收字节数和最近错误。
+
+已读状态通过 `.owlmail-meta/<id>.json` 原子保存；没有元数据的旧邮件在恢复时保持
+未读。ZIP 导出直接流式写给客户端，并限制为最多 1,000 个源邮件及 256 MiB 原始
+EML 数据，避免再创建一个邮箱规模的内存缓冲区。
+
 ## 部署场景
 
 ### 1. 最简本地收件箱
