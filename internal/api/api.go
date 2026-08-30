@@ -98,6 +98,11 @@ func (api *API) setupRoutes() {
 	// regardless of the process working directory.
 	app.Get("/style.css", serveWebAsset("style.css", "text/css; charset=utf-8"))
 	app.Get("/app.js", serveWebAsset("app.js", "text/javascript; charset=utf-8"))
+	app.Get("/service-worker.js", func(c fiber.Ctx) error {
+		c.Set("Service-Worker-Allowed", "/")
+		c.Set(fiber.HeaderCacheControl, "no-cache")
+		return serveWebAsset("service-worker.js", "text/javascript; charset=utf-8")(c)
+	})
 	app.Get("/help.css", serveWebAsset("help.css", "text/css; charset=utf-8"))
 	app.Get("/help.js", serveWebAsset("help.js", "text/javascript; charset=utf-8"))
 	app.Get("/webhooks.css", serveWebAsset("webhooks.css", "text/css; charset=utf-8"))
@@ -130,6 +135,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
+			strings.HasPrefix(path, "/service-worker.js") ||
 			strings.HasPrefix(path, "/help.css") ||
 			strings.HasPrefix(path, "/help.js") ||
 			strings.HasPrefix(path, "/webhooks") {

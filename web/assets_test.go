@@ -14,6 +14,7 @@ func TestRequiredAssetsAreEmbedded(t *testing.T) {
 	}{
 		{name: "index.html", contains: []byte("OwlMail")},
 		{name: "app.js", contains: []byte("connectWebSocket")},
+		{name: "service-worker.js", contains: []byte("showNotification")},
 		{name: "style.css", contains: []byte(".header")},
 		{name: "help.html", contains: []byte("OwlMail Help")},
 		{name: "help.css", contains: []byte(".help-shell")},

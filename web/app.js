@@ -723,11 +723,26 @@ let browserNotificationsEnabled = false;
 let browserNotificationsInitialized = false;
 let notificationPermissionPending = false;
 let notificationStatusTimer = null;
+let browserNotificationRegistrationPromise = null;
 
 function browserNotificationsSupported() {
     return typeof window.Notification === 'function'
         && typeof window.Notification.requestPermission === 'function'
         && window.isSecureContext !== false;
+}
+
+function ensureBrowserNotificationServiceWorker() {
+    if (!navigator.serviceWorker || typeof navigator.serviceWorker.register !== 'function') return null;
+    if (!browserNotificationRegistrationPromise) {
+        browserNotificationRegistrationPromise = navigator.serviceWorker
+            .register('/service-worker.js', { scope: '/' })
+            .catch((error) => {
+                browserNotificationRegistrationPromise = null;
+                console.warn('Unable to register notification service worker:', error);
+                return null;
+            });
+    }
+    return browserNotificationRegistrationPromise;
 }
 
 function readBrowserNotificationPreference() {
@@ -865,6 +880,14 @@ function initializeBrowserNotifications() {
 
     button.addEventListener('click', toggleBrowserNotifications);
     window.addEventListener('focus', synchronizeBrowserNotificationPermission);
+    if (navigator.serviceWorker && typeof navigator.serviceWorker.addEventListener === 'function') {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (event.data && event.data.type === 'owlmail-open-email' && event.data.emailId) {
+                loadEmailDetail(event.data.emailId);
+            }
+        });
+    }
+    ensureBrowserNotificationServiceWorker();
     browserNotificationsInitialized = true;
     updateBrowserNotificationButton();
 }
@@ -873,6 +896,20 @@ function normalizeNotificationText(value, fallback, maxLength) {
     const normalized = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : '';
     const text = normalized || fallback;
     return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
+function showWindowNotification(title, options, email) {
+    try {
+        const notification = new window.Notification(title, options);
+        notification.onclick = () => {
+            if (typeof window.focus === 'function') window.focus();
+            notification.close();
+            if (email.id) loadEmailDetail(email.id);
+        };
+    } catch (error) {
+        console.error('Failed to show browser notification:', error);
+        showBrowserNotificationStatus(nt('error'));
+    }
 }
 
 function notifyBrowserForEmail(email) {
@@ -890,24 +927,27 @@ function notifyBrowserForEmail(email) {
     const title = normalizeNotificationText(email.subject, t('noSubject'), 160);
     const notificationSender = normalizeNotificationText(sender, t('unknown'), 240);
 
-    try {
-        const notification = new window.Notification(title, {
-            body: nt('newEmailFrom', { sender: notificationSender }),
-            tag: email.id ? `owlmail-email-${email.id}` : 'owlmail-new-email',
-            renotify: false
+    const options = {
+        body: nt('newEmailFrom', { sender: notificationSender }),
+        tag: email.id ? `owlmail-email-${email.id}` : 'owlmail-new-email',
+        renotify: false,
+        data: { emailId: email.id || '' }
+    };
+    const registrationPromise = ensureBrowserNotificationServiceWorker();
+    if (registrationPromise) {
+        registrationPromise.then((registration) => {
+            if (registration && typeof registration.showNotification === 'function') {
+                return registration.showNotification(title, options);
+            }
+            showWindowNotification(title, options, email);
+            return undefined;
+        }).catch((error) => {
+            console.error('Failed to show service worker notification:', error);
+            showBrowserNotificationStatus(nt('error'));
         });
-        notification.onclick = () => {
-            if (typeof window.focus === 'function') window.focus();
-            notification.close();
-            if (email.id) loadEmailDetail(email.id);
-        };
-    } catch (error) {
-        browserNotificationsEnabled = false;
-        storeBrowserNotificationPreference(false);
-        updateBrowserNotificationButton();
-        console.error('Failed to show browser notification:', error);
-        showBrowserNotificationStatus(nt('error'));
+        return;
     }
+    showWindowNotification(title, options, email);
 }
 
 // Helper function to handle API errors

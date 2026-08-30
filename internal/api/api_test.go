@@ -219,6 +219,7 @@ func TestEmbeddedWebAssets(t *testing.T) {
 		{path: "/help/", contentType: "text/html", contains: "快速上手 OwlMail"},
 		{path: "/style.css", contentType: "text/css", contains: ".header"},
 		{path: "/app.js", contentType: "text/javascript", contains: "connectWebSocket"},
+		{path: "/service-worker.js", contentType: "text/javascript", contains: "showNotification"},
 		{path: "/help.css", contentType: "text/css", contains: ".help-shell"},
 		{path: "/help.js", contentType: "text/javascript", contains: "applyLanguage"},
 		{path: "/webhooks", contentType: "text/html", contains: "Webhook Configurator"},
