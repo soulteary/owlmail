@@ -9,8 +9,9 @@ container images must be built from that same tag.
 - `CHANGELOG.md` records user-visible changes.
 - `docs/en/Release-X.Y.Z.md` is the curated English release body.
 - `docs/zh-CN/Release-X.Y.Z.md` is the corresponding Chinese release note.
-- `.github/workflows/release.yml` builds formal binaries, checksums, and
-  multi-architecture release images from tags.
+- `.github/workflows/release.yml` builds formal binaries, checksums, per-binary
+  SBOMs, provenance, signatures, and multi-architecture release images from
+  tags.
 - `.github/workflows/docker.yml` publishes moving `main`, `latest`, and commit
   snapshots for the default branch only.
 
@@ -51,29 +52,52 @@ git push origin v0.5.0
 Do not move or reuse a published release tag. If a release needs a correction,
 make a new patch version.
 
-The tag push starts the release workflow. A manual run of that workflow is only
-a retry mechanism: provide an existing tag, and the workflow
+The tag push starts the release workflow. A manual run is only a retry mechanism
+and must execute at the same tag ref so its OIDC identity is tag-bound:
+
+```bash
+gh workflow run release.yml --ref v0.5.0 -f version=v0.5.0
+```
+
+The workflow rejects a manual run whose ref and requested version differ, then
 checks out that tag before building. Before publishing assets, the job reruns
 dependency verification, formatting, `go vet`, race-enabled Go tests,
-`govulncheck`, and the Bun browser/documentation checks against the tag.
+`govulncheck`, and the Bun browser/documentation checks against the tag. It then
+generates SPDX SBOMs, GitHub artifact attestations, and keyless Sigstore
+signatures before publishing the release.
 
 ## Verify published artifacts
 
-The GitHub release must contain these six uploaded assets for 0.5.0 (in addition
-to GitHub's automatic source archives):
+In addition to GitHub's automatic source archives, a release made with the
+current workflow contains:
 
 - `checksums.txt`
+- `checksums.txt.sigstore.json`
 - `owlmail-linux-amd64`
+- `owlmail-linux-amd64.spdx.json`
 - `owlmail-linux-arm64`
+- `owlmail-linux-arm64.spdx.json`
 - `owlmail-darwin-amd64`
+- `owlmail-darwin-amd64.spdx.json`
 - `owlmail-darwin-arm64`
+- `owlmail-darwin-arm64.spdx.json`
 - `owlmail-windows-amd64.exe`
+- `owlmail-windows-amd64.exe.spdx.json`
 
 Download all files into an empty directory and verify them:
 
 ```bash
 sha256sum -c checksums.txt
+gh attestation verify owlmail-linux-amd64 --repo soulteary/owlmail
+cosign verify-blob \
+  --bundle checksums.txt.sigstore.json \
+  --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  checksums.txt
 ```
+
+The checksum manifest and GitHub provenance attestations cover all five
+executables and all five adjacent `*.spdx.json` SBOMs.
 
 Smoke-test at least one binary:
 
@@ -94,6 +118,10 @@ used to prove release reproducibility.
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.5.0
+cosign verify \
+  --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/soulteary/owlmail:0.5.0
 docker run --rm \
   -p 127.0.0.1:11025:1025 \
   -p 127.0.0.1:11080:1080 \
@@ -101,14 +129,18 @@ docker run --rm \
 ```
 
 Confirm the manifest lists `linux/amd64` and `linux/arm64`, then repeat the
-health, version, and SMTP smoke tests against the container.
+health, version, and SMTP smoke tests against the container. The manifest also
+has BuildKit SBOM and maximum-mode provenance attestations, a GitHub provenance
+attestation, and explicit OCI source, revision, version, and MIT license labels.
 
 ## Post-release checklist
 
 - [ ] GitHub marks `v0.5.0` as the latest non-prerelease release.
 - [ ] The curated note appears before the generated pull-request list.
-- [ ] Every binary and `checksums.txt` is downloadable and verified.
+- [ ] Every binary, SBOM, checksum, signature bundle, and GitHub attestation is
+  downloadable or discoverable and verified.
 - [ ] Container version and commit tags resolve to the expected manifest.
+- [ ] The release image's Cosign signature and OCI attestations verify.
 - [ ] Go installation with `@v0.5.0` succeeds on the documented Go version.
 - [ ] README and release-note installation commands resolve.
 - [ ] Any release failure or known limitation is added to the release body and changelog.
