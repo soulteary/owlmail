@@ -75,11 +75,25 @@ jobs:
           echo "app-version=${VERSION#v}" >> "${GITHUB_OUTPUT}"
           echo "commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
           echo "notes=${NOTES}" >> "${GITHUB_OUTPUT}"
+
+          LATEST_STABLE=""
+          while IFS= read -r TAG; do
+            if [[ "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              LATEST_STABLE="${TAG}"
+              break
+            fi
+          done < <(git tag --list 'v*' --sort=-version:refname)
+
+          MOVING_TAGS=false
           if [[ "${VERSION}" == *-* ]]; then
             echo "prerelease=true" >> "${GITHUB_OUTPUT}"
           else
             echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+            if [ "${VERSION}" = "${LATEST_STABLE}" ]; then
+              MOVING_TAGS=true
+            fi
           fi
+          echo "moving-tags=${MOVING_TAGS}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -265,10 +279,10 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }}
-            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.moving-tags == 'true' }}
+            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.moving-tags == 'true' }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ steps.release.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.moving-tags == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.release.outputs.commit }}

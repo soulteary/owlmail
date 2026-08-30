@@ -364,6 +364,8 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     "govulncheck@${GOVULNCHECK_VERSION}",
     "body_path: ${{ steps.release.outputs.notes }}",
     "fail_on_unmatched_files: true",
+    "moving-tags=${MOVING_TAGS}",
+    "enable=${{ steps.release.outputs.moving-tags == 'true' }}",
   ]) {
     assert.ok(workflow.includes(marker), `.github/workflows/release.yml is missing ${marker}`);
   }

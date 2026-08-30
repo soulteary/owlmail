@@ -66,6 +66,11 @@ dependency verification, formatting, `go vet`, race-enabled Go tests,
 generates SPDX SBOMs, GitHub artifact attestations, and keyless Sigstore
 signatures before publishing the release.
 
+A retry of an older stable tag republishes only its immutable version and
+commit-SHA tags. The workflow updates `latest`, major, and minor aliases only
+when the requested tag is still the repository's newest stable SemVer tag, so
+an operational retry cannot downgrade users of moving image tags.
+
 ## Verify published artifacts
 
 In addition to GitHub's automatic source archives, a release made with the
