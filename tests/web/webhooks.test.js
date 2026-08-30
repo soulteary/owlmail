@@ -213,17 +213,19 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     const schemePlaceholder = '$' + '{SCHEME}';
     const hostPlaceholder = '$' + '{HOST}';
     const portPlaceholder = '$' + '{PORT}';
+    const basePlaceholder = '$' + '{BASE_URL}';
     const result = configurator.validateConfig({
         version: 1,
         targets: [
             { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
             { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' },
-            { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' }
+            { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' },
+            { name: 'base', url: basePlaceholder + '/hook' }
         ]
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 3);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 4);
 });
 
 test('URL validation still checks static authority with a placeholder scheme', () => {
@@ -234,6 +236,16 @@ test('URL validation still checks static authority with a placeholder scheme', (
     });
 
     assert.ok(codes(result).includes('urlHost'));
+});
+
+test('base URL placeholders still reject static fragments', () => {
+    const basePlaceholder = '$' + '{BASE_URL}';
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'fragment', url: basePlaceholder + '/hook#secret' }]
+    });
+
+    assert.ok(codes(result).includes('urlFragment'));
 });
 
 test('URL validation rejects escapes that Go net/url cannot parse', () => {

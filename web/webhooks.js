@@ -253,6 +253,7 @@
     const headerNamePattern = /^[!#$%&'*+\-.^_\`|~0-9A-Za-z]+$/;
     const environmentPattern = /\$\{[A-Za-z_][A-Za-z0-9_]*\}/g;
     const exactEnvironmentPattern = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}$/;
+    const leadingEnvironmentPattern = /^\$\{[A-Za-z_][A-Za-z0-9_]*\}/;
 
     let currentLanguage = 'en';
     let lastGeneratedJSON = '';
@@ -452,6 +453,12 @@
         const percentValidationValue = value.replace(environmentPattern, '00');
         if (/%(?![0-9A-Fa-f]{2})/.test(percentValidationValue)) {
             errors.push(issue('urlInvalid', path));
+            return;
+        }
+
+        const leadingEnvironment = value.match(leadingEnvironmentPattern);
+        if (leadingEnvironment && !value.slice(leadingEnvironment[0].length).startsWith('://')) {
+            if (value.includes('#')) errors.push(issue('urlFragment', path));
             return;
         }
 
