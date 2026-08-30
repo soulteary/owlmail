@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sync"
 	"time"
 
 	"github.com/soulteary/owlmail/internal/types"
@@ -102,13 +103,23 @@ func (dispatcher *Dispatcher) DispatchDelivery(ctx context.Context, email *types
 	}
 
 	payload := newEmailPayload(email)
-	results := make([]Result, 0, len(dispatcher.targets))
+	matchingTargets := make([]compiledTarget, 0, len(dispatcher.targets))
 	for _, target := range dispatcher.targets {
-		if !target.matches(payload) {
-			continue
+		if target.matches(payload) {
+			matchingTargets = append(matchingTargets, target)
 		}
-		results = append(results, dispatcher.deliver(ctx, target, payload, deliveryID))
 	}
+
+	results := make([]Result, len(matchingTargets))
+	var deliveries sync.WaitGroup
+	deliveries.Add(len(matchingTargets))
+	for index, target := range matchingTargets {
+		go func() {
+			defer deliveries.Done()
+			results[index] = dispatcher.deliver(ctx, target, payload, deliveryID)
+		}()
+	}
+	deliveries.Wait()
 	return results
 }
 
