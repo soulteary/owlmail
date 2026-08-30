@@ -2,7 +2,7 @@ package api
 
 import (
 	"archive/zip"
-	"bytes"
+	"bufio"
 	"fmt"
 	"io"
 	"os"
@@ -14,6 +14,11 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/types"
+)
+
+const (
+	maxExportMessages = 1000
+	maxExportBytes    = 256 << 20
 )
 
 // EmailPreview represents a lightweight email preview
@@ -182,7 +187,10 @@ func (api *API) deleteAllEmails(c fiber.Ctx) error {
 
 // readAllEmails handles PATCH /api/v1/emails/read
 func (api *API) readAllEmails(c fiber.Ctx) error {
-	count := api.mailServer.ReadAllEmail()
+	count, err := api.mailServer.ReadAllEmail()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
+	}
 	return c.JSON(SuccessResponse(SuccessCodeAllEmailsMarkedRead, "All emails marked as read", fiber.Map{"count": count}))
 }
 
@@ -426,43 +434,58 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 	if len(filtered) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailsToExport, "No emails found to export"))
 	}
-
-	var buf bytes.Buffer
-	zipWriter := zip.NewWriter(&buf)
-
+	if len(filtered) > maxExportMessages {
+		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Export is limited to %d emails", maxExportMessages)))
+	}
+	type exportItem struct {
+		email *types.Email
+		path  string
+	}
+	items := make([]exportItem, 0, len(filtered))
+	var totalBytes int64
 	for _, email := range filtered {
 		emlPath, err := api.mailServer.GetRawEmail(email.ID)
 		if err != nil {
 			continue
 		}
-
-		emailFile, err := os.Open(emlPath)
+		stat, err := os.Stat(emlPath)
 		if err != nil {
 			continue
 		}
-
-		filename := fmt.Sprintf("%s_%s.eml", email.ID, sanitizeFilename(email.Subject))
-		fileWriter, err := zipWriter.Create(filename)
-		if err != nil {
-			_ = emailFile.Close()
-			continue
+		totalBytes += stat.Size()
+		if totalBytes > maxExportBytes {
+			return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Export source is limited to %d bytes", maxExportBytes)))
 		}
-
-		_, err = io.Copy(fileWriter, emailFile)
-		_ = emailFile.Close()
-		if err != nil {
-			continue
-		}
+		items = append(items, exportItem{email: email, path: emlPath})
 	}
-
-	if err := zipWriter.Close(); err != nil {
-		common.Verbose("Failed to close zip writer: %v", err)
-		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Failed to create export"))
+	if len(items) == 0 {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailsToExport, "No readable emails found to export"))
 	}
 
 	c.Set("Content-Type", "application/zip")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=emails_%s.zip", time.Now().Format("20060102_150405")))
-	return c.Send(buf.Bytes())
+	return c.SendStreamWriter(func(writer *bufio.Writer) {
+		zipWriter := zip.NewWriter(writer)
+		for _, item := range items {
+			emailFile, err := os.Open(item.path)
+			if err != nil {
+				common.Verbose("Failed to open email during export: %v", err)
+				continue
+			}
+			filename := fmt.Sprintf("%s_%s.eml", item.email.ID, sanitizeFilename(item.email.Subject))
+			fileWriter, err := zipWriter.Create(filename)
+			if err == nil {
+				_, err = io.Copy(fileWriter, emailFile)
+			}
+			_ = emailFile.Close()
+			if err != nil {
+				common.Verbose("Failed to stream email into export: %v", err)
+			}
+		}
+		if err := zipWriter.Close(); err != nil {
+			common.Verbose("Failed to finish ZIP export: %v", err)
+		}
+	})
 }
 
 // applyEmailFilters applies filters to email list

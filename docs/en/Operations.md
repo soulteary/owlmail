@@ -5,6 +5,28 @@ readiness, persistence, webhook capacity, shutdown behavior, and common failure
 modes. See the [API Reference](./API-Reference.md) and
 [Webhook Forwarding](./Webhook-Forwarding.md) for protocol details.
 
+## Mailbox retention and state
+
+OwlMail can enforce age, message-count, and disk-usage limits together:
+
+```bash
+owlmail \
+  -mail-retention-days 14 \
+  -mail-max-messages 10000 \
+  -mail-max-disk-mb 2048 \
+  -mail-cleanup-interval 10m
+```
+
+Zero disables an individual limit. Cleanup runs once at startup and then in
+the background. It removes the oldest messages until every configured limit is
+met. The existing email stats response includes current disk bytes, configured
+limits, cleanup runs, deleted messages, reclaimed bytes, and the last error.
+
+Read state is stored atomically in `.owlmail-meta/<id>.json`; legacy messages
+without metadata recover as unread. ZIP export is streamed to the client and is
+bounded to 1,000 source messages and 256 MiB of raw EML data, avoiding a second
+mailbox-sized in-memory buffer.
+
 ## Deployment profiles
 
 ### 1. Minimal local inbox

@@ -32,6 +32,13 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
 	}
+	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
+		return fmt.Errorf("mail retention limits cannot be negative")
+	}
+	cleanupInterval, err := time.ParseDuration(cfg.MailCleanupInterval)
+	if err != nil || cleanupInterval <= 0 {
+		return fmt.Errorf("mail cleanup interval must be a positive duration")
+	}
 
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {

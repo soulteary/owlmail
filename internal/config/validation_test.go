@@ -226,6 +226,19 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid storage policy", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.MailMaxMessages = -1
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("negative mail max messages should fail")
+		}
+		cfg = DefaultConfig()
+		cfg.MailCleanupInterval = "never"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("invalid mail cleanup interval should fail")
+		}
+	})
+
 	t.Run("invalid webhook drain settings", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.WebhookShutdownTimeout = "never"
