@@ -283,6 +283,29 @@
         return value !== null && typeof value === 'object' && !Array.isArray(value);
     }
 
+    function canonicalizeKnownObject(value, allowed) {
+        if (!isPlainObject(value)) return value;
+        const canonicalNames = new Map(Array.from(allowed, (name) => [name.toLowerCase(), name]));
+        const result = Object.create(null);
+        Object.entries(value).forEach(([name, item]) => {
+            result[canonicalNames.get(name.toLowerCase()) || name] = item;
+        });
+        return result;
+    }
+
+    function canonicalizeConfigFields(config) {
+        const result = canonicalizeKnownObject(config, rootKeys);
+        if (!isPlainObject(result) || !Array.isArray(result.targets)) return result;
+        result.targets = result.targets.map((source) => {
+            const target = canonicalizeKnownObject(source, targetKeys);
+            if (isPlainObject(target) && isPlainObject(target.match)) {
+                target.match = canonicalizeKnownObject(target.match, matchKeys);
+            }
+            return target;
+        });
+        return result;
+    }
+
     const goTrimSpacePattern = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$/g;
     const goLeadingSpacePattern = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+/;
 
@@ -555,13 +578,22 @@
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
         const bracketStart = authority.indexOf('[');
         const bracketEnd = authority.lastIndexOf(']');
+        const openingBrackets = Array.from(authority).filter((character) => character === '[').length;
+        const closingBrackets = Array.from(authority).filter((character) => character === ']').length;
+        const authorityEnvironmentOffset = authority.search(environmentPattern);
+        environmentPattern.lastIndex = 0;
+        const unbalancedBracketedHostHasEnvironment =
+            (openingBrackets === 1 && closingBrackets === 0 && authorityEnvironmentOffset > bracketStart) ||
+            (openingBrackets === 0 && closingBrackets === 1 &&
+                authorityEnvironmentOffset >= 0 && authorityEnvironmentOffset < bracketEnd);
         const bracketedHostHasEnvironment = bracketStart >= 0 && bracketEnd > bracketStart &&
             environmentPattern.test(authority.slice(bracketStart + 1, bracketEnd));
         environmentPattern.lastIndex = 0;
         const bracketedHostHasZone = bracketStart >= 0 && bracketEnd > bracketStart &&
             authority.slice(bracketStart + 1, bracketEnd).includes('%25');
         const portSeparator = authorityPortSeparator(authority);
-        const portHasEnvironment = portSeparator >= 0 && environmentPattern.test(authority.slice(portSeparator + 1));
+        const portHasEnvironment = !unbalancedBracketedHostHasEnvironment && portSeparator >= 0 &&
+            environmentPattern.test(authority.slice(portSeparator + 1));
         environmentPattern.lastIndex = 0;
         if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
         if (authorityHasInvalidHost(authority)) {
@@ -600,7 +632,9 @@
             const browserSchemeEnd = browserParseValue.indexOf('://');
             browserParseValue = 'https' + browserParseValue.slice(browserSchemeEnd);
         }
-        if (bracketedHostHasEnvironment) {
+        if (unbalancedBracketedHostHasEnvironment) {
+            browserParseValue = transformURLAuthority(browserParseValue, () => '[::1]');
+        } else if (bracketedHostHasEnvironment) {
             browserParseValue = browserParseValue.replace(/\[[^\]]*\]/, '[::1]');
         }
         if (portHasEnvironment) {
@@ -831,7 +865,7 @@
         }
         let parsed;
         try {
-            parsed = JSON.parse(text);
+            parsed = canonicalizeConfigFields(JSON.parse(text));
         } catch (error) {
             return {
                 config: null,

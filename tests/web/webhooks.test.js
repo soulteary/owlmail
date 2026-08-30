@@ -73,6 +73,27 @@ test('minimal configuration imports and normalizes defaults', () => {
     });
 });
 
+test('import matches known JSON field names case-insensitively like Go', () => {
+    const result = configurator.parseConfigText(JSON.stringify({
+        Version: 1,
+        Targets: [{
+            Name: 'primary',
+            URL: 'https://example.com/hooks/owlmail',
+            Match: { Subject: ['build*'] }
+        }]
+    }));
+
+    assert.deepEqual(codes(result), []);
+    assert.deepEqual(JSON.parse(JSON.stringify(result.config)), {
+        version: 1,
+        targets: [{
+            name: 'primary',
+            url: 'https://example.com/hooks/owlmail',
+            match: { subject: ['build*'] }
+        }]
+    });
+});
+
 test('whitespace-only methods normalize to the backend default', () => {
     const result = configurator.parseConfigText(JSON.stringify({
         version: 1,
@@ -242,6 +263,8 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     const schemePrefixPlaceholder = '$' + '{SCHEME_PREFIX}';
     const separatorPlaceholder = '$' + '{URL_SEPARATOR}';
     const hostPlaceholder = '$' + '{HOST}';
+    const openingBracketPlaceholder = '$' + '{OPEN_BRACKET}';
+    const closingBracketPlaceholder = '$' + '{CLOSE_BRACKET}';
     const ipv6PrefixPlaceholder = '$' + '{IPV6_PREFIX}';
     const portPlaceholder = '$' + '{PORT}';
     const basePlaceholder = '$' + '{BASE_URL}';
@@ -255,12 +278,14 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
             { name: 'port-composed', url: 'https://example.com:' + portPlaceholder + '000/hook' },
             { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' },
             { name: 'ipv6-composed', url: 'https://[' + ipv6PrefixPlaceholder + '1]/hook' },
+            { name: 'ipv6-opening', url: 'https://' + openingBracketPlaceholder + '::1]/hook' },
+            { name: 'ipv6-closing', url: 'https://[::1' + closingBracketPlaceholder + '/hook' },
             { name: 'base', url: basePlaceholder + '/hook' }
         ]
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 8);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 10);
 });
 
 test('URL validation still checks static authority with a placeholder scheme', () => {
