@@ -183,7 +183,7 @@ func (ms *MailServer) quarantinePath(source, reason string) error {
 func isGeneratedEmailID(value string) bool {
 	if len(value) == 8 {
 		for _, char := range value {
-			if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')) {
+			if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
 				return false
 			}
 		}
