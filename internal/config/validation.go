@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/soulteary/cli-kit/validator"
@@ -74,6 +75,13 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if cfg.WebhookMaxConcurrency < 0 {
 		return fmt.Errorf("webhook max concurrency must be zero or greater")
+	}
+	if strings.TrimSpace(cfg.WebhookRedisPrefix) == "" {
+		return fmt.Errorf("webhook Redis prefix cannot be empty")
+	}
+	shutdownTimeout, err := time.ParseDuration(cfg.WebhookShutdownTimeout)
+	if err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("webhook shutdown timeout must be a positive duration")
 	}
 
 	return nil

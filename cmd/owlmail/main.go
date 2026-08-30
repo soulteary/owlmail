@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -210,18 +209,20 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 	if server == nil || dispatcher == nil {
 		return nil
 	}
-
-	err := server.OnWithConcurrency("new", maxConcurrency, func(email *mailserver.Email) {
-		for _, result := range dispatcher.Dispatch(context.Background(), email) {
-			if result.Err != nil {
-				common.Error("Webhook delivery to %q failed after %d attempt(s): %v", result.Target, result.Attempts, result.Err)
-				continue
-			}
-			common.Verbose("Webhook delivery to %q succeeded with HTTP %d", result.Target, result.StatusCode)
-		}
+	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
+		MaxConcurrency: maxConcurrency,
+		OnResults:      logWebhookResults,
 	})
 	if err != nil {
-		return fmt.Errorf("register webhook handler: %w", err)
+		return fmt.Errorf("create webhook service: %w", err)
+	}
+	if err := registerWebhookService(server, service); err != nil {
+		_ = service.Close()
+		return err
+	}
+	if err := server.AddCloser(service); err != nil {
+		_ = service.Close()
+		return fmt.Errorf("register webhook closer: %w", err)
 	}
 	if maxConcurrency == 0 {
 		common.Log("Webhook forwarding enabled with %d target(s), unlimited concurrency", dispatcher.TargetCount())
@@ -229,6 +230,52 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 		common.Log("Webhook forwarding enabled with %d target(s), concurrency limit %d", dispatcher.TargetCount(), maxConcurrency)
 	}
 	return nil
+}
+
+func setupWebhookService(cfg *config.Config, dispatcher *webhooknotify.Dispatcher) (*webhooknotify.Service, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if dispatcher == nil {
+		return nil, nil
+	}
+	shutdownTimeout, err := time.ParseDuration(cfg.WebhookShutdownTimeout)
+	if err != nil || shutdownTimeout <= 0 {
+		return nil, fmt.Errorf("invalid webhook shutdown timeout %q", cfg.WebhookShutdownTimeout)
+	}
+	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
+		RedisURL: cfg.WebhookRedisURL, RedisPrefix: cfg.WebhookRedisPrefix,
+		MaxConcurrency: cfg.WebhookMaxConcurrency, ShutdownTimeout: shutdownTimeout,
+		OnResults: logWebhookResults,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create webhook delivery service: %w", err)
+	}
+	return service, nil
+}
+
+func registerWebhookService(server *mailserver.MailServer, service *webhooknotify.Service) error {
+	if server == nil || service == nil {
+		return nil
+	}
+	if err := server.OnSynchronous("new", func(email *mailserver.Email) {
+		if err := service.Enqueue(email); err != nil {
+			common.Error("Failed to enqueue webhook delivery: %v", err)
+		}
+	}); err != nil {
+		return fmt.Errorf("register webhook queue handoff: %w", err)
+	}
+	return nil
+}
+
+func logWebhookResults(deliveryID string, results []webhooknotify.Result) {
+	for _, result := range results {
+		if result.Err != nil {
+			common.Error("Webhook delivery %q to %q failed after %d attempt(s): %v", deliveryID, result.Target, result.Attempts, result.Err)
+			continue
+		}
+		common.Verbose("Webhook delivery %q to %q succeeded with HTTP %d", deliveryID, result.Target, result.StatusCode)
+	}
 }
 
 // startAPIServer creates and starts the API server
@@ -340,9 +387,27 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Register event handlers
 	registerEventHandlers(server)
-	if err := registerWebhookHandler(server, webhookDispatcher, cfg.WebhookMaxConcurrency); err != nil {
+	webhookService, err := setupWebhookService(cfg, webhookDispatcher)
+	if err != nil {
 		_ = server.Close()
 		return nil, err
+	}
+	if webhookService != nil {
+		if err := registerWebhookService(server, webhookService); err != nil {
+			_ = webhookService.Close()
+			_ = server.Close()
+			return nil, err
+		}
+		if err := server.AddCloser(webhookService); err != nil {
+			_ = webhookService.Close()
+			_ = server.Close()
+			return nil, err
+		}
+		mode := "in-memory"
+		if cfg.WebhookRedisURL != "" {
+			mode = "Redis durable"
+		}
+		common.Log("Webhook forwarding enabled with %d target(s), %s queue, concurrency %d", webhookDispatcher.TargetCount(), mode, cfg.WebhookMaxConcurrency)
 	}
 
 	return server, nil

@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -39,8 +40,9 @@ type TLSConfig struct {
 }
 
 type eventListener struct {
-	handler func(*types.Email)
-	slots   chan struct{}
+	handler     func(*types.Email)
+	slots       chan struct{}
+	synchronous bool
 }
 
 // MailServer represents the SMTP mail server
@@ -57,6 +59,8 @@ type MailServer struct {
 	eventChan      chan Event
 	listeners      map[string][]eventListener
 	listenersMutex sync.RWMutex
+	closers        []io.Closer
+	closersMutex   sync.Mutex
 	outgoing       interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
 		UpdateConfig(config interface{})
@@ -72,6 +76,11 @@ type MailServer struct {
 	cleanupWG           sync.WaitGroup
 	storageMetricsMutex sync.RWMutex
 	storageMetrics      StorageMetrics
+
+	// Storage hooks are intentionally unexported and nil in production. They
+	// provide deterministic fault injection for transaction boundary tests.
+	beforeStoreCommit     func(*types.Email) error
+	beforeAttachmentWrite func(string) error
 }
 
 // GetHost returns the SMTP server host

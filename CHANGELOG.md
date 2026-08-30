@@ -6,6 +6,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional Redis Streams-backed Webhook delivery with restart recovery,
+  dead-letter records, stable delivery IDs, graceful drain, and replay-aware
+  HMAC headers containing a timestamp and nonce.
+
 ### Changed
 
 - The in-memory mail store now uses an ID map with ordered IDs and returns deep
@@ -13,6 +19,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Mailboxes can enforce age, count, and disk limits with background cleanup;
   read state uses atomic sidecar metadata and ZIP exports stream with hard
   source-count and byte limits.
+
+### Fixed
+
+- Incoming messages and attachments are staged, synced, and atomically renamed
+  before they become visible in memory. Startup recovery now quarantines
+  incomplete, corrupt, and orphaned storage artifacts.
 
 ## [0.5.0]
 

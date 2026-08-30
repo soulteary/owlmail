@@ -81,7 +81,8 @@ export OWLMAIL_WEBHOOK_SECRET='replace-this-development-secret'
 ./owlmail -webhook-config ./examples/webhooks/custom-json.json
 ```
 
-The receiver verifies `X-OwlMail-Signature`. It deliberately logs only whether
+The receiver verifies `X-OwlMail-Signature-V2`, enforces a five-minute signing
+window, and rejects reused nonces. It deliberately logs only whether
 the `Authorization` header is present, never its value.
 
 ### Multiple targets

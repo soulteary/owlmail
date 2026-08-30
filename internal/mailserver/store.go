@@ -51,6 +51,11 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 	if parsedEmail.HTML != "" {
 		parsedEmail.HTML = strings.TrimSpace(sanitizeHTML(parsedEmail.HTML))
 	}
+	if ms.beforeStoreCommit != nil {
+		if err := ms.beforeStoreCommit(parsedEmail); err != nil {
+			return fmt.Errorf("storage commit rejected: %w", err)
+		}
+	}
 
 	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
@@ -110,6 +115,13 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 // saveAttachment saves an attachment to disk
 func (ms *MailServer) saveAttachment(id string, attachment *Attachment, data []byte) error {
 	attachmentDir := filepath.Join(ms.mailDir, id)
+	return ms.saveAttachmentInDirectory(attachmentDir, attachment, data)
+}
+
+// saveAttachmentInDirectory writes an attachment atomically inside dir. The
+// caller may pass a staging directory so a complete message can be committed
+// by rename only after every attachment is durable.
+func (ms *MailServer) saveAttachmentInDirectory(attachmentDir string, attachment *Attachment, data []byte) error {
 	if err := os.MkdirAll(attachmentDir, 0755); err != nil {
 		return fmt.Errorf("failed to create attachment directory: %w", err)
 	}
@@ -118,8 +130,41 @@ func (ms *MailServer) saveAttachment(id string, attachment *Attachment, data []b
 	attachment = transformAttachment(attachment)
 
 	attachmentPath := filepath.Join(attachmentDir, attachment.GeneratedFileName)
-	if err := os.WriteFile(attachmentPath, data, 0644); err != nil {
+	if ms.beforeAttachmentWrite != nil {
+		if err := ms.beforeAttachmentWrite(attachmentPath); err != nil {
+			return fmt.Errorf("attachment write rejected: %w", err)
+		}
+	}
+	tmp, err := os.CreateTemp(attachmentDir, ".owlmail-attachment-*.tmp")
+	if err != nil {
+		return fmt.Errorf("failed to create attachment temporary file: %w", err)
+	}
+	tmpPath := tmp.Name()
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tmp.Close()
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if err := tmp.Chmod(0644); err != nil {
+		return fmt.Errorf("failed to set attachment permissions: %w", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
 		return fmt.Errorf("failed to save attachment: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		return fmt.Errorf("failed to sync attachment: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("failed to close attachment: %w", err)
+	}
+	if err := os.Rename(tmpPath, attachmentPath); err != nil {
+		return fmt.Errorf("failed to commit attachment: %w", err)
+	}
+	committed = true
+	if err := syncDirectory(attachmentDir); err != nil {
+		return fmt.Errorf("failed to sync attachment directory: %w", err)
 	}
 
 	attachment.Size = int64(len(data))
@@ -386,9 +431,23 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 
 // parseEmail parses email from given reader
 func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachments, markAsRead bool) (*Email, error) {
+	email, envelope, err := ms.parseEmailMessage(id, r, s, saveAttachments, filepath.Join(ms.mailDir, id))
+	if err != nil {
+		return nil, err
+	}
+	if err := ms.SaveEmailToStore(id, markAsRead, envelope, email); err != nil {
+		return nil, fmt.Errorf("failed to store email into memory: %w", err)
+	}
+	return email, nil
+}
+
+// parseEmailMessage parses a message without publishing it to the in-memory
+// store. This separation lets SMTP DATA finish all durable filesystem work
+// before the new-email event becomes visible.
+func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, saveAttachments bool, attachmentDir string) (*Email, *Envelope, error) {
 	msg, err := message.Read(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse email: %w", err)
+		return nil, nil, fmt.Errorf("failed to parse email: %w", err)
 	}
 
 	// Parse email content
@@ -485,9 +544,9 @@ func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachm
 					}
 
 					if saveAttachments {
-						err = ms.saveAttachment(id, attachment, body)
+						err = ms.saveAttachmentInDirectory(attachmentDir, attachment, body)
 						if err != nil {
-							common.Verbose("Error saving attachment: %v", err)
+							return nil, nil, fmt.Errorf("failed to save attachment: %w", err)
 						}
 					}
 					email.Attachments = append(email.Attachments, attachment)
@@ -522,16 +581,14 @@ func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachm
 		envelope.To = s.to
 	}
 
-	// Save email to store
-	if err = ms.SaveEmailToStore(id, markAsRead, envelope, email); err != nil {
-		return nil, fmt.Errorf("failed to store email into memory: %w", err)
-	}
-
-	return email, nil
+	return email, envelope, nil
 }
 
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
+	if err := ms.recoverStorageArtifacts(); err != nil {
+		return err
+	}
 	files, err := os.ReadDir(ms.mailDir)
 	if err != nil {
 		return fmt.Errorf("failed to read mail directory: %w", err)
@@ -582,17 +639,31 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		}
 
 		// Parse email. Legacy messages without metadata start unread instead of
-		// being silently marked read during recovery.
-		if email, err := ms.parseEmail(id, emailFile, nil, false, markAsRead); err == nil {
+		// being silently marked read during recovery. Close the file before a
+		// possible quarantine rename because Windows cannot rename an open file.
+		email, parseErr := ms.parseEmail(id, emailFile, nil, false, markAsRead)
+		closeErr := emailFile.Close()
+		if parseErr == nil && closeErr == nil {
 			common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
+		} else {
+			loadErr := parseErr
+			if loadErr == nil {
+				loadErr = fmt.Errorf("failed to close email file: %w", closeErr)
+			}
+			common.Error("Quarantining corrupt email %s: %v", file.Name(), loadErr)
+			if quarantineErr := ms.quarantineEmail(id, emlPath, "corrupt"); quarantineErr != nil {
+				common.Error("Failed to quarantine corrupt email %s: %v", file.Name(), quarantineErr)
+			}
 		}
-		_ = emailFile.Close()
 	}
 	ms.storeMutex.Lock()
 	sort.SliceStable(ms.storeOrder, func(i, j int) bool {
 		return ms.receivedAtByID[ms.storeOrder[i]].Before(ms.receivedAtByID[ms.storeOrder[j]])
 	})
 	ms.storeMutex.Unlock()
+	if err := ms.quarantineOrphanAttachmentDirectories(); err != nil {
+		return err
+	}
 
 	return nil
 }
