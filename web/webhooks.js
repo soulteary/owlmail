@@ -320,6 +320,13 @@
             if (isPlainObject(target) && isPlainObject(target.match)) {
                 target.match = canonicalizeKnownObject(target.match, matchKeys);
             }
+            if (isPlainObject(target) && isPlainObject(target.headers)) {
+                const headers = Object.create(null);
+                Object.entries(target.headers).forEach(([name, value]) => {
+                    headers[name] = value === null ? '' : value;
+                });
+                target.headers = headers;
+            }
             return target;
         });
         return result;

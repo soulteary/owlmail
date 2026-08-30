@@ -122,6 +122,20 @@ test('content types apply backend whitespace normalization before validation', (
     assert.equal(result.config.targets[0].contentType, 'text/plain');
 });
 
+test('null header values normalize to empty strings like Go', () => {
+    const result = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{
+            name: 'primary',
+            url: 'https://example.com/hooks/owlmail',
+            headers: { 'X-Optional': null }
+        }]
+    }));
+
+    assert.deepEqual(codes(result), []);
+    assert.equal(result.config.targets[0].headers['X-Optional'], '');
+});
+
 test('full configuration survives import parsing', () => {
     const sourceConfig = {
         version: 1,
