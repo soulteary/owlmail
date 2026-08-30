@@ -3,7 +3,7 @@ package webassets
 
 import "embed"
 
-// files contains every asset required by the inbox and local help pages.
+// files contains every asset required by OwlMail's embedded browser pages.
 //
 //go:embed *.css *.html *.js
 var files embed.FS

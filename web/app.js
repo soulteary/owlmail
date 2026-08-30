@@ -47,6 +47,7 @@ const i18n = {
         hoursAgo: '{hours} 小时前',
         daysAgo: '{days} 天前',
         help: '帮助',
+        webhooks: 'Webhook 配置',
         toggleTheme: '切换主题',
         switchLanguage: '切换语言',
         // API Error Codes
@@ -116,6 +117,7 @@ const i18n = {
         hoursAgo: '{hours} hours ago',
         daysAgo: '{days} days ago',
         help: 'Help',
+        webhooks: 'Webhooks',
         toggleTheme: 'Toggle Theme',
         switchLanguage: 'Switch Language',
         // API Error Codes
@@ -185,6 +187,7 @@ const i18n = {
         hoursAgo: 'vor {hours} Stunden',
         daysAgo: 'vor {days} Tagen',
         help: 'Hilfe',
+        webhooks: 'Webhooks',
         toggleTheme: 'Design umschalten',
         switchLanguage: 'Sprache wechseln',
         // API Error Codes
@@ -254,6 +257,7 @@ const i18n = {
         hoursAgo: '{hours} ore fa',
         daysAgo: '{days} giorni fa',
         help: 'Aiuto',
+        webhooks: 'Webhook',
         toggleTheme: 'Cambia Tema',
         switchLanguage: 'Cambia Lingua',
         // API Error Codes
@@ -323,6 +327,7 @@ const i18n = {
         hoursAgo: 'il y a {hours} heures',
         daysAgo: 'il y a {days} jours',
         help: 'Aide',
+        webhooks: 'Webhooks',
         toggleTheme: 'Changer le Thème',
         switchLanguage: 'Changer la Langue',
         // API Error Codes
@@ -392,6 +397,7 @@ const i18n = {
         hoursAgo: '{hours}시간 전',
         daysAgo: '{days}일 전',
         help: '도움말',
+        webhooks: '웹훅',
         toggleTheme: '테마 전환',
         switchLanguage: '언어 전환',
         // API Error Codes
@@ -461,6 +467,7 @@ const i18n = {
         hoursAgo: '{hours}時間前',
         daysAgo: '{days}日前',
         help: 'ヘルプ',
+        webhooks: 'Webhook',
         toggleTheme: 'テーマを切り替え',
         switchLanguage: '言語を切り替え',
         // API Error Codes
@@ -1062,6 +1069,12 @@ function updateUI() {
     
     const deleteAllBtn = document.getElementById('deleteAllBtn');
     if (deleteAllBtn) deleteAllBtn.textContent = t('deleteAll');
+
+    const webhookBtn = document.getElementById('webhookBtn');
+    if (webhookBtn) {
+        webhookBtn.textContent = t('webhooks');
+        webhookBtn.title = t('webhooks');
+    }
 
     const helpBtn = document.getElementById('helpBtn');
     if (helpBtn) {

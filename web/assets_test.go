@@ -18,6 +18,9 @@ func TestRequiredAssetsAreEmbedded(t *testing.T) {
 		{name: "help.html", contains: []byte("OwlMail Help")},
 		{name: "help.css", contains: []byte(".help-shell")},
 		{name: "help.js", contains: []byte("applyLanguage")},
+		{name: "webhooks.html", contains: []byte("Webhook Configurator")},
+		{name: "webhooks.css", contains: []byte(".webhook-workspace")},
+		{name: "webhooks.js", contains: []byte("parseConfigText")},
 	}
 
 	for _, tt := range tests {

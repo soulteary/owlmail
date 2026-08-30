@@ -116,6 +116,7 @@ SMTP_SECURE=false</code></pre>
                         <div><h3>Server-side webhooks</h3><p>Webhook forwarding runs even when no browser is open. Targets can filter mail, send custom JSON or text, add authentication headers and HMAC signatures, and retry transient failures.</p></div>
                     </div>
                     <aside class="note"><strong>Browser requirement:</strong> notifications need HTTPS or a trusted local origin such as <code>http://localhost</code>. If permission was denied, allow OwlMail in the browser's site settings first.</aside>
+                    <p><a href="/webhooks">Open the local Webhook Configurator</a> to build, import, validate, and download this JSON without sending configuration data to a server.</p>
                     <h3>Minimal webhook configuration</h3>
                     <pre><code>{
   "version": 1,
@@ -248,6 +249,7 @@ SMTP_SECURE=false</code></pre>
                         <div><h3>服务端 Webhook</h3><p>即使没有打开浏览器，Webhook 转发也会运行。目标支持过滤邮件、发送自定义 JSON 或文本、添加鉴权请求头与 HMAC 签名，并对临时故障进行有限重试。</p></div>
                     </div>
                     <aside class="note"><strong>浏览器要求：</strong>通知需要 HTTPS 或 <code>http://localhost</code> 等受信任的本地来源。如果曾拒绝权限，应先在浏览器的网站设置中允许 OwlMail。</aside>
+                    <p><a href="/webhooks">打开本地 Webhook 配置生成器</a>，可在不上传配置数据的情况下生成、导入、校验并下载 JSON。</p>
                     <h3>最小 Webhook 配置</h3>
                     <pre><code>{
   "version": 1,
