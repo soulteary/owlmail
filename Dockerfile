@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.26.6-alpine AS builder
+FROM golang:1.27.0-alpine3.24 AS builder
 
 # Build arguments for multi-arch support
 ARG TARGETOS=linux
@@ -24,7 +24,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail ./cmd/owlmail
 
 # Runtime stage
-FROM alpine:latest
+FROM alpine:3.24.1
 
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata wget

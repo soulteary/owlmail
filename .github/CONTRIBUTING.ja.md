@@ -107,7 +107,7 @@ If you find a bug or have a feature suggestion, please:
 
 ### Prerequisites
 
-- Go 1.26.6 or higher
+- Go 1.27.0 or higher
 - Git
 
 ### Setup Steps
