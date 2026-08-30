@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const test = require('node:test');
+const { test } = require('bun:test');
 const vm = require('node:vm');
 
 const appSource = fs.readFileSync(path.join(__dirname, '../../web/app.js'), 'utf8');

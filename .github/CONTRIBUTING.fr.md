@@ -52,9 +52,8 @@ If you find a bug or have a feature suggestion, please:
    # Match the local CI checks before opening a pull request
    go test -race ./...
    go vet ./...
-   node --check web/app.js
-   node --check web/help.js
-   node --test tests/web/*.test.js tests/docs/*.test.js
+   bun build ./web/*.js --target=browser --outdir=./.bun-check
+   bun test ./tests/web ./tests/docs
    ```
 
 5. **Commit Changes**

@@ -15,18 +15,16 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up Node.js
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
-          node-version: '24'
+          bun-version-file: ".bun-version"
 
-      - name: Check browser scripts
-        run: |
-          node --check web/app.js
-          node --check web/help.js
+      - name: Check browser scripts with Bun
+        run: bun build ./web/*.js --target=browser --outdir="${RUNNER_TEMP}/owlmail-browser-check"
 
-      - name: Test browser and documentation
-        run: node --test tests/web/*.test.js tests/docs/*.test.js
+      - name: Test browser and documentation with Bun
+        run: bun test ./tests/web ./tests/docs
 
   test:
     name: Test
