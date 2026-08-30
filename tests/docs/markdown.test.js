@@ -292,3 +292,75 @@ test("English and Chinese API references cover every registered API route", () =
     assert.deepEqual(missing, [], `${reference} is missing API routes`);
   }
 });
+
+test("0.5.0 release documentation and workflow stay connected", () => {
+  const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
+  for (const marker of ["## [0.5.0]", "outgoing webhook delivery", "Go 1.27.0", "[0.5.0]:"]) {
+    assert.ok(changelog.includes(marker), `CHANGELOG.md is missing ${marker}`);
+  }
+
+  const releaseNotes = [
+    [
+      "docs/en/Release-0.5.0.md",
+      ["Webhook forwarding", "Browser notifications", "Known limitations", "owlmail-linux-amd64"],
+    ],
+    [
+      "docs/zh-CN/Release-0.5.0.md",
+      ["Webhook 消息转发", "浏览器通知", "已知限制", "owlmail-linux-amd64"],
+    ],
+  ];
+  for (const [releaseNote, markers] of releaseNotes) {
+    const markdown = fs.readFileSync(path.join(root, releaseNote), "utf8");
+    for (const marker of markers) {
+      assert.ok(markdown.includes(marker), `${releaseNote} is missing ${marker}`);
+    }
+  }
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${readme} does not pin the release image`);
+    assert.ok(markdown.includes("Release-0.5.0.md"), `${readme} does not link the release notes`);
+  }
+
+  for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {
+    const markdown = fs.readFileSync(path.join(root, operations), "utf8");
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${operations} does not pin 0.5.0`);
+    assert.ok(!markdown.includes("ghcr.io/soulteary/owlmail:latest"), `${operations} uses a moving image`);
+  }
+
+  for (const reference of ["docs/en/API-Reference.md", "docs/zh-CN/API-Reference.md"]) {
+    const markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    for (const field of ["version", "commit", "build_date", "branch", "go_version", "platform", "compiler"]) {
+      assert.ok(markdown.includes(`"${field}"`), `${reference} is missing version field ${field}`);
+    }
+  }
+
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
+  for (const marker of [
+    "git rev-parse --verify",
+    "git checkout --detach",
+    'NOTES="docs/en/Release-${VERSION#v}.md"',
+    "github.com/soulteary/version-kit/v2.Version",
+    "Verify embedded release metadata",
+    "body_path: ${{ steps.release.outputs.notes }}",
+    "fail_on_unmatched_files: true",
+  ]) {
+    assert.ok(workflow.includes(marker), `.github/workflows/release.yml is missing ${marker}`);
+  }
+
+  const dockerfile = fs.readFileSync(path.join(root, "Dockerfile"), "utf8");
+  for (const marker of ["ARG VERSION=dev", "version-kit/v2.Version=${VERSION}", "version-kit/v2.Commit=${COMMIT}"]) {
+    assert.ok(dockerfile.includes(marker), `Dockerfile is missing release metadata marker ${marker}`);
+  }
+
+  const dockerWorkflow = fs.readFileSync(path.join(root, ".github/workflows/docker.yml"), "utf8");
+  for (const marker of [
+    "build-args:",
+    "VERSION=${{ steps.meta.outputs.version }}",
+    "COMMIT=${{ github.sha }}",
+    "BUILD_DATE=${{ steps.build-meta.outputs.build-date }}",
+    "BRANCH=${{ github.ref_name }}",
+  ]) {
+    assert.ok(dockerWorkflow.includes(marker), `.github/workflows/docker.yml is missing ${marker}`);
+  }
+});

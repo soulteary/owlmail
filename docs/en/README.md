@@ -20,6 +20,11 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[OwlMail 0.5.0 Release Notes](./Release-0.5.0.md)**
+  - Highlights, upgrade-sensitive behavior, installation commands, asset names,
+    known limitations, and links to the detailed references.
+  - **Other languages**: [简体中文](../zh-CN/Release-0.5.0.md)
+
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
     native WebSocket events, curl examples, and the current MailDev migration boundary.
@@ -47,6 +52,13 @@ Welcome to the OwlMail documentation directory. This directory contains technica
     Use the API Reference above as the current contract.
   - **Other languages**: [简体中文](../zh-CN/internal/API_Refactoring_Record.md) | [Deutsch](../de/internal/API_Refactoring_Record.md) | [Français](../fr/internal/API_Refactoring_Record.md) | [Italiano](../it/internal/API_Refactoring_Record.md) | [日本語](../ja/internal/API_Refactoring_Record.md) | [한국어](../ko/internal/API_Refactoring_Record.md)
 
+### Maintainer Documentation
+
+- **[Release Process](./Releasing.md)**
+  - Tagging, binary/checksum and container verification, smoke tests, and the
+    pre/post-release checklist.
+  - **Other languages**: [简体中文](../zh-CN/Releasing.md)
+
 ## 📖 How to Read Documentation
 
 Documents are organized by language in separate directories. Each language directory contains:
@@ -68,6 +80,8 @@ When adding new documentation:
 ## 📝 Document Categories
 
 - **Migration Guides**: Help users migrate from MailDev to OwlMail
+- **Release Notes**: Summarize versioned changes, upgrade behavior, and known limitations
+- **Operations**: Cover deployment, troubleshooting, and the maintainer release process
 - **API Documentation**: Current technical contract and historical refactoring records
 - **Internal Documentation**: Development notes and internal processes
 

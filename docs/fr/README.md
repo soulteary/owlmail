@@ -29,6 +29,11 @@ langue dans des répertoires distincts.
     intégration avec `soulteary/webhook`.
 - **[Exemples Webhook exécutables](../../examples/webhooks/README.md)** (English, [中文](../../examples/webhooks/README.zh-CN.md))
 
+### Versions
+
+- **[Notes de version 0.5.0](../en/Release-0.5.0.md)** (English, [中文](../zh-CN/Release-0.5.0.md))
+- **[Processus de publication](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
+
 ### Comparaison et migration
 
 - **[OwlMail × MailDev – Comparaison et guide de migration](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**

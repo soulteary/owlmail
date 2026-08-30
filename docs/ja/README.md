@@ -26,6 +26,11 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
   - フィルター、カスタムペイロード、HMAC 署名、再試行、`soulteary/webhook` 連携。
 - **[実行可能な Webhook 例](../../examples/webhooks/README.md)** (English、[中文](../../examples/webhooks/README.zh-CN.md))
 
+### リリース
+
+- **[0.5.0 リリースノート](../en/Release-0.5.0.md)** (English、[中文](../zh-CN/Release-0.5.0.md))
+- **[リリース手順](../en/Releasing.md)** (English、[中文](../zh-CN/Releasing.md))
+
 ### 比較と移行
 
 - **[OwlMail × MailDev – 比較・移行ガイド](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**

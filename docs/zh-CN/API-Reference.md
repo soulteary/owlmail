@@ -143,6 +143,23 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 | `GET /api/v1/version` | 构建/版本信息 |
 | `GET /api/v1/ws` | 原生 WebSocket 端点 |
 
+发布构建会返回类似以下的版本来源信息：
+
+```json
+{
+  "version": "0.5.0",
+  "commit": "<完整 Git 提交 SHA>",
+  "build_date": "<UTC RFC 3339 时间>",
+  "branch": "v0.5.0",
+  "go_version": "go1.27.0",
+  "platform": "linux/amd64",
+  "compiler": "gc"
+}
+```
+
+发布二进制与容器镜像会在构建时注入前四项，并冒烟验证版本与提交。普通本地
+`go build` 对未注入字段使用开发默认值。
+
 出站设置请求体支持 `host`、`port`、`user`、`password`、`secure`、
 `autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。`host` 必填，`port`
 必须在 1 到 65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。

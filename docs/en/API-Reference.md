@@ -150,6 +150,24 @@ reported in process logs after the HTTP response.
 | `GET /api/v1/version` | build/version information |
 | `GET /api/v1/ws` | native WebSocket endpoint |
 
+A release build returns version provenance similar to:
+
+```json
+{
+  "version": "0.5.0",
+  "commit": "<full Git commit SHA>",
+  "build_date": "<UTC RFC 3339 timestamp>",
+  "branch": "v0.5.0",
+  "go_version": "go1.27.0",
+  "platform": "linux/amd64",
+  "compiler": "gc"
+}
+```
+
+Release binaries and container images inject the first four values during the
+build and smoke-test the version and commit. An ordinary local `go build` uses
+development defaults for values that were not injected.
+
 The outgoing settings body supports `host`, `port`, `user`, `password`,
 `secure`, `autoRelay`, `autoRelayAddr`, `allowRules`, and `denyRules`. `host` is
 required and `port` must be between 1 and 65535. Changes are in memory; they do

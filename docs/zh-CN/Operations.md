@@ -41,8 +41,11 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
+
+本文固定使用 `0.5.0` 发布镜像。`main` 与 `latest` 会随默认分支构建移动，不应用于
+可复现部署。
 
 镜像内部默认绑定 `0.0.0.0`。除非其他机器必须访问，否则应像示例一样把宿主机
 端口限制到 `127.0.0.1`。Dockerfile 使用非 root 用户，邮件目录为 `/app/mail`。
@@ -57,7 +60,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 自动化场景应同时配置用户名和密码。只配置用户名时，每次启动会生成新密码并只在
@@ -101,7 +104,7 @@ docker run -d \
   -e OWLMAIL_TLS_ENABLED=true \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 确认容器运行时允许非 root 进程绑定 465；如不允许，应按运行时安全策略只授予所需

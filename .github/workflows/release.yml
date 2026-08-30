@@ -28,6 +28,43 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        env:
+          REQUESTED_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            VERSION="${REQUESTED_VERSION}"
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
+
+          if [[ ! "${VERSION}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
+            echo "::error::Release version must be a semantic-version tag such as v0.5.0"
+            exit 1
+          fi
+
+          if ! git rev-parse --verify "refs/tags/${VERSION}^{commit}" >/dev/null; then
+            echo "::error::Tag ${VERSION} does not exist; create and push it before running a release"
+            exit 1
+          fi
+
+          git checkout --detach "${VERSION}"
+          NOTES="docs/en/Release-${VERSION#v}.md"
+          if [ ! -f "${NOTES}" ]; then
+            echo "::error::Missing curated release notes: ${NOTES}"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "notes=${NOTES}" >> "${GITHUB_OUTPUT}"
+          if [[ "${VERSION}" == *-* ]]; then
+            echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+          fi
+
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
@@ -41,23 +78,73 @@ jobs:
         env:
           CGO_ENABLED: 0
         run: |
-          VERSION=${GITHUB_REF#refs/tags/}
-          if [ -z "$VERSION" ] || [ "$VERSION" = "$GITHUB_REF" ]; then
-            VERSION=${{ github.event.inputs.version }}
-          fi
+          VERSION="${{ steps.release.outputs.version }}"
+          APP_VERSION="${VERSION#v}"
+          COMMIT="$(git rev-parse HEAD)"
+          BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          LDFLAGS="-s -w \
+            -X github.com/soulteary/version-kit/v2.Version=${APP_VERSION} \
+            -X github.com/soulteary/version-kit/v2.Commit=${COMMIT} \
+            -X github.com/soulteary/version-kit/v2.BuildDate=${BUILD_DATE} \
+            -X github.com/soulteary/version-kit/v2.Branch=${VERSION}"
           
-          echo "Building version: $VERSION"
+          echo "Building version: ${APP_VERSION} (${COMMIT})"
           
           # Linux (static linking for better compatibility)
-          GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail-linux-amd64 ./cmd/owlmail
-          GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail-linux-arm64 ./cmd/owlmail
+          GOOS=linux GOARCH=amd64 go build -a -installsuffix cgo -ldflags "${LDFLAGS} -extldflags=-static" -o owlmail-linux-amd64 ./cmd/owlmail
+          GOOS=linux GOARCH=arm64 go build -a -installsuffix cgo -ldflags "${LDFLAGS} -extldflags=-static" -o owlmail-linux-arm64 ./cmd/owlmail
           
           # macOS
-          GOOS=darwin GOARCH=amd64 go build -a -installsuffix cgo -o owlmail-darwin-amd64 ./cmd/owlmail
-          GOOS=darwin GOARCH=arm64 go build -a -installsuffix cgo -o owlmail-darwin-arm64 ./cmd/owlmail
+          GOOS=darwin GOARCH=amd64 go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o owlmail-darwin-amd64 ./cmd/owlmail
+          GOOS=darwin GOARCH=arm64 go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o owlmail-darwin-arm64 ./cmd/owlmail
           
           # Windows
-          GOOS=windows GOARCH=amd64 go build -a -installsuffix cgo -o owlmail-windows-amd64.exe ./cmd/owlmail
+          GOOS=windows GOARCH=amd64 go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o owlmail-windows-amd64.exe ./cmd/owlmail
+
+      - name: Verify embedded release metadata
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          EXPECTED_VERSION="${RELEASE_VERSION#v}"
+          EXPECTED_COMMIT="$(git rev-parse HEAD)"
+          LOG_FILE="${RUNNER_TEMP}/owlmail-release-smoke.log"
+          DATA_DIR="${RUNNER_TEMP}/owlmail-release-smoke-data"
+
+          ./owlmail-linux-amd64 \
+            -ip 127.0.0.1 -smtp 11025 \
+            -web-ip 127.0.0.1 -web 11080 \
+            -mail-directory "${DATA_DIR}" >"${LOG_FILE}" 2>&1 &
+          SERVER_PID=$!
+          cleanup() {
+            kill "${SERVER_PID}" 2>/dev/null || true
+            wait "${SERVER_PID}" 2>/dev/null || true
+          }
+          trap cleanup EXIT
+
+          READY=false
+          for _ in {1..30}; do
+            if curl --silent --show-error --fail http://127.0.0.1:11080/healthz >/dev/null; then
+              READY=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "${READY}" != "true" ]; then
+            cat "${LOG_FILE}"
+            echo "::error::Release binary did not become ready"
+            exit 1
+          fi
+
+          VERSION_JSON="$(curl --silent --show-error --fail http://127.0.0.1:11080/api/v1/version)"
+          if ! grep -Fq "\"version\":\"${EXPECTED_VERSION}\"" <<<"${VERSION_JSON}"; then
+            echo "::error::Expected embedded version ${EXPECTED_VERSION}, got ${VERSION_JSON}"
+            exit 1
+          fi
+          if ! grep -Fq "\"commit\":\"${EXPECTED_COMMIT}\"" <<<"${VERSION_JSON}"; then
+            echo "::error::Expected embedded commit ${EXPECTED_COMMIT}, got ${VERSION_JSON}"
+            exit 1
+          fi
 
       - name: Create checksums
         run: |
@@ -66,11 +153,15 @@ jobs:
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
+          name: ${{ steps.release.outputs.version }}
+          tag_name: ${{ steps.release.outputs.version }}
+          body_path: ${{ steps.release.outputs.notes }}
           files: |
             owlmail-*
             checksums.txt
+          fail_on_unmatched_files: true
           generate_release_notes: true
           draft: false
-          prerelease: ${{ contains(github.ref, 'beta') || contains(github.ref, 'alpha') || contains(github.ref, 'rc') }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

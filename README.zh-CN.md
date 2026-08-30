@@ -122,24 +122,25 @@ export MAILDEV_WEB_PORT=1080
 使用 OwlMail 最简单的方式是从 GitHub Container Registry 拉取预构建的镜像：
 
 ```bash
-# 拉取最新镜像
-docker pull ghcr.io/soulteary/owlmail:latest
+# 拉取 0.5.0 发布镜像
+docker pull ghcr.io/soulteary/owlmail:0.5.0
 
-# 拉取特定版本（使用提交 SHA）
-docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+# 拉取某个准确提交的镜像（示例）
+docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # 运行容器
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 **可用标签：**
-- `latest` - 最新稳定版本
-- `sha-<commit>` - 特定提交 SHA（例如：`sha-49b5f35`）
-- `main` - main 分支的最新版本
+- `0.5.0` - 准确发布标签；`0.5` 与 `0` 会随对应版本系列的后续发布移动
+- `sha-<commit>` - 指定短提交 SHA 的镜像（例如 `sha-b130f33`）
+- `main` - 随 `main` 分支最新构建移动的镜像
+- `latest` - 随默认分支移动的镜像，不是稳定版本选择器
 
 **多架构支持：**
 镜像支持 `linux/amd64` 和 `linux/arm64` 两种架构。Docker 会自动为您的平台拉取正确的镜像。
@@ -632,9 +633,14 @@ OwlMail/
 
 ## 📚 相关文档
 
+- [OwlMail 0.5.0 发布说明](./docs/zh-CN/Release-0.5.0.md)
+- [变更日志](./CHANGELOG.md)
 - [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API 参考](./docs/zh-CN/API-Reference.md)
 - [运维与排障](./docs/zh-CN/Operations.md)
+- [Webhook 消息转发](./docs/zh-CN/Webhook-Forwarding.md)
+- [可运行 Webhook 场景](./examples/webhooks/README.zh-CN.md)
+- [发布流程（维护者）](./docs/zh-CN/Releasing.md)
 - [API 重构记录（历史资料）](./docs/zh-CN/internal/API_Refactoring_Record.md)
 
 ## 🐛 问题反馈

@@ -118,24 +118,25 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# 最新のイメージを取得
-docker pull ghcr.io/soulteary/owlmail:latest
+# リリース 0.5.0 を取得
+docker pull ghcr.io/soulteary/owlmail:0.5.0
 
-# 特定のバージョンを取得（コミット SHA を使用）
-docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+# 特定コミットのイメージを取得（例）
+docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # コンテナを実行
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 **利用可能なタグ：**
-- `latest` - 最新の安定版
-- `sha-<commit>` - 特定のコミット SHA（例：`sha-49b5f35`）
-- `main` - main ブランチの最新版
+- `0.5.0` - 正確なリリースタグ。`0.5` と `0` は同じ系列の後続リリースで更新
+- `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-b130f33`）
+- `main` - 最新の `main` ビルドに追随する可変イメージ
+- `latest` - デフォルトブランチに追随する可変イメージで、安定版の指定には使用不可
 
 **マルチアーキテクチャサポート：**
 イメージは `linux/amd64` と `linux/arm64` の両方のアーキテクチャをサポートしています。Docker は自動的にプラットフォームに適したイメージを取得します。
@@ -606,9 +607,13 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
+- [OwlMail 0.5.0 リリースノート](./docs/en/Release-0.5.0.md) ([中文](./docs/zh-CN/Release-0.5.0.md))
+- [変更履歴](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API リファレンス (English)](./docs/en/API-Reference.md)
 - [運用・トラブルシューティング (English)](./docs/en/Operations.md)
+- [Webhook 転送 (English)](./docs/en/Webhook-Forwarding.md)
+- [リリース手順 (English)](./docs/en/Releasing.md)
 - [API リファクタリング記録（履歴）](./docs/ja/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
