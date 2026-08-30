@@ -258,6 +258,7 @@
     let lastGeneratedJSON = '';
     let actionStatusTimer = null;
     let elements = {};
+    const preservedMatchPatterns = new WeakMap();
 
     function tr(key, params) {
         const table = translations[currentLanguage] || translations.en;
@@ -286,14 +287,15 @@
 
     function parseDurationMilliseconds(value) {
         if (typeof value !== 'string' || value === '') return null;
-        const unitMilliseconds = {
-            ns: 0.000001,
-            us: 0.001,
-            'µs': 0.001,
-            ms: 1,
-            s: 1000,
-            m: 60000,
-            h: 3600000
+        const unitNanoseconds = {
+            ns: 1,
+            us: 1000,
+            'µs': 1000,
+            'μs': 1000,
+            ms: 1000000,
+            s: 1000000000,
+            m: 60000000000,
+            h: 3600000000000
         };
         let sign = 1;
         let duration = value;
@@ -301,16 +303,20 @@
             sign = duration[0] === '-' ? -1 : 1;
             duration = duration.slice(1);
         }
-        const partPattern = /(\d+(?:\.\d*)?|\.\d+)(ns|us|µs|ms|s|m|h)/gy;
-        let total = 0;
+        const partPattern = /(\d+(?:\.\d*)?|\.\d+)(ns|us|µs|μs|ms|s|m|h)/gy;
+        let totalNanoseconds = 0;
         let position = 0;
         let match;
         while ((match = partPattern.exec(duration)) !== null) {
             if (match.index !== position) return Number.NaN;
-            total += Number(match[1]) * unitMilliseconds[match[2]];
+            const partNanoseconds = Math.trunc(Number(match[1]) * unitNanoseconds[match[2]]);
+            if (!Number.isFinite(partNanoseconds)) return sign * Number.POSITIVE_INFINITY;
+            totalNanoseconds += partNanoseconds;
             position = partPattern.lastIndex;
         }
-        return position === duration.length && position > 0 ? sign * total : Number.NaN;
+        return position === duration.length && position > 0
+            ? sign * totalNanoseconds / 1000000
+            : Number.NaN;
     }
 
     function nextCodePointIndex(value, index) {
@@ -386,6 +392,11 @@
         if (environmentMatches) {
             warnings.push(issue('envRuntime', path));
             if (exactEnvironmentPattern.test(value)) return;
+        }
+        const percentValidationValue = value.replace(environmentPattern, '00');
+        if (/%(?![0-9A-Fa-f]{2})/.test(percentValidationValue)) {
+            errors.push(issue('urlInvalid', path));
+            return;
         }
 
         const schemeEnd = value.indexOf('://');
@@ -626,7 +637,12 @@
     }
 
     function splitPatternLines(value) {
-        return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+        return value.split(/\r?\n/).filter((line) => line.trim() !== '');
+    }
+
+    function patternsFromEditorValue(value, preserved) {
+        if (preserved && value === preserved.displayValue) return preserved.patterns.slice();
+        return splitPatternLines(value);
     }
 
     function utf8ByteLength(value) {
@@ -750,7 +766,12 @@
 
         matchKeys.forEach((field) => {
             const patterns = source.match && Array.isArray(source.match[field]) ? source.match[field] : [];
-            card.querySelector('[data-match="' + field + '"]').value = patterns.join('\n');
+            const control = card.querySelector('[data-match="' + field + '"]');
+            control.value = patterns.join('\n');
+            preservedMatchPatterns.set(control, {
+                displayValue: control.value,
+                patterns: patterns.slice()
+            });
         });
 
         const headerContainer = card.querySelector('[data-role="headers"]');
@@ -826,7 +847,8 @@
 
         const match = {};
         matchKeys.forEach((field) => {
-            const patterns = splitPatternLines(card.querySelector('[data-match="' + field + '"]').value);
+            const control = card.querySelector('[data-match="' + field + '"]');
+            const patterns = patternsFromEditorValue(control.value, preservedMatchPatterns.get(control));
             if (patterns.length) match[field] = patterns;
         });
         if (Object.keys(match).length) target.match = match;
@@ -1065,7 +1087,8 @@
         normalizeConfig,
         validateGeneratedConfig,
         utf8ByteLength,
-        validGlobPattern
+        validGlobPattern,
+        patternsFromEditorValue
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);

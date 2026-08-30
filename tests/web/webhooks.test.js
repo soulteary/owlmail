@@ -185,6 +185,9 @@ test('target count and duration helpers enforce backend bounds', () => {
     assert.equal(configurator.parseDurationMilliseconds('1m1s'), 61000);
     assert.equal(configurator.parseDurationMilliseconds('+5s'), 5000);
     assert.equal(configurator.parseDurationMilliseconds('-5s'), -5000);
+    assert.equal(configurator.parseDurationMilliseconds('1μs'), 0.001);
+    assert.equal(configurator.parseDurationMilliseconds('0.000000001s'), 0.000001);
+    assert.equal(configurator.parseDurationMilliseconds('0.0000000001s'), 0);
     assert.equal(Number.isNaN(configurator.parseDurationMilliseconds('soon')), true);
 });
 
@@ -221,6 +224,15 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 2);
 });
 
+test('URL validation rejects escapes that Go net/url cannot parse', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'bad-escape', url: 'https://example.com/%zz' }]
+    });
+
+    assert.ok(codes(result).includes('urlInvalid'));
+});
+
 test('glob validation follows Go path.Match character-class grammar', () => {
     for (const pattern of ['[a-]', '[-a]', '[a-b-c]']) {
         assert.equal(configurator.validGlobPattern(pattern), false, pattern + ' should be rejected');
@@ -243,4 +255,40 @@ test('target names use the backend UTF-8 byte limit', () => {
     assert.deepEqual(codes(valid), []);
     assert.ok(codes(oversized).includes('nameInvalid'));
     assert.equal(configurator.utf8ByteLength('猫'.repeat(33)), 99);
+});
+
+test('imported match patterns retain significant whitespace and embedded newlines', () => {
+    const patterns = [' leading*', 'trailing* ', 'line\nbreak'];
+    const parsed = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{
+            name: 'preserved',
+            url: 'https://example.com/hook',
+            match: { subject: patterns }
+        }]
+    }));
+    const displayValue = patterns.join('\n');
+
+    assert.deepEqual(Array.from(parsed.config.targets[0].match.subject), patterns);
+    assert.deepEqual(
+        configurator.patternsFromEditorValue(displayValue, { displayValue, patterns }),
+        patterns
+    );
+    assert.deepEqual(
+        Array.from(configurator.patternsFromEditorValue(' leading*\ntrailing* ', null)),
+        [' leading*', 'trailing* ']
+    );
+});
+
+test('sub-nanosecond timeouts are rejected after Go-compatible quantization', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{
+            name: 'tiny-timeout',
+            url: 'https://example.com/hook',
+            timeout: '0.0000000001s'
+        }]
+    });
+
+    assert.ok(codes(result).includes('timeoutRange'));
 });
