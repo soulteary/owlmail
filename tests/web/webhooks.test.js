@@ -262,6 +262,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     const schemePlaceholder = '$' + '{SCHEME}';
     const schemePrefixPlaceholder = '$' + '{SCHEME_PREFIX}';
     const separatorPlaceholder = '$' + '{URL_SEPARATOR}';
+    const restPlaceholder = '$' + '{URL_REST}';
     const hostPlaceholder = '$' + '{HOST}';
     const openingBracketPlaceholder = '$' + '{OPEN_BRACKET}';
     const closingBracketPlaceholder = '$' + '{CLOSE_BRACKET}';
@@ -274,6 +275,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
             { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
             { name: 'scheme-composed', url: schemePrefixPlaceholder + 'ps://example.com/hook' },
             { name: 'separator', url: 'https' + separatorPlaceholder + 'example.com/hook' },
+            { name: 'authority', url: 'https' + restPlaceholder + '/hook' },
             { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' },
             { name: 'port-composed', url: 'https://example.com:' + portPlaceholder + '000/hook' },
             { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' },
@@ -285,7 +287,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 10);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 11);
 });
 
 test('URL validation still checks static authority with a placeholder scheme', () => {

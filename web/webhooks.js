@@ -571,9 +571,12 @@
                 candidate.startsWith(staticSchemePrefix));
             if (surrogatePrefix) {
                 const token = value.slice(firstEnvironmentOffset).match(leadingEnvironmentPattern)[0];
+                const remainder = value.slice(firstEnvironmentOffset + token.length);
+                const suffixOffset = remainder.search(/[/?#]/);
+                const structuralSuffix = suffixOffset < 0 ? '' : remainder.slice(suffixOffset);
                 structuralValue = value.slice(0, firstEnvironmentOffset) +
                     surrogatePrefix.slice(staticSchemePrefix.length) +
-                    value.slice(firstEnvironmentOffset + token.length);
+                    'placeholder.invalid' + structuralSuffix;
             }
         }
 
