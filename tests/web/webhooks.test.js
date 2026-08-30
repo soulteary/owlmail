@@ -275,9 +275,23 @@ test('URL validation still checks static authority with a placeholder scheme', (
 
 test('base URL placeholders still reject static fragments', () => {
     const basePlaceholder = '$' + '{BASE_URL}';
-    const result = configurator.validateConfig({
+    const fragment = configurator.validateConfig({
         version: 1,
         targets: [{ name: 'fragment', url: basePlaceholder + '/hook#secret' }]
+    });
+    const emptyFragment = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'empty-fragment', url: basePlaceholder + '/hook#' }]
+    });
+
+    assert.ok(codes(fragment).includes('urlFragment'));
+    assert.deepEqual(codes(emptyFragment), []);
+});
+
+test('URL validation inspects fragment content before browser normalization', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'space-fragment', url: 'https://example.com/hook# ' }]
     });
 
     assert.ok(codes(result).includes('urlFragment'));

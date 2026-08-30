@@ -486,6 +486,9 @@
             if (exactEnvironmentPattern.test(value)) return;
         }
         const rawQueryOrFragment = value.search(/[?#]/);
+        const rawFragmentOffset = value.indexOf('#');
+        const hasNonEmptyRawFragment = rawFragmentOffset >= 0 && rawFragmentOffset < value.length - 1;
+        if (hasNonEmptyRawFragment) errors.push(issue('urlFragment', path));
         const percentValidationSource = rawQueryOrFragment < 0 ? value : value.slice(0, rawQueryOrFragment);
         const percentValidationValue = percentValidationSource.replace(environmentPattern, '00');
         if (/%(?![0-9A-Fa-f]{2})/.test(percentValidationValue)) {
@@ -495,7 +498,6 @@
 
         const leadingEnvironment = value.match(leadingEnvironmentPattern);
         if (leadingEnvironment && !value.slice(leadingEnvironment[0].length).startsWith('://')) {
-            if (value.includes('#')) errors.push(issue('urlFragment', path));
             return;
         }
 
@@ -616,7 +618,6 @@
         if ((parsed.username || parsed.password) && !authorityHasUserInfo) {
             errors.push(issue('urlCredentials', path));
         }
-        if (parsed.hash) errors.push(issue('urlFragment', path));
     }
 
     function validateMatch(match, path, errors) {
