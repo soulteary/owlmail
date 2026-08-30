@@ -20,10 +20,21 @@ func TestMatchesFieldWildcardsCrossSlashes(t *testing.T) {
 	}
 }
 
-func TestPathMatchSentinelDoesNotCollide(t *testing.T) {
-	value := "https://example.com/\ue000/code"
-	matched, err := pathMatch("*/code", value)
-	if err != nil || !matched {
-		t.Fatalf("pathMatch() = %v, %v", matched, err)
+func TestTextGlobPreservesSlashCharacterRanges(t *testing.T) {
+	tests := []struct {
+		pattern string
+		value   string
+		want    bool
+	}{
+		{pattern: "[.-0]", value: "/", want: true},
+		{pattern: "[^.-0]", value: "/", want: false},
+		{pattern: "[\ue000-\ue002]", value: "/", want: false},
+		{pattern: "[\ue000-\ue002]", value: "\ue001", want: true},
+	}
+	for _, test := range tests {
+		matched, err := pathMatch(test.pattern, test.value)
+		if err != nil || matched != test.want {
+			t.Errorf("pathMatch(%q, %q) = %v, %v; want %v", test.pattern, test.value, matched, err, test.want)
+		}
 	}
 }

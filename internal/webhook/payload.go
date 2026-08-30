@@ -8,6 +8,7 @@ import (
 	"strings"
 	"text/template"
 	"time"
+	"unicode/utf8"
 
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -164,18 +165,161 @@ func matchesField(patterns, values []string) bool {
 // pathMatch is a variable to keep the wildcard matcher easy to exercise in
 // tests without exposing it as part of the public package API.
 var pathMatch = func(pattern, value string) (bool, error) {
-	// path.Match treats '/' as a directory separator, but webhook filters apply
-	// to arbitrary email text. Replace slashes with a private-use rune that is
-	// absent from both inputs so the standard glob grammar is retained without
-	// giving slash special path semantics.
-	const privateUseStart = rune(0xE000)
-	const privateUseEnd = rune(0xF8FF)
-	replacement := privateUseStart
-	for ; replacement <= privateUseEnd; replacement++ {
-		if !strings.ContainsRune(pattern, replacement) && !strings.ContainsRune(value, replacement) {
-			mapped := string(replacement)
-			return path.Match(strings.ReplaceAll(pattern, "/", mapped), strings.ReplaceAll(value, "/", mapped))
+	return matchTextPattern(pattern, value)
+}
+
+// matchTextPattern implements path.Match's glob grammar for arbitrary text.
+// Unlike path.Match, slash has no separator role: *, ?, and character ranges
+// treat it exactly like every other rune.
+func matchTextPattern(pattern, value string) (bool, error) {
+Pattern:
+	for len(pattern) > 0 {
+		star, chunk, rest := scanTextChunk(pattern)
+		pattern = rest
+		if star && chunk == "" {
+			return true, nil
+		}
+		remainder, matched, err := matchTextChunk(chunk, value)
+		if matched && (len(remainder) == 0 || len(pattern) > 0) {
+			value = remainder
+			continue
+		}
+		if err != nil {
+			return false, err
+		}
+		if star {
+			for index := 0; index < len(value); index++ {
+				remainder, matched, err = matchTextChunk(chunk, value[index+1:])
+				if matched {
+					if len(pattern) == 0 && len(remainder) > 0 {
+						continue
+					}
+					value = remainder
+					continue Pattern
+				}
+				if err != nil {
+					return false, err
+				}
+			}
+		}
+		for len(pattern) > 0 {
+			_, chunk, pattern = scanTextChunk(pattern)
+			if _, _, err := matchTextChunk(chunk, ""); err != nil {
+				return false, err
+			}
+		}
+		return false, nil
+	}
+	return len(value) == 0, nil
+}
+
+func scanTextChunk(pattern string) (star bool, chunk, rest string) {
+	for len(pattern) > 0 && pattern[0] == '*' {
+		pattern = pattern[1:]
+		star = true
+	}
+	inRange := false
+	for index := 0; index < len(pattern); index++ {
+		switch pattern[index] {
+		case '\\':
+			if index+1 < len(pattern) {
+				index++
+			}
+		case '[':
+			inRange = true
+		case ']':
+			inRange = false
+		case '*':
+			if !inRange {
+				return star, pattern[:index], pattern[index:]
+			}
 		}
 	}
-	return false, fmt.Errorf("cannot allocate wildcard slash sentinel")
+	return star, pattern, ""
+}
+
+func matchTextChunk(chunk, value string) (rest string, matched bool, err error) {
+	failed := false
+	for len(chunk) > 0 {
+		failed = failed || len(value) == 0
+		switch chunk[0] {
+		case '[':
+			var current rune
+			if !failed {
+				var size int
+				current, size = utf8.DecodeRuneInString(value)
+				value = value[size:]
+			}
+			chunk = chunk[1:]
+			negated := false
+			if len(chunk) > 0 && chunk[0] == '^' {
+				negated = true
+				chunk = chunk[1:]
+			}
+			classMatched := false
+			ranges := 0
+			for {
+				if len(chunk) > 0 && chunk[0] == ']' && ranges > 0 {
+					chunk = chunk[1:]
+					break
+				}
+				var low, high rune
+				if low, chunk, err = getTextEsc(chunk); err != nil {
+					return "", false, err
+				}
+				high = low
+				if chunk[0] == '-' {
+					if high, chunk, err = getTextEsc(chunk[1:]); err != nil {
+						return "", false, err
+					}
+				}
+				classMatched = classMatched || low <= current && current <= high
+				ranges++
+			}
+			failed = failed || classMatched == negated
+		case '?':
+			if !failed {
+				_, size := utf8.DecodeRuneInString(value)
+				value = value[size:]
+			}
+			chunk = chunk[1:]
+		case '\\':
+			chunk = chunk[1:]
+			if len(chunk) == 0 {
+				return "", false, path.ErrBadPattern
+			}
+			fallthrough
+		default:
+			if !failed {
+				failed = chunk[0] != value[0]
+				value = value[1:]
+			}
+			chunk = chunk[1:]
+		}
+	}
+	if failed {
+		return "", false, nil
+	}
+	return value, true, nil
+}
+
+func getTextEsc(chunk string) (r rune, rest string, err error) {
+	if len(chunk) == 0 || chunk[0] == '-' || chunk[0] == ']' {
+		return 0, "", path.ErrBadPattern
+	}
+	if chunk[0] == '\\' {
+		chunk = chunk[1:]
+		if len(chunk) == 0 {
+			return 0, "", path.ErrBadPattern
+		}
+	}
+	r, size := utf8.DecodeRuneInString(chunk)
+	if r == utf8.RuneError && size == 1 {
+		return 0, "", path.ErrBadPattern
+	}
+	rest = chunk[size:]
+	if len(rest) == 0 {
+		return 0, "", path.ErrBadPattern
+	}
+	return r, rest, nil
 }

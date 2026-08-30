@@ -182,7 +182,8 @@ behavior and can consume large amounts of memory and sockets during a burst.
 
 The `from`, `to`, `subject`, and `text` fields accept arrays of Go
 shell-style patterns: `*`, `?`, character classes such as `[a-z]`, and `\`
-escapes. As with Go's `path.Match`, `*` does not match `/`.
+escapes. The grammar follows Go's `path.Match`, but filters apply to arbitrary
+text rather than paths, so `*`, `?`, and character classes can match `/`.
 
 - Patterns inside one field are ORed.
 - Different non-empty fields are ANDed.
