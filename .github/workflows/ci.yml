@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main, develop ]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   web-test:
     name: Web Test
@@ -71,9 +75,6 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.27.0']
 
     steps:
       - name: Checkout code
@@ -82,7 +83,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Run golangci-lint
@@ -94,9 +95,6 @@ jobs:
   vet:
     name: Vet
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.27.0']
 
     steps:
       - name: Checkout code
@@ -105,7 +103,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Run go vet
@@ -122,9 +120,6 @@ jobs:
   build-check:
     name: Build Check
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        go-version: ['1.27.0']
 
     steps:
       - name: Checkout code
@@ -133,7 +128,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ matrix.go-version }}
+          go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Download dependencies
