@@ -422,6 +422,16 @@ test("release workflow preserves supply-chain evidence", () => {
   }
 });
 
+test("older release retries cannot move floating image tags", () => {
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
+  assert.match(workflow, /LATEST_STABLE=/);
+  assert.match(workflow, /publish-moving-tags=true/);
+  assert.equal(
+    (workflow.match(/enable=\$\{\{ steps\.release\.outputs\.publish-moving-tags == 'true' \}\}/g) || []).length,
+    3,
+  );
+});
+
 test("browser and documentation tests use the pinned Bun runner", () => {
   const legacyRunner = `node:${"test"}`;
   for (const testFile of [

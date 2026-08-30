@@ -77,8 +77,16 @@ jobs:
           echo "notes=${NOTES}" >> "${GITHUB_OUTPUT}"
           if [[ "${VERSION}" == *-* ]]; then
             echo "prerelease=true" >> "${GITHUB_OUTPUT}"
+            echo "publish-moving-tags=false" >> "${GITHUB_OUTPUT}"
           else
             echo "prerelease=false" >> "${GITHUB_OUTPUT}"
+            LATEST_STABLE="$(git tag --list 'v*' --sort=-v:refname | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | head -n 1)"
+            if [ "${VERSION}" = "${LATEST_STABLE}" ]; then
+              echo "publish-moving-tags=true" >> "${GITHUB_OUTPUT}"
+            else
+              echo "publish-moving-tags=false" >> "${GITHUB_OUTPUT}"
+              echo "Older stable release ${VERSION}; keeping moving image tags on ${LATEST_STABLE}"
+            fi
           fi
 
       - name: Set up Go
@@ -265,10 +273,10 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }}
-            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.publish-moving-tags == 'true' }}
+            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.publish-moving-tags == 'true' }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ steps.release.outputs.prerelease == 'false' }}
+            type=raw,value=latest,enable=${{ steps.release.outputs.publish-moving-tags == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.release.outputs.commit }}

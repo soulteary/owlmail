@@ -60,6 +60,9 @@ gh workflow run release.yml --ref v0.5.0 -f version=v0.5.0
 `govulncheck` 以及 Bun 浏览器/文档检查，随后生成 SPDX SBOM、GitHub Artifact
 Attestation 与 Sigstore 无密钥签名，再正式发布。
 
+重试旧的稳定标签时，只会重新发布精确语义版本和提交 SHA 镜像标签。
+只有请求的标签仍是仓库中最新的稳定版本时，才会更新主版本、次版本和 `latest` 移动标签。
+
 ## 验证发布文件
 
 除 GitHub 自动生成的源码归档外，使用当前工作流发布的版本应包含：
