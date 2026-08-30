@@ -18,6 +18,18 @@ const (
 	redisReadBlock     = time.Second
 )
 
+const renewOwnedLeaseScript = `
+local pending = redis.call('XPENDING', KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 then
+  return 0
+end
+if pending[1][2] ~= ARGV[2] then
+  return -1
+end
+redis.call('XCLAIM', KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], 'JUSTID')
+return 1
+`
+
 type queueReceipt struct {
 	id  string
 	job deliveryJob
@@ -172,15 +184,13 @@ func (queue *redisDeliveryQueue) Renew(ctx context.Context, receipt *queueReceip
 	if receipt == nil {
 		return nil
 	}
-	ids, err := queue.client.XClaimJustID(ctx, &redis.XClaimArgs{
-		Stream: queue.stream, Group: redisConsumerGroup, Consumer: queue.consumer,
-		MinIdle: 0, Messages: []string{receipt.id},
-	}).Result()
+	result, err := queue.client.Eval(ctx, renewOwnedLeaseScript, []string{queue.stream},
+		redisConsumerGroup, queue.consumer, receipt.id).Int64()
 	if err != nil {
 		return fmt.Errorf("renew webhook job lease: %w", err)
 	}
-	if len(ids) != 1 || ids[0] != receipt.id {
-		return fmt.Errorf("renew webhook job lease: entry %s is no longer pending", receipt.id)
+	if result != 1 {
+		return fmt.Errorf("renew webhook job lease: entry %s is no longer owned by %s", receipt.id, queue.consumer)
 	}
 	return nil
 }

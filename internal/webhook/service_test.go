@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func TestServiceCloseDrainsInFlightDelivery(t *testing.T) {
@@ -211,7 +213,24 @@ func TestRedisQueueIntegration(t *testing.T) {
 	if err != nil || receipt == nil || receipt.job.ID != job.ID {
 		t.Fatalf("Claim() = %#v, %v", receipt, err)
 	}
-	if err := queue.Ack(ctx, receipt); err != nil {
+	if err := queue.Renew(ctx, receipt); err != nil {
+		t.Fatalf("Renew() while owned: %v", err)
+	}
+	other, err := newRedisDeliveryQueue(ctx, redisURL, "owlmail:test", "other-consumer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Close() }()
+	if _, err := other.client.XClaimJustID(ctx, &redis.XClaimArgs{
+		Stream: queue.stream, Group: redisConsumerGroup, Consumer: other.consumer,
+		MinIdle: 0, Messages: []string{receipt.id},
+	}).Result(); err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.Renew(ctx, receipt); err == nil {
+		t.Fatal("Renew() stole a lease owned by another consumer")
+	}
+	if err := other.Ack(ctx, receipt); err != nil {
 		t.Fatal(err)
 	}
 }
