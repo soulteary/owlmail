@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-language="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Build, import, validate, and download OwlMail webhook forwarding configuration.">
+    <title>OwlMail Webhook Configurator</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/webhooks.css">
+</head>
+<body class="light-theme">
+    <div class="container webhook-page">
+        <header class="header webhook-header">
+            <div class="header-content">
+                <a class="webhook-brand" href="/" aria-label="OwlMail inbox">🦉 <span>OwlMail</span></a>
+                <nav class="header-actions" aria-label="Page controls">
+                    <label class="visually-hidden" for="webhookLanguage" data-i18n="language">Language</label>
+                    <select id="webhookLanguage" class="lang-select" aria-label="Language">
+                        <option value="en">English</option>
+                        <option value="zh-CN">简体中文</option>
+                    </select>
+                    <button id="webhookTheme" class="btn btn-secondary icon-button" type="button" data-i18n-title="toggleTheme" aria-label="Toggle theme">🌙</button>
+                    <a class="btn btn-secondary btn-link" href="/help" data-i18n="help">Help</a>
+                    <a class="btn btn-primary btn-link" href="/" data-i18n="backToInbox">Back to inbox</a>
+                </nav>
+            </div>
+        </header>
+
+        <main>
+            <section class="webhook-hero">
+                <p class="webhook-eyebrow" data-i18n="eyebrow">WEBHOOK CONFIGURATION</p>
+                <h1 data-i18n="pageTitle">Build a webhook configuration</h1>
+                <p data-i18n="pageDescription">Create targets visually or import an existing JSON file, inspect every rule, and download a configuration ready for OwlMail.</p>
+                <div class="local-note" role="note">
+                    <strong data-i18n="localOnlyTitle">Local-only editor.</strong>
+                    <span data-i18n="localOnlyBody">Configuration stays in this browser and is never sent to OwlMail. Download the JSON, mount it into the server, and restart OwlMail to activate it.</span>
+                </div>
+            </section>
+
+            <div class="webhook-workspace">
+                <section class="webhook-panel editor-panel" aria-labelledby="targetsHeading">
+                    <div class="panel-heading">
+                        <div>
+                            <p class="panel-kicker" data-i18n="builderKicker">CONFIGURATION BUILDER</p>
+                            <h2 id="targetsHeading" data-i18n="targets">Targets</h2>
+                        </div>
+                        <div class="panel-actions">
+                            <span id="targetCount" class="count-badge">0 / 32</span>
+                            <button id="loadExample" class="btn btn-secondary" type="button" data-i18n="loadExample">Load example</button>
+                            <button id="addTarget" class="btn btn-primary" type="button" data-i18n="addTarget">Add target</button>
+                        </div>
+                    </div>
+                    <div id="targetList" class="target-list"></div>
+                </section>
+
+                <aside class="output-column">
+                    <section class="webhook-panel import-panel" aria-labelledby="importHeading">
+                        <div class="panel-heading compact-heading">
+                            <div>
+                                <p class="panel-kicker" data-i18n="importKicker">EXISTING CONFIGURATION</p>
+                                <h2 id="importHeading" data-i18n="importTitle">Import and inspect</h2>
+                            </div>
+                        </div>
+                        <label class="field-label" for="importInput" data-i18n="importLabel">Paste JSON</label>
+                        <textarea id="importInput" class="import-input code-input" rows="8" spellcheck="false" data-i18n-placeholder="importPlaceholder" placeholder='{"version":1,"targets":[...]}'></textarea>
+                        <input id="configFile" class="visually-hidden" type="file" accept="application/json,.json">
+                        <label id="dropZone" class="drop-zone" for="configFile" tabindex="0">
+                            <strong data-i18n="dropTitle">Drop a JSON file here</strong>
+                            <span data-i18n="dropBody">or choose a file (maximum 1 MiB)</span>
+                        </label>
+                        <button id="parseImport" class="btn btn-primary full-button" type="button" data-i18n="parseImport">Parse and replace targets</button>
+                        <div id="importStatus" class="import-status" role="status" aria-live="polite"></div>
+                        <p class="muted-copy" data-i18n="replaceWarning">A successful import replaces the targets currently shown in the builder.</p>
+                    </section>
+
+                    <section class="webhook-panel output-panel" aria-labelledby="outputHeading">
+                        <div class="panel-heading compact-heading">
+                            <div>
+                                <p class="panel-kicker" data-i18n="outputKicker">LIVE OUTPUT</p>
+                                <h2 id="outputHeading" data-i18n="outputTitle">Generated JSON</h2>
+                            </div>
+                            <span id="validationBadge" class="validation-badge is-invalid" data-i18n="invalid">Needs attention</span>
+                        </div>
+                        <div id="validationSummary" class="validation-summary" role="status" aria-live="polite"></div>
+                        <label class="visually-hidden" for="configOutput" data-i18n="outputTitle">Generated JSON</label>
+                        <textarea id="configOutput" class="config-output code-input" rows="22" readonly spellcheck="false"></textarea>
+                        <div class="output-actions">
+                            <button id="copyConfig" class="btn btn-secondary" type="button" data-i18n="copy">Copy JSON</button>
+                            <button id="downloadConfig" class="btn btn-primary" type="button" data-i18n="download">Download webhooks.json</button>
+                        </div>
+                        <p id="actionStatus" class="action-status" role="status" aria-live="polite"></p>
+                        <p class="activation-hint"><code>./owlmail -webhook-config ./webhooks.json</code></p>
+                    </section>
+                </aside>
+            </div>
+        </main>
+    </div>
+
+    <template id="targetTemplate">
+        <article class="target-card">
+            <div class="target-heading">
+                <h3><span data-i18n="target">Target</span> <span data-role="target-number"></span></h3>
+                <button class="btn btn-danger remove-target" type="button" data-i18n="removeTarget">Remove</button>
+            </div>
+
+            <div class="field-grid">
+                <label class="form-field">
+                    <span><span data-i18n="name">Name</span> <b aria-hidden="true">*</b></span>
+                    <input type="text" data-field="name" maxlength="100" autocomplete="off" placeholder="primary">
+                </label>
+                <label class="form-field field-wide">
+                    <span><span data-i18n="url">Destination URL</span> <b aria-hidden="true">*</b></span>
+                    <input type="text" data-field="url" inputmode="url" autocomplete="url" placeholder="https://example.com/hooks/owlmail">
+                    <small data-i18n="envHint">Environment variables such as ${OWLMAIL_WEBHOOK_HOST} are supported.</small>
+                </label>
+                <label class="form-field">
+                    <span data-i18n="method">HTTP method</span>
+                    <select data-field="method">
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                    </select>
+                </label>
+                <label class="form-field">
+                    <span data-i18n="timeout">Timeout</span>
+                    <input type="text" data-field="timeout" autocomplete="off" placeholder="5s">
+                    <small data-i18n="timeoutHint">Go duration, greater than 0 and at most 1m.</small>
+                </label>
+                <label class="form-field">
+                    <span data-i18n="retries">Retries</span>
+                    <input type="number" data-field="retries" min="0" max="5" step="1" value="0">
+                </label>
+                <label class="form-field">
+                    <span data-i18n="contentType">Content type</span>
+                    <input type="text" data-field="contentType" autocomplete="off" placeholder="application/json">
+                </label>
+            </div>
+
+            <details class="advanced-options">
+                <summary data-i18n="advanced">Authentication, headers, filters, and body template</summary>
+                <div class="advanced-content">
+                    <label class="form-field">
+                        <span data-i18n="secret">HMAC secret</span>
+                        <input type="text" data-field="secret" autocomplete="off" placeholder="${OWLMAIL_WEBHOOK_SECRET}">
+                        <small data-i18n="secretHint">Use an environment variable instead of committing a real secret.</small>
+                    </label>
+
+                    <section class="subsection">
+                        <div class="subsection-heading">
+                            <div>
+                                <h3 data-i18n="headers">Request headers</h3>
+                                <p data-i18n="headersHint">Header values may reference environment variables.</p>
+                            </div>
+                            <button class="btn btn-secondary add-header" type="button" data-i18n="addHeader">Add header</button>
+                        </div>
+                        <div class="header-list" data-role="headers"></div>
+                    </section>
+
+                    <section class="subsection">
+                        <div class="subsection-heading">
+                            <div>
+                                <h3 data-i18n="filters">Match filters</h3>
+                                <p data-i18n="filtersHint">Fields are combined with AND. Put one case-insensitive * or ? wildcard pattern on each line.</p>
+                            </div>
+                        </div>
+                        <div class="filter-grid">
+                            <label class="form-field"><span data-i18n="matchFrom">From</span><textarea data-match="from" rows="3" placeholder="*@example.com"></textarea></label>
+                            <label class="form-field"><span data-i18n="matchTo">To</span><textarea data-match="to" rows="3" placeholder="alerts@example.com"></textarea></label>
+                            <label class="form-field"><span data-i18n="matchSubject">Subject</span><textarea data-match="subject" rows="3" placeholder="[staging]*"></textarea></label>
+                            <label class="form-field"><span data-i18n="matchText">Text body</span><textarea data-match="text" rows="3" placeholder="*build failed*"></textarea></label>
+                        </div>
+                    </section>
+
+                    <label class="form-field">
+                        <span data-i18n="bodyTemplate">Body template</span>
+                        <textarea class="code-input" data-field="bodyTemplate" rows="6" spellcheck="false" placeholder='{"subject":{{ json .Subject }}}'></textarea>
+                        <small data-i18n="templateHint">Leave empty for OwlMail's default JSON payload. Go template syntax is compiled when OwlMail starts.</small>
+                    </label>
+                </div>
+            </details>
+        </article>
+    </template>
+
+    <template id="headerTemplate">
+        <div class="header-row">
+            <input type="text" data-header="name" autocomplete="off" data-i18n-placeholder="headerName" data-i18n-title="headerName" placeholder="Header name" aria-label="Header name">
+            <input type="text" data-header="value" autocomplete="off" data-i18n-placeholder="headerValue" data-i18n-title="headerValue" placeholder="Header value" aria-label="Header value">
+            <button class="btn btn-danger remove-header" type="button" data-i18n-title="removeHeader" aria-label="Remove header">×</button>
+        </div>
+    </template>
+
+    <script src="/webhooks.js"></script>
+</body>
+</html>

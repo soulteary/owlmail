@@ -6,6 +6,13 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- An embedded English/Chinese Webhook Configurator at `/webhooks` for building,
+  importing, validating, copying, and downloading version 1 forwarding rules.
+  Configuration is processed locally in the browser and is not activated until
+  the downloaded file is mounted and OwlMail is restarted.
+
 ## [0.5.0]
 
 ### Added

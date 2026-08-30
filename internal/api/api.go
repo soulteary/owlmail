@@ -100,6 +100,8 @@ func (api *API) setupRoutes() {
 	app.Get("/app.js", serveWebAsset("app.js", "text/javascript; charset=utf-8"))
 	app.Get("/help.css", serveWebAsset("help.css", "text/css; charset=utf-8"))
 	app.Get("/help.js", serveWebAsset("help.js", "text/javascript; charset=utf-8"))
+	app.Get("/webhooks.css", serveWebAsset("webhooks.css", "text/css; charset=utf-8"))
+	app.Get("/webhooks.js", serveWebAsset("webhooks.js", "text/javascript; charset=utf-8"))
 
 	// ============================================================================
 	// MailDev-compatible API routes (maintains backward compatibility)
@@ -115,6 +117,8 @@ func (api *API) setupRoutes() {
 	app.Get("/", serveWebAsset("index.html", "text/html; charset=utf-8"))
 	app.Get("/help", serveWebAsset("help.html", "text/html; charset=utf-8"))
 	app.Get("/help/", serveWebAsset("help.html", "text/html; charset=utf-8"))
+	app.Get("/webhooks", serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
+	app.Get("/webhooks/", serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
 
 	// Serve index.html for all non-API routes (NoRoute equivalent)
 	app.All("*", func(c fiber.Ctx) error {
@@ -127,7 +131,8 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
 			strings.HasPrefix(path, "/help.css") ||
-			strings.HasPrefix(path, "/help.js") {
+			strings.HasPrefix(path, "/help.js") ||
+			strings.HasPrefix(path, "/webhooks") {
 			return c.Next()
 		}
 		return serveWebAsset("index.html", "text/html; charset=utf-8")(c)

@@ -189,7 +189,7 @@ func TestAPISetupRoutes(t *testing.T) {
 		t.Errorf("API route should work, got status %d", resp3.StatusCode)
 	}
 
-	testCases := []string{"/email", "/config", "/healthz", "/socket.io", "/api/", "/style.css", "/app.js"}
+	testCases := []string{"/email", "/config", "/healthz", "/socket.io", "/api/", "/style.css", "/app.js", "/webhooks", "/webhooks.css", "/webhooks.js"}
 	for _, path := range testCases {
 		req, _ := http.NewRequest("GET", path, nil)
 		_, _ = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
@@ -221,6 +221,10 @@ func TestEmbeddedWebAssets(t *testing.T) {
 		{path: "/app.js", contentType: "text/javascript", contains: "connectWebSocket"},
 		{path: "/help.css", contentType: "text/css", contains: ".help-shell"},
 		{path: "/help.js", contentType: "text/javascript", contains: "applyLanguage"},
+		{path: "/webhooks", contentType: "text/html", contains: "Webhook Configurator"},
+		{path: "/webhooks/", contentType: "text/html", contains: `id="targetList"`},
+		{path: "/webhooks.css", contentType: "text/css", contains: ".webhook-workspace"},
+		{path: "/webhooks.js", contentType: "text/javascript", contains: "parseConfigText"},
 	}
 
 	for _, tt := range tests {
