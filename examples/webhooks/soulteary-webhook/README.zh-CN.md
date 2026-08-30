@@ -29,6 +29,9 @@ docker compose up
 Compose 文件保留了仅用于本地演示的默认密钥，因此不设置变量也能启动；只要端口
 可能被其他机器访问，就应该使用自己的随机密钥。同一个密钥会传给两个容器。
 
+所有宿主机端口都绑定到 `127.0.0.1`，避免未鉴权的本地 Demo 暴露到局域网。只有在
+增加带鉴权的反向代理，或同时启用 OwlMail Web 与 SMTP 鉴权后，才应修改这些绑定。
+
 OwlMail 显式设置 `OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8`，与安全默认值一致。生产
 环境应根据下游处理能力设置上限；只有明确希望不限制并发，并确认接收端能够承受时，
 才应设置为 `0`。
@@ -85,8 +88,9 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 owlmail -webhook-config owlmail.json
 ```
 
-生产环境建议保持 WebHook 仅内网可访问或放在带鉴权的反向代理之后，继续启用 HMAC
-验证，限制允许执行的命令路径，设置执行时间和并发上限，并避免记录完整邮件正文。
+生产环境建议保持 OwlMail 和 WebHook 都仅内网可访问或放在带鉴权的反向代理之后，
+启用 OwlMail Web Basic Auth 与 SMTP 鉴权，继续启用 HMAC 验证，限制允许执行的命令
+路径，设置执行时间和并发上限，并避免记录完整邮件正文。
 
 [English](./README.md) ·
 [Webhook 消息转发参考](../../../docs/zh-CN/Webhook-Forwarding.md) ·

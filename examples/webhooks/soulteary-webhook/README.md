@@ -32,6 +32,10 @@ The Compose file has a development-only fallback secret so the demo can start,
 but set your own random value whenever the ports are reachable by another
 machine. The same secret is passed to both containers.
 
+All published ports are bound to `127.0.0.1` so the unauthenticated local demo
+is not exposed to the LAN. Change those bindings only after adding an
+authenticated reverse proxy or enabling OwlMail Web and SMTP authentication.
+
 OwlMail explicitly uses `OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8`, its safe default.
 Keep the limit sized to downstream capacity. Set it to `0` only when unlimited
 webhook delivery is intentional and the receiving system can absorb it.
@@ -92,8 +96,9 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 owlmail -webhook-config owlmail.json
 ```
 
-For production, keep WebHook private or behind an authenticated reverse proxy,
-retain HMAC verification, restrict allowed command paths, bound execution and
+For production, keep both OwlMail and WebHook private or behind authenticated
+reverse proxies, enable OwlMail Web Basic Auth and SMTP authentication, retain
+HMAC verification, restrict allowed command paths, bound execution and
 concurrency, and avoid logging full email bodies.
 
 [中文说明](./README.zh-CN.md) ·
