@@ -164,5 +164,18 @@ func matchesField(patterns, values []string) bool {
 // pathMatch is a variable to keep the wildcard matcher easy to exercise in
 // tests without exposing it as part of the public package API.
 var pathMatch = func(pattern, value string) (bool, error) {
-	return path.Match(pattern, value)
+	// path.Match treats '/' as a directory separator, but webhook filters apply
+	// to arbitrary email text. Replace slashes with a private-use rune that is
+	// absent from both inputs so the standard glob grammar is retained without
+	// giving slash special path semantics.
+	const privateUseStart = rune(0xE000)
+	const privateUseEnd = rune(0xF8FF)
+	replacement := privateUseStart
+	for ; replacement <= privateUseEnd; replacement++ {
+		if !strings.ContainsRune(pattern, replacement) && !strings.ContainsRune(value, replacement) {
+			mapped := string(replacement)
+			return path.Match(strings.ReplaceAll(pattern, "/", mapped), strings.ReplaceAll(value, "/", mapped))
+		}
+	}
+	return false, fmt.Errorf("cannot allocate wildcard slash sentinel")
 }
