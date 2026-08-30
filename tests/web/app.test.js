@@ -40,9 +40,11 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     }
     const notificationToggle = createElement();
     const notificationStatus = createElement();
+    const emailDetail = createElement();
     const elements = new Map([
         ['notificationToggle', notificationToggle],
-        ['notificationStatus', notificationStatus]
+        ['notificationStatus', notificationStatus],
+        ['emailDetail', emailDetail]
     ]);
     const notifications = [];
     const windowListeners = new Map();
@@ -114,6 +116,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
 
     return {
         documentListeners,
+        emailDetail,
         notificationStatus,
         notificationToggle,
         notifications,
@@ -207,4 +210,35 @@ test('address formatting tolerates null and undefined values', () => {
     assert.equal(harness.run('formatAddress(null)'), 'Unknown');
     assert.equal(harness.run('formatAddress(undefined)'), 'Unknown');
     assert.equal(harness.run('formatAddress({ Name: "Sender", Address: "sender@example.test" })'), 'Sender <sender@example.test>');
+});
+
+test('English translations use singular forms', () => {
+    const harness = createHarness();
+
+    assert.equal(harness.run("t('emailCount', { count: 1 })"), '1 email');
+    assert.equal(harness.run("t('attachments', { count: 1 })"), '1 attachment');
+    assert.equal(harness.run("t('minutesAgo', { minutes: 1 })"), '1 minute ago');
+    assert.equal(harness.run("t('emailCount', { count: 2 })"), '2 emails');
+});
+
+test('Traditional Chinese locales do not silently select Simplified Chinese', () => {
+    const harness = createHarness();
+    harness.run("navigator.language = 'zh-TW'");
+
+    assert.equal(harness.run('detectLanguage()'), 'en');
+});
+
+test('Simplified Chinese Singapore locale remains supported', () => {
+    const harness = createHarness();
+    harness.run("navigator.language = 'zh-SG'");
+
+    assert.equal(harness.run('detectLanguage()'), 'zh-CN');
+});
+
+test('initial language setup translates the empty email detail', () => {
+    const harness = createHarness();
+
+    harness.run("setLanguage('fr', false)");
+
+    assert.match(harness.emailDetail.innerHTML, /Sélectionnez un email/);
 });

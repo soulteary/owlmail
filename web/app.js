@@ -83,12 +83,14 @@ const i18n = {
         search: 'Search',
         emailList: 'Email List',
         emailCount: '{count} emails',
+        emailCount_one: '{count} email',
         loading: 'Loading...',
         noEmails: 'No emails',
         selectEmail: 'Select an email to view details',
         unknown: 'Unknown',
         noSubject: '(No Subject)',
         attachments: '{count} attachments',
+        attachments_one: '{count} attachment',
         downloadEml: 'Download .eml',
         viewSource: 'View Source',
         delete: 'Delete',
@@ -107,6 +109,7 @@ const i18n = {
         deleteConfirm: 'Are you sure you want to delete this email?',
         deleteAllConfirm: 'Are you sure you want to delete all emails? This action cannot be undone!',
         markAllReadSuccess: 'Marked {count} emails as read',
+        markAllReadSuccess_one: 'Marked {count} email as read',
         loadEmailsError: 'Failed to load emails: {error}',
         loadEmailDetailError: 'Failed to load email details: {error}',
         deleteEmailError: 'Failed to delete email: {error}',
@@ -114,8 +117,11 @@ const i18n = {
         markAllReadError: 'Failed to mark as read: {error}',
         justNow: 'Just now',
         minutesAgo: '{minutes} minutes ago',
+        minutesAgo_one: '{minutes} minute ago',
         hoursAgo: '{hours} hours ago',
+        hoursAgo_one: '{hours} hour ago',
         daysAgo: '{days} days ago',
+        daysAgo_one: '{days} day ago',
         help: 'Help',
         webhooks: 'Webhooks',
         toggleTheme: 'Toggle Theme',
@@ -584,7 +590,6 @@ function nt(key, params = {}) {
 
 // Language code mapping for browser language detection
 const languageCodeMap = {
-    'zh': 'zh-CN',
     'de': 'de',
     'it': 'it',
     'fr': 'fr',
@@ -609,7 +614,14 @@ function detectLanguage() {
             return browserLang;
         }
         // Check language code and map to supported language
-        const langCode = browserLang.split('-')[0].toLowerCase();
+        const normalizedBrowserLang = browserLang.toLowerCase();
+        if (normalizedBrowserLang === 'zh'
+            || normalizedBrowserLang === 'zh-cn'
+            || normalizedBrowserLang === 'zh-sg'
+            || normalizedBrowserLang.startsWith('zh-hans')) {
+            return 'zh-CN';
+        }
+        const langCode = normalizedBrowserLang.split('-')[0];
         if (languageCodeMap[langCode]) {
             return languageCodeMap[langCode];
         }
@@ -621,7 +633,12 @@ function detectLanguage() {
 
 // Translation function
 function t(key, params = {}) {
-    const translation = i18n[currentLang][key] || i18n['en'][key] || key;
+    const singularValue = [params.count, params.minutes, params.hours, params.days]
+        .find(value => value !== undefined);
+    const resolvedKey = singularValue === 1 && i18n[currentLang][`${key}_one`]
+        ? `${key}_one`
+        : key;
+    const translation = i18n[currentLang][resolvedKey] || i18n['en'][resolvedKey] || i18n['en'][key] || key;
     return translation.replace(/\{(\w+)\}/g, (match, paramKey) => {
         return params[paramKey] !== undefined ? params[paramKey] : match;
     });
@@ -696,14 +713,14 @@ function parseAPISuccess(response) {
 }
 
 // Set language
-function setLanguage(lang) {
+function setLanguage(lang, renderDynamic = true) {
     if (!i18n[lang]) {
         lang = 'en';
     }
     currentLang = lang;
     localStorage.setItem('language', lang);
     document.documentElement.lang = lang;
-    updateUI();
+    updateUI(renderDynamic);
     if (browserNotificationsInitialized) updateBrowserNotificationButton();
 }
 
@@ -1092,7 +1109,7 @@ function handleWebSocketMessage(data) {
 }
 
 // Update UI with current language
-function updateUI() {
+function updateUI(renderDynamic = true) {
     // Update title
     document.title = t('title');
     
@@ -1153,11 +1170,16 @@ function updateUI() {
     const confirmNo = document.getElementById('confirmNo');
     if (confirmNo) confirmNo.textContent = t('cancel');
     
-    // Re-render dynamic content
-    updateEmailCount();
-    updatePagination();
-    renderEmailList();
-    renderEmailDetail();
+    if (renderDynamic) {
+        updateEmailCount();
+        updatePagination();
+        renderEmailList();
+        renderEmailDetail();
+    } else if (!state.currentEmail) {
+        // The empty detail state is safe to render before the initial API load
+        // and must not retain the English placeholder from index.html.
+        renderEmailDetail();
+    }
 }
 
 // UI Rendering Functions
@@ -1588,8 +1610,7 @@ function updateLanguageSelector() {
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize language
-    currentLang = detectLanguage();
-    setLanguage(currentLang);
+    setLanguage(detectLanguage(), false);
     
     // Initialize language selector
     initLanguageSelector();
