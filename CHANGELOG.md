@@ -16,6 +16,12 @@ All notable changes to OwlMail are documented in this file. The format follows
   binaries and versioned container images. Build workflows cancel superseded
   branch runs and skip documentation-only changes.
 
+### Fixed
+
+- Incoming messages and attachments are staged, synced, and atomically renamed
+  before they become visible in memory. Startup recovery now quarantines
+  incomplete, corrupt, and orphaned storage artifacts.
+
 ## [0.5.0]
 
 ### Added
