@@ -211,6 +211,7 @@ test('generated configurations use the same 1 MiB limit as OwlMail', () => {
 
 test('URL validation defers environment-backed schemes and ports to runtime', () => {
     const schemePlaceholder = '$' + '{SCHEME}';
+    const schemePrefixPlaceholder = '$' + '{SCHEME_PREFIX}';
     const hostPlaceholder = '$' + '{HOST}';
     const ipv6PrefixPlaceholder = '$' + '{IPV6_PREFIX}';
     const portPlaceholder = '$' + '{PORT}';
@@ -219,7 +220,9 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
         version: 1,
         targets: [
             { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
+            { name: 'scheme-composed', url: schemePrefixPlaceholder + 'ps://example.com/hook' },
             { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' },
+            { name: 'port-composed', url: 'https://example.com:' + portPlaceholder + '000/hook' },
             { name: 'ipv6', url: 'https://[' + hostPlaceholder + ']:' + portPlaceholder + '/hook' },
             { name: 'ipv6-composed', url: 'https://[' + ipv6PrefixPlaceholder + '1]/hook' },
             { name: 'base', url: basePlaceholder + '/hook' }
@@ -227,7 +230,7 @@ test('URL validation defers environment-backed schemes and ports to runtime', ()
     });
 
     assert.deepEqual(codes(result), []);
-    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 5);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 7);
 });
 
 test('URL validation still checks static authority with a placeholder scheme', () => {

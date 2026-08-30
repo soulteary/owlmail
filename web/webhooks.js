@@ -439,6 +439,19 @@
         return !validGoHostString(host, false);
     }
 
+    function authorityPortSeparator(authority) {
+        const hostPortStart = authority.lastIndexOf('@') + 1;
+        const hostPort = authority.slice(hostPortStart);
+        if (hostPort.startsWith('[')) {
+            const bracketEnd = hostPort.indexOf(']');
+            return bracketEnd >= 0 && hostPort[bracketEnd + 1] === ':'
+                ? hostPortStart + bracketEnd + 1
+                : -1;
+        }
+        const separator = hostPort.lastIndexOf(':');
+        return separator < 0 ? -1 : hostPortStart + separator;
+    }
+
     function validateURL(value, path, errors, warnings) {
         if (typeof value !== 'string') {
             if (value === undefined || value === null || value === '') errors.push(issue('urlRequired', path));
@@ -494,6 +507,9 @@
         const bracketedHostHasEnvironment = bracketStart >= 0 && bracketEnd > bracketStart &&
             environmentPattern.test(authority.slice(bracketStart + 1, bracketEnd));
         environmentPattern.lastIndex = 0;
+        const portSeparator = authorityPortSeparator(authority);
+        const portHasEnvironment = portSeparator >= 0 && environmentPattern.test(authority.slice(portSeparator + 1));
+        environmentPattern.lastIndex = 0;
         if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
         if (authorityHasInvalidHost(authority)) {
             errors.push(issue('urlInvalid', path));
@@ -527,8 +543,24 @@
             return 'placeholder.invalid';
         });
         let browserParseValue = parseableValue;
+        if (placeholderInScheme) {
+            const browserSchemeEnd = browserParseValue.indexOf('://');
+            browserParseValue = 'https' + browserParseValue.slice(browserSchemeEnd);
+        }
         if (bracketedHostHasEnvironment) {
             browserParseValue = browserParseValue.replace(/\[[^\]]*\]/, '[::1]');
+        }
+        if (portHasEnvironment) {
+            const browserSchemeEnd = browserParseValue.indexOf('://');
+            const browserAuthorityStart = browserSchemeEnd + 3;
+            const browserAuthorityEndOffset = browserParseValue.slice(browserAuthorityStart).search(/[/?#]/);
+            const browserAuthorityEnd = browserAuthorityEndOffset < 0
+                ? browserParseValue.length
+                : browserAuthorityStart + browserAuthorityEndOffset;
+            const browserAuthority = browserParseValue.slice(browserAuthorityStart, browserAuthorityEnd);
+            const browserPortSeparator = authorityPortSeparator(browserAuthority);
+            browserParseValue = browserParseValue.slice(0, browserAuthorityStart + browserPortSeparator + 1) +
+                '443' + browserParseValue.slice(browserAuthorityEnd);
         }
         browserParseValue = browserParseValue.replace(/\[([^\]]+?)%25[^\]]*\]/g, '[$1]');
         let parsed;
