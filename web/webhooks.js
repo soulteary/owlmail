@@ -488,6 +488,11 @@
         const authority = authorityStart < 0 ? '' : value.slice(authorityStart, authorityEnd);
         const authorityHasUserInfo = authority.includes('@');
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
+        const bracketStart = authority.indexOf('[');
+        const bracketEnd = authority.lastIndexOf(']');
+        const bracketedHostHasEnvironment = bracketStart >= 0 && bracketEnd > bracketStart &&
+            environmentPattern.test(authority.slice(bracketStart + 1, bracketEnd));
+        environmentPattern.lastIndex = 0;
         if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
         if (authorityHasInvalidHost(authority)) {
             errors.push(issue('urlInvalid', path));
@@ -520,7 +525,11 @@
             if (lastColon > closingBracket) return '443';
             return 'placeholder.invalid';
         });
-        const browserParseValue = parseableValue.replace(/\[([^\]]+?)%25[^\]]*\]/g, '[$1]');
+        let browserParseValue = parseableValue;
+        if (bracketedHostHasEnvironment) {
+            browserParseValue = browserParseValue.replace(/\[[^\]]*\]/, '[::1]');
+        }
+        browserParseValue = browserParseValue.replace(/\[([^\]]+?)%25[^\]]*\]/g, '[$1]');
         let parsed;
         try {
             parsed = new URL(browserParseValue);
