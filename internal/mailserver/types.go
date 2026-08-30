@@ -63,6 +63,11 @@ type MailServer struct {
 	authConfig   *SMTPAuthConfig
 	tlsConfig    *TLSConfig
 	useUUIDForID bool
+
+	// Storage hooks are intentionally unexported and nil in production. They
+	// provide deterministic fault injection for transaction boundary tests.
+	beforeStoreCommit     func(*types.Email) error
+	beforeAttachmentWrite func(string) error
 }
 
 // GetHost returns the SMTP server host
