@@ -192,3 +192,55 @@ test('pasted configurations use the same 1 MiB limit as OwlMail', () => {
     const oversized = 'x'.repeat(configurator.MAX_CONFIG_BYTES + 1);
     assert.deepEqual(codes(configurator.parseConfigText(oversized)), ['configTooLarge']);
 });
+
+test('generated configurations use the same 1 MiB limit as OwlMail', () => {
+    const result = configurator.validateGeneratedConfig({
+        version: 1,
+        targets: [{
+            name: 'large',
+            url: 'https://example.com/hook',
+            bodyTemplate: 'x'.repeat(configurator.MAX_CONFIG_BYTES)
+        }]
+    });
+
+    assert.ok(codes(result).includes('configTooLarge'));
+});
+
+test('URL validation defers environment-backed schemes and ports to runtime', () => {
+    const schemePlaceholder = '$' + '{SCHEME}';
+    const portPlaceholder = '$' + '{PORT}';
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [
+            { name: 'scheme', url: schemePlaceholder + '://example.com/hook' },
+            { name: 'port', url: 'https://example.com:' + portPlaceholder + '/hook' }
+        ]
+    });
+
+    assert.deepEqual(codes(result), []);
+    assert.equal(codes(result, 'warnings').filter((code) => code === 'envRuntime').length, 2);
+});
+
+test('glob validation follows Go path.Match character-class grammar', () => {
+    for (const pattern of ['[a-]', '[-a]', '[a-b-c]']) {
+        assert.equal(configurator.validGlobPattern(pattern), false, pattern + ' should be rejected');
+    }
+    for (const pattern of ['[a-z]', '[\\-]']) {
+        assert.equal(configurator.validGlobPattern(pattern), true, pattern + ' should be accepted');
+    }
+});
+
+test('target names use the backend UTF-8 byte limit', () => {
+    const valid = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: '猫'.repeat(33), url: 'https://example.com/hook' }]
+    });
+    const oversized = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: '猫'.repeat(40), url: 'https://example.com/hook' }]
+    });
+
+    assert.deepEqual(codes(valid), []);
+    assert.ok(codes(oversized).includes('nameInvalid'));
+    assert.equal(configurator.utf8ByteLength('猫'.repeat(33)), 99);
+});

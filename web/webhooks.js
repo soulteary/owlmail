@@ -113,7 +113,7 @@
             targetObject: 'Each target must be an object.',
             fieldString: 'This field must be a string.',
             nameRequired: 'A target name is required.',
-            nameInvalid: 'The name must be at most 100 characters and contain no newlines.',
+            nameInvalid: 'The name must be at most 100 UTF-8 bytes and contain no newlines.',
             duplicateName: 'Target name "{name}" is duplicated.',
             urlRequired: 'A destination URL is required.',
             urlInvalid: 'The destination URL is invalid.',
@@ -219,7 +219,7 @@
             targetObject: '每个目标必须是对象。',
             fieldString: '该字段必须是字符串。',
             nameRequired: '必须填写目标名称。',
-            nameInvalid: '名称不能超过 100 个字符，也不能包含换行。',
+            nameInvalid: '名称不能超过 100 个 UTF-8 字节，也不能包含换行。',
             duplicateName: '目标名称“{name}”重复。',
             urlRequired: '必须填写目标 URL。',
             urlInvalid: '目标 URL 无效。',
@@ -313,31 +313,54 @@
         return position === duration.length && position > 0 ? sign * total : Number.NaN;
     }
 
+    function nextCodePointIndex(value, index) {
+        const codePoint = value.codePointAt(index);
+        return index + (codePoint > 0xFFFF ? 2 : 1);
+    }
+
+    function readClassCharacter(pattern, index) {
+        if (index >= pattern.length || pattern[index] === '-' || pattern[index] === ']') return -1;
+        if (pattern[index] === '\\') {
+            index++;
+            if (index >= pattern.length) return -1;
+        }
+        return nextCodePointIndex(pattern, index);
+    }
+
     function validGlobPattern(pattern) {
-        let inClass = false;
-        let classCharacters = 0;
-        for (let index = 0; index < pattern.length; index++) {
+        for (let index = 0; index < pattern.length;) {
             const character = pattern[index];
             if (character === '\\') {
                 if (index + 1 >= pattern.length) return false;
-                index++;
-                if (inClass) classCharacters++;
+                index = nextCodePointIndex(pattern, index + 1);
                 continue;
             }
-            if (!inClass && character === '[') {
-                inClass = true;
-                classCharacters = 0;
-                if (pattern[index + 1] === '^') index++;
+            if (character !== '[') {
+                index = nextCodePointIndex(pattern, index);
                 continue;
             }
-            if (inClass && character === ']') {
-                if (classCharacters === 0) return false;
-                inClass = false;
-                continue;
+
+            index++;
+            if (pattern[index] === '^') index++;
+            let ranges = 0;
+            let closed = false;
+            while (index < pattern.length) {
+                if (pattern[index] === ']' && ranges > 0) {
+                    index++;
+                    closed = true;
+                    break;
+                }
+                index = readClassCharacter(pattern, index);
+                if (index < 0) return false;
+                if (pattern[index] === '-') {
+                    index = readClassCharacter(pattern, index + 1);
+                    if (index < 0) return false;
+                }
+                ranges++;
             }
-            if (inClass) classCharacters++;
+            if (!closed) return false;
         }
-        return !inClass;
+        return true;
     }
 
     function validateOptionalString(value, path, errors) {
@@ -365,7 +388,36 @@
             if (exactEnvironmentPattern.test(value)) return;
         }
 
-        const parseableValue = value.replace(environmentPattern, 'placeholder.invalid');
+        const schemeEnd = value.indexOf('://');
+        if (environmentMatches && schemeEnd >= 0) {
+            const scheme = value.slice(0, schemeEnd);
+            const placeholderInScheme = environmentPattern.test(scheme);
+            environmentPattern.lastIndex = 0;
+            if (placeholderInScheme) {
+                const authorityStart = schemeEnd + 3;
+                const authorityEndOffset = value.slice(authorityStart).search(/[/?#]/);
+                const authorityEnd = authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset;
+                const authority = value.slice(authorityStart, authorityEnd);
+                if (authority.includes('@')) errors.push(issue('urlCredentials', path));
+                if (value.includes('#')) errors.push(issue('urlFragment', path));
+                return;
+            }
+        }
+
+        const authorityStart = schemeEnd >= 0 ? schemeEnd + 3 : -1;
+        const authorityEndOffset = authorityStart >= 0 ? value.slice(authorityStart).search(/[/?#]/) : -1;
+        const authorityEnd = authorityStart < 0
+            ? -1
+            : (authorityEndOffset < 0 ? value.length : authorityStart + authorityEndOffset);
+        const parseableValue = value.replace(environmentPattern, (token, offset) => {
+            if (offset < authorityStart || offset >= authorityEnd) return 'value';
+            const authorityPrefix = value.slice(authorityStart, offset);
+            const afterCredentials = authorityPrefix.slice(authorityPrefix.lastIndexOf('@') + 1);
+            const closingBracket = afterCredentials.lastIndexOf(']');
+            const lastColon = afterCredentials.lastIndexOf(':');
+            if (lastColon > closingBracket) return '443';
+            return 'placeholder.invalid';
+        });
         let parsed;
         try {
             parsed = new URL(parseableValue);
@@ -416,7 +468,7 @@
             const name = target.name.trim();
             if (!name) {
                 errors.push(issue('nameRequired', path + '.name'));
-            } else if (Array.from(name).length > 100 || /[\r\n]/.test(name)) {
+            } else if (utf8ByteLength(name) > 100 || /[\r\n]/.test(name)) {
                 errors.push(issue('nameInvalid', path + '.name'));
             } else {
                 if (names.has(name)) errors.push(issue('duplicateName', path + '.name', { name }));
@@ -555,10 +607,7 @@
         if (typeof text !== 'string' || text.trim() === '') {
             return { config: null, errors: [issue('importEmpty')], warnings: [] };
         }
-        const byteLength = typeof TextEncoder === 'function'
-            ? new TextEncoder().encode(text).byteLength
-            : unescape(encodeURIComponent(text)).length;
-        if (byteLength > MAX_CONFIG_BYTES) {
+        if (utf8ByteLength(text) > MAX_CONFIG_BYTES) {
             return { config: null, errors: [issue('configTooLarge')], warnings: [] };
         }
         let parsed;
@@ -578,6 +627,21 @@
 
     function splitPatternLines(value) {
         return value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    }
+
+    function utf8ByteLength(value) {
+        return typeof TextEncoder === 'function'
+            ? new TextEncoder().encode(value).byteLength
+            : unescape(encodeURIComponent(value)).length;
+    }
+
+    function validateGeneratedConfig(config) {
+        const validation = validateConfig(config);
+        const json = JSON.stringify(config, null, 2) + '\n';
+        if (utf8ByteLength(json) > MAX_CONFIG_BYTES) {
+            validation.errors.push(issue('configTooLarge'));
+        }
+        return { ...validation, json };
     }
 
     function applyTranslations(root) {
@@ -821,9 +885,9 @@
     function renderOutput() {
         if (!elements.targetList) return;
         const collected = collectConfig();
-        const validation = validateConfig(collected.config);
+        const validation = validateGeneratedConfig(collected.config);
         const errors = collected.errors.concat(validation.errors);
-        lastGeneratedJSON = JSON.stringify(collected.config, null, 2) + '\n';
+        lastGeneratedJSON = validation.json;
         elements.output.value = lastGeneratedJSON;
         renderValidation(errors, validation.warnings);
     }
@@ -999,6 +1063,8 @@
         parseDurationMilliseconds,
         validateConfig,
         normalizeConfig,
+        validateGeneratedConfig,
+        utf8ByteLength,
         validGlobPattern
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
