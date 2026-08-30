@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 env:
-  GO_VERSION: "1.26.6"
+  GO_VERSION: "1.27.0"
   GO111MODULE: on
 
 jobs:
@@ -45,10 +45,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.sum
@@ -67,7 +67,7 @@ jobs:
         run: go build -v -o owlmail${{ matrix.ext }} ./cmd/owlmail
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: owlmail-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
           path: owlmail${{ matrix.ext }}
