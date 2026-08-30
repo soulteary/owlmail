@@ -14,13 +14,13 @@ func (ms *MailServer) On(event string, handler func(*types.Email)) {
 // OnSynchronous registers a lightweight handoff listener that completes
 // before emit returns. It is intended for durable queue writes, not network
 // delivery or other long-running work.
-func (ms *MailServer) OnSynchronous(event string, handler func(*types.Email)) error {
+func (ms *MailServer) OnSynchronous(event string, handler func(*types.Email) error) error {
 	if handler == nil {
 		return fmt.Errorf("event handler cannot be nil")
 	}
 	ms.listenersMutex.Lock()
 	defer ms.listenersMutex.Unlock()
-	ms.listeners[event] = append(ms.listeners[event], eventListener{handler: handler, synchronous: true})
+	ms.listeners[event] = append(ms.listeners[event], eventListener{syncHandler: handler})
 	return nil
 }
 
@@ -47,26 +47,28 @@ func (ms *MailServer) OnWithConcurrency(event string, maxConcurrency int, handle
 }
 
 // emit sends an event to all listeners
-func (ms *MailServer) emit(event string, email *types.Email) {
+func (ms *MailServer) emit(event string, email *types.Email) error {
 	ms.listenersMutex.RLock()
 	listeners := append([]eventListener(nil), ms.listeners[event]...)
 	ms.listenersMutex.RUnlock()
 	for _, listener := range listeners {
-		if listener.synchronous {
-			listener.handler(cloneEmail(email))
+		if listener.syncHandler != nil {
+			if err := listener.syncHandler(cloneEmail(email)); err != nil {
+				return fmt.Errorf("synchronous %s event handoff: %w", event, err)
+			}
 		}
 	}
 
 	// Start unlimited listeners first so a saturated bounded listener cannot
 	// delay UI broadcasts or lightweight logging handlers registered after it.
 	for _, listener := range listeners {
-		if !listener.synchronous && listener.slots == nil {
+		if listener.syncHandler == nil && listener.slots == nil {
 			emailSnapshot := cloneEmail(email)
 			go listener.handler(emailSnapshot)
 		}
 	}
 	for _, listener := range listeners {
-		if listener.synchronous || listener.slots == nil {
+		if listener.syncHandler != nil || listener.slots == nil {
 			continue
 		}
 		listener.slots <- struct{}{}
@@ -76,4 +78,5 @@ func (ms *MailServer) emit(event string, email *types.Email) {
 			listener.handler(emailSnapshot)
 		}(listener)
 	}
+	return nil
 }

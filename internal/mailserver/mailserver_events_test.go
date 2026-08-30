@@ -1,11 +1,33 @@
 package mailserver
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestSynchronousHandoffFailureRollsBackStore(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("queue unavailable")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	email := &Email{Subject: "handoff"}
+	envelope := &Envelope{From: "from@example.test", To: []string{"to@example.test"}}
+	if err := server.SaveEmailToStore("handoff1", false, envelope, email); err == nil {
+		t.Fatal("SaveEmailToStore succeeded after durable handoff failed")
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("store contains %d messages after handoff rollback", got)
+	}
+}
 
 func TestMailServerOn(t *testing.T) {
 	tmpDir := t.TempDir()

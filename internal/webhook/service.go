@@ -43,6 +43,7 @@ type Service struct {
 	shutdownTimeout time.Duration
 	onResults       func(string, []Result)
 	workerCount     int
+	leaseHeartbeat  time.Duration
 	unlimited       bool
 	accepting       bool
 	handoffMutex    sync.RWMutex
@@ -71,6 +72,7 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 		dispatcher: dispatcher, ctx: ctx, cancel: cancel,
 		shutdownTimeout: options.ShutdownTimeout, onResults: options.OnResults,
 		workerCount: options.MaxConcurrency, unlimited: options.MaxConcurrency == 0,
+		leaseHeartbeat: redisClaimIdle / 3,
 	}
 	if options.RedisURL != "" {
 		consumer := fmt.Sprintf("%s-%s", runtime.GOOS, uuid.NewString())
@@ -208,7 +210,45 @@ func (service *Service) isAccepting() bool {
 }
 
 func (service *Service) deliver(job deliveryJob, receipt *queueReceipt) {
+	stopLease := make(chan struct{})
+	leaseDone := make(chan error, 1)
+	if service.queue != nil && receipt != nil {
+		leaseHeartbeat := service.leaseHeartbeat
+		if leaseHeartbeat <= 0 {
+			leaseHeartbeat = redisClaimIdle / 3
+		}
+		go func() {
+			ticker := time.NewTicker(leaseHeartbeat)
+			defer ticker.Stop()
+			for {
+				select {
+				case <-stopLease:
+					leaseDone <- nil
+					return
+				case <-service.ctx.Done():
+					leaseDone <- service.ctx.Err()
+					return
+				case <-ticker.C:
+					if err := service.queue.Touch(service.ctx, receipt); err != nil {
+						leaseDone <- err
+						return
+					}
+				}
+			}
+		}()
+	} else {
+		leaseDone <- nil
+	}
 	results := service.dispatcher.DispatchDelivery(service.ctx, job.Email, job.ID)
+	close(stopLease)
+	if err := <-leaseDone; err != nil && !errors.Is(err, context.Canceled) {
+		results = append(results, Result{Err: err})
+		// Ownership is uncertain when the lease cannot be renewed. Leave the
+		// receipt pending so Redis can safely redeliver it instead of ACKing or
+		// deleting the only durable copy.
+		service.report(job.ID, results)
+		return
+	}
 	failed := false
 	for _, result := range results {
 		if result.Err != nil {

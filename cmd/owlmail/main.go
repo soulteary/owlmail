@@ -238,10 +238,8 @@ func registerWebhookService(server *mailserver.MailServer, service *webhooknotif
 	if server == nil || service == nil {
 		return nil
 	}
-	if err := server.OnSynchronous("new", func(email *mailserver.Email) {
-		if err := service.Enqueue(email); err != nil {
-			common.Error("Failed to enqueue webhook delivery: %v", err)
-		}
+	if err := server.OnSynchronous("new", func(email *mailserver.Email) error {
+		return service.Enqueue(email)
 	}); err != nil {
 		return fmt.Errorf("register webhook queue handoff: %w", err)
 	}

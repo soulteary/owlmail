@@ -26,10 +26,28 @@ type queueReceipt struct {
 type deliveryQueue interface {
 	Enqueue(context.Context, deliveryJob) error
 	Claim(context.Context) (*queueReceipt, error)
+	Touch(context.Context, *queueReceipt) error
 	Ack(context.Context, *queueReceipt) error
 	DeadLetter(context.Context, *queueReceipt, []Result) error
 	Pending(context.Context) (int64, error)
 	Close() error
+}
+
+func (queue *redisDeliveryQueue) Touch(ctx context.Context, receipt *queueReceipt) error {
+	if receipt == nil {
+		return nil
+	}
+	claimed, err := queue.client.XClaim(ctx, &redis.XClaimArgs{
+		Stream: queue.stream, Group: redisConsumerGroup, Consumer: queue.consumer,
+		MinIdle: 0, Messages: []string{receipt.id},
+	}).Result()
+	if err != nil {
+		return fmt.Errorf("renew webhook job lease: %w", err)
+	}
+	if len(claimed) == 0 {
+		return fmt.Errorf("renew webhook job lease: receipt %s is no longer pending", receipt.id)
+	}
+	return nil
 }
 
 type redisDeliveryQueue struct {

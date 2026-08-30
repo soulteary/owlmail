@@ -48,11 +48,12 @@ func TestServiceCloseDrainsInFlightDelivery(t *testing.T) {
 }
 
 type fakeDeliveryQueue struct {
-	claims chan *queueReceipt
-	mu     sync.Mutex
-	acked  []string
-	dead   []string
-	count  int64
+	claims  chan *queueReceipt
+	mu      sync.Mutex
+	acked   []string
+	dead    []string
+	count   int64
+	touches int
 }
 
 func (queue *fakeDeliveryQueue) Enqueue(_ context.Context, job deliveryJob) error {
@@ -79,6 +80,13 @@ func (queue *fakeDeliveryQueue) Ack(_ context.Context, receipt *queueReceipt) er
 	defer queue.mu.Unlock()
 	queue.acked = append(queue.acked, receipt.id)
 	queue.count--
+	return nil
+}
+
+func (queue *fakeDeliveryQueue) Touch(_ context.Context, _ *queueReceipt) error {
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	queue.touches++
 	return nil
 }
 
@@ -136,6 +144,33 @@ func TestDurableServiceDeadLettersExhaustedDelivery(t *testing.T) {
 	}
 	if err := service.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestDurableServiceRenewsActiveReceiptLease(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		time.Sleep(30 * time.Millisecond)
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "slow", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := &fakeDeliveryQueue{claims: make(chan *queueReceipt, 1), count: 1}
+	service := &Service{dispatcher: dispatcher, queue: queue, ctx: ctx, cancel: cancel, leaseHeartbeat: 5 * time.Millisecond}
+	receipt := &queueReceipt{id: "active-entry", job: deliveryJob{ID: "active-job", Email: testEmail()}}
+	service.deliver(receipt.job, receipt)
+
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	if queue.touches == 0 {
+		t.Fatal("active Redis receipt lease was not renewed")
+	}
+	if len(queue.acked) != 1 || queue.acked[0] != receipt.id {
+		t.Fatalf("acked receipts = %v", queue.acked)
 	}
 }
 

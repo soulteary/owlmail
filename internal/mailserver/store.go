@@ -58,7 +58,8 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
-	if _, exists := ms.storeByID[id]; !exists {
+	previousEmail, existed := ms.storeByID[id]
+	if !existed {
 		ms.storeOrder = append(ms.storeOrder, id)
 	}
 	ms.storeByID[id] = storedEmail
@@ -67,7 +68,22 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
 	// Emit new email event
-	ms.emit("new", storedEmail)
+	if err := ms.emit("new", storedEmail); err != nil {
+		ms.storeMutex.Lock()
+		if existed {
+			ms.storeByID[id] = previousEmail
+		} else {
+			delete(ms.storeByID, id)
+			for index, storedID := range ms.storeOrder {
+				if storedID == id {
+					ms.storeOrder = append(ms.storeOrder[:index], ms.storeOrder[index+1:]...)
+					break
+				}
+			}
+		}
+		ms.storeMutex.Unlock()
+		return err
+	}
 
 	// Auto relay if enabled
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
@@ -216,7 +232,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	}
 
 	// Emit delete event
-	ms.emit("delete", email)
+	_ = ms.emit("delete", email)
 
 	return nil
 }
