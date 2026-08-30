@@ -33,7 +33,7 @@ function createElement() {
     };
 }
 
-function createHarness({ permission = 'default', secure = true, savedPreference = null } = {}) {
+function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false } = {}) {
     const storage = new Map();
     if (savedPreference !== null) {
         storage.set('owlmail.browserNotifications.enabled', savedPreference);
@@ -47,6 +47,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const notifications = [];
     const windowListeners = new Map();
     const documentListeners = new Map();
+    const serviceNotifications = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -62,7 +63,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const window = {
         Notification,
         isSecureContext: secure,
-        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test' },
+        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test', search: '' },
         addEventListener(name, handler) { windowListeners.set(name, handler); },
         focus() {}
     };
@@ -76,10 +77,25 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         querySelectorAll() { return []; },
         createElement() { return createElement(); }
     };
+    const navigator = { language: 'en-US' };
+    if (serviceWorker) {
+		const activeRegistration = {
+			async showNotification(title, options) {
+				serviceNotifications.push({ title, options });
+			}
+		};
+        navigator.serviceWorker = {
+            addEventListener() {},
+            async register() {
+				return { installing: {} };
+			},
+			ready: Promise.resolve(activeRegistration)
+        };
+    }
     const sandbox = {
         window,
         document,
-        navigator: { language: 'en-US' },
+        navigator,
         localStorage: {
             getItem(key) { return storage.has(key) ? storage.get(key) : null; },
             setItem(key, value) { storage.set(key, value); }
@@ -101,6 +117,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         notificationStatus,
         notificationToggle,
         notifications,
+        serviceNotifications,
         storage,
         window,
         windowListeners,
@@ -145,18 +162,33 @@ test('a revoked permission clears a previously enabled preference', () => {
     assert.equal(harness.notificationToggle.attributes.get('aria-pressed'), 'false');
 });
 
-test('new email notification uses bounded text and a stable message tag', () => {
+test('new email notification uses bounded text and a stable message tag', async () => {
     const harness = createHarness({ permission: 'granted', savedPreference: 'true' });
     harness.run('initializeBrowserNotifications()');
     const longSubject = `  ${'subject '.repeat(30)}  `;
 
-    harness.run(`notifyBrowserForEmail(${JSON.stringify({ id: 'mail-42', subject: longSubject, from: [] })})`);
+    await harness.run(`notifyBrowserForEmail(${JSON.stringify({ id: 'mail-42', subject: longSubject, from: [] })})`);
 
     assert.equal(harness.notifications.length, 1);
     assert.equal(harness.notifications[0].title.length, 160);
     assert.equal(harness.notifications[0].title.endsWith('…'), true);
     assert.equal(harness.notifications[0].options.tag, 'owlmail-email-mail-42');
     assert.match(harness.notifications[0].options.body, /Unknown/);
+});
+
+test('mobile-compatible notifications use the service worker registration', async () => {
+    const harness = createHarness({ permission: 'granted', savedPreference: 'true', serviceWorker: true });
+    harness.run('initializeBrowserNotifications()');
+
+    await harness.run(`notifyBrowserForEmail({
+        id: 'mobile-message',
+        subject: 'Mobile message',
+        from: [{ address: 'sender@example.com' }]
+    })`);
+
+    assert.equal(harness.serviceNotifications.length, 1);
+    assert.equal(harness.serviceNotifications[0].title, 'Mobile message');
+    assert.equal(harness.serviceNotifications[0].options.data.emailID, 'mobile-message');
 });
 
 test('insecure contexts report notifications as unavailable', () => {

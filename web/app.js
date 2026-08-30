@@ -723,11 +723,32 @@ let browserNotificationsEnabled = false;
 let browserNotificationsInitialized = false;
 let notificationPermissionPending = false;
 let notificationStatusTimer = null;
+let notificationServiceWorkerPromise = null;
+
+function notificationServiceWorkerSupported() {
+    return typeof navigator !== 'undefined' && navigator.serviceWorker
+        && typeof navigator.serviceWorker.register === 'function';
+}
+
+function getNotificationServiceWorker() {
+    if (!notificationServiceWorkerSupported()) return Promise.resolve(null);
+	if (!notificationServiceWorkerPromise) {
+		notificationServiceWorkerPromise = navigator.serviceWorker
+			.register('/service-worker.js', { scope: '/' })
+			.then((registration) => navigator.serviceWorker.ready || registration)
+			.catch((error) => {
+                console.warn('Unable to register notification service worker:', error);
+                return null;
+            });
+    }
+    return notificationServiceWorkerPromise;
+}
 
 function browserNotificationsSupported() {
     return typeof window.Notification === 'function'
         && typeof window.Notification.requestPermission === 'function'
-        && window.isSecureContext !== false;
+        && window.isSecureContext !== false
+        && (notificationServiceWorkerSupported() || typeof window.Notification === 'function');
 }
 
 function readBrowserNotificationPreference() {
@@ -865,6 +886,14 @@ function initializeBrowserNotifications() {
 
     button.addEventListener('click', toggleBrowserNotifications);
     window.addEventListener('focus', synchronizeBrowserNotificationPermission);
+    if (notificationServiceWorkerSupported()) {
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            if (!event.data || event.data.type !== 'owlmail-notification-click') return;
+            if (typeof window.focus === 'function') window.focus();
+            if (event.data.emailID) loadEmailDetail(event.data.emailID);
+        });
+        void getNotificationServiceWorker();
+    }
     browserNotificationsInitialized = true;
     updateBrowserNotificationButton();
 }
@@ -875,7 +904,7 @@ function normalizeNotificationText(value, fallback, maxLength) {
     return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-function notifyBrowserForEmail(email) {
+async function notifyBrowserForEmail(email) {
     if (!email || !browserNotificationsEnabled || !browserNotificationsSupported()) return;
     if (window.Notification.permission !== 'granted') {
         browserNotificationsEnabled = false;
@@ -891,11 +920,18 @@ function notifyBrowserForEmail(email) {
     const notificationSender = normalizeNotificationText(sender, t('unknown'), 240);
 
     try {
-        const notification = new window.Notification(title, {
+        const options = {
             body: nt('newEmailFrom', { sender: notificationSender }),
             tag: email.id ? `owlmail-email-${email.id}` : 'owlmail-new-email',
-            renotify: false
-        });
+            renotify: false,
+            data: { emailID: email.id || '' }
+        };
+        const registration = await getNotificationServiceWorker();
+        if (registration && typeof registration.showNotification === 'function') {
+            await registration.showNotification(title, options);
+            return;
+        }
+        const notification = new window.Notification(title, options);
         notification.onclick = () => {
             if (typeof window.focus === 'function') window.focus();
             notification.close();
@@ -1564,8 +1600,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize opt-in browser notifications without prompting on page load.
     initializeBrowserNotifications();
 
-    // Load initial emails
-    loadEmails();
+    // Load initial emails, then honor a service-worker notification deep link.
+    const initialEmailID = new URLSearchParams(window.location.search || '').get('email');
+    const initialLoad = loadEmails();
+    if (initialEmailID) {
+        void Promise.resolve(initialLoad).then(() => loadEmailDetail(initialEmailID));
+    }
 
     // Connect WebSocket
     connectWebSocket();
