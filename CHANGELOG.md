@@ -6,6 +6,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The in-memory mail store now uses an ID map with ordered IDs and returns deep
+  snapshots to API, WebSocket, webhook, and other event consumers.
+
 ## [0.5.0]
 
 ### Added

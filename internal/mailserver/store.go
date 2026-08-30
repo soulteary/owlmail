@@ -51,18 +51,22 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 		parsedEmail.HTML = strings.TrimSpace(sanitizeHTML(parsedEmail.HTML))
 	}
 
+	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
-	ms.store = append(ms.store, parsedEmail)
+	if _, exists := ms.storeByID[id]; !exists {
+		ms.storeOrder = append(ms.storeOrder, id)
+	}
+	ms.storeByID[id] = storedEmail
 	ms.storeMutex.Unlock()
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
 	// Emit new email event
-	ms.emit("new", parsedEmail)
+	ms.emit("new", storedEmail)
 
 	// Auto relay if enabled
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
-		if err := ms.RelayMail(parsedEmail, true, func(err error) {
+		if err := ms.RelayMail(cloneEmail(storedEmail), true, func(err error) {
 			if err != nil {
 				common.Error("Error when auto-relaying email: %v", err)
 			}
@@ -98,14 +102,8 @@ func (ms *MailServer) GetEmail(id string) (*Email, error) {
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
 
-	for _, email := range ms.store {
-		if email.ID == id {
-			// Sanitize HTML if present
-			if email.HTML != "" {
-				email.HTML = sanitizeHTML(email.HTML)
-			}
-			return email, nil
-		}
+	if email, exists := ms.storeByID[id]; exists {
+		return cloneEmail(email), nil
 	}
 
 	return nil, fmt.Errorf("email was not found")
@@ -117,8 +115,12 @@ func (ms *MailServer) GetAllEmail() []*Email {
 	defer ms.storeMutex.RUnlock()
 
 	// Return a copy to prevent external modification
-	emails := make([]*Email, len(ms.store))
-	copy(emails, ms.store)
+	emails := make([]*Email, 0, len(ms.storeOrder))
+	for _, id := range ms.storeOrder {
+		if email, exists := ms.storeByID[id]; exists {
+			emails = append(emails, cloneEmail(email))
+		}
+	}
 	return emails
 }
 
@@ -127,18 +129,8 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	ms.storeMutex.Lock()
 	defer ms.storeMutex.Unlock()
 
-	var email *Email
-	var emailIndex = -1
-
-	for i, e := range ms.store {
-		if e.ID == id {
-			email = e
-			emailIndex = i
-			break
-		}
-	}
-
-	if emailIndex == -1 {
+	email, exists := ms.storeByID[id]
+	if !exists {
 		return fmt.Errorf("email not found")
 	}
 
@@ -170,7 +162,13 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
 	// Remove from store
-	ms.store = append(ms.store[:emailIndex], ms.store[emailIndex+1:]...)
+	delete(ms.storeByID, id)
+	for i, storedID := range ms.storeOrder {
+		if storedID == id {
+			ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)
+			break
+		}
+	}
 
 	// Emit delete event
 	ms.emit("delete", email)
@@ -195,7 +193,8 @@ func (ms *MailServer) DeleteAllEmail() error {
 		}
 	}
 
-	ms.store = make([]*Email, 0)
+	ms.storeByID = make(map[string]*Email)
+	ms.storeOrder = make([]string, 0)
 	return nil
 }
 
@@ -289,7 +288,7 @@ func (ms *MailServer) ReadAllEmail() int {
 	defer ms.storeMutex.Unlock()
 
 	count := 0
-	for _, email := range ms.store {
+	for _, email := range ms.storeByID {
 		if !email.Read {
 			email.Read = true
 			count++
@@ -303,11 +302,9 @@ func (ms *MailServer) ReadEmail(id string) error {
 	ms.storeMutex.Lock()
 	defer ms.storeMutex.Unlock()
 
-	for _, email := range ms.store {
-		if email.ID == id {
-			email.Read = true
-			return nil
-		}
+	if email, exists := ms.storeByID[id]; exists {
+		email.Read = true
+		return nil
 	}
 	return fmt.Errorf("email not found")
 }
@@ -318,11 +315,11 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	defer ms.storeMutex.RUnlock()
 
 	stats := make(map[string]interface{})
-	total := len(ms.store)
+	total := len(ms.storeByID)
 	unread := 0
 	byDate := make(map[string]int)
 
-	for _, email := range ms.store {
+	for _, email := range ms.storeByID {
 		if !email.Read {
 			unread++
 		}
@@ -509,13 +506,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Check if email already loaded
 		ms.storeMutex.RLock()
-		alreadyLoaded := false
-		for _, email := range ms.store {
-			if email.ID == id {
-				alreadyLoaded = true
-				break
-			}
-		}
+		_, alreadyLoaded := ms.storeByID[id]
 		ms.storeMutex.RUnlock()
 
 		if alreadyLoaded {

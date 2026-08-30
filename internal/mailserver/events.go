@@ -43,7 +43,8 @@ func (ms *MailServer) emit(event string, email *types.Email) {
 	// delay UI broadcasts or lightweight logging handlers registered after it.
 	for _, listener := range listeners {
 		if listener.slots == nil {
-			go listener.handler(email)
+			emailSnapshot := cloneEmail(email)
+			go listener.handler(emailSnapshot)
 		}
 	}
 	for _, listener := range listeners {
@@ -51,9 +52,10 @@ func (ms *MailServer) emit(event string, email *types.Email) {
 			continue
 		}
 		listener.slots <- struct{}{}
+		emailSnapshot := cloneEmail(email)
 		go func(listener eventListener) {
 			defer func() { <-listener.slots }()
-			listener.handler(email)
+			listener.handler(emailSnapshot)
 		}(listener)
 	}
 }

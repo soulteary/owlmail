@@ -43,7 +43,8 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
-	store          []*types.Email
+	storeByID      map[string]*types.Email
+	storeOrder     []string
 	storeMutex     sync.RWMutex
 	mailDir        string
 	port           int

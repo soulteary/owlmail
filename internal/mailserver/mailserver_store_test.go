@@ -1,13 +1,118 @@
 package mailserver
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/emersion/go-message/mail"
 )
+
+func TestMailStoreReturnsDeepSnapshots(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	email := &Email{
+		Subject:       "original",
+		From:          []*mail.Address{{Name: "Sender", Address: "sender@example.test"}},
+		To:            []*mail.Address{{Address: "receiver@example.test"}},
+		Attachments:   []*Attachment{{FileName: "original.txt"}},
+		Headers:       map[string]interface{}{"Received": []string{"first", "second"}},
+		CalculatedBCC: []*mail.Address{{Address: "hidden@example.test"}},
+	}
+	envelope := &Envelope{From: "sender@example.test", To: []string{"receiver@example.test"}}
+	if err := server.SaveEmailToStore("snapshot-id", false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	// Mutating either input object after SaveEmailToStore must not modify the
+	// object graph owned by the store.
+	email.Subject = "input-mutated"
+	email.From[0].Address = "mutated@example.test"
+	email.Attachments[0].FileName = "mutated.txt"
+	email.Headers["Received"].([]string)[0] = "mutated"
+	envelope.To[0] = "mutated@example.test"
+
+	first, err := server.GetEmail("snapshot-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Subject != "original" || first.From[0].Address != "sender@example.test" || first.Attachments[0].FileName != "original.txt" {
+		t.Fatalf("stored email was changed through the input object: %#v", first)
+	}
+	if first.Headers["Received"].([]string)[0] != "first" || first.Envelope.To[0] != "receiver@example.test" {
+		t.Fatalf("stored nested fields were changed through the input object: %#v", first)
+	}
+
+	// Mutating a result from either query API must not affect later reads.
+	first.Subject = "result-mutated"
+	first.From[0].Address = "result@example.test"
+	first.Attachments[0].FileName = "result.txt"
+	first.Headers["Received"].([]string)[0] = "result"
+	first.Envelope.To[0] = "result@example.test"
+	all := server.GetAllEmail()
+	all[0].Subject = "all-mutated"
+	all[0].To[0].Address = "all@example.test"
+
+	again, err := server.GetEmail("snapshot-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Subject != "original" || again.From[0].Address != "sender@example.test" || again.To[0].Address != "receiver@example.test" {
+		t.Fatalf("query result leaked mutable store state: %#v", again)
+	}
+	if again.Headers["Received"].([]string)[0] != "first" || again.Envelope.To[0] != "receiver@example.test" {
+		t.Fatalf("nested query result leaked mutable store state: %#v", again)
+	}
+}
+
+func TestMailStoreConcurrentSnapshotsAndMutations(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	for i := 0; i < 32; i++ {
+		id := fmt.Sprintf("id-%d", i)
+		email := &Email{Subject: id, Headers: map[string]interface{}{"X-Test": []string{id}}}
+		if err := server.SaveEmailToStore(id, false, &Envelope{To: []string{"to@example.test"}}, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var workers sync.WaitGroup
+	for worker := 0; worker < 8; worker++ {
+		workers.Add(1)
+		go func(worker int) {
+			defer workers.Done()
+			for iteration := 0; iteration < 100; iteration++ {
+				id := fmt.Sprintf("id-%d", (worker+iteration)%32)
+				if worker%2 == 0 {
+					_ = server.ReadEmail(id)
+				} else if email, getErr := server.GetEmail(id); getErr == nil {
+					email.Subject = "caller-owned"
+					email.Headers["X-Test"].([]string)[0] = "caller-owned"
+				}
+				for _, email := range server.GetAllEmail() {
+					email.Read = false
+				}
+				_ = server.GetEmailStats()
+			}
+		}(worker)
+	}
+	workers.Wait()
+
+	if got := len(server.GetAllEmail()); got != 32 {
+		t.Fatalf("mail count = %d, want 32", got)
+	}
+}
 
 func TestMailServerGetEmail(t *testing.T) {
 	tmpDir := t.TempDir()
