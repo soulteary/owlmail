@@ -12,12 +12,18 @@ on:
 
 permissions:
   contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 env:
-  GO_VERSION: "1.27.0"
   GO111MODULE: on
   GOFLAGS: -mod=readonly
   GOVULNCHECK_VERSION: "v1.7.0"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   release:
@@ -60,6 +66,8 @@ jobs:
           fi
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "app-version=${VERSION#v}" >> "${GITHUB_OUTPUT}"
+          echo "commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
           echo "notes=${NOTES}" >> "${GITHUB_OUTPUT}"
           if [[ "${VERSION}" == *-* ]]; then
             echo "prerelease=true" >> "${GITHUB_OUTPUT}"
@@ -70,7 +78,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache-dependency-path: go.sum
 
       - name: Set up Bun
@@ -177,6 +185,50 @@ jobs:
       - name: Create checksums
         run: |
           sha256sum owlmail-* > checksums.txt
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract release image metadata
+        id: image-meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }}
+            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }}
+            type=sha,prefix=sha-
+            type=raw,value=latest,enable=${{ steps.release.outputs.prerelease == 'false' }}
+
+      - name: Prepare image build metadata
+        id: build-meta
+        shell: bash
+        run: echo "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build and push release image
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            VERSION=${{ steps.release.outputs.app-version }}
+            COMMIT=${{ steps.release.outputs.commit }}
+            BUILD_DATE=${{ steps.build-meta.outputs.build-date }}
+            BRANCH=${{ steps.release.outputs.version }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.image-meta.outputs.tags }}
+          labels: ${{ steps.image-meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Create release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2

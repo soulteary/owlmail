@@ -9,8 +9,10 @@ container images must be built from that same tag.
 - `CHANGELOG.md` records user-visible changes.
 - `docs/en/Release-X.Y.Z.md` is the curated English release body.
 - `docs/zh-CN/Release-X.Y.Z.md` is the corresponding Chinese release note.
-- `.github/workflows/release.yml` builds binaries and checksums.
-- `.github/workflows/docker.yml` publishes multi-architecture images.
+- `.github/workflows/release.yml` builds formal binaries, checksums, and
+  multi-architecture release images from tags.
+- `.github/workflows/docker.yml` publishes moving `main`, `latest`, and commit
+  snapshots for the default branch only.
 
 The release workflow prepends the curated English note to GitHub's generated
 change list. It refuses manual runs for a missing tag or missing release-note
@@ -49,8 +51,8 @@ git push origin v0.5.0
 Do not move or reuse a published release tag. If a release needs a correction,
 make a new patch version.
 
-The tag push starts both release workflows. A manual run of the binary release
-workflow is only a retry mechanism: provide an existing tag, and the workflow
+The tag push starts the release workflow. A manual run of that workflow is only
+a retry mechanism: provide an existing tag, and the workflow
 checks out that tag before building. Before publishing assets, the job reruns
 dependency verification, formatting, `go vet`, race-enabled Go tests,
 `govulncheck`, and the Bun browser/documentation checks against the tag.

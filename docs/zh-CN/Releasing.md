@@ -8,8 +8,9 @@
 - `CHANGELOG.md` 记录用户可感知的改动。
 - `docs/en/Release-X.Y.Z.md` 是 GitHub Release 使用的英文发布正文。
 - `docs/zh-CN/Release-X.Y.Z.md` 是对应的中文发布说明。
-- `.github/workflows/release.yml` 构建二进制与校验和。
-- `.github/workflows/docker.yml` 发布多架构镜像。
+- `.github/workflows/release.yml` 从标签构建正式二进制、校验和及多架构发布镜像。
+- `.github/workflows/docker.yml` 只为默认分支发布会移动的 `main`、`latest` 与提交
+  快照。
 
 发布工作流会把英文策划版说明放在 GitHub 自动生成的变更列表之前。手动运行时，
 如果版本标签或对应发布说明文件不存在，工作流会失败。
@@ -45,8 +46,8 @@ git push origin v0.5.0
 
 不要移动或复用已经发布的标签。如需修正，应创建新的补丁版本。
 
-推送标签会启动二进制与容器发布工作流。手动运行二进制发布工作流只用于重试：
-必须提供已存在标签，工作流会先检出该标签再构建。发布文件上传前，任务会对该
+推送标签会启动统一发布工作流。手动运行该工作流只用于重试：必须提供已存在
+标签，工作流会先检出该标签再构建。发布文件上传前，任务会对该
 标签重新执行依赖校验、格式检查、`go vet`、带竞态检测的 Go 测试、
 `govulncheck` 以及 Bun 浏览器/文档检查。
 
