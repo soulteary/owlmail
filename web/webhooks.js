@@ -378,6 +378,21 @@
         return true;
     }
 
+    function authorityHasInvalidHostEscape(authority) {
+        const hostPort = authority.slice(authority.lastIndexOf('@') + 1);
+        if (hostPort.startsWith('[')) {
+            const bracketEnd = hostPort.indexOf(']');
+            if (bracketEnd < 0) return false;
+            const address = hostPort.slice(1, bracketEnd);
+            const zoneDelimiter = address.indexOf('%25');
+            const addressWithoutZone = zoneDelimiter < 0 ? address : address.slice(0, zoneDelimiter);
+            return addressWithoutZone.includes('%');
+        }
+        const portSeparator = hostPort.lastIndexOf(':');
+        const host = portSeparator < 0 ? hostPort : hostPort.slice(0, portSeparator);
+        return host.includes('%');
+    }
+
     function validateURL(value, path, errors, warnings) {
         if (typeof value !== 'string') {
             if (value === undefined || value === null || value === '') errors.push(issue('urlRequired', path));
@@ -421,6 +436,10 @@
         const authorityHasUserInfo = authority.includes('@');
         const authorityIsStaticallyEmpty = authorityStart >= 0 && authorityStart === authorityEnd;
         if (authorityHasUserInfo) errors.push(issue('urlCredentials', path));
+        if (authorityHasInvalidHostEscape(authority)) {
+            errors.push(issue('urlInvalid', path));
+            return;
+        }
         if (authority.includes('\\')) {
             errors.push(issue('urlInvalid', path));
             return;
@@ -1137,7 +1156,8 @@
         validGlobPattern,
         patternsFromEditorValue,
         editorValueFromPreserved,
-        createHeaderMap
+        createHeaderMap,
+        authorityHasInvalidHostEscape
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);

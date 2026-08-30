@@ -239,10 +239,13 @@ test('URL validation still checks static authority with a placeholder scheme', (
 test('URL validation rejects escapes that Go net/url cannot parse', () => {
     const result = configurator.validateConfig({
         version: 1,
-        targets: [{ name: 'bad-escape', url: 'https://example.com/%zz' }]
+        targets: [
+            { name: 'bad-escape', url: 'https://example.com/%zz' },
+            { name: 'escaped-host', url: 'https://%65xample.com/hook' }
+        ]
     });
 
-    assert.ok(codes(result).includes('urlInvalid'));
+    assert.equal(codes(result).filter((code) => code === 'urlInvalid').length, 2);
 });
 
 test('URL validation rejects normalized whitespace and opaque HTTP URLs', () => {
