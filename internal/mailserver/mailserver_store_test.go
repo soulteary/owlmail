@@ -333,6 +333,36 @@ func TestMailServerDeleteAllEmailWithEmptyDir(t *testing.T) {
 	}
 }
 
+func TestMailServerDeleteAllEmailPreservesWebhookOutbox(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	outboxJob := filepath.Join(tmpDir, webhookOutboxDirectoryName, "pending.json")
+	if err := os.MkdirAll(filepath.Dir(outboxJob), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outboxJob, []byte(`{"id":"pending"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "mail.eml"), []byte("mail"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatal(err)
+	}
+	if content, err := os.ReadFile(outboxJob); err != nil || string(content) != `{"id":"pending"}` {
+		t.Fatalf("outbox job after delete-all = %q, %v", content, err)
+	}
+	if _, err := os.Stat(filepath.Join(tmpDir, "mail.eml")); !os.IsNotExist(err) {
+		t.Fatalf("mail file survived delete-all: %v", err)
+	}
+}
+
 func TestMailServerReadEmail(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", tmpDir)

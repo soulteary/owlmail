@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -102,20 +103,136 @@ func TestServiceCloseDrainsInFlightDelivery(t *testing.T) {
 }
 
 type fakeDeliveryQueue struct {
-	claims  chan *queueReceipt
-	mu      sync.Mutex
-	acked   []string
-	dead    []string
-	renewed []string
-	count   int64
+	claims     chan *queueReceipt
+	mu         sync.Mutex
+	acked      []string
+	dead       []string
+	renewed    []string
+	count      int64
+	enqueueErr error
 }
 
 func (queue *fakeDeliveryQueue) Enqueue(_ context.Context, job deliveryJob) error {
 	queue.mu.Lock()
+	if queue.enqueueErr != nil {
+		err := queue.enqueueErr
+		queue.mu.Unlock()
+		return err
+	}
 	queue.count++
 	queue.mu.Unlock()
 	queue.claims <- &queueReceipt{id: job.ID, job: job}
 	return nil
+}
+
+func TestOutboxRetainsJobUntilQueueAcceptsIt(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "durable-job", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	queue := &fakeDeliveryQueue{claims: make(chan *queueReceipt, 1), enqueueErr: errors.New("redis unavailable")}
+	service := &Service{queue: queue, outbox: outbox, ctx: context.Background()}
+
+	if pending, err := service.flushOutbox(); err == nil || !pending {
+		t.Fatalf("flushOutbox() = %v, %v; expected retained failure", pending, err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("outbox after queue failure = %#v, %v", entries, err)
+	}
+
+	queue.mu.Lock()
+	queue.enqueueErr = nil
+	queue.mu.Unlock()
+	if pending, err := service.flushOutbox(); err != nil || !pending {
+		t.Fatalf("flushOutbox() retry = %v, %v", pending, err)
+	}
+	entries, err = outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("outbox after successful handoff = %#v, %v", entries, err)
+	}
+}
+
+func TestOutboxDecouplesEnqueueFromMemoryQueueCapacity(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1),
+		memoryQueue: make(chan deliveryJob), ctx: context.Background(), accepting: true,
+	}
+	completed := make(chan error, 1)
+	go func() { completed <- service.Enqueue(testEmail()) }()
+	select {
+	case err := <-completed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("enqueue blocked on the unavailable in-memory queue")
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("durable outbox entries = %#v, %v", entries, err)
+	}
+}
+
+func TestOutboxRecreatesMissingDirectory(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "recreated", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatalf("Store() after directory removal: %v", err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("List() after directory recreation = %#v, %v", entries, err)
+	}
+}
+
+func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1), outboxClosing: make(chan struct{}),
+		memoryQueue: make(chan deliveryJob, 1), ctx: ctx,
+	}
+	service.outboxWorkers.Add(1)
+	go service.runOutbox()
+	// Let the worker observe an empty outbox and wait for work.
+	time.Sleep(10 * time.Millisecond)
+	job := deliveryJob{ID: "accepted-before-close", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	close(service.outboxClosing)
+	service.outboxWorkers.Wait()
+	select {
+	case delivered := <-service.memoryQueue:
+		if delivered.ID != job.ID {
+			t.Fatalf("delivered job = %q, want %q", delivered.ID, job.ID)
+		}
+	default:
+		t.Fatal("accepted outbox job was not flushed during close")
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("outbox after close = %#v, %v", entries, err)
+	}
 }
 
 func (queue *fakeDeliveryQueue) Claim(ctx context.Context) (*queueReceipt, error) {
