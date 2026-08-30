@@ -6,6 +6,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Release engineering
+
+- CI now runs the race-enabled coverage suite once and reuses its output for
+  the Job Summary and a seven-day HTML artifact. The duplicate Codecov workflow
+  and silently ignored external upload failures were removed.
+
 ## [0.5.0]
 
 ### Added
