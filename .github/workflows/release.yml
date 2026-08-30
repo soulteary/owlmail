@@ -205,6 +205,7 @@ jobs:
             type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }}
             type=semver,pattern={{major}},value=${{ steps.release.outputs.version }}
+            type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ steps.release.outputs.prerelease == 'false' }}
 
       - name: Prepare image build metadata
