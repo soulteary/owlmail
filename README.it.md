@@ -54,6 +54,7 @@ prima di migrare client API o Socket.IO.
 - 🆕 **Ricerca Potente** - Ricerca full-text, filtri per intervallo di date, ordinamento
 - 🆕 **API RESTful Migliorata** - Design API più standardizzato (`/api/v1/*`)
 - 🆕 **Guida integrata** - Guida locale bilingue dalla casella di posta o su `/help`
+- 🆕 **Configuratore Webhook** - Editor locale integrato in `/webhooks` per creare, importare, validare, copiare e scaricare le regole di inoltro
 
 ### Compatibilità
 
@@ -65,7 +66,7 @@ prima di migrare client API o Socket.IO.
 ### Caratteristiche di distribuzione
 
 - ⚡ **Binario singolo** - Interfaccia e guida sono incorporate
-- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Node.js o Go
+- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Go, Bun o Node.js
 - ⚡ **Concorrenza esplicita** - I Webhook possono essere limitati o intenzionalmente illimitati
 
 Il repository non pubblica benchmark comparativi riproducibili. Misura avvio,

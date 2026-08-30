@@ -54,6 +54,7 @@ WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO �
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **내장 도움말** - 받은 편지함 또는 `/help`에서 여는 로컬 이중 언어 가이드
+- 🆕 **Webhook 구성 도구** - `/webhooks`에서 전달 규칙을 생성, 가져오기, 검증, 복사 및 다운로드하는 내장 로컬 편집기
 
 ### Compatibility
 
@@ -65,7 +66,7 @@ WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO �
 ### 배포 특성
 
 - ⚡ **단일 바이너리** - UI와 도움말이 내장됨
-- ⚡ **언어 런타임 불필요** - 배포 바이너리는 Node.js나 Go가 필요하지 않음
+- ⚡ **언어 런타임 불필요** - 배포 바이너리는 Go, Bun 또는 Node.js가 필요하지 않음
 - ⚡ **명시적 동시성 제어** - Webhook 전달은 제한하거나 의도적으로 무제한 설정 가능
 
 저장소에는 재현 가능한 프로젝트 간 벤치마크가 없습니다. 실제 부하로 시작 시간,

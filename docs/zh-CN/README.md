@@ -35,7 +35,8 @@
   - **其他语言**：[English](../en/Operations.md)
 
 - **[Webhook 消息转发](./Webhook-Forwarding.md)**
-  - 配置邮件过滤、自定义消息模板、HMAC 签名、失败重试，以及与 `soulteary/webhook` 的对接。
+  - 使用内置 `/webhooks` 配置器，或手动配置邮件过滤、自定义消息模板、HMAC
+    签名、失败重试，以及与 `soulteary/webhook` 的对接。
   - **可运行示例**：[最小、过滤、自定义、多目标、纯文本与 Compose 联动](../../examples/webhooks/README.zh-CN.md)
   - **其他语言**：[English](../en/Webhook-Forwarding.md)
 

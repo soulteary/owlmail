@@ -2,9 +2,9 @@
 
 OwlMail 0.5.0 expands the server from a local inbox into a more complete
 integration endpoint while retaining its single-binary deployment model. The
-release adds configurable outgoing webhooks, embedded help, opt-in browser
-notifications, explicit webhook capacity controls, and safer partial Web Basic
-Auth behavior.
+release adds configurable outgoing webhooks, an embedded webhook configurator,
+embedded help, opt-in browser notifications, explicit webhook capacity
+controls, and safer partial Web Basic Auth behavior.
 
 Commands that reference `v0.5.0` or the `0.5.0` container tag work only after
 the release tag has been published.
@@ -27,6 +27,18 @@ Use `-webhook-config` or `OWLMAIL_WEBHOOK_CONFIG` to select the JSON file. The
 process-wide `-webhook-max-concurrency` /
 `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` setting defaults to `8`; set it to `0` only
 when unlimited delivery is intentional.
+
+### Browser webhook configurator
+
+The inbox links to an English/Chinese editor at `/webhooks`. It can build a new
+version 1 configuration or import, validate, copy, and download an existing
+one. All editing happens locally in the browser; OwlMail does not upload the
+configuration or its secrets.
+
+Downloading a configuration does not activate it. Mount or otherwise place the
+JSON file where the server can read it, select it with `-webhook-config` or
+`OWLMAIL_WEBHOOK_CONFIG`, and restart OwlMail. Runtime environment placeholders
+are preserved and are checked only when OwlMail starts.
 
 ### Embedded operator help
 
@@ -100,11 +112,12 @@ Source installation requires Go 1.27.0 or newer:
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.5.0
 ```
 
-Downloaded release binaries do not require Go or Node.js at runtime.
+Downloaded release binaries do not require Go, Bun, or Node.js at runtime.
 
 Release binaries and images embed `version`, `commit`, `build_date`, and the
 source tag. Inspect them through `GET /api/v1/version`; the release workflow
-smoke-tests the embedded version and commit before uploading assets.
+repeats the Go and Bun test suites, runs `govulncheck`, and smoke-tests the
+embedded version and commit before uploading assets.
 
 ### Container image
 

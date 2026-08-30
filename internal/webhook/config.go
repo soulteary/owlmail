@@ -145,7 +145,7 @@ func compileTarget(target Target) (compiledTarget, error) {
 		return compiledTarget{}, fmt.Errorf("name is required")
 	}
 	if len(name) > 100 || strings.ContainsAny(name, "\r\n") {
-		return compiledTarget{}, fmt.Errorf("name must be at most 100 characters and contain no newlines")
+		return compiledTarget{}, fmt.Errorf("name must be at most 100 UTF-8 bytes and contain no newlines")
 	}
 
 	resolvedURL, err := expandEnvironmentVariables(target.URL)

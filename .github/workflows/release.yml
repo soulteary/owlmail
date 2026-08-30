@@ -16,6 +16,8 @@ permissions:
 env:
   GO_VERSION: "1.27.0"
   GO111MODULE: on
+  GOFLAGS: -mod=readonly
+  GOVULNCHECK_VERSION: "v1.7.0"
 
 jobs:
   release:
@@ -71,8 +73,34 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
           cache-dependency-path: go.sum
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version-file: ".bun-version"
+
       - name: Download dependencies
         run: go mod download
+
+      - name: Run release preflight checks
+        shell: bash
+        run: |
+          go mod verify
+          UNFORMATTED="$(gofmt -s -l .)"
+          if [ -n "${UNFORMATTED}" ]; then
+            echo "${UNFORMATTED}"
+            echo "::error::Go source files are not formatted"
+            exit 1
+          fi
+          go vet ./...
+          go test -race ./...
+
+      - name: Scan for reachable Go vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION} ./...
+
+      - name: Verify browser assets and documentation
+        run: |
+          bun build ./web/*.js --target=browser --outdir="${RUNNER_TEMP}/owlmail-browser-check"
+          bun test ./tests/web ./tests/docs
 
       - name: Build binaries
         env:

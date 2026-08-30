@@ -54,6 +54,7 @@ API レスポンスと WebSocket プロトコルは独自です。API や Socket
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **内蔵ヘルプ** - 受信トレイまたは `/help` から開けるローカル二言語ガイド
+- 🆕 **Webhook 設定ツール** - `/webhooks` で転送ルールの作成、インポート、検証、コピー、ダウンロードができる組み込みローカルエディター
 
 ### Compatibility
 
@@ -65,7 +66,7 @@ API レスポンスと WebSocket プロトコルは独自です。API や Socket
 ### デプロイ特性
 
 - ⚡ **単一バイナリ** - UI とヘルプを埋め込み
-- ⚡ **言語ランタイム不要** - 配布バイナリは Node.js や Go を必要としない
+- ⚡ **言語ランタイム不要** - 配布バイナリは Go、Bun、Node.js を必要としない
 - ⚡ **明示的な同時実行制御** - Webhook は上限付き、または意図的に無制限に設定可能
 
 リポジトリには再現可能なプロジェクト間ベンチマークはありません。実際の負荷で

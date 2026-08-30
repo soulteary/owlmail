@@ -55,6 +55,7 @@ boundary before migrating API or Socket.IO clients.
 - 🆕 **Powerful Search** - Full-text search, date range filtering, sorting
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **Built-in Help** - Local bilingual guide available from the inbox or at `/help`
+- 🆕 **Webhook Configurator** - Embedded local editor at `/webhooks` for building, importing, validating, copying, and downloading forwarding rules
 
 ### Compatibility
 
@@ -66,7 +67,7 @@ boundary before migrating API or Socket.IO clients.
 ### Deployment Characteristics
 
 - ⚡ **Single Binary** - Compiled executable with the UI and help assets embedded
-- ⚡ **No Language Runtime** - The deployed binary does not require Node.js or Go
+- ⚡ **No Language Runtime** - The deployed binary does not require Go, Bun, or Node.js
 - ⚡ **Explicit Concurrency Controls** - Webhook delivery can be bounded or intentionally unlimited
 
 The repository does not publish a reproducible cross-project benchmark. Measure
@@ -114,8 +115,12 @@ export MAILDEV_WEB_PORT=1080
 ```
 
 Open `http://localhost:1080` for the inbox. The **Help** button opens the local
-guide at `http://localhost:1080/help`. Both pages and their assets are embedded
-in the executable, so installed binaries do not need a separate `web` folder.
+guide at `http://localhost:1080/help`, while **Webhooks** opens the local
+configurator at `http://localhost:1080/webhooks`. The configurator generates and
+downloads JSON; it does not change the running server. Select the file with
+`-webhook-config` and restart OwlMail to activate it. All pages and assets are
+embedded in the executable, so installed binaries do not need a separate `web`
+folder.
 
 ### Docker Usage
 
@@ -460,6 +465,11 @@ EOF
 ```
 
 ### Webhook Forwarding
+
+Use the embedded configurator at `http://localhost:1080/webhooks` to build a new
+version 1 configuration or import and validate an existing one. Editing stays
+inside the browser. Download the resulting JSON, then select it with
+`-webhook-config` and restart OwlMail; downloading a file does not activate it.
 
 ```bash
 # Terminal 1: local test receiver

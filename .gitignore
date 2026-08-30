@@ -2,3 +2,5 @@
 *.test
 coverage.html
 .bun-check/
+/owlmail
+/owlmail.exe
