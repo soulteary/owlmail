@@ -312,6 +312,35 @@ test('target names use the backend UTF-8 byte limit', () => {
     assert.equal(configurator.utf8ByteLength('猫'.repeat(33)), 99);
 });
 
+test('name and pattern whitespace normalization follows Go strings.TrimSpace', () => {
+    const nextLine = '\u0085';
+    const invalid = configurator.validateConfig({
+        version: 1,
+        targets: [{
+            name: nextLine,
+            url: 'https://example.com/hook',
+            match: { subject: [nextLine] }
+        }]
+    });
+    const parsed = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{
+            name: nextLine + 'primary' + nextLine,
+            url: 'https://example.com/hook',
+            method: nextLine + 'post' + nextLine,
+            contentType: nextLine + 'application/json' + nextLine
+        }]
+    }));
+
+    assert.ok(codes(invalid).includes('nameRequired'));
+    assert.ok(codes(invalid).includes('matchPattern'));
+    assert.deepEqual(codes(parsed), []);
+    assert.equal(parsed.config.targets[0].name, 'primary');
+    assert.equal(Object.hasOwn(parsed.config.targets[0], 'method'), false);
+    assert.equal(Object.hasOwn(parsed.config.targets[0], 'contentType'), false);
+    assert.equal(configurator.goTrimSpace('\uFEFF'), '\uFEFF');
+});
+
 test('imported match patterns retain significant whitespace and embedded newlines', () => {
     const patterns = [' leading*', 'trailing* ', 'line\nbreak'];
     const parsed = configurator.parseConfigText(JSON.stringify({

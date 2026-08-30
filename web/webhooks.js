@@ -278,6 +278,12 @@
         return value !== null && typeof value === 'object' && !Array.isArray(value);
     }
 
+    const goTrimSpacePattern = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$/g;
+
+    function goTrimSpace(value) {
+        return value.replace(goTrimSpacePattern, '');
+    }
+
     function addUnknownFieldIssues(value, allowed, path, errors) {
         Object.keys(value).forEach((key) => {
             if (!allowed.has(key)) {
@@ -433,7 +439,7 @@
             errors.push(issue('urlRequired', path));
             return;
         }
-        if (value !== value.trim() || /[\u0000-\u001F\u007F]/.test(value)) {
+        if (value !== value.trim() || value !== goTrimSpace(value) || /[\u0000-\u001F\u007F]/.test(value)) {
             errors.push(issue('urlInvalid', path));
             return;
         }
@@ -534,7 +540,7 @@
             }
             patterns.forEach((pattern, index) => {
                 const patternPath = path + '.' + field + '[' + index + ']';
-                if (pattern.trim() === '') errors.push(issue('matchPattern', patternPath));
+                if (goTrimSpace(pattern) === '') errors.push(issue('matchPattern', patternPath));
                 else if (!validGlobPattern(pattern.toLowerCase())) errors.push(issue('matchGlob', patternPath, { pattern }));
             });
         });
@@ -552,7 +558,7 @@
             if (target.name === undefined || target.name === null || target.name === '') errors.push(issue('nameRequired', path + '.name'));
             else errors.push(issue('fieldString', path + '.name'));
         } else {
-            const name = target.name.trim();
+            const name = goTrimSpace(target.name);
             if (!name) {
                 errors.push(issue('nameRequired', path + '.name'));
             } else if (utf8ByteLength(name) > 100 || /[\r\n]/.test(name)) {
@@ -566,7 +572,7 @@
         validateURL(target.url, path + '.url', errors, warnings);
 
         if (validateOptionalString(target.method, path + '.method', errors) && target.method) {
-            const method = target.method.trim().toUpperCase();
+            const method = goTrimSpace(target.method).toUpperCase();
             if (!['POST', 'PUT', 'PATCH'].includes(method)) errors.push(issue('unsupportedMethod', path + '.method'));
         }
 
@@ -577,7 +583,7 @@
                 const canonicalNames = new Set();
                 Object.entries(target.headers).forEach(([name, value]) => {
                     const headerPath = path + '.headers.' + name;
-                    const canonicalName = name.trim().toLowerCase();
+                    const canonicalName = goTrimSpace(name).toLowerCase();
                     if (!headerNamePattern.test(name)) errors.push(issue('headerNameInvalid', headerPath, { name }));
                     if (canonicalName === 'host' || canonicalName === 'content-length') {
                         errors.push(issue('managedHeader', headerPath, { name }));
@@ -665,11 +671,11 @@
             version: 1,
             targets: config.targets.map((source) => {
                 const target = {
-                    name: source.name.trim(),
+                    name: goTrimSpace(source.name),
                     url: source.url
                 };
-                const method = typeof source.method === 'string' ? source.method.trim().toUpperCase() : '';
-                const contentType = typeof source.contentType === 'string' ? source.contentType.trim() : '';
+                const method = typeof source.method === 'string' ? goTrimSpace(source.method).toUpperCase() : '';
+                const contentType = typeof source.contentType === 'string' ? goTrimSpace(source.contentType) : '';
                 if (method && method !== 'POST') target.method = method;
                 if (source.headers && Object.keys(source.headers).length) target.headers = { ...source.headers };
                 if (contentType && contentType !== 'application/json') target.contentType = contentType;
@@ -713,7 +719,7 @@
     }
 
     function splitPatternLines(value) {
-        return value.split(/\r?\n/).filter((line) => line.trim() !== '');
+        return value.split(/\r?\n/).filter((line) => goTrimSpace(line) !== '');
     }
 
     function patternsFromEditorValue(value, preserved) {
@@ -905,13 +911,13 @@
     function readTargetCard(card, index, formErrors) {
         const value = (selector) => card.querySelector(selector).value;
         const target = {
-            name: value('[data-field="name"]').trim(),
-            url: value('[data-field="url"]').trim()
+            name: goTrimSpace(value('[data-field="name"]')),
+            url: goTrimSpace(value('[data-field="url"]'))
         };
-        const method = value('[data-field="method"]').trim().toUpperCase();
-        const timeout = value('[data-field="timeout"]').trim();
-        const retriesText = value('[data-field="retries"]').trim();
-        const contentType = value('[data-field="contentType"]').trim();
+        const method = goTrimSpace(value('[data-field="method"]')).toUpperCase();
+        const timeout = goTrimSpace(value('[data-field="timeout"]'));
+        const retriesText = goTrimSpace(value('[data-field="retries"]'));
+        const contentType = goTrimSpace(value('[data-field="contentType"]'));
         const secretControl = card.querySelector('[data-field="secret"]');
         const bodyTemplateControl = card.querySelector('[data-field="bodyTemplate"]');
         const secret = editorValueFromPreserved(secretControl.value, preservedControlValues.get(secretControl));
@@ -930,7 +936,7 @@
         const headers = createHeaderMap();
         const headerNames = new Set();
         card.querySelectorAll('.header-row').forEach((row) => {
-            const name = row.querySelector('[data-header="name"]').value.trim();
+            const name = goTrimSpace(row.querySelector('[data-header="name"]').value);
             const headerValue = row.querySelector('[data-header="value"]').value;
             if (!name && !headerValue) return;
             const canonical = name.toLowerCase();
@@ -1188,7 +1194,8 @@
         patternsFromEditorValue,
         editorValueFromPreserved,
         createHeaderMap,
-        authorityHasInvalidHost
+        authorityHasInvalidHost,
+        goTrimSpace
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);
