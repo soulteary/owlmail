@@ -46,6 +46,14 @@ export OWLMAIL_WEBHOOK_CONFIG=./webhooks.json
 export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 ```
 
+For durable, restart-safe handoff, add Redis 6.2 or newer:
+
+```bash
+export OWLMAIL_WEBHOOK_REDIS_URL=redis://redis:6379/0
+export OWLMAIL_WEBHOOK_REDIS_PREFIX=owlmail:webhooks
+export OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT=15s
+```
+
 If neither the flag nor environment variable is set, webhook forwarding is
 disabled. The configuration is validated once at startup; restart OwlMail after
 editing it.
@@ -108,7 +116,7 @@ loopback-only receiver, exact startup commands, and a test SMTP message.
 | `method` | No | `POST` by default; `POST`, `PUT`, and `PATCH` are accepted. |
 | `headers` | No | Static request headers. Header names and values are validated; `Host` and `Content-Length` cannot be overridden. |
 | `contentType` | No | `application/json` by default. An explicit `Content-Type` header takes precedence. |
-| `secret` | No | Generates `X-OwlMail-Signature: sha256=<hex>` over the exact request body. |
+| `secret` | No | Generates replay-aware `X-OwlMail-Signature-V2` plus a legacy body-only signature. |
 | `timeout` | No | Per-attempt timeout; default `5s`, maximum `1m`. |
 | `retries` | No | Extra attempts from zero to five. Only network errors, 408, 425, 429, and 5xx responses are retried. |
 | `match` | No | Case-insensitive wildcard rules. See the rule semantics below. |
@@ -134,6 +142,27 @@ matching rules, or `bodyTemplate`.
 - All targets and templates are compiled before SMTP and Web servers start, so
   a configuration error fails fast without partially enabling forwarding.
 
+## Durable delivery, dead letters, and shutdown
+
+When `OWLMAIL_WEBHOOK_REDIS_URL` is set, OwlMail writes each stored-email event
+to a Redis Stream before the event handoff returns. Consumer-group workers
+acknowledge and delete an entry only after every matching target succeeds.
+Entries left pending by a crashed process are reclaimed after 30 seconds. If a
+target still fails after its configured retries, OwlMail moves a record with
+the delivery error to `<prefix>:dead-letter` and removes the live entry.
+
+Delivery is at least once: a crash after the receiver accepts a request but
+before Redis is acknowledged can produce a duplicate. Deduplicate the stable
+`X-OwlMail-Delivery-ID`; the email ID alone is not sufficient if future event
+types can create multiple deliveries for one email. Redis must be reachable at
+startup. This consumer setup is intended for one active OwlMail instance per
+prefix.
+
+Shutdown stops SMTP intake, stops accepting queue handoffs, drains queued and
+in-flight deliveries for up to `-webhook-shutdown-timeout`, then cancels the
+shared delivery context. Without Redis, the same drain behavior applies but
+queued jobs do not survive a process or host failure.
+
 ## Concurrency and backpressure
 
 `-webhook-max-concurrency` limits concurrent email delivery jobs across all
@@ -141,13 +170,10 @@ targets. The default of `8` is appropriate for local development and small CI
 environments. A useful starting estimate is peak emails per second multiplied
 by the receiver's p95 response time in seconds, rounded up.
 
-The limit is acquired before OwlMail creates the webhook handler goroutine. If
-all slots are busy, the email is already persisted and event processing waits
-for a slot; lightweight logging and WebSocket listeners are still started
-first. SMTP `DATA` completion can therefore wait for a slot even though the
-message has already been stored. This intentional backpressure prevents slow
-receivers from creating an unbounded goroutine pile. Within one job, matching
-targets are delivered sequentially.
+The limit sizes queue consumers rather than goroutines waiting on a semaphore.
+SMTP `DATA` completion waits only for the queue handoff (including the Redis append in
+durable mode), not for the target HTTP request. Within one job, matching targets
+are delivered sequentially.
 
 Use `0` only when unlimited fan-out is intentional. It preserves the previous
 behavior and can consume large amounts of memory and sockets during a burst.
@@ -252,11 +278,14 @@ local storage paths are never included.
 | `Content-Type` | Target `contentType`, defaulting to `application/json`; an explicit custom header wins. |
 | `User-Agent` | `OwlMail-Webhook/1`, unless overridden by a custom header. |
 | `X-OwlMail-Event` | Always `email.received`. |
-| `X-OwlMail-Email-ID` | Exact OwlMail email ID; use it as an idempotency key. |
-| `X-OwlMail-Signature` | Present only when `secret` is set; `sha256=` plus lowercase hex HMAC over the exact body bytes. |
+| `X-OwlMail-Email-ID` | Exact OwlMail email ID. |
+| `X-OwlMail-Delivery-ID` | Stable queue job ID; use it as the idempotency key. |
+| `X-OwlMail-Timestamp` | UTC RFC 3339 signing time, present when `secret` is set. |
+| `X-OwlMail-Nonce` | Fresh random value for every HTTP attempt, present when `secret` is set. |
+| `X-OwlMail-Signature-V2` | `v2=` plus lowercase HMAC-SHA256 over `timestamp + "." + nonce + "." + exact body`. Receivers should require this header, enforce a short timestamp window, and reject reused nonces. |
+| `X-OwlMail-Signature` | Legacy body-only signature retained for compatibility; it does not provide replay protection. |
 
-Retries send the same body and email ID, so receivers should deduplicate before
-performing a non-idempotent action.
+Retries send the same body and delivery ID but a fresh timestamp and nonce.
 
 ## Send to `soulteary/webhook`
 

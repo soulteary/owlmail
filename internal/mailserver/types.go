@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"io"
 	"sync"
 
 	"github.com/emersion/go-smtp"
@@ -37,8 +38,9 @@ type TLSConfig struct {
 }
 
 type eventListener struct {
-	handler func(*types.Email)
-	slots   chan struct{}
+	handler     func(*types.Email)
+	slots       chan struct{}
+	synchronous bool
 }
 
 // MailServer represents the SMTP mail server
@@ -54,6 +56,8 @@ type MailServer struct {
 	eventChan      chan Event
 	listeners      map[string][]eventListener
 	listenersMutex sync.RWMutex
+	closers        []io.Closer
+	closersMutex   sync.Mutex
 	outgoing       interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
 		UpdateConfig(config interface{})
