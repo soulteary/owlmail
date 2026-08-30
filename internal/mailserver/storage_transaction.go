@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -8,6 +9,8 @@ import (
 	"runtime"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -127,15 +130,16 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 	if err != nil {
 		return fmt.Errorf("read mail directory for recovery: %w", err)
 	}
+	var recoveryErrors []error
 	for _, entry := range entries {
 		if !strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
 		if err := ms.quarantinePath(filepath.Join(ms.mailDir, entry.Name()), "incomplete"); err != nil {
-			return fmt.Errorf("quarantine incomplete artifact %s: %w", entry.Name(), err)
+			recoveryErrors = append(recoveryErrors, fmt.Errorf("quarantine incomplete artifact %s: %w", entry.Name(), err))
 		}
 	}
-	return nil
+	return errors.Join(recoveryErrors...)
 }
 
 func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {
@@ -158,6 +162,11 @@ func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {
 }
 
 func (ms *MailServer) quarantinePath(source, reason string) error {
+	if ms.beforeQuarantineMove != nil {
+		if err := ms.beforeQuarantineMove(source); err != nil {
+			return err
+		}
+	}
 	destination, err := ms.newQuarantineEntry(filepath.Base(source), reason)
 	if err != nil {
 		return err
@@ -166,6 +175,22 @@ func (ms *MailServer) quarantinePath(source, reason string) error {
 		return err
 	}
 	return syncDirectory(ms.mailDir)
+}
+
+// isGeneratedEmailID deliberately recognizes only the two ID formats OwlMail
+// creates. validateEmailID is a path-safety check and is intentionally broader,
+// so using it here would mistake arbitrary user directories for attachments.
+func isGeneratedEmailID(value string) bool {
+	if len(value) == 8 {
+		for _, char := range value {
+			if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
+				return false
+			}
+		}
+		return true
+	}
+	parsed, err := uuid.Parse(value)
+	return err == nil && parsed.String() == strings.ToLower(value)
 }
 
 func (ms *MailServer) newQuarantineEntry(id, reason string) (string, error) {
@@ -199,7 +224,7 @@ func (ms *MailServer) quarantineOrphanAttachmentDirectories() error {
 		if !entry.IsDir() || entry.Name() == quarantineDirName || strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
-		if err := validateEmailID(entry.Name()); err != nil {
+		if !isGeneratedEmailID(entry.Name()) {
 			continue
 		}
 		if _, err := os.Stat(filepath.Join(ms.mailDir, entry.Name()+".eml")); err == nil {

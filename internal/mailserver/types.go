@@ -73,6 +73,7 @@ type MailServer struct {
 	// provide deterministic fault injection for transaction boundary tests.
 	beforeStoreCommit     func(*types.Email) error
 	beforeAttachmentWrite func(string) error
+	beforeQuarantineMove  func(string) error
 }
 
 // GetHost returns the SMTP server host

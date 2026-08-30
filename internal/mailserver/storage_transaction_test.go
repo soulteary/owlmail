@@ -113,7 +113,10 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, storageTempPrefix+"partial.eml.tmp"), []byte("partial"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Mkdir(filepath.Join(dir, "orphan-id"), 0755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, "Ab12Cd34"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "archive"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -124,7 +127,7 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	if got := len(server.GetAllEmail()); got != 0 {
 		t.Fatalf("corrupt email was published: %d", got)
 	}
-	for _, name := range []string{"corrupt.eml", storageTempPrefix + "partial.eml.tmp", "orphan-id"} {
+	for _, name := range []string{"corrupt.eml", storageTempPrefix + "partial.eml.tmp", "Ab12Cd34"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
 			t.Fatalf("artifact %s was not moved to quarantine: %v", name, err)
 		}
@@ -135,5 +138,42 @@ func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	}
 	if len(quarantined) != 3 {
 		t.Fatalf("expected three quarantine entries, got %d", len(quarantined))
+	}
+	if _, err := os.Stat(filepath.Join(dir, "archive")); err != nil {
+		t.Fatalf("unrelated directory was treated as an orphan: %v", err)
+	}
+}
+
+func TestLoadMailsContinuesAfterQuarantineFailure(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	validID := "Ef56Gh78"
+	if err := os.WriteFile(filepath.Join(dir, validID+".eml"), validMessage("recoverable"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	temporaryName := storageTempPrefix + "blocked.eml.tmp"
+	if err := os.WriteFile(filepath.Join(dir, temporaryName), []byte("partial"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	server.beforeQuarantineMove = func(path string) error {
+		if filepath.Base(path) == temporaryName {
+			return errors.New("injected quarantine failure")
+		}
+		return nil
+	}
+
+	err = server.LoadMailsFromDirectory()
+	if err == nil || !strings.Contains(err.Error(), "injected quarantine failure") {
+		t.Fatalf("expected recovery error, got %v", err)
+	}
+	if _, err := server.GetEmail(validID); err != nil {
+		t.Fatalf("valid email was not restored after recovery error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, temporaryName)); err != nil {
+		t.Fatalf("failed artifact should remain available for a later retry: %v", err)
 	}
 }
