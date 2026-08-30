@@ -76,24 +76,11 @@ jobs:
           echo "commit=$(git rev-parse HEAD)" >> "${GITHUB_OUTPUT}"
           echo "notes=${NOTES}" >> "${GITHUB_OUTPUT}"
 
-          LATEST_STABLE=""
-          while IFS= read -r TAG; do
-            if [[ "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
-              LATEST_STABLE="${TAG}"
-              break
-            fi
-          done < <(git tag --list 'v*' --sort=-version:refname)
-
-          MOVING_TAGS=false
           if [[ "${VERSION}" == *-* ]]; then
             echo "prerelease=true" >> "${GITHUB_OUTPUT}"
           else
             echo "prerelease=false" >> "${GITHUB_OUTPUT}"
-            if [ "${VERSION}" = "${LATEST_STABLE}" ]; then
-              MOVING_TAGS=true
-            fi
           fi
-          echo "moving-tags=${MOVING_TAGS}" >> "${GITHUB_OUTPUT}"
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -272,27 +259,51 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Prepare image build metadata
+        id: build-meta
+        shell: bash
+        run: echo "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+
+      - name: Revalidate moving image tags
+        id: moving-tags
+        shell: bash
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          git fetch --force --tags origin
+          LATEST_STABLE=""
+          while IFS= read -r TAG; do
+            if [[ "${TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              LATEST_STABLE="${TAG}"
+              break
+            fi
+          done < <(git tag --list 'v*' --sort=-version:refname)
+
+          ENABLED=false
+          if [[ "${VERSION}" != *-* ]] && [ "${VERSION}" = "${LATEST_STABLE}" ]; then
+            ENABLED=true
+          fi
+          echo "enabled=${ENABLED}" >> "${GITHUB_OUTPUT}"
+
       - name: Extract release image metadata
         id: image-meta
         uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # SemVer tags enable latest=auto by default. Keep latest explicit so
+          # retries of older stable releases cannot move it backwards.
+          flavor: latest=false
           tags: |
             type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.moving-tags == 'true' }}
-            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.release.outputs.moving-tags == 'true' }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
+            type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable=${{ steps.release.outputs.moving-tags == 'true' }}
+            type=raw,value=latest,enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ steps.release.outputs.commit }}
             org.opencontainers.image.version=${{ steps.release.outputs.app-version }}
             org.opencontainers.image.licenses=MIT
-
-      - name: Prepare image build metadata
-        id: build-meta
-        shell: bash
-        run: echo "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push release image
         id: image

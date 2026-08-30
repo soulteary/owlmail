@@ -69,7 +69,10 @@ signatures before publishing the release.
 A retry of an older stable tag republishes only its immutable version and
 commit-SHA tags. The workflow updates `latest`, major, and minor aliases only
 when the requested tag is still the repository's newest stable SemVer tag, so
-an operational retry cannot downgrade users of moving image tags.
+an operational retry cannot downgrade users of moving image tags. Immediately
+before generating the image tags, the workflow fetches the remote tags and
+revalidates this condition. The metadata action's automatic `latest` flavor is
+disabled so only the explicitly guarded alias can be published.
 
 ## Verify published artifacts
 
