@@ -732,10 +732,11 @@ function notificationServiceWorkerSupported() {
 
 function getNotificationServiceWorker() {
     if (!notificationServiceWorkerSupported()) return Promise.resolve(null);
-    if (!notificationServiceWorkerPromise) {
-        notificationServiceWorkerPromise = navigator.serviceWorker
-            .register('/service-worker.js', { scope: '/' })
-            .catch((error) => {
+	if (!notificationServiceWorkerPromise) {
+		notificationServiceWorkerPromise = navigator.serviceWorker
+			.register('/service-worker.js', { scope: '/' })
+			.then((registration) => navigator.serviceWorker.ready || registration)
+			.catch((error) => {
                 console.warn('Unable to register notification service worker:', error);
                 return null;
             });
@@ -1598,8 +1599,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize opt-in browser notifications without prompting on page load.
     initializeBrowserNotifications();
 
-    // Load initial emails
-    loadEmails();
+    // Load initial emails, then honor a service-worker notification deep link.
+    const initialEmailID = new URLSearchParams(window.location.search || '').get('email');
+    const initialLoad = loadEmails();
+    if (initialEmailID) {
+        void Promise.resolve(initialLoad).then(() => loadEmailDetail(initialEmailID));
+    }
 
     // Connect WebSocket
     connectWebSocket();

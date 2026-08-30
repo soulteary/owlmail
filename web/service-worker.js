@@ -3,13 +3,21 @@ self.addEventListener('notificationclick', (event) => {
     const emailID = event.notification.data && event.notification.data.emailID;
     event.waitUntil((async () => {
         const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
-        if (windows.length > 0) {
-            const client = windows[0];
-            await client.focus();
-            client.postMessage({ type: 'owlmail-notification-click', emailID });
+        const mailbox = windows.find((client) => {
+            try {
+                const url = new URL(client.url);
+                return url.origin === self.location.origin
+                    && (url.pathname === '/' || url.pathname === '/index.html');
+            } catch (_) {
+                return false;
+            }
+        });
+        if (mailbox) {
+            await mailbox.focus();
+            mailbox.postMessage({ type: 'owlmail-notification-click', emailID });
             return;
         }
-        const client = await self.clients.openWindow('/');
-        if (client) client.postMessage({ type: 'owlmail-notification-click', emailID });
+        const target = emailID ? `/?email=${encodeURIComponent(emailID)}` : '/';
+        await self.clients.openWindow(target);
     })());
 });

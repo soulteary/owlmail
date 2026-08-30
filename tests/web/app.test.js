@@ -63,7 +63,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const window = {
         Notification,
         isSecureContext: secure,
-        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test' },
+        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test', search: '' },
         addEventListener(name, handler) { windowListeners.set(name, handler); },
         focus() {}
     };
@@ -79,15 +79,17 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     };
     const navigator = { language: 'en-US' };
     if (serviceWorker) {
+		const activeRegistration = {
+			async showNotification(title, options) {
+				serviceNotifications.push({ title, options });
+			}
+		};
         navigator.serviceWorker = {
             addEventListener() {},
             async register() {
-                return {
-                    async showNotification(title, options) {
-                        serviceNotifications.push({ title, options });
-                    }
-                };
-            }
+				return { installing: {} };
+			},
+			ready: Promise.resolve(activeRegistration)
         };
     }
     const sandbox = {
