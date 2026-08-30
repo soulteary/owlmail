@@ -164,6 +164,16 @@ test('import parser rejects malformed JSON and unknown fields', () => {
     assert.equal(unknown.config, null);
 });
 
+test('import rejects duplicate JSON keys before alias canonicalization', () => {
+    const result = configurator.parseConfigText(
+        '{"version":1,"targets":[{"name":"primary","url":"https://first.example",' +
+        '"URL":"https://middle.example","url":"https://last.example"}]}'
+    );
+
+    assert.deepEqual(codes(result), ['duplicateJSONKey']);
+    assert.equal(result.config, null);
+});
+
 test('validation follows OwlMail target limits and safety rules', () => {
     const result = configurator.validateConfig({
         version: 1,
@@ -294,10 +304,14 @@ test('URL validation still checks static authority with a placeholder scheme', (
     const schemePlaceholder = '$' + '{SCHEME}';
     const result = configurator.validateConfig({
         version: 1,
-        targets: [{ name: 'missing-host', url: schemePlaceholder + ':///hook' }]
+        targets: [
+            { name: 'missing-host', url: schemePlaceholder + ':///hook' },
+            { name: 'impossible-scheme', url: 'x' + schemePlaceholder + '://example.com/hook' }
+        ]
     });
 
     assert.ok(codes(result).includes('urlHost'));
+    assert.ok(codes(result).includes('urlScheme'));
 });
 
 test('base URL placeholders still reject static fragments', () => {

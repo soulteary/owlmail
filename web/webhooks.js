@@ -103,6 +103,7 @@
             maxTargets: 'A configuration can contain at most 32 targets.',
             importedVersionNormalized: 'Version 0 or an omitted version is exported as version 1.',
             invalidJSON: 'JSON could not be parsed: {detail}',
+            duplicateJSONKey: 'Duplicate JSON key "{name}" is not allowed.',
             importEmpty: 'Paste JSON or choose a file first.',
             invalidRoot: 'The top-level value must be a JSON object.',
             unknownField: 'Unknown field "{field}".',
@@ -211,6 +212,7 @@
             maxTargets: '一份配置最多包含 32 个目标。',
             importedVersionNormalized: '导入的版本为 0 或未填写时，导出结果会规范为版本 1。',
             invalidJSON: '无法解析 JSON：{detail}',
+            duplicateJSONKey: '不允许重复的 JSON 键“{name}”。',
             importEmpty: '请先粘贴 JSON 或选择文件。',
             invalidRoot: '顶层内容必须是 JSON 对象。',
             unknownField: '存在未知字段“{field}”。',
@@ -349,6 +351,89 @@
             }
         }
         return normalized;
+    }
+
+    function findDuplicateJSONKey(text) {
+        let index = 0;
+        let duplicate = null;
+
+        function skipWhitespace() {
+            while (index < text.length && /[\u0009\u000A\u000D\u0020]/.test(text[index])) index++;
+        }
+
+        function readString() {
+            const start = index++;
+            while (index < text.length) {
+                if (text[index] === '\\') {
+                    index += 2;
+                } else if (text[index] === '"') {
+                    index++;
+                    break;
+                } else {
+                    index++;
+                }
+            }
+            return normalizeJSONSurrogates(JSON.parse(text.slice(start, index)));
+        }
+
+        function scanValue() {
+            skipWhitespace();
+            if (text[index] === '{') {
+                scanObject();
+            } else if (text[index] === '[') {
+                scanArray();
+            } else if (text[index] === '"') {
+                readString();
+            } else {
+                while (index < text.length && !/[\u0009\u000A\u000D\u0020,\]}]/.test(text[index])) index++;
+            }
+        }
+
+        function scanObject() {
+            const names = new Set();
+            index++;
+            skipWhitespace();
+            if (text[index] === '}') {
+                index++;
+                return;
+            }
+            while (index < text.length) {
+                skipWhitespace();
+                const name = readString();
+                if (duplicate === null && names.has(name)) duplicate = name;
+                names.add(name);
+                skipWhitespace();
+                index++;
+                scanValue();
+                skipWhitespace();
+                if (text[index] === '}') {
+                    index++;
+                    return;
+                }
+                index++;
+            }
+        }
+
+        function scanArray() {
+            index++;
+            skipWhitespace();
+            if (text[index] === ']') {
+                index++;
+                return;
+            }
+            while (index < text.length) {
+                scanValue();
+                skipWhitespace();
+                if (text[index] === ']') {
+                    index++;
+                    return;
+                }
+                index++;
+            }
+        }
+
+        scanValue();
+        return duplicate;
     }
 
     function addUnknownFieldIssues(value, allowed, path, errors) {
@@ -526,6 +611,32 @@
             value.slice(authorityEnd);
     }
 
+    function schemeCanResolveHTTP(scheme) {
+        const escapePattern = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const asciiLower = (value) => value.replace(/[A-Z]/g, (character) => character.toLowerCase());
+        const groups = new Map();
+        let groupIndex = 0;
+        let lastIndex = 0;
+        let pattern = '^';
+        environmentPattern.lastIndex = 0;
+        for (const match of scheme.matchAll(environmentPattern)) {
+            pattern += escapePattern(asciiLower(scheme.slice(lastIndex, match.index)));
+            let group = groups.get(match[0]);
+            if (group) {
+                pattern += '\\k<' + group + '>';
+            } else {
+                group = 'environment' + groupIndex++;
+                groups.set(match[0], group);
+                pattern += '(?<' + group + '>.+)';
+            }
+            lastIndex = match.index + match[0].length;
+        }
+        environmentPattern.lastIndex = 0;
+        pattern += escapePattern(asciiLower(scheme.slice(lastIndex))) + '$';
+        const matcher = new RegExp(pattern);
+        return matcher.test('http') || matcher.test('https');
+    }
+
     function validateURL(value, path, errors, warnings) {
         if (typeof value !== 'string') {
             if (value === undefined || value === null || value === '') errors.push(issue('urlRequired', path));
@@ -586,6 +697,10 @@
             const scheme = structuralValue.slice(0, schemeEnd);
             placeholderInScheme = environmentPattern.test(scheme);
             environmentPattern.lastIndex = 0;
+            if (placeholderInScheme && !schemeCanResolveHTTP(scheme)) {
+                errors.push(issue('urlScheme', path));
+                return;
+            }
         }
 
         const authorityStart = schemeEnd >= 0 ? schemeEnd + 3 : -1;
@@ -885,7 +1000,7 @@
         }
         let parsed;
         try {
-            parsed = canonicalizeConfigFields(JSON.parse(text));
+            parsed = JSON.parse(text);
         } catch (error) {
             return {
                 config: null,
@@ -893,6 +1008,24 @@
                 warnings: []
             };
         }
+        let duplicateKey;
+        try {
+            duplicateKey = findDuplicateJSONKey(text);
+        } catch (error) {
+            return {
+                config: null,
+                errors: [issue('invalidJSON', '', { detail: error && error.message ? error.message : String(error) })],
+                warnings: []
+            };
+        }
+        if (duplicateKey !== null) {
+            return {
+                config: null,
+                errors: [issue('duplicateJSONKey', '', { name: duplicateKey })],
+                warnings: []
+            };
+        }
+        parsed = canonicalizeConfigFields(parsed);
         const validation = validateConfig(parsed);
         if (validation.errors.length) return { config: null, ...validation };
         return { config: normalizeConfig(parsed), ...validation };
