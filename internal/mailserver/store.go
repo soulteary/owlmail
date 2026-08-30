@@ -232,6 +232,9 @@ func (ms *MailServer) DeleteAllEmail() error {
 	files, err := os.ReadDir(ms.mailDir)
 	if err == nil {
 		for _, file := range files {
+			if file.IsDir() && file.Name() == quarantineDirName {
+				continue
+			}
 			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
 				common.Verbose("Failed to remove file: %v", err)
 			}
