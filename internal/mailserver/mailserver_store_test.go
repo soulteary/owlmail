@@ -438,7 +438,10 @@ func TestMailServerReadAllEmail(t *testing.T) {
 	}
 
 	// Mark all as read
-	count := server.ReadAllEmail()
+	count, err := server.ReadAllEmail()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if count != 2 {
 		t.Errorf("Expected 2 emails marked as read, got %d", count)
 	}
@@ -1233,7 +1236,10 @@ func TestReadAllEmailWithMixedReadStatus(t *testing.T) {
 	}
 
 	// Mark all as read
-	count := server.ReadAllEmail()
+	count, err := server.ReadAllEmail()
+	if err != nil {
+		t.Fatal(err)
+	}
 	if count != 2 {
 		t.Errorf("Expected 2 emails marked as read, got %d", count)
 	}
