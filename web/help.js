@@ -25,7 +25,7 @@
         return (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
     }
 
-    function applyLanguage(language) {
+    function applyLanguage(language, persist = false) {
         const selected = supportedLanguages.has(language) ? language : 'en';
         document.documentElement.lang = selected;
         document.documentElement.dataset.language = selected;
@@ -34,7 +34,7 @@
         document.querySelectorAll('.language-panel').forEach((panel) => {
             panel.hidden = panel.dataset.language !== selected;
         });
-        savePreference('language', selected);
+        if (persist) savePreference('language', selected);
     }
 
     function applyTheme(theme) {
@@ -46,7 +46,7 @@
         savePreference('theme', dark ? 'dark' : 'light');
     }
 
-    languageSelect.addEventListener('change', (event) => applyLanguage(event.target.value));
+    languageSelect.addEventListener('change', (event) => applyLanguage(event.target.value, true));
     themeButton.addEventListener('click', () => {
         applyTheme(document.body.classList.contains('dark-theme') ? 'light' : 'dark');
     });
