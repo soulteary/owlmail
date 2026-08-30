@@ -74,10 +74,10 @@ func TestReceiveRejectsReplayedSignature(t *testing.T) {
 	}
 }
 
-func TestFutureSkewNonceLivesThroughSignatureWindow(t *testing.T) {
+func TestNonceExpiresAtSignatureValidityBoundary(t *testing.T) {
 	const secret = "example-secret"
 	body := []byte(`{"event":"email.received"}`)
-	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	now := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
 	signedAt := now.Add(time.Minute)
 	timestamp := signedAt.Format(time.RFC3339)
 	nonce := "future-skew-nonce"
@@ -87,12 +87,30 @@ func TestFutureSkewNonceLivesThroughSignatureWindow(t *testing.T) {
 	signature := "v2=" + hex.EncodeToString(mac.Sum(nil))
 	cache := &nonceCache{seen: make(map[string]time.Time)}
 
-	if verified, err := verifySignature(signature, timestamp, nonce, body, secret, now, cache); !verified || err != nil {
-		t.Fatalf("first verification failed: verified=%v err=%v", verified, err)
+	ok, err := verifySignature(signature, timestamp, nonce, body, secret, now, cache)
+	if err != nil || !ok {
+		t.Fatalf("verifySignature() = %v, %v", ok, err)
 	}
-	replayAt := now.Add(5*time.Minute + 30*time.Second)
-	if verified, err := verifySignature(signature, timestamp, nonce, body, secret, replayAt, cache); verified || err == nil {
-		t.Fatalf("replay inside signature window was accepted: verified=%v err=%v", verified, err)
+	if got, want := cache.seen[nonce], signedAt.Add(maxSignatureAge); !got.Equal(want) {
+		t.Fatalf("nonce expiry = %s, want %s", got, want)
+	}
+}
+
+func TestSignatureValidityBoundaryIsExclusive(t *testing.T) {
+	const secret = "example-secret"
+	body := []byte(`{"event":"email.received"}`)
+	signedAt := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	timestamp := signedAt.Format(time.RFC3339)
+	nonce := "boundary-nonce"
+	mac := hmac.New(sha256.New, []byte(secret))
+	_, _ = mac.Write([]byte(timestamp + "." + nonce + "."))
+	_, _ = mac.Write(body)
+	signature := "v2=" + hex.EncodeToString(mac.Sum(nil))
+	cache := &nonceCache{seen: make(map[string]time.Time)}
+
+	ok, err := verifySignature(signature, timestamp, nonce, body, secret, signedAt.Add(maxSignatureAge), cache)
+	if err == nil || ok {
+		t.Fatalf("verifySignature() = %v, %v; want expired", ok, err)
 	}
 }
 

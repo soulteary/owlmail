@@ -91,7 +91,7 @@ func verifySignature(signature, timestamp, nonce string, body []byte, secret str
 		return false, fmt.Errorf("timestamp and nonce are required")
 	}
 	signedAt, err := time.Parse(time.RFC3339, timestamp)
-	if err != nil || signedAt.After(now.Add(time.Minute)) || now.Sub(signedAt) > maxSignatureAge {
+	if err != nil || signedAt.After(now.Add(time.Minute)) || !now.Before(signedAt.Add(maxSignatureAge)) {
 		return false, fmt.Errorf("webhook signature timestamp is outside the accepted window")
 	}
 	const prefix = "v2="
