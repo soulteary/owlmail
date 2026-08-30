@@ -17,6 +17,7 @@ const (
 	defaultMemoryQueueSize = 1024
 	defaultShutdownTimeout = 15 * time.Second
 	defaultLeaseRefresh    = redisClaimIdle / 3
+	defaultOutboxRetry     = 250 * time.Millisecond
 )
 
 // ServiceOptions configures queued webhook delivery.
@@ -25,6 +26,7 @@ type ServiceOptions struct {
 	RedisPrefix     string
 	MaxConcurrency  int
 	ShutdownTimeout time.Duration
+	SpoolDir        string
 	OnResults       func(string, []Result)
 }
 
@@ -39,6 +41,9 @@ type Service struct {
 	dispatcher      *Dispatcher
 	queue           deliveryQueue
 	memoryQueue     chan deliveryJob
+	outbox          *deliveryOutbox
+	outboxWake      chan struct{}
+	outboxClosing   chan struct{}
 	ctx             context.Context
 	cancel          context.CancelFunc
 	shutdownTimeout time.Duration
@@ -51,6 +56,7 @@ type Service struct {
 	closeOnce       sync.Once
 	handoffs        sync.WaitGroup
 	workers         sync.WaitGroup
+	outboxWorkers   sync.WaitGroup
 	deliveries      sync.WaitGroup
 	closeErr        error
 }
@@ -75,6 +81,16 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 		workerCount: options.MaxConcurrency, unlimited: options.MaxConcurrency == 0,
 		leaseRefresh: defaultLeaseRefresh,
 	}
+	if options.SpoolDir != "" {
+		outbox, err := newDeliveryOutbox(options.SpoolDir)
+		if err != nil {
+			cancel()
+			return nil, err
+		}
+		service.outbox = outbox
+		service.outboxWake = make(chan struct{}, 1)
+		service.outboxClosing = make(chan struct{})
+	}
 	if options.RedisURL != "" {
 		consumer := fmt.Sprintf("%s-%s", runtime.GOOS, uuid.NewString())
 		queue, err := newRedisDeliveryQueue(ctx, options.RedisURL, options.RedisPrefix, consumer)
@@ -92,6 +108,10 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 }
 
 func (service *Service) start() {
+	if service.outbox != nil {
+		service.outboxWorkers.Add(1)
+		go service.runOutbox()
+	}
 	if service.unlimited {
 		service.workers.Add(1)
 		go service.runPump()
@@ -103,8 +123,8 @@ func (service *Service) start() {
 	}
 }
 
-// Enqueue durably hands an email to Redis when configured. Delivery remains
-// at-least-once: receivers should deduplicate X-OwlMail-Delivery-ID.
+// Enqueue durably hands an email to the local outbox when configured. Delivery
+// remains at-least-once: receivers should deduplicate X-OwlMail-Delivery-ID.
 func (service *Service) Enqueue(email *types.Email) error {
 	if service == nil || email == nil {
 		return fmt.Errorf("webhook email is nil")
@@ -122,6 +142,14 @@ func (service *Service) Enqueue(email *types.Email) error {
 		return err
 	}
 	job := deliveryJob{ID: uuid.NewString(), EnqueuedAt: time.Now().UTC(), Email: emailSnapshot}
+	if service.outbox != nil {
+		err := service.outbox.Store(job)
+		service.wakeOutbox()
+		if err != nil {
+			return err
+		}
+		return nil
+	}
 	if service.queue != nil {
 		if err := service.queue.Enqueue(service.ctx, job); err != nil {
 			return err
@@ -134,6 +162,98 @@ func (service *Service) Enqueue(email *types.Email) error {
 	case <-service.ctx.Done():
 		return service.ctx.Err()
 	}
+}
+
+func (service *Service) wakeOutbox() {
+	select {
+	case service.outboxWake <- struct{}{}:
+	default:
+	}
+}
+
+func (service *Service) runOutbox() {
+	defer service.outboxWorkers.Done()
+	closing := false
+	retry := time.NewTimer(0)
+	if !retry.Stop() {
+		<-retry.C
+	}
+	for {
+		pending, err := service.flushOutbox()
+		if err != nil {
+			service.report("", []Result{{Err: err}})
+			retry.Reset(defaultOutboxRetry)
+			if closing {
+				select {
+				case <-retry.C:
+				case <-service.outboxWake:
+					stopOutboxRetry(retry)
+				case <-service.ctx.Done():
+					return
+				}
+			} else {
+				select {
+				case <-retry.C:
+				case <-service.outboxWake:
+					stopOutboxRetry(retry)
+				case <-service.outboxClosing:
+					closing = true
+					stopOutboxRetry(retry)
+				case <-service.ctx.Done():
+					return
+				}
+			}
+			continue
+		}
+		if pending {
+			continue
+		}
+		if closing {
+			return
+		}
+		select {
+		case <-service.outboxWake:
+		case <-service.outboxClosing:
+			closing = true
+		case <-service.ctx.Done():
+			return
+		}
+	}
+}
+
+func stopOutboxRetry(retry *time.Timer) {
+	if !retry.Stop() {
+		select {
+		case <-retry.C:
+		default:
+		}
+	}
+}
+
+func (service *Service) flushOutbox() (bool, error) {
+	entries, err := service.outbox.List()
+	if err != nil {
+		return false, err
+	}
+	if len(entries) == 0 {
+		return false, nil
+	}
+	entry := entries[0]
+	if service.queue != nil {
+		if err := service.queue.Enqueue(service.ctx, entry.job); err != nil {
+			return true, err
+		}
+	} else {
+		select {
+		case service.memoryQueue <- entry.job:
+		case <-service.ctx.Done():
+			return true, service.ctx.Err()
+		}
+	}
+	if err := service.outbox.Remove(entry.path); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 func cloneDeliveryEmail(email *types.Email) (*types.Email, error) {
@@ -281,6 +401,11 @@ func (service *Service) Close() error {
 		drained := make(chan struct{})
 		go func() {
 			service.handoffs.Wait()
+			if service.outbox != nil {
+				close(service.outboxClosing)
+				service.wakeOutbox()
+				service.outboxWorkers.Wait()
+			}
 			if service.memoryQueue != nil {
 				close(service.memoryQueue)
 			}

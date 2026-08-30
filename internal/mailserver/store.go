@@ -15,6 +15,8 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 )
 
+const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
+
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
@@ -233,7 +235,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 	files, err := os.ReadDir(ms.mailDir)
 	if err == nil {
 		for _, file := range files {
-			if file.IsDir() && file.Name() == quarantineDirName {
+			if file.IsDir() && (file.Name() == quarantineDirName || file.Name() == webhookOutboxDirectoryName) {
 				continue
 			}
 			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {

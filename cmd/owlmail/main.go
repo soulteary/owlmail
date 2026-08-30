@@ -191,6 +191,7 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 	}
 	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
 		MaxConcurrency: maxConcurrency,
+		SpoolDir:       server.GetMailDir(),
 		OnResults:      logWebhookResults,
 	})
 	if err != nil {
@@ -212,7 +213,7 @@ func registerWebhookHandler(server *mailserver.MailServer, dispatcher *webhookno
 	return nil
 }
 
-func setupWebhookService(cfg *config.Config, dispatcher *webhooknotify.Dispatcher) (*webhooknotify.Service, error) {
+func setupWebhookService(cfg *config.Config, dispatcher *webhooknotify.Dispatcher, spoolDir string) (*webhooknotify.Service, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
@@ -226,6 +227,7 @@ func setupWebhookService(cfg *config.Config, dispatcher *webhooknotify.Dispatche
 	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
 		RedisURL: cfg.WebhookRedisURL, RedisPrefix: cfg.WebhookRedisPrefix,
 		MaxConcurrency: cfg.WebhookMaxConcurrency, ShutdownTimeout: shutdownTimeout,
+		SpoolDir:  spoolDir,
 		OnResults: logWebhookResults,
 	})
 	if err != nil {
@@ -361,7 +363,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Register event handlers
 	registerEventHandlers(server)
-	webhookService, err := setupWebhookService(cfg, webhookDispatcher)
+	webhookService, err := setupWebhookService(cfg, webhookDispatcher, server.GetMailDir())
 	if err != nil {
 		_ = server.Close()
 		return nil, err
