@@ -20,6 +20,10 @@
 
 ### 主要文档
 
+- **[OwlMail 0.5.0 发布说明](./Release-0.5.0.md)**
+  - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
+  - **其他语言**：[English](../en/Release-0.5.0.md)
+
 - **[API 参考](./API-Reference.md)**
   - 完整路由清单、请求与响应约定、鉴权、原生 WebSocket 事件、curl 示例，以及
     当前 MailDev 迁移边界。
@@ -45,6 +49,12 @@
   - 记录无版本路由迁移到 `/api/v1/` 的历史实现过程；当前契约以 API 参考为准。
   - **其他语言**: [English](../en/internal/API_Refactoring_Record.md) | [Deutsch](../de/internal/API_Refactoring_Record.md) | [Français](../fr/internal/API_Refactoring_Record.md) | [Italiano](../it/internal/API_Refactoring_Record.md) | [日本語](../ja/internal/API_Refactoring_Record.md) | [한국어](../ko/internal/API_Refactoring_Record.md)
 
+### 维护者文档
+
+- **[发布流程](./Releasing.md)**
+  - 标签、二进制/校验和与容器验证、冒烟测试，以及发布前后检查清单。
+  - **其他语言**：[English](../en/Releasing.md)
+
 ## 📖 如何阅读文档
 
 文档按语言组织在不同的目录中。每个语言目录包含：
@@ -66,6 +76,8 @@
 ## 📝 文档分类
 
 - **迁移指南**：帮助用户从 MailDev 迁移到 OwlMail
+- **发布说明**：汇总版本改动、升级行为和已知限制
+- **运维文档**：覆盖部署、故障定位和维护者发布流程
 - **API 文档**：当前技术契约与历史重构记录
 - **内部文档**：开发笔记和内部流程
 

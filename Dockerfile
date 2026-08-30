@@ -4,6 +4,10 @@ FROM golang:1.27.0-alpine3.24 AS builder
 # Build arguments for multi-arch support
 ARG TARGETOS=linux
 ARG TARGETARCH
+ARG VERSION=dev
+ARG COMMIT=unknown
+ARG BUILD_DATE=unknown
+ARG BRANCH=unknown
 
 # Set working directory
 WORKDIR /build
@@ -20,8 +24,14 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build application with target architecture
-RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo -ldflags '-extldflags "-static"' -o owlmail ./cmd/owlmail
+# Build application with target architecture and observable release metadata
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo \
+    -ldflags "-s -w -extldflags=-static \
+      -X github.com/soulteary/version-kit/v2.Version=${VERSION} \
+      -X github.com/soulteary/version-kit/v2.Commit=${COMMIT} \
+      -X github.com/soulteary/version-kit/v2.BuildDate=${BUILD_DATE} \
+      -X github.com/soulteary/version-kit/v2.Branch=${BRANCH}" \
+    -o owlmail ./cmd/owlmail
 
 # Runtime stage
 FROM alpine:3.24.1

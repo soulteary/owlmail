@@ -118,24 +118,25 @@ export MAILDEV_WEB_PORT=1080
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
 
 ```bash
-# Scarica l'ultima immagine
-docker pull ghcr.io/soulteary/owlmail:latest
+# Scarica la release 0.5.0
+docker pull ghcr.io/soulteary/owlmail:0.5.0
 
-# Scarica una versione specifica (usando il SHA del commit)
-docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+# Scarica l'immagine di un commit esatto (esempio)
+docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # Esegui container
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 **Tag disponibili:**
-- `latest` - Ultima versione stabile
-- `sha-<commit>` - SHA del commit specifico (es. `sha-49b5f35`)
-- `main` - Ultima versione dal branch main
+- `0.5.0` - Tag di release esatto; `0.5` e `0` avanzano con le release successive della serie
+- `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-b130f33`)
+- `main` - Immagine mobile dell'ultimo build di `main`
+- `latest` - Immagine mobile del branch predefinito, non un selettore di release stabile
 
 **Supporto multi-architettura:**
 L'immagine supporta sia le architetture `linux/amd64` che `linux/arm64`. Docker scaricherà automaticamente l'immagine corretta per la tua piattaforma.
@@ -606,9 +607,13 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 
 ## 📚 Documentazione Correlata
 
+- [Note di rilascio OwlMail 0.5.0](./docs/en/Release-0.5.0.md) ([中文](./docs/zh-CN/Release-0.5.0.md))
+- [Registro delle modifiche](./CHANGELOG.md)
 - [OwlMail × MailDev: Confronto Completo Funzionalità e API e White Paper di Migrazione](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [Riferimento API (English)](./docs/en/API-Reference.md)
 - [Operazioni e risoluzione problemi (English)](./docs/en/Operations.md)
+- [Inoltro Webhook (English)](./docs/en/Webhook-Forwarding.md)
+- [Processo di rilascio (English)](./docs/en/Releasing.md)
 - [Registro Refactoring API (storico)](./docs/it/internal/API_Refactoring_Record.md)
 
 ## 🐛 Segnalazione Problemi

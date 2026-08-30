@@ -26,6 +26,11 @@ OwlMail 문서에 오신 것을 환영합니다. 문서는 언어별 디렉터�
   - 필터, 사용자 지정 페이로드, HMAC 서명, 재시도 및 `soulteary/webhook` 연동.
 - **[실행 가능한 Webhook 예제](../../examples/webhooks/README.md)** (English, [中文](../../examples/webhooks/README.zh-CN.md))
 
+### 릴리스
+
+- **[0.5.0 릴리스 노트](../en/Release-0.5.0.md)** (English, [中文](../zh-CN/Release-0.5.0.md))
+- **[릴리스 절차](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
+
 ### 비교 및 마이그레이션
 
 - **[OwlMail × MailDev – 비교 및 마이그레이션 가이드](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**

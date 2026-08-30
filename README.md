@@ -124,24 +124,25 @@ in the executable, so installed binaries do not need a separate `web` folder.
 The easiest way to use OwlMail is to pull the pre-built image from GitHub Container Registry:
 
 ```bash
-# Pull the latest image
-docker pull ghcr.io/soulteary/owlmail:latest
+# Pull release 0.5.0
+docker pull ghcr.io/soulteary/owlmail:0.5.0
 
-# Pull a specific version (using commit SHA)
-docker pull ghcr.io/soulteary/owlmail:sha-49b5f35
+# Pull an image for one exact commit (example)
+docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # Run container
 docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:latest
+  ghcr.io/soulteary/owlmail:0.5.0
 ```
 
 **Available Tags:**
-- `latest` - Latest stable release
-- `sha-<commit>` - Specific commit SHA (e.g., `sha-49b5f35`)
-- `main` - Latest from main branch
+- `0.5.0` - Exact release tag; `0.5` and `0` move with later releases in those series
+- `sha-<commit>` - Image for a specific short commit SHA (for example, `sha-b130f33`)
+- `main` - Moving image from the latest `main` branch build
+- `latest` - Moving default-branch image; it is not a stable-release selector
 
 **Multi-Architecture Support:**
 The image supports both `linux/amd64` and `linux/arm64` architectures. Docker will automatically pull the correct image for your platform.
@@ -643,9 +644,14 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
+- [OwlMail 0.5.0 Release Notes](./docs/en/Release-0.5.0.md)
+- [Changelog](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API Reference](./docs/en/API-Reference.md)
 - [Operations and Troubleshooting](./docs/en/Operations.md)
+- [Webhook Forwarding](./docs/en/Webhook-Forwarding.md)
+- [Runnable Webhook Scenarios](./examples/webhooks/README.md)
+- [Release Process (maintainers)](./docs/en/Releasing.md)
 - [API Refactoring Record (historical)](./docs/en/internal/API_Refactoring_Record.md)
 
 ## 🐛 Issue Reporting
