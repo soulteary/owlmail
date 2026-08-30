@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func TestServiceConcurrencyLimitAppliesToIndividualTargets(t *testing.T) {
@@ -100,11 +102,12 @@ func TestServiceCloseDrainsInFlightDelivery(t *testing.T) {
 }
 
 type fakeDeliveryQueue struct {
-	claims chan *queueReceipt
-	mu     sync.Mutex
-	acked  []string
-	dead   []string
-	count  int64
+	claims  chan *queueReceipt
+	mu      sync.Mutex
+	acked   []string
+	dead    []string
+	renewed []string
+	count   int64
 }
 
 func (queue *fakeDeliveryQueue) Enqueue(_ context.Context, job deliveryJob) error {
@@ -139,6 +142,13 @@ func (queue *fakeDeliveryQueue) DeadLetter(_ context.Context, receipt *queueRece
 	defer queue.mu.Unlock()
 	queue.dead = append(queue.dead, receipt.id)
 	queue.count--
+	return nil
+}
+
+func (queue *fakeDeliveryQueue) Renew(_ context.Context, receipt *queueReceipt) error {
+	queue.mu.Lock()
+	defer queue.mu.Unlock()
+	queue.renewed = append(queue.renewed, receipt.id)
 	return nil
 }
 
@@ -191,6 +201,51 @@ func TestDurableServiceDeadLettersExhaustedDelivery(t *testing.T) {
 	}
 }
 
+func TestDurableServiceRenewsLeaseDuringDelivery(t *testing.T) {
+	started := make(chan struct{})
+	release := make(chan struct{})
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		close(started)
+		<-release
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "slow", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	queue := &fakeDeliveryQueue{claims: make(chan *queueReceipt, 1), count: 1}
+	queue.claims <- &queueReceipt{id: "redis-entry", job: deliveryJob{ID: "slow-job", Email: testEmail()}}
+	service := &Service{
+		dispatcher: dispatcher, queue: queue, ctx: ctx, cancel: cancel,
+		shutdownTimeout: time.Second, workerCount: 1, accepting: true,
+		leaseRefresh: 5 * time.Millisecond,
+	}
+	service.start()
+	<-started
+	deadline := time.Now().Add(time.Second)
+	for {
+		queue.mu.Lock()
+		renewed := append([]string(nil), queue.renewed...)
+		queue.mu.Unlock()
+		if len(renewed) > 0 {
+			if renewed[0] != "redis-entry" {
+				t.Fatalf("renewed lease IDs = %v", renewed)
+			}
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("active delivery lease was not renewed")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(release)
+	if err := service.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRedisQueueIntegration(t *testing.T) {
 	redisURL := testRedisURL()
 	if redisURL == "" {
@@ -210,7 +265,24 @@ func TestRedisQueueIntegration(t *testing.T) {
 	if err != nil || receipt == nil || receipt.job.ID != job.ID {
 		t.Fatalf("Claim() = %#v, %v", receipt, err)
 	}
-	if err := queue.Ack(ctx, receipt); err != nil {
+	if err := queue.Renew(ctx, receipt); err != nil {
+		t.Fatalf("Renew() while owned: %v", err)
+	}
+	other, err := newRedisDeliveryQueue(ctx, redisURL, "owlmail:test", "other-consumer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = other.Close() }()
+	if _, err := other.client.XClaimJustID(ctx, &redis.XClaimArgs{
+		Stream: queue.stream, Group: redisConsumerGroup, Consumer: other.consumer,
+		MinIdle: 0, Messages: []string{receipt.id},
+	}).Result(); err != nil {
+		t.Fatal(err)
+	}
+	if err := queue.Renew(ctx, receipt); err == nil {
+		t.Fatal("Renew() stole a lease owned by another consumer")
+	}
+	if err := other.Ack(ctx, receipt); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -18,6 +18,18 @@ const (
 	redisReadBlock     = time.Second
 )
 
+const renewOwnedLeaseScript = `
+local pending = redis.call('XPENDING', KEYS[1], ARGV[1], ARGV[3], ARGV[3], 1)
+if #pending == 0 then
+  return 0
+end
+if pending[1][2] ~= ARGV[2] then
+  return -1
+end
+redis.call('XCLAIM', KEYS[1], ARGV[1], ARGV[2], 0, ARGV[3], 'JUSTID')
+return 1
+`
+
 type queueReceipt struct {
 	id  string
 	job deliveryJob
@@ -28,6 +40,7 @@ type deliveryQueue interface {
 	Claim(context.Context) (*queueReceipt, error)
 	Ack(context.Context, *queueReceipt) error
 	DeadLetter(context.Context, *queueReceipt, []Result) error
+	Renew(context.Context, *queueReceipt) error
 	Pending(context.Context) (int64, error)
 	Close() error
 }
@@ -160,6 +173,24 @@ func (queue *redisDeliveryQueue) Ack(ctx context.Context, receipt *queueReceipt)
 	})
 	if err != nil {
 		return fmt.Errorf("acknowledge webhook job: %w", err)
+	}
+	return nil
+}
+
+// Renew resets the pending entry's idle time while its HTTP delivery is still
+// active. JUSTID avoids inflating Redis' delivery-attempt counter on each
+// heartbeat.
+func (queue *redisDeliveryQueue) Renew(ctx context.Context, receipt *queueReceipt) error {
+	if receipt == nil {
+		return nil
+	}
+	result, err := queue.client.Eval(ctx, renewOwnedLeaseScript, []string{queue.stream},
+		redisConsumerGroup, queue.consumer, receipt.id).Int64()
+	if err != nil {
+		return fmt.Errorf("renew webhook job lease: %w", err)
+	}
+	if result != 1 {
+		return fmt.Errorf("renew webhook job lease: entry %s is no longer owned by %s", receipt.id, queue.consumer)
 	}
 	return nil
 }

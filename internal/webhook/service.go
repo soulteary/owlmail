@@ -16,6 +16,7 @@ import (
 const (
 	defaultMemoryQueueSize = 1024
 	defaultShutdownTimeout = 15 * time.Second
+	defaultLeaseRefresh    = redisClaimIdle / 3
 )
 
 // ServiceOptions configures queued webhook delivery.
@@ -43,6 +44,7 @@ type Service struct {
 	shutdownTimeout time.Duration
 	onResults       func(string, []Result)
 	workerCount     int
+	leaseRefresh    time.Duration
 	unlimited       bool
 	accepting       bool
 	handoffMutex    sync.RWMutex
@@ -71,6 +73,7 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 		dispatcher: dispatcher.withMaxConcurrency(options.MaxConcurrency), ctx: ctx, cancel: cancel,
 		shutdownTimeout: options.ShutdownTimeout, onResults: options.OnResults,
 		workerCount: options.MaxConcurrency, unlimited: options.MaxConcurrency == 0,
+		leaseRefresh: defaultLeaseRefresh,
 	}
 	if options.RedisURL != "" {
 		consumer := fmt.Sprintf("%s-%s", runtime.GOOS, uuid.NewString())
@@ -208,7 +211,9 @@ func (service *Service) isAccepting() bool {
 }
 
 func (service *Service) deliver(job deliveryJob, receipt *queueReceipt) {
+	stopLease := service.startLeaseHeartbeat(receipt)
 	results := service.dispatcher.DispatchDelivery(service.ctx, job.Email, job.ID)
+	stopLease()
 	failed := false
 	for _, result := range results {
 		if result.Err != nil {
@@ -228,6 +233,33 @@ func (service *Service) deliver(job deliveryJob, receipt *queueReceipt) {
 		}
 	}
 	service.report(job.ID, results)
+}
+
+func (service *Service) startLeaseHeartbeat(receipt *queueReceipt) func() {
+	if service.queue == nil || receipt == nil || service.leaseRefresh <= 0 {
+		return func() {}
+	}
+	ctx, cancel := context.WithCancel(service.ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(service.leaseRefresh)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if err := service.queue.Renew(ctx, receipt); err != nil && ctx.Err() == nil {
+					service.report(receipt.job.ID, []Result{{Err: err}})
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return func() {
+		cancel()
+		<-done
+	}
 }
 
 func (service *Service) report(jobID string, results []Result) {
