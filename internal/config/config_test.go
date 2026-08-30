@@ -280,6 +280,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WebhookMaxConcurrency != 8 {
 		t.Errorf("DefaultConfig().WebhookMaxConcurrency = %d, want 8", cfg.WebhookMaxConcurrency)
 	}
+	if cfg.WebhookRedisURL != "" || cfg.WebhookRedisPrefix != "owlmail:webhooks" || cfg.WebhookShutdownTimeout != "15s" {
+		t.Errorf("unexpected default webhook queue config: %#v", cfg)
+	}
 }
 
 func TestDefineAndResolveConfig(t *testing.T) {
@@ -310,7 +313,7 @@ func TestDefineAndResolveConfig(t *testing.T) {
 	t.Run("CLI flags override defaults", func(t *testing.T) {
 		fs := flag.NewFlagSet("test-cli", flag.ContinueOnError)
 		refs := DefineFlags(fs)
-		_ = fs.Parse([]string{"-smtp", "2025", "-ip", "0.0.0.0", "-web", "8080", "-webhook-config", "cli-webhooks.json", "-webhook-max-concurrency", "0"})
+		_ = fs.Parse([]string{"-smtp", "2025", "-ip", "0.0.0.0", "-web", "8080", "-webhook-config", "cli-webhooks.json", "-webhook-max-concurrency", "0", "-webhook-redis-url", "redis://localhost:6379/2", "-webhook-redis-prefix", "test:hooks", "-webhook-shutdown-timeout", "30s"})
 		cfg := ResolveConfig(fs, refs)
 
 		if cfg.SMTPPort != 2025 {
@@ -328,6 +331,9 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		if cfg.WebhookMaxConcurrency != 0 {
 			t.Errorf("ResolveConfig().WebhookMaxConcurrency = %d, want 0", cfg.WebhookMaxConcurrency)
 		}
+		if cfg.WebhookRedisURL != "redis://localhost:6379/2" || cfg.WebhookRedisPrefix != "test:hooks" || cfg.WebhookShutdownTimeout != "30s" {
+			t.Errorf("unexpected CLI webhook queue config: %#v", cfg)
+		}
 	})
 
 	t.Run("environment variables work", func(t *testing.T) {
@@ -335,6 +341,9 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		_ = envMgr.Set("OWLMAIL_SMTP_HOST", "192.168.1.1")
 		_ = envMgr.Set("OWLMAIL_WEBHOOK_CONFIG", "env-webhooks.json")
 		_ = envMgr.Set("OWLMAIL_WEBHOOK_MAX_CONCURRENCY", "24")
+		_ = envMgr.Set("OWLMAIL_WEBHOOK_REDIS_URL", "rediss://redis.example.test:6380/0")
+		_ = envMgr.Set("OWLMAIL_WEBHOOK_REDIS_PREFIX", "env:hooks")
+		_ = envMgr.Set("OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT", "45s")
 		defer envMgr.Cleanup()
 
 		fs := flag.NewFlagSet("test-env", flag.ContinueOnError)
@@ -353,6 +362,9 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		}
 		if cfg.WebhookMaxConcurrency != 24 {
 			t.Errorf("ResolveConfig().WebhookMaxConcurrency = %d, want 24", cfg.WebhookMaxConcurrency)
+		}
+		if cfg.WebhookRedisURL != "rediss://redis.example.test:6380/0" || cfg.WebhookRedisPrefix != "env:hooks" || cfg.WebhookShutdownTimeout != "45s" {
+			t.Errorf("unexpected environment webhook queue config: %#v", cfg)
 		}
 	})
 

@@ -80,7 +80,8 @@ export OWLMAIL_WEBHOOK_SECRET='replace-this-development-secret'
 ./owlmail -webhook-config ./examples/webhooks/custom-json.json
 ```
 
-接收器会校验 `X-OwlMail-Signature`。对于 `Authorization`，它只记录请求头
+接收器会校验 `X-OwlMail-Signature-V2`、限制签名时间为五分钟，并拒绝重复 nonce。
+对于 `Authorization`，它只记录请求头
 是否存在，不会输出 Token 内容。
 
 ### 多目标分发

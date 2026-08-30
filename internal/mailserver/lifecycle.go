@@ -2,10 +2,24 @@ package mailserver
 
 import (
 	"crypto/tls"
+	"errors"
+	"fmt"
+	"io"
 	"net"
 
 	"github.com/soulteary/owlmail/internal/common"
 )
+
+// AddCloser registers a component whose lifecycle is owned by the mail server.
+func (ms *MailServer) AddCloser(closer io.Closer) error {
+	if closer == nil {
+		return fmt.Errorf("closer cannot be nil")
+	}
+	ms.closersMutex.Lock()
+	defer ms.closersMutex.Unlock()
+	ms.closers = append(ms.closers, closer)
+	return nil
+}
 
 // Listen starts the SMTP server
 func (ms *MailServer) Listen() error {
@@ -37,6 +51,25 @@ func (ms *MailServer) Listen() error {
 
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
+	var closeErrors []error
+	// Stop accepting SMTP data before draining dependent delivery services.
+	if ms.smtpsServer != nil {
+		if err := ms.smtpsServer.Close(); err != nil {
+			closeErrors = append(closeErrors, err)
+		}
+	}
+	if err := ms.smtpServer.Close(); err != nil {
+		closeErrors = append(closeErrors, err)
+	}
+
+	ms.closersMutex.Lock()
+	closers := append([]io.Closer(nil), ms.closers...)
+	ms.closersMutex.Unlock()
+	for _, closer := range closers {
+		if err := closer.Close(); err != nil {
+			closeErrors = append(closeErrors, err)
+		}
+	}
 	if ms.outgoing != nil {
 		ms.outgoing.Close()
 	}
@@ -52,14 +85,5 @@ func (ms *MailServer) Close() error {
 		close(ms.eventChan)
 	}()
 
-	var err error
-	if ms.smtpsServer != nil {
-		if closeErr := ms.smtpsServer.Close(); closeErr != nil {
-			err = closeErr
-		}
-	}
-	if closeErr := ms.smtpServer.Close(); closeErr != nil {
-		err = closeErr
-	}
-	return err
+	return errors.Join(closeErrors...)
 }

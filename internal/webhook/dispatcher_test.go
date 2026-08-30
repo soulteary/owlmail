@@ -98,6 +98,21 @@ func TestDispatchCustomTemplateHeadersAndSignature(t *testing.T) {
 		if request.Header.Get("X-OwlMail-Signature") != wantSignature {
 			t.Errorf("signature = %q, want %q", request.Header.Get("X-OwlMail-Signature"), wantSignature)
 		}
+		timestamp := request.Header.Get("X-OwlMail-Timestamp")
+		nonce := request.Header.Get("X-OwlMail-Nonce")
+		if timestamp == "" || nonce == "" {
+			t.Fatal("timestamp and nonce headers are required")
+		}
+		mac = hmac.New(sha256.New, []byte(secret))
+		_, _ = mac.Write([]byte(timestamp + "." + nonce + "."))
+		_, _ = mac.Write(receivedBody)
+		wantV2 := "v2=" + hex.EncodeToString(mac.Sum(nil))
+		if request.Header.Get("X-OwlMail-Signature-V2") != wantV2 {
+			t.Errorf("v2 signature = %q, want %q", request.Header.Get("X-OwlMail-Signature-V2"), wantV2)
+		}
+		if request.Header.Get("X-OwlMail-Delivery-ID") != "email-123" {
+			t.Errorf("delivery id = %q", request.Header.Get("X-OwlMail-Delivery-ID"))
+		}
 		writer.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
@@ -120,6 +135,37 @@ func TestDispatchCustomTemplateHeadersAndSignature(t *testing.T) {
 	}
 	if string(receivedBody) != `{"title":"System Alert","message":"Verification code","to":["ops@example.net"]}` {
 		t.Errorf("body = %s", receivedBody)
+	}
+}
+
+func TestDispatchRetriesUseFreshReplayProtection(t *testing.T) {
+	var headers []http.Header
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		headers = append(headers, request.Header.Clone())
+		if len(headers) == 1 {
+			writer.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{
+		Name: "retry", URL: server.URL, Secret: "secret", Retries: 1,
+	}}}, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := dispatcher.DispatchDelivery(context.Background(), testEmail(), "delivery-123")
+	if len(results) != 1 || results[0].Err != nil {
+		t.Fatalf("results = %#v", results)
+	}
+	if len(headers) != 2 || headers[0].Get("X-OwlMail-Nonce") == headers[1].Get("X-OwlMail-Nonce") {
+		t.Fatalf("retry nonces were not unique: %#v", headers)
+	}
+	for _, header := range headers {
+		if header.Get("X-OwlMail-Delivery-ID") != "delivery-123" {
+			t.Fatalf("delivery ID changed across retries: %q", header.Get("X-OwlMail-Delivery-ID"))
+		}
 	}
 }
 
