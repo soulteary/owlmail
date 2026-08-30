@@ -62,6 +62,26 @@ func TestAuthenticatedAPIRejectsCrossOriginBrowserRequest(t *testing.T) {
 	}
 }
 
+func TestOriginMatchesRequestRequiresSchemeAndHost(t *testing.T) {
+	tests := []struct {
+		origin string
+		host   string
+		scheme string
+		want   bool
+	}{
+		{origin: "", host: "owlmail.test", scheme: "https", want: true},
+		{origin: "https://owlmail.test", host: "owlmail.test", scheme: "https", want: true},
+		{origin: "http://owlmail.test", host: "owlmail.test", scheme: "https", want: false},
+		{origin: "https://owlmail.test", host: "owlmail.test", scheme: "http", want: false},
+		{origin: "https://attacker.test", host: "owlmail.test", scheme: "https", want: false},
+	}
+	for _, test := range tests {
+		if got := originMatchesRequest(test.origin, test.host, test.scheme); got != test.want {
+			t.Errorf("originMatchesRequest(%q, %q, %q) = %v, want %v", test.origin, test.host, test.scheme, got, test.want)
+		}
+	}
+}
+
 func TestAuthenticatedAPIAllowsSameOriginAndNonBrowserRequests(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
@@ -101,6 +121,7 @@ func TestAuthenticatedWebSocketOriginPolicy(t *testing.T) {
 	}{
 		{origin: "", want: true},
 		{origin: "http://owlmail.test", want: true},
+		{origin: "https://owlmail.test", want: false},
 		{origin: "https://attacker.example", want: false},
 		{origin: "://invalid", want: false},
 	}

@@ -47,6 +47,10 @@ func NewAPIWithAuth(mailServer *mailserver.MailServer, port int, host, user, pas
 // NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
 func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	authEnabled := user != "" && password != ""
+	requestScheme := "http"
+	if httpsEnabled {
+		requestScheme = "https"
+	}
 	api := &API{
 		mailServer:    mailServer,
 		port:          port,
@@ -59,7 +63,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		httpsKeyFile:  keyFile,
 		wsUpgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
-				return !authEnabled || originMatchesHost(r.Header.Get("Origin"), r.Host)
+				return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, requestScheme)
 			},
 		},
 	}
@@ -73,12 +77,16 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 // and new improved RESTful API routes
 func (api *API) setupRoutes() {
 	app := fiber.New(fiber.Config{})
+	requestScheme := "http"
+	if api.httpsEnabled {
+		requestScheme = "https"
+	}
 
 	authEnabled := api.authUser != "" && api.authPassword != ""
 	if authEnabled {
 		// Browsers must not reuse cached Basic Auth credentials from an unrelated
 		// origin. Non-browser API clients normally omit Origin and remain allowed.
-		app.Use(sameOriginMiddleware())
+		app.Use(sameOriginMiddleware(requestScheme))
 	} else {
 		// Preserve the open development API's cross-origin compatibility. There
 		// are no browser credentials to expose when authentication is disabled.
