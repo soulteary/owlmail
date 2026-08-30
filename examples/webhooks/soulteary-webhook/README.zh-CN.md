@@ -85,8 +85,10 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 owlmail -webhook-config owlmail.json
 ```
 
-生产环境建议保持 WebHook 仅内网可访问或放在带鉴权的反向代理之后，继续启用 HMAC
-验证，限制允许执行的命令路径，设置执行时间和并发上限，并避免记录完整邮件正文。
+示例将所有宿主机端口绑定到 `127.0.0.1`，在共享主机上不要移除此边界。
+生产环境中，请将 OwlMail 和 WebHook 都保持为私有服务或置于经过身份验证的反向代理之后，
+为 OwlMail 配置 Web Basic Auth 并限制 SMTP 入口；同时保留 HMAC 校验，限制允许执行的
+命令路径、执行时间与并发，并避免记录完整邮件正文。
 
 [English](./README.md) ·
 [Webhook 消息转发参考](../../../docs/zh-CN/Webhook-Forwarding.md) ·

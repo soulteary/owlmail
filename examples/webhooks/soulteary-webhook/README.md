@@ -92,9 +92,11 @@ export OWLMAIL_WEBHOOK_MAX_CONCURRENCY=8
 owlmail -webhook-config owlmail.json
 ```
 
-For production, keep WebHook private or behind an authenticated reverse proxy,
-retain HMAC verification, restrict allowed command paths, bound execution and
-concurrency, and avoid logging full email bodies.
+The example binds every host port to `127.0.0.1`; do not remove that boundary on
+a shared host. For production, keep both OwlMail and WebHook private or behind
+an authenticated reverse proxy, configure OwlMail Web Basic Auth, restrict SMTP
+ingress, retain HMAC verification, restrict allowed command paths, bound
+execution and concurrency, and avoid logging full email bodies.
 
 [中文说明](./README.zh-CN.md) ·
 [Webhook forwarding reference](../../../docs/en/Webhook-Forwarding.md) ·
