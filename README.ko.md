@@ -225,6 +225,8 @@ docker buildx build \
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
 
+When TLS terminates at a reverse proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME` to `https`.
+
 웹 인증 값 중 하나만 설정해도 인증이 조용히 비활성화되지 않습니다.
 
 | 설정된 값 | 실제 자격 증명 |

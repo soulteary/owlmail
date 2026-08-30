@@ -90,6 +90,11 @@ Basic Auth protects the UI, API, assets, and WebSocket endpoints, but
 `/healthz` and `/api/v1/health` intentionally remain public for probes. Use
 HTTPS or a trusted reverse proxy when credentials cross a network.
 
+When TLS terminates at that proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME=https` so
+authenticated HTTP and WebSocket same-origin checks use the browser-visible
+scheme. Configure it explicitly instead of trusting client-supplied forwarded
+headers.
+
 ## HTTPS and TLS
 
 Web HTTPS and SMTP TLS are separate settings:

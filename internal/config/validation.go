@@ -29,6 +29,9 @@ func ValidateConfig(cfg *Config) error {
 			return err
 		}
 	}
+	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
+		return fmt.Errorf("web external scheme must be http or https")
+	}
 
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {

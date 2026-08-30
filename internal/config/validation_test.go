@@ -237,6 +237,11 @@ func TestValidateConfig(t *testing.T) {
 		if err := ValidateConfig(cfg); err == nil {
 			t.Error("empty webhook Redis prefix should fail")
 		}
+		cfg = DefaultConfig()
+		cfg.WebExternalScheme = "ftp"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("invalid external web scheme should fail")
+		}
 	})
 
 	t.Run("valid full config", func(t *testing.T) {

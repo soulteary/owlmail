@@ -225,6 +225,8 @@ docker buildx build \
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Usa UUID per ID email (predefinito: stringa casuale di 8 caratteri) |
 
+When TLS terminates at a reverse proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME` to `https`.
+
 Una configurazione incompleta dell’autenticazione Web non viene disabilitata silenziosamente:
 
 | Valori configurati | Credenziali effettive |

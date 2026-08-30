@@ -108,6 +108,39 @@ func TestAuthenticatedAPIAllowsSameOriginAndNonBrowserRequests(t *testing.T) {
 	}
 }
 
+func TestAuthenticatedAPIUsesConfiguredExternalScheme(t *testing.T) {
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	if err := api.SetExternalScheme("https"); err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, "http://owlmail.test/api/v1/emails", nil)
+	req.Header.Set("Origin", "https://owlmail.test")
+	req.SetBasicAuth("user", "pass")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	wsRequest := httptest.NewRequest(http.MethodGet, "http://owlmail.test/ws", nil)
+	wsRequest.Header.Set("Origin", "https://owlmail.test")
+	if !api.wsUpgrader.CheckOrigin(wsRequest) {
+		t.Fatal("WebSocket origin did not use configured external scheme")
+	}
+	if err := api.SetExternalScheme("ftp"); err == nil {
+		t.Fatal("invalid external scheme was accepted")
+	}
+}
+
 func TestAuthenticatedWebSocketOriginPolicy(t *testing.T) {
 	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {

@@ -196,10 +196,11 @@ type Config struct {
 	MailDir  string
 
 	// Web API configuration
-	WebPort     int
-	WebHost     string
-	WebUser     string
-	WebPassword string
+	WebPort           int
+	WebHost           string
+	WebUser           string
+	WebPassword       string
+	WebExternalScheme string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -249,6 +250,7 @@ func DefaultConfig() *Config {
 		WebHost:                "localhost",
 		WebUser:                "",
 		WebPassword:            "",
+		WebExternalScheme:      "",
 		HTTPSEnabled:           false,
 		HTTPSCertFile:          "",
 		HTTPSKeyFile:           "",
@@ -356,10 +358,11 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		SMTPHost: resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		MailDir:  resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 
-		WebPort:     resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
-		WebHost:     resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
-		WebUser:     resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
-		WebPassword: resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
+		WebPort:           resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
+		WebHost:           resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
+		WebUser:           resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
+		WebPassword:       resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
+		WebExternalScheme: ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),
