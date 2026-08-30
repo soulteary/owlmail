@@ -1,8 +1,10 @@
 package mailserver
 
 import (
+	"bytes"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
@@ -122,5 +124,39 @@ func TestNewMailServerWithConfig(t *testing.T) {
 	}
 	if server.GetTLSConfig() == nil {
 		t.Error("TLS config should be set")
+	}
+}
+
+func TestNewMailServerWithFullConfigControlsGeneratedIDs(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		useUUID bool
+	}{
+		{name: "short ID", useUUID: false},
+		{name: "UUID", useUUID: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			server, err := NewMailServerWithFullConfig(1025, "localhost", t.TempDir(), nil, nil, nil, test.useUUID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = server.Close() }()
+			session := &Session{mailServer: server, from: "from@example.test", to: []string{"to@example.test"}}
+			message := []byte("From: from@example.test\r\nTo: to@example.test\r\nSubject: ID test\r\n\r\nbody")
+			if err := session.Data(bytes.NewReader(message)); err != nil {
+				t.Fatal(err)
+			}
+			emails := server.GetAllEmail()
+			if len(emails) != 1 {
+				t.Fatalf("stored emails = %d, want 1", len(emails))
+			}
+			if test.useUUID {
+				if _, err := uuid.Parse(emails[0].ID); err != nil {
+					t.Fatalf("generated ID %q is not a UUID: %v", emails[0].ID, err)
+				}
+			} else if len(emails[0].ID) != 8 {
+				t.Fatalf("generated ID length = %d, want 8", len(emails[0].ID))
+			}
+		})
 	}
 }
