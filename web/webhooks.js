@@ -290,6 +290,27 @@
         return value.replace(goTrimSpacePattern, '');
     }
 
+    function normalizeJSONSurrogates(value) {
+        let normalized = '';
+        for (let index = 0; index < value.length; index++) {
+            const codeUnit = value.charCodeAt(index);
+            if (codeUnit >= 0xD800 && codeUnit <= 0xDBFF) {
+                const next = value.charCodeAt(index + 1);
+                if (next >= 0xDC00 && next <= 0xDFFF) {
+                    normalized += value[index] + value[index + 1];
+                    index++;
+                } else {
+                    normalized += '\uFFFD';
+                }
+            } else if (codeUnit >= 0xDC00 && codeUnit <= 0xDFFF) {
+                normalized += '\uFFFD';
+            } else {
+                normalized += value[index];
+            }
+        }
+        return normalized;
+    }
+
     function addUnknownFieldIssues(value, allowed, path, errors) {
         Object.keys(value).forEach((key) => {
             if (!allowed.has(key)) {
@@ -654,7 +675,7 @@
             if (target.name === undefined || target.name === null || target.name === '') errors.push(issue('nameRequired', path + '.name'));
             else errors.push(issue('fieldString', path + '.name'));
         } else {
-            const name = goTrimSpace(target.name);
+            const name = goTrimSpace(normalizeJSONSurrogates(target.name));
             if (!name) {
                 errors.push(issue('nameRequired', path + '.name'));
             } else if (utf8ByteLength(name) > 100 || /[\r\n]/.test(name)) {
@@ -776,7 +797,7 @@
             version: 1,
             targets: config.targets.map((source) => {
                 const target = {
-                    name: goTrimSpace(source.name),
+                    name: goTrimSpace(normalizeJSONSurrogates(source.name)),
                     url: source.url
                 };
                 const method = typeof source.method === 'string' ? goTrimSpace(source.method).toUpperCase() : '';
@@ -1016,7 +1037,7 @@
     function readTargetCard(card, index, formErrors) {
         const value = (selector) => card.querySelector(selector).value;
         const target = {
-            name: goTrimSpace(value('[data-field="name"]')),
+            name: goTrimSpace(normalizeJSONSurrogates(value('[data-field="name"]'))),
             url: value('[data-field="url"]')
         };
         const method = goTrimSpace(value('[data-field="method"]')).toUpperCase();

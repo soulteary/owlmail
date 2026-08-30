@@ -406,9 +406,22 @@ test('target names use the backend UTF-8 byte limit', () => {
         version: 1,
         targets: [{ name: '猫'.repeat(40), url: 'https://example.com/hook' }]
     });
+    const surrogateDuplicates = configurator.validateConfig({
+        version: 1,
+        targets: [
+            { name: '\uD800', url: 'https://example.com/one' },
+            { name: '\uD801', url: 'https://example.com/two' }
+        ]
+    });
+    const normalizedSurrogate = configurator.parseConfigText(JSON.stringify({
+        version: 1,
+        targets: [{ name: '\uD800', url: 'https://example.com/hook' }]
+    }));
 
     assert.deepEqual(codes(valid), []);
     assert.ok(codes(oversized).includes('nameInvalid'));
+    assert.ok(codes(surrogateDuplicates).includes('duplicateName'));
+    assert.equal(normalizedSurrogate.config.targets[0].name, '\uFFFD');
     assert.equal(configurator.utf8ByteLength('猫'.repeat(33)), 99);
 });
 
