@@ -260,6 +260,15 @@ test('URL validation rejects escapes that Go net/url cannot parse', () => {
     assert.equal(codes(result).filter((code) => code === 'urlInvalid').length, 2);
 });
 
+test('URL validation preserves opaque raw-query percent values', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{ name: 'raw-query', url: 'https://example.com/hook?token=%zz' }]
+    });
+
+    assert.deepEqual(codes(result), []);
+});
+
 test('URL validation rejects normalized whitespace and opaque HTTP URLs', () => {
     const result = configurator.validateConfig({
         version: 1,
@@ -404,4 +413,24 @@ test('generated header maps preserve Object prototype property names', () => {
 
     assert.equal(Object.prototype.hasOwnProperty.call(headers, '__proto__'), true);
     assert.equal(JSON.parse(JSON.stringify(headers)).__proto__, 'kept');
+});
+
+test('HTTP field values reject control bytes while allowing horizontal tabs', () => {
+    const result = configurator.validateConfig({
+        version: 1,
+        targets: [{
+            name: 'header-controls',
+            url: 'https://example.com/hook',
+            headers: {
+                'X-Nul': 'a\u0000b',
+                'X-Del': 'a\u007Fb',
+                'X-Tab': 'a\tb'
+            },
+            contentType: 'application/json\u0000'
+        }]
+    });
+
+    assert.equal(codes(result).filter((code) => code === 'headerControl').length, 2);
+    assert.equal(codes(result).filter((code) => code === 'contentTypeControl').length, 1);
+    assert.equal(configurator.hasInvalidHTTPFieldValue('a\tb'), false);
 });

@@ -127,8 +127,10 @@
             headerNameInvalid: 'Header name "{name}" is invalid.',
             managedHeader: 'Header "{name}" is managed by the HTTP client.',
             headerNewline: 'Header values cannot contain newlines.',
+            headerControl: 'Header values cannot contain ASCII control characters other than horizontal tabs.',
             duplicateHeader: 'Header "{name}" is entered more than once.',
             contentTypeNewline: 'Content type cannot contain newlines.',
+            contentTypeControl: 'Content type cannot contain ASCII control characters other than horizontal tabs.',
             timeoutInvalid: 'Use a Go duration such as 500ms, 5s, or 1m.',
             timeoutRange: 'Timeout must be greater than 0 and no more than 1m.',
             retriesInvalid: 'Retries must be an integer from 0 to 5.',
@@ -233,8 +235,10 @@
             headerNameInvalid: '请求头名称“{name}”无效。',
             managedHeader: '请求头“{name}”由 HTTP 客户端管理。',
             headerNewline: '请求头的值不能包含换行。',
+            headerControl: '请求头的值不能包含横向制表符以外的 ASCII 控制字符。',
             duplicateHeader: '请求头“{name}”被重复填写。',
             contentTypeNewline: '内容类型不能包含换行。',
+            contentTypeControl: '内容类型不能包含横向制表符以外的 ASCII 控制字符。',
             timeoutInvalid: '请使用 500ms、5s 或 1m 这样的 Go duration。',
             timeoutRange: '超时时间必须大于 0 且不超过 1m。',
             retriesInvalid: '重试次数必须是 0 到 5 的整数。',
@@ -385,6 +389,10 @@
         return true;
     }
 
+    function hasInvalidHTTPFieldValue(value) {
+        return /[\u0000-\u0008\u000A-\u001F\u007F]/.test(value);
+    }
+
     const goHostASCIICharacters = new Set(
         "!$&'()*+,-.0123456789:;<=>ABCDEFGHIJKLMNOPQRSTUVWXYZ[]_abcdefghijklmnopqrstuvwxyz~"
     );
@@ -450,7 +458,9 @@
             warnings.push(issue('envRuntime', path));
             if (exactEnvironmentPattern.test(value)) return;
         }
-        const percentValidationValue = value.replace(environmentPattern, '00');
+        const rawQueryOrFragment = value.search(/[?#]/);
+        const percentValidationSource = rawQueryOrFragment < 0 ? value : value.slice(0, rawQueryOrFragment);
+        const percentValidationValue = percentValidationSource.replace(environmentPattern, '00');
         if (/%(?![0-9A-Fa-f]{2})/.test(percentValidationValue)) {
             errors.push(issue('urlInvalid', path));
             return;
@@ -602,6 +612,7 @@
                     if (typeof value !== 'string') errors.push(issue('headerValueString', headerPath));
                     else {
                         if (/[\r\n]/.test(value)) errors.push(issue('headerNewline', headerPath));
+                        else if (hasInvalidHTTPFieldValue(value)) errors.push(issue('headerControl', headerPath));
                         if (environmentPattern.test(value)) warnings.push(issue('envRuntime', headerPath));
                         environmentPattern.lastIndex = 0;
                     }
@@ -610,8 +621,12 @@
         }
 
         if (validateOptionalString(target.contentType, path + '.contentType', errors) &&
-            typeof target.contentType === 'string' && /[\r\n]/.test(target.contentType)) {
-            errors.push(issue('contentTypeNewline', path + '.contentType'));
+            typeof target.contentType === 'string') {
+            if (/[\r\n]/.test(target.contentType)) {
+                errors.push(issue('contentTypeNewline', path + '.contentType'));
+            } else if (hasInvalidHTTPFieldValue(target.contentType)) {
+                errors.push(issue('contentTypeControl', path + '.contentType'));
+            }
         }
 
         if (validateOptionalString(target.secret, path + '.secret', errors) &&
@@ -1202,7 +1217,8 @@
         editorValueFromPreserved,
         createHeaderMap,
         authorityHasInvalidHost,
-        goTrimSpace
+        goTrimSpace,
+        hasInvalidHTTPFieldValue
     };
     if (typeof window !== 'undefined') window.OwlMailWebhookConfigurator = publicAPI;
     if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', initialize);
