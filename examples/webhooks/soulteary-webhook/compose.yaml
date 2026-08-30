@@ -1,6 +1,6 @@
 services:
   webhook:
-    image: soulteary/webhook:extend-5.0.0
+    image: soulteary/webhook:7.0.0
     ports:
       - "9000:9000"
     environment:
@@ -23,8 +23,7 @@ services:
       retries: 15
 
   owlmail:
-    build:
-      context: ../../..
+    image: soulteary/owlmail:0.5.0
     depends_on:
       webhook:
         condition: service_healthy
@@ -37,5 +36,6 @@ services:
       OWLMAIL_WEBHOOK_CONFIG: "/app/config/owlmail.json"
       OWLMAIL_WEBHOOK_URL: "http://webhook:9000/hooks/owlmail"
       OWLMAIL_WEBHOOK_SECRET: "${OWLMAIL_WEBHOOK_SECRET:-local-demo-change-me}"
+      OWLMAIL_WEBHOOK_MAX_CONCURRENCY: "8"
     volumes:
       - ./owlmail.json:/app/config/owlmail.json:ro
