@@ -38,6 +38,9 @@ func assertNoCommittedOrTemporaryArtifacts(t *testing.T, dir string) {
 		if entry.Name() == quarantineDirName {
 			continue
 		}
+		if _, ok := rollbackFenceID(entry.Name()); ok {
+			continue
+		}
 		if strings.HasSuffix(entry.Name(), ".eml") || strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			t.Fatalf("unexpected storage artifact after rollback: %s", entry.Name())
 		}
@@ -126,6 +129,32 @@ func TestFailedHandoffFencesEMLWhenImmediateCleanupFails(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, "fenced-handoff.eml")); !os.IsNotExist(err) {
 		t.Fatalf("recovery retained rollback-fenced EML: %v", err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, "fenced-handoff")); err != nil || state != rollbackFenceState {
+		t.Fatalf("durable rollback fence after recovery = %q, %v", state, err)
+	}
+}
+
+func TestRecoveryLoadsEmailWithStaleAcceptedFence(t *testing.T) {
+	dir := t.TempDir()
+	id := "accepted-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("accepted"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte(acceptedFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("restart loaded %d email(s) with accepted fence, want 1", got)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, id)); !os.IsNotExist(err) {
+		t.Fatalf("stale accepted fence survived recovery: %v", err)
 	}
 }
 

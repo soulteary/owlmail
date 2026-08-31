@@ -625,7 +625,10 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 	if entries, err := os.ReadDir(ms.mailDir); err == nil {
 		for _, entry := range entries {
 			if id, ok := rollbackFenceID(entry.Name()); ok {
-				fencedIDs[id] = struct{}{}
+				state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, entry.Name()))
+				if stateErr != nil || state != acceptedFenceState {
+					fencedIDs[id] = struct{}{}
+				}
 			}
 		}
 	}
