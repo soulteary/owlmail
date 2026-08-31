@@ -89,8 +89,17 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IMAGE_REF="${REGISTRY}/${IMAGE_NAME}:${APP_VERSION}"
-          if ! HTTP_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+          if ! REGISTRY_TOKEN="$(curl --fail --silent --show-error \
             --user "${GITHUB_ACTOR}:${GHCR_TOKEN}" \
+            --get \
+            --data-urlencode "service=${REGISTRY}" \
+            --data-urlencode "scope=repository:${IMAGE_NAME}:pull" \
+            "https://${REGISTRY}/token" | jq -er '.token // .access_token')"; then
+            echo "::error::Could not exchange the GitHub credential for a GHCR registry token"
+            exit 1
+          fi
+          if ! HTTP_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${REGISTRY_TOKEN}" \
             --header 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
             "https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${APP_VERSION}")"; then
             echo "::error::Could not verify whether ${IMAGE_REF} already exists"
