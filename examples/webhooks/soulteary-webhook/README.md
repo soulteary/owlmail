@@ -93,10 +93,12 @@ owlmail -webhook-config owlmail.json
 ```
 
 The example binds every host port to `127.0.0.1`; do not remove that boundary on
-a shared host. For production, keep both OwlMail and WebHook private or behind
-an authenticated reverse proxy, configure OwlMail Web Basic Auth, restrict SMTP
-ingress, retain HMAC verification, restrict allowed command paths, bound
-execution and concurrency, and avoid logging full email bodies.
+a shared host. In production, the HTTP UIs may be placed behind an authenticated
+reverse proxy, and OwlMail Web Basic Auth should remain enabled. This does not
+protect SMTP: keep port 1025 bound to a trusted interface or isolate it with
+network policy, a firewall, or a private tunnel. Retain HMAC verification,
+restrict allowed command paths, bound execution and concurrency, and avoid
+logging full email bodies.
 
 [中文说明](./README.zh-CN.md) ·
 [Webhook forwarding reference](../../../docs/en/Webhook-Forwarding.md) ·
