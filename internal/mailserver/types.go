@@ -80,11 +80,12 @@ type MailServer struct {
 
 	// Storage hooks are intentionally unexported and nil in production. They
 	// provide deterministic fault injection for transaction boundary tests.
-	beforeStoreCommit     func(*types.Email) error
-	beforeAttachmentWrite func(string) error
-	beforeQuarantineMove  func(string) error
-	beforeEmailRollback   func(string) error
-	beforeEmailDelete     func(string) error
+	beforeStoreCommit          func(*types.Email) error
+	beforeAttachmentWrite      func(string) error
+	beforeQuarantineMove       func(string) error
+	beforeEmailRollback        func(string) error
+	beforeEmailDelete          func(string) error
+	syncAcceptedFenceDirectory func(string) error
 }
 
 // GetHost returns the SMTP server host

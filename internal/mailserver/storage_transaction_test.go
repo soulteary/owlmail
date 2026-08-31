@@ -207,6 +207,36 @@ func TestSaveEmailToStorePersistsAcceptedWebhookHandoff(t *testing.T) {
 	}
 }
 
+func TestSaveEmailToStoreKeepsCommitAfterAcceptedFenceDirectorySyncFailure(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	server.syncAcceptedFenceDirectory = func(string) error {
+		return errors.New("injected accepted-fence directory sync failure")
+	}
+
+	id := "accepted-sync-error"
+	if err := server.SaveEmailToStore(
+		id,
+		false,
+		&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+		&Email{Subject: "accepted despite directory sync error"},
+	); err != nil {
+		t.Fatalf("accepted handoff was reported as rolled back: %v", err)
+	}
+	if _, err := server.GetEmail(id); err != nil {
+		t.Fatalf("accepted email was not published: %v", err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("accepted handoff fence after directory sync error = %q, %v", state, err)
+	}
+}
+
 func TestReloadPersistsAcceptedWebhookHandoff(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/soulteary/owlmail/internal/common"
 )
 
 const (
@@ -182,8 +183,16 @@ func (ms *MailServer) createAcceptedHandoffFence(id string) error {
 	if err := fence.Close(); err != nil {
 		return fmt.Errorf("close accepted webhook handoff fence: %w", err)
 	}
-	if err := syncDirectory(ms.mailDir); err != nil {
-		return fmt.Errorf("sync accepted webhook handoff fence: %w", err)
+	syncFenceDirectory := syncDirectory
+	if ms.syncAcceptedFenceDirectory != nil {
+		syncFenceDirectory = ms.syncAcceptedFenceDirectory
+	}
+	if err := syncFenceDirectory(ms.mailDir); err != nil {
+		// The accepted marker is already visible and its contents are durable.
+		// Reporting rollback now would allow a caller retry to duplicate the
+		// staged webhook. Preserve commit semantics and surface the durability
+		// degradation operationally instead.
+		common.Error("Failed to sync accepted webhook handoff directory: %v", err)
 	}
 	return nil
 }
