@@ -199,6 +199,46 @@ func TestOutboxDecouplesEnqueueFromMemoryQueueCapacity(t *testing.T) {
 	}
 }
 
+func TestServiceCloseWaitsForStagedHandoffDecision(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "staged", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: time.Second, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned before staged handoff was committed: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if err := service.Commit(email.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after staged handoff was committed")
+	}
+}
+
 func TestOutboxRecreatesMissingDirectory(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {

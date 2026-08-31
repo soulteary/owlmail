@@ -80,9 +80,14 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			return fmt.Errorf("persist email metadata: %w", err)
 		}
 	}
+	hasTransactionalHandoff := ms.hasSynchronousListener("new")
 	handoffErr := ms.emitSynchronous("new", storedEmail)
 	if handoffErr == nil && finalizeRollbackFence {
-		handoffErr = ms.acceptRollbackFence(id)
+		if hasTransactionalHandoff {
+			handoffErr = ms.acceptRollbackFence(id)
+		} else {
+			handoffErr = ms.completeLocalRollbackFence(id)
+		}
 	}
 	if handoffErr != nil {
 		var rollbackErr error
@@ -97,6 +102,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			}
 		}
 		ms.storeMutex.Unlock()
+		if hasTransactionalHandoff {
+			ms.emitAsynchronous("new-rollback", storedEmail)
+		}
 		if rollbackErr != nil {
 			return errors.Join(handoffErr, fmt.Errorf("roll back email metadata: %w", rollbackErr))
 		}
@@ -627,13 +635,15 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	var loadErrors []error
 	fencedIDs := make(map[string]struct{})
 	if entries, err := os.ReadDir(ms.mailDir); err == nil {
 		for _, entry := range entries {
 			if id, ok := rollbackFenceID(entry.Name()); ok {
 				state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, entry.Name()))
-				if stateErr != nil || state != acceptedFenceState {
+				if stateErr != nil || (state != acceptedFenceState && state != localFenceState) {
 					fencedIDs[id] = struct{}{}
 				}
 			}

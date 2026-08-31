@@ -59,6 +59,7 @@ type Service struct {
 	outboxWorkers   sync.WaitGroup
 	deliveries      sync.WaitGroup
 	promotions      sync.Map
+	stagedHandoffs  sync.Map
 	closeErr        error
 }
 
@@ -137,7 +138,12 @@ func (service *Service) Enqueue(email *types.Email) error {
 	}
 	service.handoffs.Add(1)
 	service.handoffMutex.Unlock()
-	defer service.handoffs.Done()
+	releaseHandoff := true
+	defer func() {
+		if releaseHandoff {
+			service.handoffs.Done()
+		}
+	}()
 	emailSnapshot, err := cloneDeliveryEmail(email)
 	if err != nil {
 		return err
@@ -148,6 +154,8 @@ func (service *Service) Enqueue(email *types.Email) error {
 			service.wakeOutbox()
 			return err
 		}
+		service.stagedHandoffs.Store(email.ID, struct{}{})
+		releaseHandoff = false
 		return nil
 	}
 	if service.queue != nil {
@@ -175,6 +183,22 @@ func (service *Service) Commit(emailID string) error {
 		service.promotions.Store(emailID, struct{}{})
 	} else {
 		service.promotions.Delete(emailID)
+	}
+	service.wakeOutbox()
+	if _, tracked := service.stagedHandoffs.LoadAndDelete(emailID); tracked {
+		service.handoffs.Done()
+	}
+	return err
+}
+
+// Abort releases a staged handoff for a mail transaction that was rejected.
+func (service *Service) Abort(emailID string) error {
+	if service == nil || service.outbox == nil || emailID == "" {
+		return nil
+	}
+	err := service.outbox.Discard(emailID)
+	if _, tracked := service.stagedHandoffs.LoadAndDelete(emailID); tracked {
+		service.handoffs.Done()
 	}
 	service.wakeOutbox()
 	return err

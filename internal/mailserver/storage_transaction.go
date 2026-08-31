@@ -20,12 +20,15 @@ const (
 	activeFenceState    = "active"
 	rollbackFenceState  = "rollback"
 	acceptedFenceState  = "accepted"
+	localFenceState     = "accepted-local"
 	quarantineDirName   = "quarantine"
 )
 
 // storeIncomingEmail commits attachments first and the EML file last. The EML
 // rename is the transaction marker observed by startup recovery.
 func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Session) error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	if err := validateEmailID(id); err != nil {
 		return err
 	}
@@ -156,6 +159,15 @@ func (ms *MailServer) acceptRollbackFence(id string) error {
 	return ms.writeRollbackFenceState(id, acceptedFenceState)
 }
 
+func (ms *MailServer) completeLocalRollbackFence(id string) error {
+	if err := ms.writeRollbackFenceState(id, localFenceState); err != nil {
+		return err
+	}
+	_ = os.Remove(rollbackFencePath(ms.mailDir, id))
+	_ = syncDirectory(ms.mailDir)
+	return nil
+}
+
 func (ms *MailServer) writeRollbackFenceState(id, state string) error {
 	fencePath := rollbackFencePath(ms.mailDir, id)
 	fence, err := os.OpenFile(fencePath, os.O_TRUNC|os.O_WRONLY, 0600)
@@ -235,9 +247,11 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 				continue
 			}
 			if state == acceptedFenceState {
-				if err := os.Remove(fencePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-					recoveryErrors = append(recoveryErrors, fmt.Errorf("remove accepted fence for %s: %w", id, err))
-				}
+				// Webhook startup recovery owns accepted-fence cleanup.
+				continue
+			}
+			if state == localFenceState {
+				_ = os.Remove(fencePath)
 				continue
 			}
 			if state == activeFenceState {

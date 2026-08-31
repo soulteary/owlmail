@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func validMessage(subject string) []byte {
@@ -135,7 +137,7 @@ func TestFailedHandoffFencesEMLWhenImmediateCleanupFails(t *testing.T) {
 	}
 }
 
-func TestRecoveryLoadsEmailWithStaleAcceptedFence(t *testing.T) {
+func TestRecoveryLoadsEmailAndPreservesAcceptedFenceForWebhookRecovery(t *testing.T) {
 	dir := t.TempDir()
 	id := "accepted-fence"
 	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("accepted"), 0600); err != nil {
@@ -153,8 +155,31 @@ func TestRecoveryLoadsEmailWithStaleAcceptedFence(t *testing.T) {
 	if got := len(server.GetAllEmail()); got != 1 {
 		t.Fatalf("restart loaded %d email(s) with accepted fence, want 1", got)
 	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("accepted fence needed by webhook recovery = %q, %v", state, err)
+	}
+}
+
+func TestRecoveryRemovesCompletedLocalFence(t *testing.T) {
+	dir := t.TempDir()
+	id := "local-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("local"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte(localFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("restart loaded %d email(s) with local fence, want 1", got)
+	}
 	if _, err := os.Stat(rollbackFencePath(dir, id)); !os.IsNotExist(err) {
-		t.Fatalf("stale accepted fence survived recovery: %v", err)
+		t.Fatalf("completed local fence survived recovery: %v", err)
 	}
 }
 
@@ -217,6 +242,49 @@ func TestStoreIncomingEmailCommitsCompleteMessage(t *testing.T) {
 	}
 	if got := len(server.GetAllEmail()); got != 1 {
 		t.Fatalf("expected one published email, got %d", got)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, "complete-message")); !os.IsNotExist(err) {
+		t.Fatalf("local-only delivery retained a transaction fence: %v", err)
+	}
+}
+
+func TestReloadWaitsForActiveStorageTransaction(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	server.beforeStoreCommit = func(*Email) error {
+		once.Do(func() { close(started) })
+		<-release
+		return nil
+	}
+	stored := make(chan error, 1)
+	go func() {
+		stored <- server.storeIncomingEmail("reload-race", bytes.NewReader(validMessage("reload")), nil)
+	}()
+	<-started
+
+	reloaded := make(chan error, 1)
+	go func() { reloaded <- server.LoadMailsFromDirectory() }()
+	select {
+	case err := <-reloaded:
+		t.Fatalf("reload completed during an active storage transaction: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-stored; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-reloaded; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.GetEmail("reload-race"); err != nil {
+		t.Fatalf("committed email missing after serialized reload: %v", err)
 	}
 }
 

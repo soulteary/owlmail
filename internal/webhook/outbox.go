@@ -136,6 +136,42 @@ func (outbox *deliveryOutbox) Commit(emailID string) error {
 	return cleanupAcceptedMailFence(filepath.Dir(outbox.dir), emailID)
 }
 
+// Discard removes staged jobs for a mail transaction that did not commit.
+func (outbox *deliveryOutbox) Discard(emailID string) error {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil {
+		return err
+	}
+	removed := false
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".pending") {
+			continue
+		}
+		path := filepath.Join(outbox.dir, file.Name())
+		encoded, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		var job deliveryJob
+		if err := json.Unmarshal(encoded, &job); err != nil {
+			return err
+		}
+		if job.Email == nil || job.Email.ID != emailID {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		removed = true
+	}
+	if removed {
+		return outbox.syncDirectory(outbox.dir)
+	}
+	return nil
+}
+
 // AcceptedPendingEmailIDs returns durable recovery keys whose mail may already
 // have been deleted. Only an accepted fence authorizes promotion.
 func (outbox *deliveryOutbox) AcceptedPendingEmailIDs() ([]string, error) {

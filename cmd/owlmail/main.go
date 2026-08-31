@@ -175,7 +175,6 @@ func registerEventHandlers(server *mailserver.MailServer) {
 		common.Log("New email received: %s (from: %s)", subject, fromAddr)
 		common.Verbose("Email details - ID: %s, Size: %s, Attachments: %d", email.ID, email.SizeHuman, len(email.Attachments))
 	})
-
 	server.On("delete", func(email *mailserver.Email) {
 		if email == nil {
 			common.Log("Email deleted: (nil email)")
@@ -268,6 +267,14 @@ func registerWebhookService(server *mailserver.MailServer, service *webhooknotif
 	server.On("new", func(email *mailserver.Email) {
 		if err := service.Commit(email.ID); err != nil {
 			common.Error("Failed to commit webhook queue handoff: %v", err)
+		}
+	})
+	server.On("new-rollback", func(email *mailserver.Email) {
+		if email == nil {
+			return
+		}
+		if err := service.Abort(email.ID); err != nil {
+			common.Error("Failed to discard rejected webhook queue handoff: %v", err)
 		}
 	})
 	if err := service.RecoverAcceptedPending(); err != nil {

@@ -73,6 +73,17 @@ func (ms *MailServer) emitSynchronous(event string, email *types.Email) error {
 	return nil
 }
 
+func (ms *MailServer) hasSynchronousListener(event string) bool {
+	ms.listenersMutex.RLock()
+	defer ms.listenersMutex.RUnlock()
+	for _, listener := range ms.listeners[event] {
+		if listener.synchronousHandler != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // emitAsynchronous starts notification listeners after the state change is
 // committed. These listeners cannot affect the completed transaction.
 func (ms *MailServer) emitAsynchronous(event string, email *types.Email) {

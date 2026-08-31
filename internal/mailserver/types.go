@@ -47,21 +47,22 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
-	storeByID      map[string]*types.Email
-	storeOrder     []string
-	receivedAtByID map[string]time.Time
-	storeMutex     sync.RWMutex
-	mailDir        string
-	port           int
-	host           string
-	smtpServer     *smtp.Server
-	smtpsServer    *smtp.Server // SMTPS server (direct TLS on 465)
-	eventChan      chan Event
-	listeners      map[string][]eventListener
-	listenersMutex sync.RWMutex
-	closers        []io.Closer
-	closersMutex   sync.Mutex
-	outgoing       interface {
+	storeByID               map[string]*types.Email
+	storeOrder              []string
+	receivedAtByID          map[string]time.Time
+	storeMutex              sync.RWMutex
+	storageTransactionMutex sync.Mutex
+	mailDir                 string
+	port                    int
+	host                    string
+	smtpServer              *smtp.Server
+	smtpsServer             *smtp.Server // SMTPS server (direct TLS on 465)
+	eventChan               chan Event
+	listeners               map[string][]eventListener
+	listenersMutex          sync.RWMutex
+	closers                 []io.Closer
+	closersMutex            sync.Mutex
+	outgoing                interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
 		UpdateConfig(config interface{})
 		GetConfig() interface{}
