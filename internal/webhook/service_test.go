@@ -343,6 +343,28 @@ func TestOutboxKeepsPendingJobForActiveMailTransaction(t *testing.T) {
 	}
 }
 
+func TestOutboxKeepsPendingJobWithoutExplicitRollbackFence(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "accepted-then-deleted", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.PruneRejectedPending(); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 || entries[0].job.ID != job.ID {
+		t.Fatalf("accepted deleted-mail handoff = %#v, %v", entries, err)
+	}
+}
+
 func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {

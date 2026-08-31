@@ -18,7 +18,6 @@ const (
 	mailRollbackFenceSuffix = ".fence"
 	mailActiveState         = "active"
 	mailRollbackState       = "rollback"
-	mailMetadataDirectory   = ".owlmail-meta"
 )
 
 type deliveryOutbox struct {
@@ -139,8 +138,7 @@ func (outbox *deliveryOutbox) Commit(emailID string) error {
 }
 
 // PruneRejectedPending removes staged jobs that can never be promoted because
-// the matching mail transaction is durably rollback-fenced or has no durable
-// EML/metadata state.
+// the matching mail transaction is explicitly and durably rollback-fenced.
 func (outbox *deliveryOutbox) PruneRejectedPending() error {
 	outbox.mutex.Lock()
 	defer outbox.mutex.Unlock()
@@ -191,25 +189,7 @@ func pendingMailRejected(spoolDir, emailID string) (bool, error) {
 	} else if !os.IsNotExist(err) {
 		return false, fmt.Errorf("read mail rollback fence for pending webhook job: %w", err)
 	}
-	emlMissing, err := storagePathMissing(filepath.Join(spoolDir, emailID+".eml"))
-	if err != nil {
-		return false, err
-	}
-	metadataMissing, err := storagePathMissing(filepath.Join(spoolDir, mailMetadataDirectory, emailID+".json"))
-	if err != nil {
-		return false, err
-	}
-	return emlMissing && metadataMissing, nil
-}
-
-func storagePathMissing(path string) (bool, error) {
-	if _, err := os.Stat(path); err == nil {
-		return false, nil
-	} else if os.IsNotExist(err) {
-		return true, nil
-	} else {
-		return false, err
-	}
+	return false, nil
 }
 
 func (outbox *deliveryOutbox) List() ([]outboxEntry, error) {
