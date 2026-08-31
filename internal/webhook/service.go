@@ -180,6 +180,25 @@ func (service *Service) Commit(emailID string) error {
 	return err
 }
 
+// RecoverAcceptedPending promotes accepted jobs using durable fence state,
+// independent of whether the email is still present in the mailbox.
+func (service *Service) RecoverAcceptedPending() error {
+	if service == nil || service.outbox == nil {
+		return nil
+	}
+	ids, err := service.outbox.AcceptedPendingEmailIDs()
+	if err != nil {
+		return err
+	}
+	var recoveryErrors []error
+	for _, emailID := range ids {
+		if err := service.Commit(emailID); err != nil {
+			recoveryErrors = append(recoveryErrors, fmt.Errorf("recover accepted webhook job for %s: %w", emailID, err))
+		}
+	}
+	return errors.Join(recoveryErrors...)
+}
+
 func (service *Service) wakeOutbox() {
 	select {
 	case service.outboxWake <- struct{}{}:

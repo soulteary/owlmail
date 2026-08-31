@@ -300,6 +300,9 @@ func (ms *MailServer) DeleteAllEmail() error {
 			if file.IsDir() && (file.Name() == quarantineDirName || file.Name() == webhookOutboxDirectoryName) {
 				continue
 			}
+			if _, fenced := rollbackFenceID(file.Name()); fenced {
+				continue
+			}
 			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
 				common.Verbose("Failed to remove file: %v", err)
 			}

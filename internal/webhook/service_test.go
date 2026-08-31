@@ -365,6 +365,33 @@ func TestOutboxKeepsPendingJobWithoutExplicitRollbackFence(t *testing.T) {
 	}
 }
 
+func TestRecoverAcceptedPendingAfterEmailDeletion(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "recover-deleted-accepted", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailAcceptedState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{outbox: outbox, outboxWake: make(chan struct{}, 1)}
+	if err := service.RecoverAcceptedPending(); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 || entries[0].job.ID != job.ID {
+		t.Fatalf("recovered accepted deleted-mail handoff = %#v, %v", entries, err)
+	}
+	if _, err := os.Stat(fencePath); !os.IsNotExist(err) {
+		t.Fatalf("accepted recovery fence survived promotion: %v", err)
+	}
+}
+
 func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {

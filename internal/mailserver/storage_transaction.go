@@ -151,17 +151,9 @@ func (ms *MailServer) createRollbackFence(id string) error {
 }
 
 func (ms *MailServer) acceptRollbackFence(id string) error {
-	if err := ms.writeRollbackFenceState(id, acceptedFenceState); err != nil {
-		return err
-	}
-	fencePath := rollbackFencePath(ms.mailDir, id)
-	// Acceptance is committed once the existing durable fence contains the
-	// synced accepted state. Removing that marker is only housekeeping.
-	_ = os.Remove(fencePath)
-	// If this sync fails and the directory removal is lost, the durable file
-	// can only reappear with the already-synced accepted state.
-	_ = syncDirectory(ms.mailDir)
-	return nil
+	// Keep the accepted fence until the staged webhook job is promoted. It is
+	// the durable recovery key even if the user deletes the email meanwhile.
+	return ms.writeRollbackFenceState(id, acceptedFenceState)
 }
 
 func (ms *MailServer) writeRollbackFenceState(id, state string) error {

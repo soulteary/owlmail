@@ -18,6 +18,7 @@ const (
 	mailRollbackFenceSuffix = ".fence"
 	mailActiveState         = "active"
 	mailRollbackState       = "rollback"
+	mailAcceptedState       = "accepted"
 )
 
 type deliveryOutbox struct {
@@ -127,14 +128,81 @@ func (outbox *deliveryOutbox) Commit(emailID string) error {
 		}
 		promoted = true
 	}
-	if !promoted {
+	if promoted {
+		if err := outbox.syncDirectory(outbox.dir); err != nil {
+			return fmt.Errorf("sync committed webhook outbox job: %w", err)
+		}
+	}
+	return cleanupAcceptedMailFence(filepath.Dir(outbox.dir), emailID)
+}
+
+// AcceptedPendingEmailIDs returns durable recovery keys whose mail may already
+// have been deleted. Only an accepted fence authorizes promotion.
+func (outbox *deliveryOutbox) AcceptedPendingEmailIDs() ([]string, error) {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil {
+		return nil, err
+	}
+	spoolDir := filepath.Dir(outbox.dir)
+	accepted := make(map[string]struct{})
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".pending") {
+			continue
+		}
+		encoded, err := os.ReadFile(filepath.Join(outbox.dir, file.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var job deliveryJob
+		if err := json.Unmarshal(encoded, &job); err != nil {
+			return nil, err
+		}
+		if job.Email == nil || job.Email.ID == "" || filepath.Base(job.Email.ID) != job.Email.ID {
+			return nil, fmt.Errorf("invalid email ID in pending webhook outbox job %s", file.Name())
+		}
+		state, err := mailFenceState(spoolDir, job.Email.ID)
+		if err != nil {
+			return nil, err
+		}
+		if state == mailAcceptedState {
+			accepted[job.Email.ID] = struct{}{}
+		}
+	}
+	ids := make([]string, 0, len(accepted))
+	for id := range accepted {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	return ids, nil
+}
+
+func cleanupAcceptedMailFence(spoolDir, emailID string) error {
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+emailID+mailRollbackFenceSuffix)
+	state, err := mailFenceState(spoolDir, emailID)
+	if err != nil {
+		return err
+	}
+	if state != mailAcceptedState {
 		return nil
 	}
-	if err := outbox.syncDirectory(outbox.dir); err != nil {
-		// Promoted entries are already visible after durable mail acceptance.
-		return nil
+	if err := os.Remove(fencePath); err != nil && !os.IsNotExist(err) {
+		return err
 	}
-	return nil
+	return syncOutboxDirectory(spoolDir)
+}
+
+func mailFenceState(spoolDir, emailID string) (string, error) {
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+emailID+mailRollbackFenceSuffix)
+	encoded, err := os.ReadFile(fencePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(encoded)), nil
 }
 
 // PruneRejectedPending removes staged jobs that can never be promoted because

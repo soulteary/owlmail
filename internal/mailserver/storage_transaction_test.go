@@ -158,6 +158,25 @@ func TestRecoveryLoadsEmailWithStaleAcceptedFence(t *testing.T) {
 	}
 }
 
+func TestDeleteAllPreservesTransactionFences(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	fencePath := rollbackFencePath(dir, "deleted-accepted")
+	if err := os.WriteFile(fencePath, []byte(acceptedFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fencePath); err != nil {
+		t.Fatalf("bulk deletion removed transaction fence: %v", err)
+	}
+}
+
 func TestStoreIncomingEmailRollsBackAttachmentFailure(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)
