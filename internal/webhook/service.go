@@ -58,6 +58,7 @@ type Service struct {
 	workers         sync.WaitGroup
 	outboxWorkers   sync.WaitGroup
 	deliveries      sync.WaitGroup
+	promotions      sync.Map
 	closeErr        error
 }
 
@@ -144,6 +145,7 @@ func (service *Service) Enqueue(email *types.Email) error {
 	job := deliveryJob{ID: uuid.NewString(), EnqueuedAt: time.Now().UTC(), Email: emailSnapshot}
 	if service.outbox != nil {
 		if err := service.outbox.Store(job); err != nil {
+			service.wakeOutbox()
 			return err
 		}
 		return nil
@@ -169,6 +171,11 @@ func (service *Service) Commit(emailID string) error {
 		return nil
 	}
 	err := service.outbox.Commit(emailID)
+	if err != nil {
+		service.promotions.Store(emailID, struct{}{})
+	} else {
+		service.promotions.Delete(emailID)
+	}
 	service.wakeOutbox()
 	return err
 }
@@ -220,10 +227,14 @@ func (service *Service) runOutbox() {
 		if closing {
 			return
 		}
+		retry.Reset(defaultOutboxRetry)
 		select {
+		case <-retry.C:
 		case <-service.outboxWake:
+			stopOutboxRetry(retry)
 		case <-service.outboxClosing:
 			closing = true
+			stopOutboxRetry(retry)
 		case <-service.ctx.Done():
 			return
 		}
@@ -240,6 +251,12 @@ func stopOutboxRetry(retry *time.Timer) {
 }
 
 func (service *Service) flushOutbox() (bool, error) {
+	if err := service.retryPromotions(); err != nil {
+		return false, err
+	}
+	if err := service.outbox.PruneRejectedPending(); err != nil {
+		return false, err
+	}
 	entries, err := service.outbox.List()
 	if err != nil {
 		return false, err
@@ -263,6 +280,24 @@ func (service *Service) flushOutbox() (bool, error) {
 		return true, err
 	}
 	return true, nil
+}
+
+func (service *Service) retryPromotions() error {
+	var promotionErrors []error
+	service.promotions.Range(func(key, _ any) bool {
+		emailID, ok := key.(string)
+		if !ok {
+			service.promotions.Delete(key)
+			return true
+		}
+		if err := service.outbox.Commit(emailID); err != nil {
+			promotionErrors = append(promotionErrors, fmt.Errorf("promote accepted webhook job for %s: %w", emailID, err))
+			return true
+		}
+		service.promotions.Delete(emailID)
+		return true
+	})
+	return errors.Join(promotionErrors...)
 }
 
 func cloneDeliveryEmail(email *types.Email) (*types.Email, error) {

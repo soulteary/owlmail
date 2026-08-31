@@ -166,9 +166,9 @@ func (ms *MailServer) acceptRollbackFence(id string) error {
 	if err := fence.Close(); err != nil {
 		return err
 	}
-	if err := os.Remove(fencePath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
+	// Acceptance is committed once the existing durable fence contains the
+	// synced accepted state. Removing that marker is only housekeeping.
+	_ = os.Remove(fencePath)
 	// If this sync fails and the directory removal is lost, the durable file
 	// can only reappear with the already-synced accepted state.
 	_ = syncDirectory(ms.mailDir)

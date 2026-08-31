@@ -13,6 +13,13 @@ import (
 
 const outboxDirectoryName = ".owlmail-webhook-outbox"
 
+const (
+	mailRollbackFencePrefix = ".owlmail-tmp-rollback-"
+	mailRollbackFenceSuffix = ".fence"
+	mailRollbackState       = "rollback"
+	mailMetadataDirectory   = ".owlmail-meta"
+)
+
 type deliveryOutbox struct {
 	dir           string
 	mutex         sync.Mutex
@@ -128,6 +135,80 @@ func (outbox *deliveryOutbox) Commit(emailID string) error {
 		return nil
 	}
 	return nil
+}
+
+// PruneRejectedPending removes staged jobs that can never be promoted because
+// the matching mail transaction is durably rollback-fenced or has no durable
+// EML/metadata state.
+func (outbox *deliveryOutbox) PruneRejectedPending() error {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil {
+		return fmt.Errorf("read pending webhook outbox: %w", err)
+	}
+	removed := false
+	spoolDir := filepath.Dir(outbox.dir)
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".pending") {
+			continue
+		}
+		pendingPath := filepath.Join(outbox.dir, file.Name())
+		encoded, err := os.ReadFile(pendingPath)
+		if err != nil {
+			return fmt.Errorf("read pending webhook outbox job %s: %w", file.Name(), err)
+		}
+		var job deliveryJob
+		if err := json.Unmarshal(encoded, &job); err != nil {
+			return fmt.Errorf("decode pending webhook outbox job %s: %w", file.Name(), err)
+		}
+		if job.Email == nil || job.Email.ID == "" || filepath.Base(job.Email.ID) != job.Email.ID {
+			return fmt.Errorf("invalid email ID in pending webhook outbox job %s", file.Name())
+		}
+		rejected, err := pendingMailRejected(spoolDir, job.Email.ID)
+		if err != nil {
+			return err
+		}
+		if !rejected {
+			continue
+		}
+		if err := os.Remove(pendingPath); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove rejected pending webhook outbox job: %w", err)
+		}
+		removed = true
+	}
+	if removed {
+		return outbox.syncDirectory(outbox.dir)
+	}
+	return nil
+}
+
+func pendingMailRejected(spoolDir, emailID string) (bool, error) {
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+emailID+mailRollbackFenceSuffix)
+	if encoded, err := os.ReadFile(fencePath); err == nil {
+		return strings.TrimSpace(string(encoded)) == mailRollbackState, nil
+	} else if !os.IsNotExist(err) {
+		return false, fmt.Errorf("read mail rollback fence for pending webhook job: %w", err)
+	}
+	emlMissing, err := storagePathMissing(filepath.Join(spoolDir, emailID+".eml"))
+	if err != nil {
+		return false, err
+	}
+	metadataMissing, err := storagePathMissing(filepath.Join(spoolDir, mailMetadataDirectory, emailID+".json"))
+	if err != nil {
+		return false, err
+	}
+	return emlMissing && metadataMissing, nil
+}
+
+func storagePathMissing(path string) (bool, error) {
+	if _, err := os.Stat(path); err == nil {
+		return false, nil
+	} else if os.IsNotExist(err) {
+		return true, nil
+	} else {
+		return false, err
+	}
 }
 
 func (outbox *deliveryOutbox) List() ([]outboxEntry, error) {
