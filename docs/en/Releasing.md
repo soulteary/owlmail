@@ -67,13 +67,18 @@ dependency verification, formatting, `go vet`, race-enabled Go tests,
 generates SPDX SBOMs, GitHub artifact attestations, and keyless Sigstore
 signatures before publishing the release.
 
-A retry of an older stable tag republishes only its immutable version and
-commit-SHA tags. The workflow updates `latest`, major, and minor aliases only
-when the requested tag is still the repository's newest stable SemVer tag, so
-an operational retry cannot downgrade users of moving image tags. Immediately
-before generating the image tags, the workflow fetches the remote tags and
-revalidates this condition. The metadata action's automatic `latest` flavor is
-disabled so only the explicitly guarded alias can be published.
+Before building, the workflow queries GHCR and fails closed if the exact version
+tag already exists. A manual retry is therefore valid only before that image has
+been published; after publication, make a new patch release instead of replacing
+the existing artifact. The release workflow does not republish the default
+branch's `sha-*` alias.
+
+The workflow updates `latest`, major, and minor aliases only when the requested
+tag is still the repository's newest stable SemVer tag, so an operational retry
+cannot downgrade users of moving image tags. Immediately before generating the
+image tags, the workflow fetches the remote tags and revalidates this condition.
+The metadata action's automatic `latest` flavor is disabled so only the
+explicitly guarded alias can be published.
 
 ## Verify published artifacts
 
@@ -121,9 +126,10 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-For `v0.6.0`, verify the `0.6.0`, `0.6`, `0`, and commit-SHA tags and both target
-architectures. `main` and `latest` are moving default-branch tags and must not be
-used to prove release reproducibility.
+For `v0.6.0`, verify the `0.6.0`, `0.6`, and `0` tags and both target
+architectures. `main`, `latest`, and `sha-*` are default-branch aliases and must
+not be used to prove release reproducibility. Record the manifest digest from
+the published release and use that digest for repeatable deployment.
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.6.0
@@ -148,7 +154,8 @@ attestation, and explicit OCI source, revision, version, and MIT license labels.
 - [ ] The curated note appears before the generated pull-request list.
 - [ ] Every binary, SBOM, checksum, signature bundle, and GitHub attestation is
   downloadable or discoverable and verified.
-- [ ] Container version and commit tags resolve to the expected manifest.
+- [ ] Container version and moving tags resolve to the expected manifest.
+- [ ] The published multi-architecture manifest digest is recorded for exact deployments.
 - [ ] The release image's Cosign signature and OCI attestations verify.
 - [ ] Go installation with `@v0.6.0` succeeds on the documented Go version.
 - [ ] README and release-note installation commands resolve.

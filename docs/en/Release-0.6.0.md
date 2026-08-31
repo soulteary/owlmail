@@ -122,8 +122,14 @@ docker run -d \
   ghcr.io/soulteary/owlmail:0.6.0
 ```
 
-`0.6.0` is immutable. The `0.6`, `0`, `main`, and `latest` aliases can move;
-use the exact release or commit-SHA tag for repeatable deployments.
+The release workflow refuses to overwrite an existing `0.6.0` image, while
+`0.6`, `0`, `main`, and `latest` remain moving aliases. Registry tags are still
+names rather than content identities. Pin the published manifest digest for a
+cryptographically exact deployment:
+
+```text
+ghcr.io/soulteary/owlmail@sha256:<digest>
+```
 
 ## Known limitations
 

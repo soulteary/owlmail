@@ -400,6 +400,13 @@ test("0.6.0 release documentation and workflow stay connected", () => {
     "enable=${{ steps.moving-tags.outputs.enabled == 'true' }}",
     "group: release-${{ github.ref }}",
     "flavor: latest=false",
+    "Refuse to overwrite exact release image tag",
+    'scope=repository:${IMAGE_NAME}:pull',
+    'Authorization: Bearer ${REGISTRY_TOKEN}',
+    "Could not exchange the GitHub credential for a GHCR registry token",
+    "Refusing to overwrite published release image",
+    "Registry returned HTTP ${HTTP_STATUS}",
+    "failing closed",
   ]) {
     assert.ok(workflow.includes(marker), `.github/workflows/release.yml is missing ${marker}`);
   }
@@ -410,6 +417,23 @@ test("0.6.0 release documentation and workflow stay connected", () => {
     "moving image tags must be revalidated immediately before metadata generation and image publication");
   assert.ok(!workflow.includes("group: release-publishing"),
     "workflow-wide release serialization can cancel an unrelated pending release");
+  const exactTagGuard = workflow.indexOf("- name: Refuse to overwrite exact release image tag");
+  const goSetup = workflow.indexOf("- name: Set up Go");
+  assert.ok(exactTagGuard >= 0 && exactTagGuard < goSetup,
+    "exact release tags must be checked before expensive release builds");
+  assert.ok(!workflow.includes("type=sha,prefix=sha-"),
+    "the release workflow must not overwrite default-branch sha aliases");
+
+  for (const reference of [
+    "docs/en/Release-0.6.0.md",
+    "docs/zh-CN/Release-0.6.0.md",
+    "docs/en/Operations.md",
+    "docs/zh-CN/Operations.md",
+  ]) {
+    const markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail@sha256:<digest>"),
+      `${reference} does not recommend an immutable image digest`);
+  }
 
   const dockerfile = fs.readFileSync(path.join(root, "Dockerfile"), "utf8");
   for (const marker of ["ARG VERSION=dev", "version-kit/v2.Version=${VERSION}", "version-kit/v2.Commit=${COMMIT}"]) {
