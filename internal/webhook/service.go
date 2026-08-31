@@ -251,11 +251,9 @@ func stopOutboxRetry(retry *time.Timer) {
 }
 
 func (service *Service) flushOutbox() (bool, error) {
-	if err := service.retryPromotions(); err != nil {
-		return false, err
-	}
+	service.retryPromotions()
 	if err := service.outbox.PruneRejectedPending(); err != nil {
-		return false, err
+		service.report("", []Result{{Err: err}})
 	}
 	entries, err := service.outbox.List()
 	if err != nil {
@@ -282,7 +280,7 @@ func (service *Service) flushOutbox() (bool, error) {
 	return true, nil
 }
 
-func (service *Service) retryPromotions() error {
+func (service *Service) retryPromotions() {
 	var promotionErrors []error
 	service.promotions.Range(func(key, _ any) bool {
 		emailID, ok := key.(string)
@@ -297,7 +295,9 @@ func (service *Service) retryPromotions() error {
 		service.promotions.Delete(emailID)
 		return true
 	})
-	return errors.Join(promotionErrors...)
+	if err := errors.Join(promotionErrors...); err != nil {
+		service.report("", []Result{{Err: err}})
+	}
 }
 
 func cloneDeliveryEmail(email *types.Email) (*types.Email, error) {
