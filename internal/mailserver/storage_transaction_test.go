@@ -183,6 +183,52 @@ func TestRecoveryRemovesCompletedLocalFence(t *testing.T) {
 	}
 }
 
+func TestSaveEmailToStorePersistsAcceptedWebhookHandoff(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	id := "non-smtp-handoff"
+	if err := server.SaveEmailToStore(
+		id,
+		false,
+		&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+		&Email{Subject: "accepted outside SMTP"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("non-SMTP accepted handoff fence = %q, %v", state, err)
+	}
+}
+
+func TestReloadPersistsAcceptedWebhookHandoff(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	id := "reload-handoff"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("reload handoff"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.LoadMailsFromDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("reloaded accepted handoff fence = %q, %v", state, err)
+	}
+}
+
 func TestDeleteAllPreservesTransactionFences(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)

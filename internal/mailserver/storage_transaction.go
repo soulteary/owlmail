@@ -159,6 +159,35 @@ func (ms *MailServer) acceptRollbackFence(id string) error {
 	return ms.writeRollbackFenceState(id, acceptedFenceState)
 }
 
+func (ms *MailServer) createAcceptedHandoffFence(id string) error {
+	fencePath := rollbackFencePath(ms.mailDir, id)
+	fence, err := os.OpenFile(fencePath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			state, stateErr := readRollbackFenceState(fencePath)
+			if stateErr == nil && state == acceptedFenceState {
+				return nil
+			}
+		}
+		return fmt.Errorf("create accepted webhook handoff fence: %w", err)
+	}
+	if _, err := fence.WriteString(acceptedFenceState + "\n"); err != nil {
+		_ = fence.Close()
+		return fmt.Errorf("write accepted webhook handoff fence: %w", err)
+	}
+	if err := fence.Sync(); err != nil {
+		_ = fence.Close()
+		return fmt.Errorf("sync accepted webhook handoff fence: %w", err)
+	}
+	if err := fence.Close(); err != nil {
+		return fmt.Errorf("close accepted webhook handoff fence: %w", err)
+	}
+	if err := syncDirectory(ms.mailDir); err != nil {
+		return fmt.Errorf("sync accepted webhook handoff fence: %w", err)
+	}
+	return nil
+}
+
 func (ms *MailServer) completeLocalRollbackFence(id string) error {
 	if err := ms.writeRollbackFenceState(id, localFenceState); err != nil {
 		return err

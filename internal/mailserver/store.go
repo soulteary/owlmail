@@ -82,12 +82,14 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	hasTransactionalHandoff := ms.hasSynchronousListener("new")
 	handoffErr := ms.emitSynchronous("new", storedEmail)
-	if handoffErr == nil && finalizeRollbackFence {
-		if hasTransactionalHandoff {
+	if handoffErr == nil && hasTransactionalHandoff {
+		if finalizeRollbackFence {
 			handoffErr = ms.acceptRollbackFence(id)
 		} else {
-			handoffErr = ms.completeLocalRollbackFence(id)
+			handoffErr = ms.createAcceptedHandoffFence(id)
 		}
+	} else if handoffErr == nil && finalizeRollbackFence {
+		handoffErr = ms.completeLocalRollbackFence(id)
 	}
 	if handoffErr != nil {
 		var rollbackErr error
