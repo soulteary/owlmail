@@ -219,3 +219,21 @@ func TestSynchronousFailureStopsUncommittedNotifications(t *testing.T) {
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestOnSynchronousRejectsMultipleTransactionalHandlers(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	err = server.OnSynchronous("new", func(*Email) error {
+		return errors.New("must never run")
+	})
+	if err == nil {
+		t.Fatal("multiple transactional handlers would allow a partial durable handoff")
+	}
+}
