@@ -244,8 +244,9 @@ configuration changes.
    send a new test message.
 6. Keep the backup until rollback is no longer required.
 
-Use immutable release or commit tags in repeatable environments instead of
-`latest`.
+Record and deploy the published `ghcr.io/soulteary/owlmail@sha256:<digest>` in
+repeatable environments. Tags are aliases; `main`, `latest`, major, and minor
+tags are intentionally moving.
 
 ## Troubleshooting
 

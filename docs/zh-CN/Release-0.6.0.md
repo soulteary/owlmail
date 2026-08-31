@@ -109,8 +109,13 @@ docker run -d \
   ghcr.io/soulteary/owlmail:0.6.0
 ```
 
-`0.6.0` 是不可变标签；`0.6`、`0`、`main` 与 `latest` 都可能移动。需要可重复部署时
-应使用准确发布标签或提交 SHA 标签。
+发布工作流会拒绝覆盖已经存在的 `0.6.0` 镜像；`0.6`、`0`、`main` 与 `latest`
+仍是移动别名。但 Registry 标签本质上仍是名称，不是内容身份。需要密码学意义上的
+精确部署时，应固定正式发布清单的 digest：
+
+```text
+ghcr.io/soulteary/owlmail@sha256:<digest>
+```
 
 ## 已知限制
 

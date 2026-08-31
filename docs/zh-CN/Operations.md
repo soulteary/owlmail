@@ -214,7 +214,9 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 5. 检查 `/healthz`、抽样打开 HTML 和附件，再发送一封新测试邮件。
 6. 在不再需要回滚前保留备份。
 
-可复现环境应使用不可变的发布或提交标签，不要依赖 `latest`。
+可复现环境应记录并部署正式发布的
+`ghcr.io/soulteary/owlmail@sha256:<digest>`。标签都是别名，其中 `main`、
+`latest`、主版本和次版本标签会有意移动。
 
 ## 故障排查
 
