@@ -66,8 +66,10 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
-	_, existed := ms.storeByID[id]
+	previousEmail, existed := ms.storeByID[id]
+	previousEmail = cloneEmail(previousEmail)
 	receivedAt := ms.receivedAtByID[id]
+	previousReceivedAt := receivedAt
 	if receivedAt.IsZero() {
 		receivedAt = time.Now().UTC()
 	}
@@ -78,6 +80,24 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			return fmt.Errorf("persist email metadata: %w", err)
 		}
 	}
+	if err := ms.emitSynchronous("new", storedEmail); err != nil {
+		var rollbackErr error
+		if persistMetadata {
+			if existed {
+				rollbackErr = ms.persistEmailMetadataAt(previousEmail, previousReceivedAt)
+			} else {
+				rollbackErr = ms.deleteEmailMetadata(id)
+				if rollbackErr == nil {
+					rollbackErr = syncStorageDirectory(filepath.Join(ms.mailDir, metadataDirectoryName))
+				}
+			}
+		}
+		ms.storeMutex.Unlock()
+		if rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("roll back email metadata: %w", rollbackErr))
+		}
+		return err
+	}
 	if !existed {
 		ms.storeOrder = append(ms.storeOrder, id)
 	}
@@ -87,8 +107,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
-	// Emit new email event
-	ms.emit("new", storedEmail)
+	// Notify asynchronous listeners only after the durable handoff and in-memory
+	// commit both succeed.
+	ms.emitAsynchronous("new", storedEmail)
 
 	// Auto relay if enabled
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
@@ -251,7 +272,9 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
 	// Emit delete event
-	ms.emit("delete", email)
+	if err := ms.emit("delete", email); err != nil {
+		common.Error("Failed to emit delete event: %v", err)
+	}
 
 	return nil
 }

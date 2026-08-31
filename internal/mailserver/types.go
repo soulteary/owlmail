@@ -40,9 +40,9 @@ type TLSConfig struct {
 }
 
 type eventListener struct {
-	handler     func(*types.Email)
-	slots       chan struct{}
-	synchronous bool
+	handler            func(*types.Email)
+	synchronousHandler func(*types.Email) error
+	slots              chan struct{}
 }
 
 // MailServer represents the SMTP mail server

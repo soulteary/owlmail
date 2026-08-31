@@ -62,6 +62,34 @@ func TestStoreIncomingEmailRollsBackAfterMemoryCommitFailure(t *testing.T) {
 	assertNoCommittedOrTemporaryArtifacts(t, dir)
 }
 
+func TestStoreIncomingEmailRollsBackDurableHandoffFailure(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected outbox failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	err = server.storeIncomingEmail("handoff-message", bytes.NewReader(multipartMessage()), nil)
+	if err == nil || !strings.Contains(err.Error(), "injected outbox failure") {
+		t.Fatalf("expected durable handoff failure, got %v", err)
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("memory store contains %d email(s) after handoff rollback", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "handoff-message")); !os.IsNotExist(err) {
+		t.Fatalf("attachment directory survived handoff rollback: %v", err)
+	}
+	if _, err := os.Stat(server.metadataPath("handoff-message")); !os.IsNotExist(err) {
+		t.Fatalf("metadata survived handoff rollback: %v", err)
+	}
+	assertNoCommittedOrTemporaryArtifacts(t, dir)
+}
+
 func TestStoreIncomingEmailRollsBackAttachmentFailure(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)

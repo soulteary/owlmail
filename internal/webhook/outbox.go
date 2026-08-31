@@ -2,18 +2,21 @@ package webhook
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const outboxDirectoryName = ".owlmail-webhook-outbox"
 
 type deliveryOutbox struct {
-	dir string
+	dir   string
+	mutex sync.Mutex
 }
 
 type outboxEntry struct {
@@ -35,6 +38,8 @@ func (outbox *deliveryOutbox) ensureDirectory() error {
 }
 
 func (outbox *deliveryOutbox) Store(job deliveryJob) error {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
 	if err := outbox.ensureDirectory(); err != nil {
 		return fmt.Errorf("create webhook outbox: %w", err)
 	}
@@ -70,14 +75,29 @@ func (outbox *deliveryOutbox) Store(job deliveryJob) error {
 	if err := os.Rename(temporaryPath, finalPath); err != nil {
 		return fmt.Errorf("commit webhook outbox job: %w", err)
 	}
-	committed = true
 	if err := syncOutboxDirectory(outbox.dir); err != nil {
-		return fmt.Errorf("sync webhook outbox: %w", err)
+		removeErr := os.Remove(finalPath)
+		resyncErr := syncOutboxDirectory(outbox.dir)
+		return errors.Join(
+			fmt.Errorf("sync webhook outbox: %w", err),
+			wrapOutboxCleanupError("remove unsynced webhook outbox job", removeErr),
+			wrapOutboxCleanupError("sync webhook outbox cleanup", resyncErr),
+		)
 	}
+	committed = true
 	return nil
 }
 
+func wrapOutboxCleanupError(message string, err error) error {
+	if err == nil || errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	return fmt.Errorf("%s: %w", message, err)
+}
+
 func (outbox *deliveryOutbox) List() ([]outboxEntry, error) {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
 	if err := outbox.ensureDirectory(); err != nil {
 		return nil, fmt.Errorf("create webhook outbox: %w", err)
 	}
@@ -108,6 +128,8 @@ func (outbox *deliveryOutbox) List() ([]outboxEntry, error) {
 }
 
 func (outbox *deliveryOutbox) Remove(path string) error {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
 	if filepath.Dir(path) != outbox.dir {
 		return fmt.Errorf("remove webhook outbox job outside spool")
 	}
