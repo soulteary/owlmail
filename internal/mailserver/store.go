@@ -20,6 +20,8 @@ const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true, false)
 }
 
@@ -105,7 +107,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 		}
 		ms.storeMutex.Unlock()
 		if hasTransactionalHandoff {
-			ms.emitAsynchronous("new-rollback", storedEmail)
+			// Complete local outbox cleanup before exposing the failure to a
+			// caller that may immediately retry the same email ID.
+			ms.emitNotificationAndWait("new-rollback", storedEmail)
 		}
 		if rollbackErr != nil {
 			return errors.Join(handoffErr, fmt.Errorf("roll back email metadata: %w", rollbackErr))

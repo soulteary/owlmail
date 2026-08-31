@@ -95,6 +95,70 @@ func TestStoreIncomingEmailRollsBackDurableHandoffFailure(t *testing.T) {
 	assertNoCommittedOrTemporaryArtifacts(t, dir)
 }
 
+func TestFailedHandoffWaitsForRollbackCleanup(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected handoff failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cleanupStarted := make(chan struct{})
+	releaseCleanup := make(chan struct{})
+	server.On("new-rollback", func(*Email) {
+		close(cleanupStarted)
+		<-releaseCleanup
+	})
+
+	completed := make(chan error, 1)
+	go func() {
+		completed <- server.SaveEmailToStore(
+			"retry-ordering",
+			false,
+			&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+			&Email{Subject: "failed handoff"},
+		)
+	}()
+	<-cleanupStarted
+	select {
+	case err := <-completed:
+		t.Fatalf("failed save returned before rollback cleanup finished: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(releaseCleanup)
+	if err := <-completed; err == nil || !strings.Contains(err.Error(), "injected handoff failure") {
+		t.Fatalf("failed save error = %v", err)
+	}
+}
+
+func TestRecoveryConvertsMalformedFenceToRollback(t *testing.T) {
+	dir := t.TempDir()
+	id := "malformed-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("malformed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte("acc"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("recovery loaded %d malformed-fenced email(s)", got)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != rollbackFenceState {
+		t.Fatalf("recovered malformed fence = %q, %v", state, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, id+".eml")); !os.IsNotExist(err) {
+		t.Fatalf("malformed-fenced EML survived conservative recovery: %v", err)
+	}
+}
+
 func TestFailedHandoffFencesEMLWhenImmediateCleanupFails(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)

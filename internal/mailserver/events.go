@@ -112,6 +112,27 @@ func (ms *MailServer) emitAsynchronous(event string, email *types.Email) {
 	}
 }
 
+// emitNotificationAndWait invokes ordinary notification handlers inline. It
+// is used for rollback cleanup that must finish before a failed transaction can
+// be retried with the same identifier.
+func (ms *MailServer) emitNotificationAndWait(event string, email *types.Email) {
+	ms.listenersMutex.RLock()
+	listeners := append([]eventListener(nil), ms.listeners[event]...)
+	ms.listenersMutex.RUnlock()
+	for _, listener := range listeners {
+		if listener.handler == nil {
+			continue
+		}
+		if listener.slots != nil {
+			listener.slots <- struct{}{}
+		}
+		listener.handler(cloneEmail(email))
+		if listener.slots != nil {
+			<-listener.slots
+		}
+	}
+}
+
 // emit sends an event to all listeners. Synchronous failures prevent
 // asynchronous notification listeners from observing an uncommitted event.
 func (ms *MailServer) emit(event string, email *types.Email) error {

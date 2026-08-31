@@ -208,22 +208,35 @@ func (ms *MailServer) completeLocalRollbackFence(id string) error {
 
 func (ms *MailServer) writeRollbackFenceState(id, state string) error {
 	fencePath := rollbackFencePath(ms.mailDir, id)
-	fence, err := os.OpenFile(fencePath, os.O_TRUNC|os.O_WRONLY, 0600)
+	fence, err := os.CreateTemp(ms.mailDir, storageTempPrefix+"fence-"+id+"-*.tmp")
 	if err != nil {
 		return err
 	}
-	if _, err := fence.WriteString(state + "\n"); err != nil {
+	temporaryPath := fence.Name()
+	replaced := false
+	defer func() {
 		_ = fence.Close()
+		if !replaced {
+			_ = os.Remove(temporaryPath)
+		}
+	}()
+	if err := fence.Chmod(0600); err != nil {
+		return err
+	}
+	if _, err := fence.WriteString(state + "\n"); err != nil {
 		return err
 	}
 	if err := fence.Sync(); err != nil {
-		_ = fence.Close()
 		return err
 	}
 	if err := fence.Close(); err != nil {
 		return err
 	}
-	return nil
+	if err := os.Rename(temporaryPath, fencePath); err != nil {
+		return err
+	}
+	replaced = true
+	return syncDirectory(ms.mailDir)
 }
 
 // rollbackIncomingEmail cleans final artifacts while retaining the previously
@@ -300,8 +313,14 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 				state = rollbackFenceState
 			}
 			if state != rollbackFenceState {
-				recoveryErrors = append(recoveryErrors, fmt.Errorf("invalid rollback fence state for %s", id))
-				continue
+				// Older interrupted state writes may have left a partial marker.
+				// Treat unknown states conservatively as rejection so the email
+				// cannot remain permanently hidden behind an invalid fence.
+				if err := ms.writeRollbackFenceState(id, rollbackFenceState); err != nil {
+					recoveryErrors = append(recoveryErrors, fmt.Errorf("recover invalid rollback fence for %s: %w", id, err))
+					continue
+				}
+				state = rollbackFenceState
 			}
 			if err := ms.cleanupRollbackFencedEmail(id); err != nil {
 				recoveryErrors = append(recoveryErrors, fmt.Errorf("clean rollback-fenced email %s: %w", id, err))
