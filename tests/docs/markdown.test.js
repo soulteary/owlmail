@@ -375,11 +375,20 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     "govulncheck@${GOVULNCHECK_VERSION}",
     "body_path: ${{ steps.release.outputs.notes }}",
     "fail_on_unmatched_files: true",
-    "moving-tags=${MOVING_TAGS}",
-    "enable=${{ steps.release.outputs.moving-tags == 'true' }}",
+    "git fetch --force --tags origin",
+    "enable=${{ steps.moving-tags.outputs.enabled == 'true' }}",
+    "group: release-${{ github.ref }}",
+    "flavor: latest=false",
   ]) {
     assert.ok(workflow.includes(marker), `.github/workflows/release.yml is missing ${marker}`);
   }
+  const movingTagCheck = workflow.indexOf("- name: Revalidate moving image tags");
+  const imageMetadata = workflow.indexOf("- name: Extract release image metadata");
+  const imagePush = workflow.indexOf("- name: Build and push release image");
+  assert.ok(movingTagCheck < imageMetadata && imageMetadata < imagePush,
+    "moving image tags must be revalidated immediately before metadata generation and image publication");
+  assert.ok(!workflow.includes("group: release-publishing"),
+    "workflow-wide release serialization can cancel an unrelated pending release");
 
   const dockerfile = fs.readFileSync(path.join(root, "Dockerfile"), "utf8");
   for (const marker of ["ARG VERSION=dev", "version-kit/v2.Version=${VERSION}", "version-kit/v2.Commit=${COMMIT}"]) {
