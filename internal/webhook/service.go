@@ -131,17 +131,26 @@ func (service *Service) Enqueue(email *types.Email) error {
 	if service == nil || email == nil {
 		return fmt.Errorf("webhook email is nil")
 	}
+	reservationID := ""
 	service.handoffMutex.Lock()
 	if !service.accepting {
 		service.handoffMutex.Unlock()
 		return fmt.Errorf("webhook service is shutting down")
 	}
 	service.handoffs.Add(1)
+	if service.outbox != nil {
+		reservationID = uuid.NewString()
+		service.stagedHandoffs.Store(reservationID, email.ID)
+	}
 	service.handoffMutex.Unlock()
 	releaseHandoff := true
 	defer func() {
 		if releaseHandoff {
-			service.handoffs.Done()
+			if reservationID != "" {
+				service.releaseStagedReservation(reservationID)
+			} else {
+				service.handoffs.Done()
+			}
 		}
 	}()
 	emailSnapshot, err := cloneDeliveryEmail(email)
@@ -154,7 +163,6 @@ func (service *Service) Enqueue(email *types.Email) error {
 			service.wakeOutbox()
 			return err
 		}
-		service.stagedHandoffs.Store(email.ID, struct{}{})
 		releaseHandoff = false
 		return nil
 	}
@@ -183,11 +191,9 @@ func (service *Service) Commit(emailID string) error {
 		service.promotions.Store(emailID, struct{}{})
 	} else {
 		service.promotions.Delete(emailID)
+		service.releaseStagedHandoffs(emailID)
 	}
 	service.wakeOutbox()
-	if _, tracked := service.stagedHandoffs.LoadAndDelete(emailID); tracked {
-		service.handoffs.Done()
-	}
 	return err
 }
 
@@ -197,11 +203,37 @@ func (service *Service) Abort(emailID string) error {
 		return nil
 	}
 	err := service.outbox.Discard(emailID)
-	if _, tracked := service.stagedHandoffs.LoadAndDelete(emailID); tracked {
-		service.handoffs.Done()
-	}
+	service.releaseStagedHandoffs(emailID)
 	service.wakeOutbox()
 	return err
+}
+
+func (service *Service) releaseStagedReservation(reservationID string) {
+	if _, tracked := service.stagedHandoffs.LoadAndDelete(reservationID); tracked {
+		service.handoffs.Done()
+	}
+}
+
+func (service *Service) releaseStagedHandoffs(emailID string) {
+	service.stagedHandoffs.Range(func(key, value any) bool {
+		trackedEmailID, ok := value.(string)
+		if !ok || trackedEmailID != emailID {
+			return true
+		}
+		if _, tracked := service.stagedHandoffs.LoadAndDelete(key); tracked {
+			service.handoffs.Done()
+		}
+		return true
+	})
+}
+
+func (service *Service) releaseAllStagedHandoffs() {
+	service.stagedHandoffs.Range(func(key, _ any) bool {
+		if _, tracked := service.stagedHandoffs.LoadAndDelete(key); tracked {
+			service.handoffs.Done()
+		}
+		return true
+	})
 }
 
 // RecoverAcceptedPending promotes accepted jobs using durable fence state,
@@ -336,6 +368,7 @@ func (service *Service) retryPromotions() {
 			return true
 		}
 		service.promotions.Delete(emailID)
+		service.releaseStagedHandoffs(emailID)
 		return true
 	})
 	if err := errors.Join(promotionErrors...); err != nil {
@@ -507,6 +540,7 @@ func (service *Service) Close() error {
 		case <-timer.C:
 			service.closeErr = fmt.Errorf("webhook drain exceeded %s", service.shutdownTimeout)
 			service.cancel()
+			service.releaseAllStagedHandoffs()
 			<-drained
 		}
 		service.cancel()

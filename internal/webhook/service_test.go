@@ -239,6 +239,100 @@ func TestServiceCloseWaitsForStagedHandoffDecision(t *testing.T) {
 	}
 }
 
+func TestServiceCloseRetainsFailedPromotionUntilRetrySucceeds(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "retry", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: time.Second, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := service.outbox.dir + "-backup"
+	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Commit(email.ID); err == nil {
+		t.Fatal("blocked outbox promotion unexpectedly succeeded")
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned while accepted promotion was still failing: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if err := os.Remove(service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDir, service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	service.wakeOutbox()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after the promotion retry succeeded")
+	}
+}
+
+func TestServiceCloseTimeoutCancelsPersistentlyFailedPromotion(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "timeout", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: 50 * time.Millisecond, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := service.outbox.dir + "-backup"
+	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Commit(email.ID); err == nil {
+		t.Fatal("blocked outbox promotion unexpectedly succeeded")
+	}
+	if err := service.Close(); err == nil || !strings.Contains(err.Error(), "webhook drain exceeded") {
+		t.Fatalf("Close error = %v, want bounded drain timeout", err)
+	}
+	if err := os.Remove(service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDir, service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestOutboxRecreatesMissingDirectory(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {
