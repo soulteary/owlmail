@@ -237,3 +237,16 @@ func TestOnSynchronousRejectsMultipleTransactionalHandlers(t *testing.T) {
 		t.Fatal("multiple transactional handlers would allow a partial durable handoff")
 	}
 }
+
+func TestOnSynchronousRejectsEventsWithoutTransactionalRollback(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	err = server.OnSynchronous("delete", func(*Email) error { return nil })
+	if err == nil {
+		t.Fatal("delete does not support transactional handoff rollback")
+	}
+}

@@ -13,12 +13,15 @@ func (ms *MailServer) On(event string, handler func(*types.Email)) {
 
 // OnSynchronous registers a lightweight handoff listener that completes
 // before emit returns. It is intended for durable queue writes, not network
-// delivery or other long-running work. Only one transactional handler is
-// allowed per event because independent durable side effects cannot be rolled
-// back safely when a later handler fails.
+// delivery or other long-running work. Only the "new" event has transactional
+// rollback support, and only one handler is allowed because independent durable
+// side effects cannot be rolled back safely when a later handler fails.
 func (ms *MailServer) OnSynchronous(event string, handler func(*types.Email) error) error {
 	if handler == nil {
 		return fmt.Errorf("event handler cannot be nil")
+	}
+	if event != "new" {
+		return fmt.Errorf("synchronous handlers are only supported for new events")
 	}
 	ms.listenersMutex.Lock()
 	defer ms.listenersMutex.Unlock()

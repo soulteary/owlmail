@@ -143,11 +143,10 @@ func (service *Service) Enqueue(email *types.Email) error {
 	}
 	job := deliveryJob{ID: uuid.NewString(), EnqueuedAt: time.Now().UTC(), Email: emailSnapshot}
 	if service.outbox != nil {
-		err := service.outbox.Store(job)
-		service.wakeOutbox()
-		if err != nil {
+		if err := service.outbox.Store(job); err != nil {
 			return err
 		}
+		service.wakeOutbox()
 		return nil
 	}
 	if service.queue != nil {

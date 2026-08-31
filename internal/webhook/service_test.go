@@ -200,6 +200,73 @@ func TestOutboxRecreatesMissingDirectory(t *testing.T) {
 	}
 }
 
+func TestOutboxEnqueueCommitsVisibleEntryWhenRollbackRemovalFails(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncCalls := 0
+	outbox.syncDirectory = func(string) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("injected directory sync failure")
+		}
+		return nil
+	}
+	outbox.removeFile = func(string) error {
+		return errors.New("injected rollback removal failure")
+	}
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1),
+		ctx: context.Background(), accepting: true,
+	}
+
+	if err := service.Enqueue(testEmail()); err != nil {
+		t.Fatalf("visible outbox entry must resolve as committed: %v", err)
+	}
+	select {
+	case <-service.outboxWake:
+	default:
+		t.Fatal("committed visible outbox entry did not wake the worker")
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("visible committed outbox entry = %#v, %v", entries, err)
+	}
+}
+
+func TestOutboxReportsSyncFailureAfterConfirmedRollback(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	syncCalls := 0
+	outbox.syncDirectory = func(string) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("injected directory sync failure")
+		}
+		return nil
+	}
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1),
+		ctx: context.Background(), accepting: true,
+	}
+
+	if err := service.Enqueue(testEmail()); err == nil {
+		t.Fatal("confirmed outbox rollback must report the original sync failure")
+	}
+	select {
+	case <-service.outboxWake:
+		t.Fatal("failed outbox handoff woke the worker")
+	default:
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("outbox after confirmed rollback = %#v, %v", entries, err)
+	}
+}
+
 func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {
