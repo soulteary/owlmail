@@ -320,6 +320,29 @@ func TestOutboxPrunesPendingJobForRollbackFencedMail(t *testing.T) {
 	}
 }
 
+func TestOutboxKeepsPendingJobForActiveMailTransaction(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "active-pending", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailActiveState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.PruneRejectedPending(); err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".pending") {
+		t.Fatalf("active transaction pending job = %#v, %v", files, err)
+	}
+}
+
 func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {

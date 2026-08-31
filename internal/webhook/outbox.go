@@ -16,6 +16,7 @@ const outboxDirectoryName = ".owlmail-webhook-outbox"
 const (
 	mailRollbackFencePrefix = ".owlmail-tmp-rollback-"
 	mailRollbackFenceSuffix = ".fence"
+	mailActiveState         = "active"
 	mailRollbackState       = "rollback"
 	mailMetadataDirectory   = ".owlmail-meta"
 )
