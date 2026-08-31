@@ -20,10 +20,10 @@ const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
-	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true)
+	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true, false)
 }
 
-func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata bool) error {
+func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata, finalizeRollbackFence bool) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
 
 	parsedEmail.ID = id
@@ -80,7 +80,11 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			return fmt.Errorf("persist email metadata: %w", err)
 		}
 	}
-	if err := ms.emitSynchronous("new", storedEmail); err != nil {
+	handoffErr := ms.emitSynchronous("new", storedEmail)
+	if handoffErr == nil && finalizeRollbackFence {
+		handoffErr = ms.acceptRollbackFence(id)
+	}
+	if handoffErr != nil {
 		var rollbackErr error
 		if persistMetadata {
 			if existed {
@@ -94,9 +98,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 		}
 		ms.storeMutex.Unlock()
 		if rollbackErr != nil {
-			return errors.Join(err, fmt.Errorf("roll back email metadata: %w", rollbackErr))
+			return errors.Join(handoffErr, fmt.Errorf("roll back email metadata: %w", rollbackErr))
 		}
-		return err
+		return handoffErr
 	}
 	if !existed {
 		ms.storeOrder = append(ms.storeOrder, id)
@@ -696,7 +700,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		email, envelope, parseErr := ms.parseEmailMessage(id, emailFile, nil, false, filepath.Join(ms.mailDir, id))
 		closeErr := emailFile.Close()
 		if parseErr == nil && closeErr == nil {
-			if storeErr := ms.saveEmailToStore(id, markAsRead, envelope, email, false); storeErr != nil {
+			if storeErr := ms.saveEmailToStore(id, markAsRead, envelope, email, false, false); storeErr != nil {
 				loadErrors = append(loadErrors, fmt.Errorf("restore email %s: %w", id, storeErr))
 				continue
 			}

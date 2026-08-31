@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -134,6 +135,9 @@ func TestOutboxRetainsJobUntilQueueAcceptsIt(t *testing.T) {
 	if err := outbox.Store(job); err != nil {
 		t.Fatal(err)
 	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
 	queue := &fakeDeliveryQueue{claims: make(chan *queueReceipt, 1), enqueueErr: errors.New("redis unavailable")}
 	service := &Service{queue: queue, outbox: outbox, ctx: context.Background()}
 
@@ -177,6 +181,18 @@ func TestOutboxDecouplesEnqueueFromMemoryQueueCapacity(t *testing.T) {
 		t.Fatal("enqueue blocked on the unavailable in-memory queue")
 	}
 	entries, err := outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("staged outbox entries became consumable before acceptance = %#v, %v", entries, err)
+	}
+	select {
+	case <-service.outboxWake:
+		t.Fatal("staged outbox entry woke the worker before acceptance")
+	default:
+	}
+	if err := service.Commit(testEmail().ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = outbox.List()
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("durable outbox entries = %#v, %v", entries, err)
 	}
@@ -194,13 +210,16 @@ func TestOutboxRecreatesMissingDirectory(t *testing.T) {
 	if err := outbox.Store(job); err != nil {
 		t.Fatalf("Store() after directory removal: %v", err)
 	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
 	entries, err := outbox.List()
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("List() after directory recreation = %#v, %v", entries, err)
 	}
 }
 
-func TestOutboxEnqueueCommitsIndeterminateVisibleEntry(t *testing.T) {
+func TestOutboxStageSyncFailureRemainsNonConsumable(t *testing.T) {
 	outbox, err := newDeliveryOutbox(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
@@ -213,17 +232,21 @@ func TestOutboxEnqueueCommitsIndeterminateVisibleEntry(t *testing.T) {
 		ctx: context.Background(), accepting: true,
 	}
 
-	if err := service.Enqueue(testEmail()); err != nil {
-		t.Fatalf("indeterminate visible outbox entry must resolve as committed: %v", err)
+	if err := service.Enqueue(testEmail()); err == nil {
+		t.Fatal("unsynced pending outbox handoff must fail")
 	}
 	select {
 	case <-service.outboxWake:
+		t.Fatal("failed staged handoff woke the worker")
 	default:
-		t.Fatal("committed visible outbox entry did not wake the worker")
 	}
 	entries, err := outbox.List()
-	if err != nil || len(entries) != 1 {
-		t.Fatalf("visible committed outbox entry = %#v, %v", entries, err)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("failed staged handoff became consumable = %#v, %v", entries, err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".pending") {
+		t.Fatalf("non-consumable pending handoff = %#v, %v", files, err)
 	}
 }
 
@@ -244,6 +267,9 @@ func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	job := deliveryJob{ID: "accepted-before-close", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
 	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
 		t.Fatal(err)
 	}
 	close(service.outboxClosing)

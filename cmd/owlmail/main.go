@@ -265,6 +265,16 @@ func registerWebhookService(server *mailserver.MailServer, service *webhooknotif
 	}); err != nil {
 		return fmt.Errorf("register webhook queue handoff: %w", err)
 	}
+	server.On("new", func(email *mailserver.Email) {
+		if err := service.Commit(email.ID); err != nil {
+			common.Error("Failed to commit webhook queue handoff: %v", err)
+		}
+	})
+	for _, email := range server.GetAllEmail() {
+		if err := service.Commit(email.ID); err != nil {
+			return fmt.Errorf("recover webhook queue handoff for %s: %w", email.ID, err)
+		}
+	}
 	return nil
 }
 

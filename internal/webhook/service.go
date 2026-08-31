@@ -146,7 +146,6 @@ func (service *Service) Enqueue(email *types.Email) error {
 		if err := service.outbox.Store(job); err != nil {
 			return err
 		}
-		service.wakeOutbox()
 		return nil
 	}
 	if service.queue != nil {
@@ -161,6 +160,17 @@ func (service *Service) Enqueue(email *types.Email) error {
 	case <-service.ctx.Done():
 		return service.ctx.Err()
 	}
+}
+
+// Commit makes staged outbox jobs consumable after the mail server has durably
+// recorded acceptance. Calling it again is safe and supports startup recovery.
+func (service *Service) Commit(emailID string) error {
+	if service == nil || service.outbox == nil || emailID == "" {
+		return nil
+	}
+	err := service.outbox.Commit(emailID)
+	service.wakeOutbox()
+	return err
 }
 
 func (service *Service) wakeOutbox() {

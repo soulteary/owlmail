@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/soulteary/owlmail/internal/common"
 )
 
 const (
@@ -114,16 +113,11 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 		return errors.Join(fmt.Errorf("sync mail directory: %w", err), rollbackErr)
 	}
 
-	if err := ms.SaveEmailToStore(id, false, envelope, email); err != nil {
+	if err := ms.saveEmailToStore(id, false, envelope, email, true, true); err != nil {
 		rollbackErr := ms.rollbackIncomingEmail(id, finalEML, finalAttachments)
 		committedEML = false
 		committedAttachments = false
 		return errors.Join(fmt.Errorf("commit email to memory: %w", err), rollbackErr)
-	}
-	if err := ms.acceptRollbackFence(id); err != nil {
-		// The email and durable webhook handoff are already committed. Reporting
-		// rejection would be less safe than retaining an accepted message.
-		common.Error("Failed to mark email rollback fence accepted for %s: %v", id, err)
 	}
 	return nil
 }

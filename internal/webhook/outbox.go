@@ -74,18 +74,59 @@ func (outbox *deliveryOutbox) Store(job deliveryJob) error {
 	if err := temporary.Close(); err != nil {
 		return fmt.Errorf("close webhook outbox job: %w", err)
 	}
-	finalPath := filepath.Join(outbox.dir, job.ID+".json")
+	finalPath := filepath.Join(outbox.dir, job.ID+".pending")
 	if err := os.Rename(temporaryPath, finalPath); err != nil {
 		return fmt.Errorf("commit webhook outbox job: %w", err)
 	}
 	if err := outbox.syncDirectory(outbox.dir); err != nil {
-		// The rename is visible but its durability is indeterminate. Resolve the
-		// handoff as committed instead of unlinking it and rejecting an email
-		// whose webhook could reappear after a crash.
+		// Keep the non-consumable pending entry. The caller can reject safely:
+		// recovery promotes pending jobs only for durably accepted emails.
 		committed = true
-		return nil
+		return fmt.Errorf("sync pending webhook outbox job: %w", err)
 	}
 	committed = true
+	return nil
+}
+
+// Commit promotes staged jobs for an accepted email into the consumable
+// outbox namespace. The caller persists mail acceptance before calling this.
+func (outbox *deliveryOutbox) Commit(emailID string) error {
+	outbox.mutex.Lock()
+	defer outbox.mutex.Unlock()
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil {
+		return fmt.Errorf("read pending webhook outbox: %w", err)
+	}
+	promoted := false
+	for _, file := range files {
+		if file.IsDir() || !strings.HasSuffix(file.Name(), ".pending") {
+			continue
+		}
+		pendingPath := filepath.Join(outbox.dir, file.Name())
+		encoded, err := os.ReadFile(pendingPath)
+		if err != nil {
+			return fmt.Errorf("read pending webhook outbox job %s: %w", file.Name(), err)
+		}
+		var job deliveryJob
+		if err := json.Unmarshal(encoded, &job); err != nil {
+			return fmt.Errorf("decode pending webhook outbox job %s: %w", file.Name(), err)
+		}
+		if job.Email == nil || job.Email.ID != emailID {
+			continue
+		}
+		committedPath := strings.TrimSuffix(pendingPath, ".pending") + ".json"
+		if err := os.Rename(pendingPath, committedPath); err != nil {
+			return fmt.Errorf("commit pending webhook outbox job: %w", err)
+		}
+		promoted = true
+	}
+	if !promoted {
+		return nil
+	}
+	if err := outbox.syncDirectory(outbox.dir); err != nil {
+		// Promoted entries are already visible after durable mail acceptance.
+		return nil
+	}
 	return nil
 }
 
