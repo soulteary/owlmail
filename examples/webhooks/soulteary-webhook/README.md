@@ -5,7 +5,7 @@ This runnable example sends each new OwlMail message to
 request body with HMAC-SHA256, maps JSON fields into command environment
 variables, and runs `print-email.sh`.
 
-The Compose demo intentionally pins both released components: OwlMail `0.5.0`
+The Compose demo intentionally pins both released components: OwlMail `0.6.0`
 and WebHook `7.0.0`. This keeps the example reproducible instead of rebuilding
 OwlMail from a moving `main` branch.
 

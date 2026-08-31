@@ -67,10 +67,10 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
-本文固定使用 `0.5.0` 发布镜像。`main` 与 `latest` 会随默认分支构建移动，不应用于
+本文固定使用 `0.6.0` 发布镜像。`main` 与 `latest` 会随默认分支构建移动，不应用于
 可复现部署。
 
 镜像内部默认绑定 `0.0.0.0`。除非其他机器必须访问，否则应像示例一样把宿主机
@@ -86,7 +86,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
 自动化场景应同时配置用户名和密码。只配置用户名时，每次启动会生成新密码并只在
@@ -134,7 +134,7 @@ docker run -d \
   -e OWLMAIL_TLS_ENABLED=true \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
 确认容器运行时允许非 root 进程绑定 465；如不允许，应按运行时安全策略只授予所需
@@ -156,8 +156,8 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 
 ## Webhook 容量档位
 
-`-webhook-max-concurrency` 是跨全部目标和邮件的进程级上限。投递槽位会在创建
-处理 goroutine 前获取，因此有限值会真正施加背压，而不是留下无限等待 goroutine。
+`-webhook-max-concurrency` 是跨全部目标和邮件的进程级上限，并按每个目标 HTTP
+请求获取。有限值会限制活动下游请求，本地 outbox 则承接已经接受的事件交接。
 
 | 档位 | 值 | 适用场景 |
 |---|---:|---|
@@ -178,22 +178,25 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
   -webhook-max-concurrency 0
 ```
 
-该值不是队列长度。槽位全部占用时，新邮件事件处理会等待空位。此时邮件已经保存，
-但 SMTP `DATA` 命令可能需要等到有槽位可用后才能完成；这是防止 goroutine 无限
-增长的主动背压。估算最坏占用时间时应包含目标超时与重试时长；提高上限前先监控
-接收器延迟与错误率。
+该值不是队列长度。SMTP `DATA` 命令会等待事件同步写入
+`.owlmail-webhook-outbox`，但不等待目标槽位、Redis append 或 HTTP 响应。估算
+排空时间时应包含目标超时与重试时长；提高上限前先监控接收器延迟与错误率。长期
+下游或 Redis 故障会积累本地 outbox 文件，因此还应监控邮件卷剩余空间。
 
 ## 关闭与投递保证
 
-收到 `SIGINT` 或 `SIGTERM` 后，OwlMail 会关闭 SMTP 服务并退出进程。不要假设
-此时正在进行的 Webhook 或中继请求一定完成。需要更强投递保证时：
+收到 `SIGINT` 或 `SIGTERM` 后，OwlMail 会停止 SMTP 入口和新的 Webhook 交接，
+并在 `-webhook-shutdown-timeout` 内排空本地 outbox、排队任务及活动 Webhook 请求。
+超时后会取消剩余操作并报告关闭错误。需要更强投递保证时：
 
 1. 终止 OwlMail 前先停止上游 SMTP 流量。
-2. 等待最长 Webhook 超时/重试窗口。
-3. 接收器实现幂等并保留请求日志。
-4. 需要去重时，在自定义载荷中使用 HMAC 签名和稳定事件标识。
+2. 将关闭期限设置为可覆盖预期队列和重试窗口。
+3. 使用 Redis 获得可跨重启的排队投递，并持久化完整邮件目录，使队列接收前的
+   outbox 条目也能跨重启恢复。
+4. 接收器实现幂等，并使用 `X-OwlMail-Delivery-ID` 去重。
 
-Webhook 转发是集成通知机制，不是持久消息队列。
+未配置 Redis 时，只有进入内存队列前的交接是持久的；条目离开本地 outbox 后不再
+具备跨重启能力。Redis 投递是持久但“至少一次”的，崩溃边界仍可能产生重复。
 
 出站中继同样是异步的。API 成功响应只确认进程内请求已被接受，不代表下游 SMTP
 已经完成投递；需要确认投递时，应检查 OwlMail 日志与目标系统。

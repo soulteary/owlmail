@@ -144,36 +144,44 @@ matching rules, or `bodyTemplate`.
 
 ## Durable delivery, dead letters, and shutdown
 
-When `OWLMAIL_WEBHOOK_REDIS_URL` is set, OwlMail writes each stored-email event
-to a Redis Stream before the event handoff returns. Consumer-group workers
-acknowledge and delete an entry only after every matching target succeeds.
-Entries left pending by a crashed process are reclaimed after 30 seconds. If a
-target still fails after its configured retries, OwlMail moves a record with
-the delivery error to `<prefix>:dead-letter` and removes the live entry.
+Every stored-email event is first synced to `.owlmail-webhook-outbox` under the
+mail directory. The event handoff returns after this local commit; a background
+worker then transfers the entry to Redis or the in-memory queue and removes the
+local file only after that queue accepts it. A temporary queue failure therefore
+leaves an outbox entry to retry. Use a persistent `-mail-directory` because the
+default process-specific temporary directory is not reused after a restart.
+
+When `OWLMAIL_WEBHOOK_REDIS_URL` is set, consumer-group workers acknowledge and
+delete a Stream entry only after every matching target succeeds. Entries left
+pending by a crashed process are reclaimed after 30 seconds. If a target still
+fails after its configured retries, OwlMail moves a record with the delivery
+error to `<prefix>:dead-letter` and removes the live entry. Redis must be
+reachable at startup; an outage after startup is absorbed by the local outbox
+until Redis accepts the handoff.
 
 Delivery is at least once: a crash after the receiver accepts a request but
 before Redis is acknowledged can produce a duplicate. Deduplicate the stable
 `X-OwlMail-Delivery-ID`; the email ID alone is not sufficient if future event
-types can create multiple deliveries for one email. Redis must be reachable at
-startup. This consumer setup is intended for one active OwlMail instance per
-prefix.
+types can create multiple deliveries for one email. This consumer setup is
+intended for one active OwlMail instance per prefix.
 
-Shutdown stops SMTP intake, stops accepting queue handoffs, drains queued and
-in-flight deliveries for up to `-webhook-shutdown-timeout`, then cancels the
-shared delivery context. Without Redis, the same drain behavior applies but
-queued jobs do not survive a process or host failure.
+Shutdown stops SMTP intake, stops accepting queue handoffs, drains the outbox,
+queued work, and in-flight deliveries for up to `-webhook-shutdown-timeout`,
+then cancels the shared delivery context. Without Redis, the local file covers
+failures before the in-memory queue accepts a job; after that transfer the job
+is no longer restart-safe.
 
 ## Concurrency and backpressure
 
-`-webhook-max-concurrency` limits concurrent email delivery jobs across all
-targets. The default of `8` is appropriate for local development and small CI
-environments. A useful starting estimate is peak emails per second multiplied
-by the receiver's p95 response time in seconds, rounded up.
+`-webhook-max-concurrency` limits concurrent target HTTP requests across all
+messages. The default of `8` is appropriate for local development and small CI
+environments. A useful starting estimate is peak target requests per second
+multiplied by the receiver's p95 response time in seconds, rounded up.
 
-The limit sizes queue consumers rather than goroutines waiting on a semaphore.
-SMTP `DATA` completion waits only for the queue handoff (including the Redis append in
-durable mode), not for the target HTTP request. Within one job, matching targets
-are delivered sequentially.
+SMTP `DATA` completion waits only for the synced local outbox commit, not for a
+Redis append, an available delivery slot, or the target HTTP request. Matching
+targets are scheduled independently, so a slow target does not serialize the
+other targets for the same message.
 
 Use `0` only when unlimited fan-out is intentional. It preserves the previous
 behavior and can consume large amounts of memory and sockets during a burst.
@@ -352,21 +360,22 @@ hook file. Give both containers the same `OWLMAIL_WEBHOOK_SECRET` value.
 ## Delivery lifecycle and troubleshooting
 
 1. OwlMail parses and stores the SMTP message first.
-2. The `new` event starts the HTTP delivery asynchronously, so a slow or failed
-   target does not change the stored message or eventual SMTP result. If the
-   process-wide concurrency limit is saturated, SMTP acknowledgment can wait
-   for a delivery slot as described above.
-3. Targets matching one email are called sequentially in configuration order.
-   Different email events may be delivered concurrently.
+2. The `new` event is synced to the local outbox before SMTP acknowledgment.
+   HTTP delivery remains asynchronous, so a slow or failed target does not
+   change the stored message or eventual SMTP result, and saturated HTTP
+   concurrency does not block the outbox handoff.
+3. Matching targets are scheduled independently. The process-wide limit is
+   acquired for each individual HTTP request.
 4. A 2xx response completes the target. Network errors, 408, 425, 429, and 5xx
    responses retry after approximately 100 ms, 200 ms, 400 ms, 800 ms, and
    1.6 s as needed. `Retry-After` is not interpreted.
 5. Other 3xx/4xx responses fail immediately. Response bodies are not used.
 
-Forwarding has no persistent delivery queue or dead-letter store. After the
-configured attempts are exhausted, OwlMail keeps the email and logs the failure;
-it does not retry that event after a restart. Process shutdown does not drain
-in-flight webhook deliveries; see the
+Redis mode provides the persistent delivery queue, restart recovery, and a
+dead-letter Stream. Without Redis, the local outbox persists only until the
+in-memory queue accepts a job; exhausted deliveries are logged and are not
+replayed after restart. Shutdown drains accepted work up to the configured
+deadline; see the
 [shutdown guidance](./Operations.md#shutdown-and-delivery-guarantees).
 
 For a local check, run the bundled receiver and the minimal configuration in
@@ -397,9 +406,10 @@ When debugging:
 - Keep the configuration file private (for example, mode `0600`) and put tokens in environment variables.
 - A successful response is any 2xx status. Redirects and other non-2xx responses are failures.
 - Delivery is asynchronous relative to SMTP storage. A failed webhook does not reject or delete the received email.
-- Retries can duplicate a request. Deduplicate with `email.id` or `X-OwlMail-Email-ID` before performing non-idempotent actions.
+- Retries can duplicate a request. Deduplicate with `X-OwlMail-Delivery-ID`
+  before performing non-idempotent actions; an email ID is not a unique
+  delivery identifier.
 - Default payloads may contain both plain-text and HTML email bodies. Use a
   custom template to minimize data when a receiver needs only a title or code.
-- Webhook delivery is intended for notifications and automation, not as a
-  guaranteed message queue. Use a durable downstream endpoint when delivery
-  guarantees are required.
+- Webhook delivery is at least once rather than exactly once. Use Redis and an
+  idempotent durable downstream endpoint when restart recovery is required.

@@ -23,6 +23,8 @@ test("Webhook demo publishes host ports on loopback only", () => {
     assert.match(compose, new RegExp(`127\\.0\\.0\\.1:${port}:${port}`));
   }
   assert.doesNotMatch(compose, /^\s*-\s*["']?(?:9000|1025|1080):/m);
+  assert.ok(compose.includes("image: ghcr.io/soulteary/owlmail:0.6.0"));
+  assert.doesNotMatch(compose, /^\s*image:\s*soulteary\/owlmail/m);
 });
 
 test("Webhook demo distinguishes HTTP proxying from SMTP network controls", () => {
@@ -299,8 +301,8 @@ test("security-sensitive authentication limitations remain explicit", () => {
   }
 
   const capacityReferences = [
-    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", "drains queued", "100 UTF-8 bytes"]],
-    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", "排空排队", "100 个 UTF-8 字节"]],
+    ["docs/en/Webhook-Forwarding.md", ["SMTP `DATA` completion", ".owlmail-webhook-outbox", "drains the outbox", "100 UTF-8 bytes"]],
+    ["docs/zh-CN/Webhook-Forwarding.md", ["SMTP `DATA` 命令", ".owlmail-webhook-outbox", "outbox、排队任务", "100 个 UTF-8 字节"]],
   ];
   for (const [reference, markers] of capacityReferences) {
     const markdown = fs.readFileSync(path.join(root, reference), "utf8");
@@ -321,34 +323,34 @@ test("English and Chinese API references cover every registered API route", () =
   }
 });
 
-test("0.5.0 release documentation and workflow stay connected", () => {
+test("0.6.0 release documentation and workflow stay connected", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
-  const releaseStart = changelog.indexOf("## [0.5.0]");
-  const releaseEnd = changelog.indexOf("## [0.4.0]", releaseStart);
-  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.5.0 release section");
+  const releaseStart = changelog.indexOf("## [0.6.0]");
+  const releaseEnd = changelog.indexOf("## [0.5.0]", releaseStart);
+  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.6.0 release section");
   const releaseSection = changelog.slice(releaseStart, releaseEnd);
   for (const marker of [
-    "outgoing webhook delivery",
-    "Webhook Configurator",
-    "Go 1.27.0",
-    "Bun 1.4.0",
+    "Mailbox governance",
+    "Redis Streams-backed webhook delivery",
+    "local webhook outbox",
+    "Service-worker browser notifications",
   ]) {
-    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.5.0 section is missing ${marker}`);
+    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.6.0 section is missing ${marker}`);
   }
-  assert.ok(changelog.includes("[0.5.0]:"), "CHANGELOG.md is missing the 0.5.0 comparison link");
+  assert.ok(changelog.includes("[0.6.0]:"), "CHANGELOG.md is missing the 0.6.0 comparison link");
   assert.ok(
-    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Webhook Configurator"),
-    "CHANGELOG.md still classifies the 0.5.0 configurator as unreleased",
+    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Mailbox governance"),
+    "CHANGELOG.md still classifies the 0.6.0 storage work as unreleased",
   );
 
   const releaseNotes = [
     [
-      "docs/en/Release-0.5.0.md",
-      ["Webhook forwarding", "Browser webhook configurator", "Browser notifications", "Known limitations", "owlmail-linux-amd64"],
+      "docs/en/Release-0.6.0.md",
+      ["Atomic mailbox persistence and recovery", "Storage governance", "Durable webhook handoff and Redis delivery", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
-      "docs/zh-CN/Release-0.5.0.md",
-      ["Webhook 消息转发", "浏览器 Webhook 配置器", "浏览器通知", "已知限制", "owlmail-linux-amd64"],
+      "docs/zh-CN/Release-0.6.0.md",
+      ["原子邮件持久化与恢复", "存储治理", "持久化 Webhook 交接与 Redis 投递", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
   for (const [releaseNote, markers] of releaseNotes) {
@@ -360,15 +362,15 @@ test("0.5.0 release documentation and workflow stay connected", () => {
 
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${readme} does not pin the release image`);
-    assert.ok(markdown.includes("Release-0.5.0.md"), `${readme} does not link the release notes`);
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.6.0"), `${readme} does not pin the release image`);
+    assert.ok(markdown.includes("Release-0.6.0.md"), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
     assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);
   }
 
   for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {
     const markdown = fs.readFileSync(path.join(root, operations), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.5.0"), `${operations} does not pin 0.5.0`);
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.6.0"), `${operations} does not pin 0.6.0`);
     assert.ok(!markdown.includes("ghcr.io/soulteary/owlmail:latest"), `${operations} uses a moving image`);
   }
 
@@ -377,6 +379,8 @@ test("0.5.0 release documentation and workflow stay connected", () => {
     for (const field of ["version", "commit", "build_date", "branch", "go_version", "platform", "compiler"]) {
       assert.ok(markdown.includes(`"${field}"`), `${reference} is missing version field ${field}`);
     }
+    assert.ok(markdown.includes('"version": "0.6.0"'), `${reference} does not show the 0.6.0 version`);
+    assert.ok(markdown.includes('"branch": "v0.6.0"'), `${reference} does not show the 0.6.0 tag`);
   }
 
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
@@ -454,7 +458,7 @@ test("release workflow preserves supply-chain evidence", () => {
       "gh attestation verify",
       "cosign verify-blob",
       "cosign verify",
-      "--ref v0.5.0",
+      "--ref v0.6.0",
     ]) {
       assert.ok(markdown.includes(marker), `${guide} is missing supply-chain marker ${marker}`);
     }

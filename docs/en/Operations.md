@@ -76,10 +76,10 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
-This guide pins the `0.5.0` release image. The `main` and `latest` tags move with
+This guide pins the `0.6.0` release image. The `main` and `latest` tags move with
 default-branch builds and should not be used for a repeatable deployment.
 
 The image configures OwlMail to listen on `0.0.0.0` inside the container. Bind
@@ -96,7 +96,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
 Configure both values for stable automation. A username alone causes OwlMail to
@@ -148,7 +148,7 @@ docker run -d \
   -e OWLMAIL_TLS_ENABLED=true \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:0.5.0
+  ghcr.io/soulteary/owlmail:0.6.0
 ```
 
 Verify that the container runtime permits the non-root process to bind port 465.
@@ -176,10 +176,9 @@ server from starting.
 
 ## Webhook capacity profiles
 
-`-webhook-max-concurrency` is process-wide across all targets and messages.
-Acquiring a delivery slot happens before a handler goroutine is created, so a
-finite limit provides actual backpressure rather than leaving an unbounded set
-of waiting goroutines.
+`-webhook-max-concurrency` is process-wide across all targets and messages and
+is acquired for each individual target HTTP request. A finite limit bounds
+active downstream requests while the local outbox absorbs accepted handoffs.
 
 | Profile | Value | Use when |
 |---|---:|---|
@@ -200,27 +199,30 @@ of waiting goroutines.
   -webhook-max-concurrency 0
 ```
 
-The limit is not a queue size. When all slots are occupied, new-message event
-processing waits for a slot. The message has already been stored, but completion
-of the SMTP `DATA` command can wait until a slot becomes available. This is the
-intentional backpressure that prevents unbounded goroutine growth. Include
-target timeout and retry duration when estimating the worst-case hold time.
-Monitor receiver latency and error rate before raising the limit.
+The limit is not a queue size. SMTP `DATA` completion waits for the event to be
+synced to `.owlmail-webhook-outbox`, not for a target slot, Redis append, or HTTP
+response. Include target timeout and retry duration when estimating drain time,
+and monitor receiver latency and error rate before raising the limit. Also
+monitor free space on the mail volume because a prolonged downstream or Redis
+outage can accumulate local outbox files.
 
 ## Shutdown and delivery guarantees
 
-On `SIGINT` or `SIGTERM`, OwlMail closes its SMTP server and the process exits.
-Do not assume that an in-flight webhook or relay request completes during this
-window. For deployments that require stronger delivery guarantees:
+On `SIGINT` or `SIGTERM`, OwlMail stops SMTP intake and new webhook handoffs,
+then drains the local outbox, queued work, and active webhook requests for up to
+`-webhook-shutdown-timeout`. When the deadline expires, remaining operations
+are canceled and shutdown reports an error. For deployments that require
+stronger delivery guarantees:
 
 1. Stop upstream SMTP traffic before terminating OwlMail.
-2. Allow the longest configured webhook timeout/retry window to elapse.
-3. Make receivers idempotent and retain their request logs.
-4. Use HMAC signatures and a stable event identifier in custom payloads when
-   deduplication matters.
+2. Set the shutdown deadline to cover the expected queue and retry window.
+3. Use Redis for restart-safe queued delivery and persist the complete mail
+   directory so pre-queue outbox entries survive a restart.
+4. Make receivers idempotent and deduplicate `X-OwlMail-Delivery-ID`.
 
-Webhook forwarding is an integration notification mechanism, not a durable
-message queue.
+Without Redis, only the handoff before the in-memory queue is durable; a job is
+not restart-safe after it leaves the local outbox. Redis delivery is durable but
+at least once, so duplicates remain possible around crashes.
 
 Outgoing relay is also asynchronous. An API success response acknowledges the
 in-process request, not delivery by the downstream SMTP server; inspect logs and

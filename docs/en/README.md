@@ -20,10 +20,10 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
-- **[OwlMail 0.5.0 Release Notes](./Release-0.5.0.md)**
+- **[OwlMail 0.6.0 Release Notes](./Release-0.6.0.md)**
   - Highlights, upgrade-sensitive behavior, installation commands, asset names,
     known limitations, and links to the detailed references.
-  - **Other languages**: [简体中文](../zh-CN/Release-0.5.0.md)
+  - **Other languages**: [简体中文](../zh-CN/Release-0.6.0.md)
 
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
