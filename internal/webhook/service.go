@@ -58,6 +58,8 @@ type Service struct {
 	workers         sync.WaitGroup
 	outboxWorkers   sync.WaitGroup
 	deliveries      sync.WaitGroup
+	promotions      sync.Map
+	stagedHandoffs  sync.Map
 	closeErr        error
 }
 
@@ -129,25 +131,39 @@ func (service *Service) Enqueue(email *types.Email) error {
 	if service == nil || email == nil {
 		return fmt.Errorf("webhook email is nil")
 	}
+	reservationID := ""
 	service.handoffMutex.Lock()
 	if !service.accepting {
 		service.handoffMutex.Unlock()
 		return fmt.Errorf("webhook service is shutting down")
 	}
 	service.handoffs.Add(1)
+	if service.outbox != nil {
+		reservationID = uuid.NewString()
+		service.stagedHandoffs.Store(reservationID, email.ID)
+	}
 	service.handoffMutex.Unlock()
-	defer service.handoffs.Done()
+	releaseHandoff := true
+	defer func() {
+		if releaseHandoff {
+			if reservationID != "" {
+				service.releaseStagedReservation(reservationID)
+			} else {
+				service.handoffs.Done()
+			}
+		}
+	}()
 	emailSnapshot, err := cloneDeliveryEmail(email)
 	if err != nil {
 		return err
 	}
 	job := deliveryJob{ID: uuid.NewString(), EnqueuedAt: time.Now().UTC(), Email: emailSnapshot}
 	if service.outbox != nil {
-		err := service.outbox.Store(job)
-		service.wakeOutbox()
-		if err != nil {
+		if err := service.outbox.Store(job); err != nil {
+			service.wakeOutbox()
 			return err
 		}
+		releaseHandoff = false
 		return nil
 	}
 	if service.queue != nil {
@@ -162,6 +178,81 @@ func (service *Service) Enqueue(email *types.Email) error {
 	case <-service.ctx.Done():
 		return service.ctx.Err()
 	}
+}
+
+// Commit makes staged outbox jobs consumable after the mail server has durably
+// recorded acceptance. Calling it again is safe and supports startup recovery.
+func (service *Service) Commit(emailID string) error {
+	if service == nil || service.outbox == nil || emailID == "" {
+		return nil
+	}
+	err := service.outbox.Commit(emailID)
+	if err != nil {
+		service.promotions.Store(emailID, struct{}{})
+	} else {
+		service.promotions.Delete(emailID)
+		service.releaseStagedHandoffs(emailID)
+	}
+	service.wakeOutbox()
+	return err
+}
+
+// Abort releases a staged handoff for a mail transaction that was rejected.
+func (service *Service) Abort(emailID string) error {
+	if service == nil || service.outbox == nil || emailID == "" {
+		return nil
+	}
+	err := service.outbox.Discard(emailID)
+	service.releaseStagedHandoffs(emailID)
+	service.wakeOutbox()
+	return err
+}
+
+func (service *Service) releaseStagedReservation(reservationID string) {
+	if _, tracked := service.stagedHandoffs.LoadAndDelete(reservationID); tracked {
+		service.handoffs.Done()
+	}
+}
+
+func (service *Service) releaseStagedHandoffs(emailID string) {
+	service.stagedHandoffs.Range(func(key, value any) bool {
+		trackedEmailID, ok := value.(string)
+		if !ok || trackedEmailID != emailID {
+			return true
+		}
+		if _, tracked := service.stagedHandoffs.LoadAndDelete(key); tracked {
+			service.handoffs.Done()
+		}
+		return true
+	})
+}
+
+func (service *Service) releaseAllStagedHandoffs() {
+	service.stagedHandoffs.Range(func(key, _ any) bool {
+		if _, tracked := service.stagedHandoffs.LoadAndDelete(key); tracked {
+			service.handoffs.Done()
+		}
+		return true
+	})
+}
+
+// RecoverAcceptedPending promotes accepted jobs using durable fence state,
+// independent of whether the email is still present in the mailbox.
+func (service *Service) RecoverAcceptedPending() error {
+	if service == nil || service.outbox == nil {
+		return nil
+	}
+	ids, err := service.outbox.AcceptedPendingEmailIDs()
+	if err != nil {
+		return err
+	}
+	var recoveryErrors []error
+	for _, emailID := range ids {
+		if err := service.Commit(emailID); err != nil {
+			recoveryErrors = append(recoveryErrors, fmt.Errorf("recover accepted webhook job for %s: %w", emailID, err))
+		}
+	}
+	return errors.Join(recoveryErrors...)
 }
 
 func (service *Service) wakeOutbox() {
@@ -211,10 +302,14 @@ func (service *Service) runOutbox() {
 		if closing {
 			return
 		}
+		retry.Reset(defaultOutboxRetry)
 		select {
+		case <-retry.C:
 		case <-service.outboxWake:
+			stopOutboxRetry(retry)
 		case <-service.outboxClosing:
 			closing = true
+			stopOutboxRetry(retry)
 		case <-service.ctx.Done():
 			return
 		}
@@ -231,6 +326,10 @@ func stopOutboxRetry(retry *time.Timer) {
 }
 
 func (service *Service) flushOutbox() (bool, error) {
+	service.retryPromotions()
+	if err := service.outbox.PruneRejectedPending(); err != nil {
+		service.report("", []Result{{Err: err}})
+	}
 	entries, err := service.outbox.List()
 	if err != nil {
 		return false, err
@@ -254,6 +353,27 @@ func (service *Service) flushOutbox() (bool, error) {
 		return true, err
 	}
 	return true, nil
+}
+
+func (service *Service) retryPromotions() {
+	var promotionErrors []error
+	service.promotions.Range(func(key, _ any) bool {
+		emailID, ok := key.(string)
+		if !ok {
+			service.promotions.Delete(key)
+			return true
+		}
+		if err := service.outbox.Commit(emailID); err != nil {
+			promotionErrors = append(promotionErrors, fmt.Errorf("promote accepted webhook job for %s: %w", emailID, err))
+			return true
+		}
+		service.promotions.Delete(emailID)
+		service.releaseStagedHandoffs(emailID)
+		return true
+	})
+	if err := errors.Join(promotionErrors...); err != nil {
+		service.report("", []Result{{Err: err}})
+	}
 }
 
 func cloneDeliveryEmail(email *types.Email) (*types.Email, error) {
@@ -420,6 +540,7 @@ func (service *Service) Close() error {
 		case <-timer.C:
 			service.closeErr = fmt.Errorf("webhook drain exceeded %s", service.shutdownTimeout)
 			service.cancel()
+			service.releaseAllStagedHandoffs()
 			<-drained
 		}
 		service.cancel()

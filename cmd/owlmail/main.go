@@ -175,7 +175,6 @@ func registerEventHandlers(server *mailserver.MailServer) {
 		common.Log("New email received: %s (from: %s)", subject, fromAddr)
 		common.Verbose("Email details - ID: %s, Size: %s, Attachments: %d", email.ID, email.SizeHuman, len(email.Attachments))
 	})
-
 	server.On("delete", func(email *mailserver.Email) {
 		if email == nil {
 			common.Log("Email deleted: (nil email)")
@@ -260,12 +259,31 @@ func registerWebhookService(server *mailserver.MailServer, service *webhooknotif
 	if server == nil || service == nil {
 		return nil
 	}
-	if err := server.OnSynchronous("new", func(email *mailserver.Email) {
-		if err := service.Enqueue(email); err != nil {
-			common.Error("Failed to enqueue webhook delivery: %v", err)
-		}
+	if err := server.OnSynchronous("new", func(email *mailserver.Email) error {
+		return service.Enqueue(email)
 	}); err != nil {
 		return fmt.Errorf("register webhook queue handoff: %w", err)
+	}
+	server.On("new", func(email *mailserver.Email) {
+		if err := service.Commit(email.ID); err != nil {
+			common.Error("Failed to commit webhook queue handoff: %v", err)
+		}
+	})
+	server.On("new-rollback", func(email *mailserver.Email) {
+		if email == nil {
+			return
+		}
+		if err := service.Abort(email.ID); err != nil {
+			common.Error("Failed to discard rejected webhook queue handoff: %v", err)
+		}
+	})
+	if err := service.RecoverAcceptedPending(); err != nil {
+		return fmt.Errorf("recover accepted webhook queue handoffs: %w", err)
+	}
+	for _, email := range server.GetAllEmail() {
+		if err := service.Commit(email.ID); err != nil {
+			return fmt.Errorf("recover webhook queue handoff for %s: %w", email.ID, err)
+		}
 	}
 	return nil
 }
