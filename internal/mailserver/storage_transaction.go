@@ -14,8 +14,10 @@ import (
 )
 
 const (
-	storageTempPrefix = ".owlmail-tmp-"
-	quarantineDirName = "quarantine"
+	storageTempPrefix   = ".owlmail-tmp-"
+	rollbackFencePrefix = storageTempPrefix + "rollback-"
+	rollbackFenceSuffix = ".fence"
+	quarantineDirName   = "quarantine"
 )
 
 // storeIncomingEmail commits attachments first and the EML file last. The EML
@@ -95,19 +97,76 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 	}
 	committedEML = true
 	if err := syncDirectory(ms.mailDir); err != nil {
-		_ = os.Remove(finalEML)
-		_ = os.RemoveAll(finalAttachments)
-		return fmt.Errorf("sync mail directory: %w", err)
+		rollbackErr := ms.rollbackIncomingEmail(id, finalEML, finalAttachments)
+		committedEML = false
+		committedAttachments = false
+		return errors.Join(fmt.Errorf("sync mail directory: %w", err), rollbackErr)
 	}
 
 	if err := ms.SaveEmailToStore(id, false, envelope, email); err != nil {
-		_ = os.Remove(finalEML)
-		_ = os.RemoveAll(finalAttachments)
-		_ = syncDirectory(ms.mailDir)
+		rollbackErr := ms.rollbackIncomingEmail(id, finalEML, finalAttachments)
 		committedEML = false
 		committedAttachments = false
-		return fmt.Errorf("commit email to memory: %w", err)
+		return errors.Join(fmt.Errorf("commit email to memory: %w", err), rollbackErr)
 	}
+	return nil
+}
+
+func rollbackFencePath(mailDir, id string) string {
+	return filepath.Join(mailDir, rollbackFencePrefix+id+rollbackFenceSuffix)
+}
+
+// rollbackIncomingEmail durably fences the message before cleanup. If removal
+// later fails, startup recovery will skip and retry cleanup for the fenced ID
+// instead of loading a message that SMTP rejected.
+func (ms *MailServer) rollbackIncomingEmail(id, emlPath, attachmentPath string) error {
+	fencePath := rollbackFencePath(ms.mailDir, id)
+	fence, err := os.OpenFile(fencePath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	if err != nil {
+		return fmt.Errorf("create email rollback fence: %w", err)
+	}
+	if _, err := fence.WriteString(id + "\n"); err != nil {
+		_ = fence.Close()
+		return fmt.Errorf("write email rollback fence: %w", err)
+	}
+	if err := fence.Sync(); err != nil {
+		_ = fence.Close()
+		return fmt.Errorf("sync email rollback fence: %w", err)
+	}
+	if err := fence.Close(); err != nil {
+		return fmt.Errorf("close email rollback fence: %w", err)
+	}
+	if err := syncDirectory(ms.mailDir); err != nil {
+		return fmt.Errorf("sync email rollback fence: %w", err)
+	}
+
+	var cleanupErrors []error
+	if ms.beforeEmailRollback != nil {
+		if err := ms.beforeEmailRollback(emlPath); err != nil {
+			cleanupErrors = append(cleanupErrors, err)
+		} else if err := os.Remove(emlPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+			cleanupErrors = append(cleanupErrors, err)
+		}
+	} else if err := os.Remove(emlPath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := os.RemoveAll(attachmentPath); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := syncDirectory(ms.mailDir); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if len(cleanupErrors) != 0 {
+		// The durable fence is the rollback confirmation. Keep it so recovery
+		// cannot publish any surviving EML after restart.
+		return nil
+	}
+	if err := os.Remove(fencePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	// Failure to persist fence removal is harmless: a stale fence with no EML
+	// is cleaned during recovery and cannot resurrect the rejected message.
+	_ = syncDirectory(ms.mailDir)
 	return nil
 }
 
@@ -132,6 +191,12 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 	}
 	var recoveryErrors []error
 	for _, entry := range entries {
+		if id, ok := rollbackFenceID(entry.Name()); ok {
+			if err := ms.cleanupRollbackFencedEmail(id, filepath.Join(ms.mailDir, entry.Name())); err != nil {
+				recoveryErrors = append(recoveryErrors, fmt.Errorf("clean rollback-fenced email %s: %w", id, err))
+			}
+			continue
+		}
 		if !strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
@@ -140,6 +205,34 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 		}
 	}
 	return errors.Join(recoveryErrors...)
+}
+
+func rollbackFenceID(name string) (string, bool) {
+	if !strings.HasPrefix(name, rollbackFencePrefix) || !strings.HasSuffix(name, rollbackFenceSuffix) {
+		return "", false
+	}
+	id := strings.TrimSuffix(strings.TrimPrefix(name, rollbackFencePrefix), rollbackFenceSuffix)
+	return id, validateEmailID(id) == nil
+}
+
+func (ms *MailServer) cleanupRollbackFencedEmail(id, fencePath string) error {
+	var cleanupErrors []error
+	if err := os.Remove(filepath.Join(ms.mailDir, id+".eml")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := os.RemoveAll(filepath.Join(ms.mailDir, id)); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if err := ms.deleteEmailMetadata(id); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
+	if len(cleanupErrors) != 0 {
+		return errors.Join(cleanupErrors...)
+	}
+	if err := os.Remove(fencePath); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return syncDirectory(ms.mailDir)
 }
 
 func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {

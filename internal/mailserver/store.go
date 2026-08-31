@@ -621,6 +621,14 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
 	var loadErrors []error
+	fencedIDs := make(map[string]struct{})
+	if entries, err := os.ReadDir(ms.mailDir); err == nil {
+		for _, entry := range entries {
+			if id, ok := rollbackFenceID(entry.Name()); ok {
+				fencedIDs[id] = struct{}{}
+			}
+		}
+	}
 	if err := ms.recoverStorageArtifacts(); err != nil {
 		common.Error("Storage recovery completed with errors: %v", err)
 		loadErrors = append(loadErrors, err)
@@ -642,6 +650,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Extract ID from filename
 		id := strings.TrimSuffix(file.Name(), ".eml")
+		if _, fenced := fencedIDs[id]; fenced {
+			continue
+		}
 		emlPath := filepath.Join(ms.mailDir, file.Name())
 
 		// Check if email already loaded

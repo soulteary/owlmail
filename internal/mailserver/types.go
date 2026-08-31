@@ -82,6 +82,7 @@ type MailServer struct {
 	beforeStoreCommit     func(*types.Email) error
 	beforeAttachmentWrite func(string) error
 	beforeQuarantineMove  func(string) error
+	beforeEmailRollback   func(string) error
 	beforeEmailDelete     func(string) error
 }
 

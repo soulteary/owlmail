@@ -2,7 +2,6 @@ package webhook
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,7 +16,6 @@ const outboxDirectoryName = ".owlmail-webhook-outbox"
 type deliveryOutbox struct {
 	dir           string
 	mutex         sync.Mutex
-	removeFile    func(string) error
 	syncDirectory func(string) error
 }
 
@@ -30,7 +28,6 @@ func newDeliveryOutbox(spoolDir string) (*deliveryOutbox, error) {
 	dir := filepath.Join(spoolDir, outboxDirectoryName)
 	outbox := &deliveryOutbox{
 		dir:           dir,
-		removeFile:    os.Remove,
 		syncDirectory: syncOutboxDirectory,
 	}
 	if err := outbox.ensureDirectory(); err != nil {
@@ -82,29 +79,14 @@ func (outbox *deliveryOutbox) Store(job deliveryJob) error {
 		return fmt.Errorf("commit webhook outbox job: %w", err)
 	}
 	if err := outbox.syncDirectory(outbox.dir); err != nil {
-		removeErr := outbox.removeFile(finalPath)
-		if removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
-			// The entry is still visible to the worker, so resolve the handoff as
-			// committed. Returning an error here would roll back the email while
-			// allowing its webhook to be delivered.
-			committed = true
-			return nil
-		}
-		resyncErr := outbox.syncDirectory(outbox.dir)
-		return errors.Join(
-			fmt.Errorf("sync webhook outbox: %w", err),
-			wrapOutboxCleanupError("sync webhook outbox cleanup", resyncErr),
-		)
+		// The rename is visible but its durability is indeterminate. Resolve the
+		// handoff as committed instead of unlinking it and rejecting an email
+		// whose webhook could reappear after a crash.
+		committed = true
+		return nil
 	}
 	committed = true
 	return nil
-}
-
-func wrapOutboxCleanupError(message string, err error) error {
-	if err == nil || errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	return fmt.Errorf("%s: %w", message, err)
 }
 
 func (outbox *deliveryOutbox) List() ([]outboxEntry, error) {
@@ -145,7 +127,7 @@ func (outbox *deliveryOutbox) Remove(path string) error {
 	if filepath.Dir(path) != outbox.dir {
 		return fmt.Errorf("remove webhook outbox job outside spool")
 	}
-	if err := outbox.removeFile(path); err != nil {
+	if err := os.Remove(path); err != nil {
 		return fmt.Errorf("remove webhook outbox job: %w", err)
 	}
 	return outbox.syncDirectory(outbox.dir)

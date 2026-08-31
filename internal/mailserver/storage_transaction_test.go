@@ -90,6 +90,45 @@ func TestStoreIncomingEmailRollsBackDurableHandoffFailure(t *testing.T) {
 	assertNoCommittedOrTemporaryArtifacts(t, dir)
 }
 
+func TestFailedHandoffFencesEMLWhenImmediateCleanupFails(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected outbox failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server.beforeEmailRollback = func(string) error {
+		return errors.New("injected EML cleanup failure")
+	}
+
+	err = server.storeIncomingEmail("fenced-handoff", bytes.NewReader(validMessage("fenced")), nil)
+	if err == nil || !strings.Contains(err.Error(), "injected outbox failure") {
+		t.Fatalf("expected durable handoff failure, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fenced-handoff.eml")); err != nil {
+		t.Fatalf("fault injection did not retain the EML: %v", err)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, "fenced-handoff")); err != nil {
+		t.Fatalf("rollback fence missing: %v", err)
+	}
+
+	restarted, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = restarted.Close() }()
+	if got := len(restarted.GetAllEmail()); got != 0 {
+		t.Fatalf("restart loaded %d rollback-fenced email(s)", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fenced-handoff.eml")); !os.IsNotExist(err) {
+		t.Fatalf("recovery retained rollback-fenced EML: %v", err)
+	}
+}
+
 func TestStoreIncomingEmailRollsBackAttachmentFailure(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)
