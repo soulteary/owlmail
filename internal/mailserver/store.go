@@ -295,6 +295,8 @@ func (ms *MailServer) DeleteEmail(id string) error {
 
 // DeleteAllEmail deletes all emails
 func (ms *MailServer) DeleteAllEmail() error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	common.Log("Deleting all email")
 
 	ms.storeMutex.Lock()

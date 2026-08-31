@@ -431,6 +431,50 @@ func TestOutboxRetriesAcceptedPendingPromotion(t *testing.T) {
 	}
 }
 
+func TestOutboxRetryResyncsRenamedPromotionBeforeFenceCleanup(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "resync-promotion", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailAcceptedState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	outbox.syncDirectory = func(string) error {
+		return errors.New("injected committed outbox sync failure")
+	}
+	if err := outbox.Commit(job.Email.ID); err == nil {
+		t.Fatal("promotion with failed directory sync unexpectedly succeeded")
+	}
+	if _, err := os.Stat(fencePath); err != nil {
+		t.Fatalf("accepted fence removed before durable promotion: %v", err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".json") {
+		t.Fatalf("renamed promotion after sync failure = %#v, %v", files, err)
+	}
+
+	syncCalls := 0
+	outbox.syncDirectory = func(string) error {
+		syncCalls++
+		return nil
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
+	if syncCalls != 1 {
+		t.Fatalf("promotion retry directory sync calls = %d, want 1", syncCalls)
+	}
+	if _, err := os.Stat(fencePath); !os.IsNotExist(err) {
+		t.Fatalf("accepted fence survived durable promotion retry: %v", err)
+	}
+}
+
 func TestOutboxPrunesPendingJobForRollbackFencedMail(t *testing.T) {
 	spoolDir := t.TempDir()
 	outbox, err := newDeliveryOutbox(spoolDir)

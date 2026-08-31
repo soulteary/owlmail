@@ -128,7 +128,11 @@ func (outbox *deliveryOutbox) Commit(emailID string) error {
 		}
 		promoted = true
 	}
-	if promoted {
+	fenceState, err := mailFenceState(filepath.Dir(outbox.dir), emailID)
+	if err != nil {
+		return err
+	}
+	if promoted || fenceState == mailAcceptedState {
 		if err := outbox.syncDirectory(outbox.dir); err != nil {
 			return fmt.Errorf("sync committed webhook outbox job: %w", err)
 		}

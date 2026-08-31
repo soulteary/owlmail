@@ -364,6 +364,49 @@ func TestReloadWaitsForActiveStorageTransaction(t *testing.T) {
 	}
 }
 
+func TestDeleteAllWaitsForActiveStorageTransaction(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	server.beforeStoreCommit = func(*Email) error {
+		once.Do(func() { close(started) })
+		<-release
+		return nil
+	}
+	stored := make(chan error, 1)
+	go func() {
+		stored <- server.storeIncomingEmail("delete-all-race", bytes.NewReader(validMessage("delete all")), nil)
+	}()
+	<-started
+
+	deleted := make(chan error, 1)
+	go func() { deleted <- server.DeleteAllEmail() }()
+	select {
+	case err := <-deleted:
+		t.Fatalf("delete-all completed during an active storage transaction: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-stored; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-deleted; err != nil {
+		t.Fatal(err)
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("delete-all retained %d committed email(s)", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "delete-all-race.eml")); !os.IsNotExist(err) {
+		t.Fatalf("delete-all retained the committed EML: %v", err)
+	}
+}
+
 func TestLoadMailsQuarantinesCorruptIncompleteAndOrphanArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "corrupt.eml"), []byte("not a message"), 0644); err != nil {
