@@ -33,7 +33,7 @@ function createElement() {
     };
 }
 
-function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false } = {}) {
+function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl } = {}) {
     const storage = new Map();
     if (savedPreference !== null) {
         storage.set('owlmail.browserNotifications.enabled', savedPreference);
@@ -105,9 +105,10 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         console,
         setTimeout() { return 1; },
         clearTimeout() {},
-        fetch: async () => { throw new Error('unexpected fetch'); },
+        fetch: fetchImpl || (async () => { throw new Error('unexpected fetch'); }),
         WebSocket: function WebSocket() {},
         URL,
+        URLSearchParams,
         Blob,
         confirm: () => true
     };
@@ -241,4 +242,46 @@ test('initial language setup translates the empty email detail', () => {
     harness.run("setLanguage('fr', false)");
 
     assert.match(harness.emailDetail.innerHTML, /Sélectionnez un email/);
+});
+
+test('mailbox lists use the preview endpoint and preserve query parameters', async () => {
+    const requests = [];
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            requests.push(url);
+            return {
+                ok: true,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ emails: [], total: 0 })
+            };
+        }
+    });
+
+    await harness.run("API.getEmails(50, 25, 'release notes')");
+
+    assert.equal(requests.length, 1);
+    const requestURL = new URL(requests[0]);
+    assert.equal(requestURL.pathname, '/api/v1/emails/preview');
+    assert.equal(requestURL.searchParams.get('offset'), '50');
+    assert.equal(requestURL.searchParams.get('limit'), '25');
+    assert.equal(requestURL.searchParams.get('q'), 'release notes');
+});
+
+test('email details continue to use the single-email endpoint', async () => {
+    const requests = [];
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            requests.push(url);
+            return {
+                ok: true,
+                headers: { get: () => 'application/json' },
+                json: async () => ({ id: 'mail-42', html: '<p>full body</p>' })
+            };
+        }
+    });
+
+    await harness.run("API.getEmail('mail-42')");
+
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0], 'http://owlmail.test/api/v1/emails/mail-42');
 });
