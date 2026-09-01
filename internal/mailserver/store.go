@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"io"
@@ -235,6 +236,8 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	if err := validateEmailID(id); err != nil {
 		return fmt.Errorf("invalid email ID: %w", err)
 	}
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	ms.storeMutex.RLock()
 	email, exists := ms.storeByID[id]
 	if !exists {
@@ -249,43 +252,14 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		}
 	}
 
-	// Delete raw email file
-	emlPath := filepath.Join(ms.mailDir, id+".eml")
-	// Validate path is within mail directory
-	if err := validatePath(ms.mailDir, emlPath); err != nil {
-		return fmt.Errorf("path validation failed: %w", err)
+	if err := ms.ensureDeletionFence(id); err != nil {
+		return err
 	}
-	var deletionErrors []error
-	if err := os.Remove(emlPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		deletionErrors = append(deletionErrors, fmt.Errorf("delete email file: %w", err))
-	}
-
-	// Delete attachments directory
-	attachmentDir := filepath.Join(ms.mailDir, id)
-	// Validate path is within mail directory
-	if err := validatePath(ms.mailDir, attachmentDir); err != nil {
-		return fmt.Errorf("path validation failed: %w", err)
-	}
-	if err := ms.deleteStoredAttachments(id, attachmentDir); err != nil {
-		deletionErrors = append(deletionErrors, fmt.Errorf("delete attachment directory: %w", err))
-	}
-	if err := ms.deleteEmailMetadata(id); err != nil {
-		deletionErrors = append(deletionErrors, fmt.Errorf("delete email metadata: %w", err))
-	}
-	if err := errors.Join(deletionErrors...); err != nil {
+	if err := ms.cleanupDeletionFencedEmail(id); err != nil {
 		return err
 	}
 
-	ms.storeMutex.Lock()
-	delete(ms.storeByID, id)
-	delete(ms.receivedAtByID, id)
-	for i, storedID := range ms.storeOrder {
-		if storedID == id {
-			ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)
-			break
-		}
-	}
-	ms.storeMutex.Unlock()
+	ms.removeEmailFromMemory(id)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
@@ -303,19 +277,24 @@ func (ms *MailServer) DeleteAllEmail() error {
 	defer ms.storageTransactionMutex.Unlock()
 	common.Log("Deleting all email")
 
-	if ms.attachmentStore != nil {
-		ms.storeMutex.RLock()
-		ids := append([]string(nil), ms.storeOrder...)
-		ms.storeMutex.RUnlock()
-		var deletionErrors []error
-		for _, id := range ids {
-			if err := ms.deleteStoredAttachments(id, filepath.Join(ms.mailDir, id)); err != nil {
-				deletionErrors = append(deletionErrors, fmt.Errorf("delete attachments for %s: %w", id, err))
-			}
+	ids, err := ms.deletionCandidates()
+	if err != nil {
+		return fmt.Errorf("list emails for deletion: %w", err)
+	}
+	var deletionErrors []error
+	for _, id := range ids {
+		if err := ms.ensureDeletionFence(id); err != nil {
+			deletionErrors = append(deletionErrors, fmt.Errorf("fence deletion for %s: %w", id, err))
+			continue
 		}
-		if err := errors.Join(deletionErrors...); err != nil {
-			return err
+		if err := ms.cleanupDeletionFencedEmail(id); err != nil {
+			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: %w", id, err))
+			continue
 		}
+		ms.removeEmailFromMemory(id)
+	}
+	if err := errors.Join(deletionErrors...); err != nil {
+		return err
 	}
 
 	ms.storeMutex.Lock()
@@ -334,13 +313,18 @@ func (ms *MailServer) DeleteAllEmail() error {
 			if _, fenced := rollbackFenceID(file.Name()); fenced {
 				continue
 			}
+			if _, fenced := deletionFenceID(file.Name()); fenced {
+				continue
+			}
 			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
-				common.Verbose("Failed to remove file: %v", err)
+				deletionErrors = append(deletionErrors, fmt.Errorf("remove %s: %w", file.Name(), err))
 			}
 		}
+	} else {
+		deletionErrors = append(deletionErrors, fmt.Errorf("read mail directory: %w", err))
 	}
 
-	return nil
+	return errors.Join(deletionErrors...)
 }
 
 // GetRawEmail returns the raw email file path
@@ -588,10 +572,11 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 					}
 
 					attachment := &Attachment{
-						ContentType: partMediaType,
-						FileName:    filename,
-						ContentID:   contentID,
-						Size:        int64(len(body)),
+						ContentType:   partMediaType,
+						FileName:      filename,
+						ContentID:     contentID,
+						Size:          int64(len(body)),
+						ContentSHA256: fmt.Sprintf("%x", sha256.Sum256(body)),
 					}
 
 					if saveAttachments {
@@ -643,6 +628,10 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 	fencedIDs := make(map[string]struct{})
 	if entries, err := os.ReadDir(ms.mailDir); err == nil {
 		for _, entry := range entries {
+			if id, ok := deletionFenceID(entry.Name()); ok {
+				fencedIDs[id] = struct{}{}
+				continue
+			}
 			if id, ok := rollbackFenceID(entry.Name()); ok {
 				state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, entry.Name()))
 				if stateErr != nil || (state != acceptedFenceState && state != localFenceState) {
@@ -717,7 +706,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		email, envelope, parseErr := ms.parseEmailMessage(id, emailFile, nil, false, filepath.Join(ms.mailDir, id))
 		closeErr := emailFile.Close()
 		if parseErr == nil && closeErr == nil {
-			persistRestoredMetadata := !metadataLoaded || (metadata.Version < currentMetadataVersion && len(email.Attachments) == 0)
+			persistRestoredMetadata := !metadataLoaded || metadata.Version < currentMetadataVersion
 			if metadataLoaded {
 				if metadataErr := restoreAttachmentMetadata(email, metadata); metadataErr != nil {
 					loadErrors = append(loadErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, metadataErr))
@@ -725,6 +714,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 				}
 			}
 			if len(email.Attachments) > 0 && (!metadataLoaded || len(metadata.Attachments) == 0) {
+				// Attachment metadata must only be upgraded after every legacy
+				// filename has been matched deterministically.
+				persistRestoredMetadata = false
 				if metadataErr := ms.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); metadataErr != nil {
 					common.Verbose("Could not restore legacy attachment names for %s: %v", id, metadataErr)
 				} else {

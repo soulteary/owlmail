@@ -10,7 +10,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 - Optional S3-compatible object storage for decoded attachments, including
   transactional upload rollback, restart-safe metadata, streaming downloads,
-  retention cleanup, and compatibility with existing local attachments.
+  recoverable deletion and quarantine cleanup, content-verified legacy
+  attachment mapping, retention cleanup, and compatibility with existing local
+  attachments.
 
 ### Changed
 

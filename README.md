@@ -325,9 +325,11 @@ The bucket must already exist. Omit the endpoint to use AWS S3. Omit OwlMail's
 static key settings to use the AWS SDK credential chain, including workload
 roles. Attachment keys use
 `<prefix>/<email-id>/<generated-filename>`; email deletion and retention cleanup
-remove that email's object prefix. Upload must finish before SMTP accepts the
-message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures local files and does
-not include S3 object bytes.
+remove that email's object prefix. Failed remote deletion retains a durable
+per-message fence and all local recovery evidence, then retries on the next
+request or startup; pending deletions are not republished. Upload must finish
+before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
+local files and does not include S3 object bytes.
 
 ## 📡 API Documentation
 

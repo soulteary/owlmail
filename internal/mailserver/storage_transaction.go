@@ -297,6 +297,12 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 	}
 	var recoveryErrors []error
 	for _, entry := range entries {
+		if id, ok := deletionFenceID(entry.Name()); ok {
+			if err := ms.cleanupDeletionFencedEmail(id); err != nil {
+				recoveryErrors = append(recoveryErrors, fmt.Errorf("clean deletion-fenced email %s: %w", id, err))
+			}
+			continue
+		}
 		if id, ok := rollbackFenceID(entry.Name()); ok {
 			fencePath := filepath.Join(ms.mailDir, entry.Name())
 			state, err := readRollbackFenceState(fencePath)
@@ -379,25 +385,38 @@ func (ms *MailServer) cleanupRollbackFencedEmail(id string) error {
 }
 
 func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {
-	destination, err := ms.newQuarantineEntry(id, reason)
-	if err != nil {
-		return err
-	}
-	if err := os.Rename(emlPath, filepath.Join(destination, "message.eml")); err != nil {
-		return err
-	}
-	attachmentPath := filepath.Join(ms.mailDir, id)
+	// Keep the live EML as the startup retry marker until remote cleanup has
+	// succeeded. S3 prefix deletion is idempotent, so a later retry is safe.
 	if ms.attachmentStore != nil {
 		if err := ms.attachmentStore.DeleteEmail(context.Background(), id); err != nil {
 			return err
 		}
 	}
+	destination, err := ms.newQuarantineEntry(id, reason)
+	if err != nil {
+		return err
+	}
+	attachmentPath := filepath.Join(ms.mailDir, id)
+	attachmentsMoved := false
 	if _, err := os.Stat(attachmentPath); err == nil {
 		if err := os.Rename(attachmentPath, filepath.Join(destination, "attachments")); err != nil {
+			_ = os.Remove(destination)
 			return err
 		}
+		attachmentsMoved = true
 	} else if !os.IsNotExist(err) {
+		_ = os.Remove(destination)
 		return err
+	}
+	if err := os.Rename(emlPath, filepath.Join(destination, "message.eml")); err != nil {
+		var rollbackErr error
+		if attachmentsMoved {
+			rollbackErr = os.Rename(filepath.Join(destination, "attachments"), attachmentPath)
+		}
+		if rollbackErr == nil {
+			_ = os.Remove(destination)
+		}
+		return errors.Join(err, rollbackErr)
 	}
 	return syncDirectory(ms.mailDir)
 }

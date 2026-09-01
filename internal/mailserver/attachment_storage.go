@@ -2,8 +2,11 @@ package mailserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"mime"
 	"os"
 	"path/filepath"
@@ -97,8 +100,9 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 		return err
 	}
 	type candidate struct {
-		name string
-		size int64
+		name          string
+		size          int64
+		contentSHA256 string
 	}
 	files := make([]candidate, 0, len(entries))
 	for _, entry := range entries {
@@ -112,37 +116,63 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 		if err != nil {
 			return err
 		}
-		files = append(files, candidate{name: entry.Name(), size: info.Size()})
+		contentSHA256, err := attachmentFileSHA256(filepath.Join(directory, entry.Name()))
+		if err != nil {
+			return err
+		}
+		files = append(files, candidate{name: entry.Name(), size: info.Size(), contentSHA256: contentSHA256})
 	}
 	if len(files) != len(attachments) {
 		return fmt.Errorf("legacy attachment file count does not match message")
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].name < files[j].name })
 	used := make([]bool, len(files))
-	for _, attachment := range attachments {
+	assignments := make([]int, len(attachments))
+	for attachmentIndex, attachment := range attachments {
 		if attachment == nil {
 			return fmt.Errorf("legacy attachment metadata is incomplete")
 		}
+		if attachment.ContentSHA256 == "" {
+			return fmt.Errorf("legacy attachment content digest is missing")
+		}
 		expectedExtension := attachmentExtension(attachment)
-		match := -1
+		matches := make([]int, 0, 1)
 		for i, file := range files {
-			if used[i] || file.size != attachment.Size {
+			if used[i] || file.size != attachment.Size || file.contentSHA256 != attachment.ContentSHA256 {
 				continue
 			}
 			if expectedExtension != "" && !strings.EqualFold(filepath.Ext(file.name), expectedExtension) {
 				continue
 			}
-			match = i
-			break
+			matches = append(matches, i)
 		}
-		if match == -1 {
-			return fmt.Errorf("legacy attachment file cannot be matched")
+		if len(matches) != 1 {
+			return fmt.Errorf("legacy attachment file cannot be uniquely matched")
 		}
+		match := matches[0]
 		used[match] = true
+		assignments[attachmentIndex] = match
+	}
+	for attachmentIndex, match := range assignments {
+		attachment := attachments[attachmentIndex]
 		attachment.GeneratedFileName = files[match].name
 		attachment.Transformed = true
 	}
 	return nil
+}
+
+func attachmentFileSHA256(path string) (string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.New()
+	_, copyErr := io.Copy(hash, file)
+	closeErr := file.Close()
+	if err := errors.Join(copyErr, closeErr); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func attachmentExtension(attachment *Attachment) string {

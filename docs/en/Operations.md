@@ -97,14 +97,22 @@ every object under `<prefix>/<email-id>/`, and only then commits the `.eml`
 marker. A failed upload rejects the SMTP transaction and triggers prefix
 cleanup; startup recovery retries cleanup after an interrupted transaction.
 Single-email deletion, clear-all, and retention cleanup delete remote objects as
-well as any matching legacy local attachment directory.
+well as any matching legacy local attachment directory. Before deletion OwlMail
+syncs a per-message deletion fence. Remote cleanup runs first; if it fails, the
+raw message, metadata, local attachments, and fence remain available for a
+same-process retry or automatic startup recovery. A deletion-fenced message is
+never republished while cleanup is pending. Corrupt-message quarantine follows
+the same remote-first rule and leaves the live `.eml` retry marker in place when
+S3 is unavailable.
 
 Enabling S3 does not migrate existing attachments. Existing local attachments
 remain readable and are removed normally, while newly received attachments use
-S3. Disabling S3 or changing its bucket/prefix does not download or relocate
-objects, so migrate those objects before changing the configuration. The
-`-mail-max-disk-mb` limit and `storage.diskBytes` statistic cover local files
-only and do not include remote object bytes.
+S3. During startup, legacy attachment filenames are recovered only when file
+size, extension, and SHA-256 content digest identify one unique local file;
+ambiguous metadata is not persisted. Disabling S3 or changing its bucket/prefix
+does not download or relocate objects, so migrate those objects before changing
+the configuration. The `-mail-max-disk-mb` limit and `storage.diskBytes`
+statistic cover local files only and do not include remote object bytes.
 
 ### 3. Persistent Docker deployment
 
