@@ -17,17 +17,17 @@ import (
 func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments []*Attachment) error {
 	for _, attachment := range attachments {
 		if attachment == nil || attachment.GeneratedFileName == "" {
-			cleanupErr := ms.attachmentStore.DeleteEmail(context.Background(), id)
+			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(fmt.Errorf("attachment metadata is incomplete"), cleanupErr)
 		}
 		attachmentPath := filepath.Join(stagingDirectory, attachment.GeneratedFileName)
 		if err := validatePath(stagingDirectory, attachmentPath); err != nil {
-			cleanupErr := ms.attachmentStore.DeleteEmail(context.Background(), id)
+			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(fmt.Errorf("validate staged attachment path: %w", err), cleanupErr)
 		}
 		file, err := os.Open(attachmentPath)
 		if err != nil {
-			cleanupErr := ms.attachmentStore.DeleteEmail(context.Background(), id)
+			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(fmt.Errorf("open staged attachment: %w", err), cleanupErr)
 		}
 		stat, statErr := file.Stat()
@@ -43,7 +43,7 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 		}
 		closeErr := file.Close()
 		if statErr != nil || err != nil || closeErr != nil {
-			cleanupErr := ms.attachmentStore.DeleteEmail(context.Background(), id)
+			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(statErr, err, closeErr, cleanupErr)
 		}
 	}
@@ -53,11 +53,27 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 func (ms *MailServer) deleteStoredAttachments(id, localPath string) error {
 	if ms.attachmentStore != nil {
 		return errors.Join(
-			ms.attachmentStore.DeleteEmail(context.Background(), id),
+			ms.deleteRemoteAttachments(id),
 			os.RemoveAll(localPath),
 		)
 	}
 	return os.RemoveAll(localPath)
+}
+
+// deleteRemoteAttachments bounds S3 cleanup so a stalled endpoint cannot hold
+// the storage transaction lock indefinitely. Prefix deletion is idempotent;
+// callers retain their durable retry marker when this deadline expires.
+func (ms *MailServer) deleteRemoteAttachments(id string) error {
+	if ms.attachmentStore == nil {
+		return nil
+	}
+	timeout := ms.attachmentDeleteTimeout
+	if timeout <= 0 {
+		timeout = defaultAttachmentDeleteTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return ms.attachmentStore.DeleteEmail(ctx, id)
 }
 
 func (ms *MailServer) findAttachment(id, filename string) (*Attachment, error) {

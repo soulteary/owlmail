@@ -1,7 +1,6 @@
 package mailserver
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -70,7 +69,7 @@ func (ms *MailServer) ensureDeletionFence(id string) error {
 // fence remains until every artifact deletion has been synced.
 func (ms *MailServer) cleanupDeletionFencedEmail(id string) error {
 	if ms.attachmentStore != nil {
-		if err := ms.attachmentStore.DeleteEmail(context.Background(), id); err != nil {
+		if err := ms.deleteRemoteAttachments(id); err != nil {
 			return fmt.Errorf("delete remote attachments: %w", err)
 		}
 	}

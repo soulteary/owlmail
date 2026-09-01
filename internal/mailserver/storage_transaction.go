@@ -1,7 +1,6 @@
 package mailserver
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -388,7 +387,7 @@ func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {
 	// Keep the live EML as the startup retry marker until remote cleanup has
 	// succeeded. S3 prefix deletion is idempotent, so a later retry is safe.
 	if ms.attachmentStore != nil {
-		if err := ms.attachmentStore.DeleteEmail(context.Background(), id); err != nil {
+		if err := ms.deleteRemoteAttachments(id); err != nil {
 			return err
 		}
 	}

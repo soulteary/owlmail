@@ -21,6 +21,7 @@ type memoryAttachmentStore struct {
 	openErr       error
 	deleteErr     error
 	deleteErrByID map[string]error
+	blockDelete   bool
 }
 
 func newMemoryAttachmentStore() *memoryAttachmentStore {
@@ -56,7 +57,11 @@ func (store *memoryAttachmentStore) Open(_ context.Context, emailID, filename st
 	}, nil
 }
 
-func (store *memoryAttachmentStore) DeleteEmail(_ context.Context, emailID string) error {
+func (store *memoryAttachmentStore) DeleteEmail(ctx context.Context, emailID string) error {
+	if store.blockDelete {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	if store.deleteErr != nil {
 		return store.deleteErr
 	}
@@ -217,6 +222,45 @@ func TestRemoteAttachmentDeleteFailureRecoversAcrossRestarts(t *testing.T) {
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			t.Fatalf("recovered deletion retained %s: %v", path, err)
 		}
+	}
+}
+
+func TestRemoteAttachmentDeleteHasDeadline(t *testing.T) {
+	dir := t.TempDir()
+	remote := newMemoryAttachmentStore()
+	server, err := NewMailServerWithOptions(1025, "localhost", dir, ServerOptions{AttachmentStore: remote})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	const id = "delete-timeout"
+	if err := server.storeIncomingEmail(id, bytes.NewReader(multipartMessage()), nil); err != nil {
+		t.Fatal(err)
+	}
+
+	server.attachmentDeleteTimeout = 20 * time.Millisecond
+	remote.blockDelete = true
+	started := time.Now()
+	err = server.DeleteEmail(id)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DeleteEmail() error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded remote deletion took %s", elapsed)
+	}
+	if _, err := server.GetEmail(id); err != nil {
+		t.Fatalf("timed-out deletion removed the retry target: %v", err)
+	}
+	if _, err := os.Stat(deletionFencePath(dir, id)); err != nil {
+		t.Fatalf("timed-out deletion lost its fence: %v", err)
+	}
+
+	remote.blockDelete = false
+	if err := server.DeleteEmail(id); err != nil {
+		t.Fatalf("DeleteEmail() retry error = %v", err)
+	}
+	if len(remote.objects) != 0 {
+		t.Fatalf("retry retained remote objects: %#v", remote.objects)
 	}
 }
 

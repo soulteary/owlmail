@@ -62,19 +62,20 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	}
 
 	ms := &MailServer{
-		storeByID:       make(map[string]*types.Email),
-		storeOrder:      make([]string, 0),
-		receivedAtByID:  make(map[string]time.Time),
-		mailDir:         mailDir,
-		port:            port,
-		host:            host,
-		maxMessageBytes: maxMessageBytes,
-		attachmentStore: options.AttachmentStore,
-		eventChan:       make(chan Event, 100),
-		listeners:       make(map[string][]eventListener),
-		authConfig:      options.AuthConfig,
-		tlsConfig:       options.TLSConfig,
-		useUUIDForID:    options.UseUUIDForID,
+		storeByID:               make(map[string]*types.Email),
+		storeOrder:              make([]string, 0),
+		receivedAtByID:          make(map[string]time.Time),
+		mailDir:                 mailDir,
+		port:                    port,
+		host:                    host,
+		maxMessageBytes:         maxMessageBytes,
+		attachmentStore:         options.AttachmentStore,
+		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
+		eventChan:               make(chan Event, 100),
+		listeners:               make(map[string][]eventListener),
+		authConfig:              options.AuthConfig,
+		tlsConfig:               options.TLSConfig,
+		useUUIDForID:            options.UseUUIDForID,
 	}
 
 	// Setup outgoing mail if config provided

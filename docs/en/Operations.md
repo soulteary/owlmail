@@ -103,7 +103,9 @@ raw message, metadata, local attachments, and fence remain available for a
 same-process retry or automatic startup recovery. A deletion-fenced message is
 never republished while cleanup is pending. Corrupt-message quarantine follows
 the same remote-first rule and leaves the live `.eml` retry marker in place when
-S3 is unavailable.
+S3 is unavailable. Each remote deletion attempt has a 30-second deadline, so a
+stalled endpoint releases the storage transaction lock and leaves cleanup for a
+later retry.
 
 Enabling S3 does not migrate existing attachments. Existing local attachments
 remain readable and are removed normally, while newly received attachments use
