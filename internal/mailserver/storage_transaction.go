@@ -28,8 +28,8 @@ const (
 // storeIncomingEmail commits attachments first and the EML file last. The EML
 // rename is the transaction marker observed by startup recovery.
 func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Session) error {
-	ms.storageTransactionMutex.Lock()
-	defer ms.storageTransactionMutex.Unlock()
+	ms.storageTransactionMutex.RLock()
+	defer ms.storageTransactionMutex.RUnlock()
 	if err := validateEmailID(id); err != nil {
 		return err
 	}
