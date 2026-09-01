@@ -51,7 +51,7 @@ type MailServer struct {
 	storeOrder              []string
 	receivedAtByID          map[string]time.Time
 	storeMutex              sync.RWMutex
-	storageTransactionMutex sync.Mutex
+	storageTransactionMutex sync.RWMutex
 	mailDir                 string
 	port                    int
 	host                    string
