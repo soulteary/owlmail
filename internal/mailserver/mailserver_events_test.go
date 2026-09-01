@@ -27,7 +27,9 @@ func TestMailServerOn(t *testing.T) {
 
 	// Emit event
 	email := &Email{ID: "test-id", Subject: "Test"}
-	server.emit("new", email)
+	if err := server.emit("new", email); err != nil {
+		t.Fatalf("emit new event: %v", err)
+	}
 
 	// Wait for event handler to be called
 	select {
@@ -58,7 +60,9 @@ func TestEventListenersReceiveIndependentSnapshots(t *testing.T) {
 	})
 
 	original := &Email{Subject: "original", Envelope: &Envelope{To: []string{"receiver@example.test"}}}
-	server.emit("isolated", original)
+	if err := server.emit("isolated", original); err != nil {
+		t.Fatalf("emit isolated event: %v", err)
+	}
 	select {
 	case got := <-observed:
 		if got != "original:receiver@example.test" {
@@ -107,7 +111,9 @@ func TestOnWithConcurrencyBoundsHandlersBeforeStartingGoroutines(t *testing.T) {
 		emitters.Add(1)
 		go func() {
 			defer emitters.Done()
-			server.emit("limited", &Email{})
+			if err := server.emit("limited", &Email{}); err != nil {
+				t.Errorf("emit limited event: %v", err)
+			}
 		}()
 	}
 	for index := 0; index < limit; index++ {
@@ -152,14 +158,18 @@ func TestEmitStartsUnlimitedListenersBeforeBoundedBackpressure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	server.emit("new", &Email{})
+	if err := server.emit("new", &Email{}); err != nil {
+		t.Fatalf("emit first bounded event: %v", err)
+	}
 	<-boundedStarted
 
 	unlimitedStarted := make(chan struct{}, 1)
 	server.On("new", func(_ *Email) { unlimitedStarted <- struct{}{} })
 	secondEmitDone := make(chan struct{})
 	go func() {
-		server.emit("new", &Email{})
+		if err := server.emit("new", &Email{}); err != nil {
+			t.Errorf("emit second bounded event: %v", err)
+		}
 		close(secondEmitDone)
 	}()
 	select {
