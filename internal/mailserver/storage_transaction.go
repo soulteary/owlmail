@@ -320,7 +320,6 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 					recoveryErrors = append(recoveryErrors, fmt.Errorf("recover invalid rollback fence for %s: %w", id, err))
 					continue
 				}
-				state = rollbackFenceState
 			}
 			if err := ms.cleanupRollbackFencedEmail(id); err != nil {
 				recoveryErrors = append(recoveryErrors, fmt.Errorf("clean rollback-fenced email %s: %w", id, err))
