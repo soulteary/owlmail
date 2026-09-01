@@ -128,6 +128,14 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid SMTP max message size", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.SMTPMaxMessageMB = 0
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("zero SMTP max message size should fail")
+		}
+	})
+
 	t.Run("invalid Web port", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.WebPort = 70000
@@ -254,6 +262,42 @@ func TestValidateConfig(t *testing.T) {
 		cfg.WebExternalScheme = "ftp"
 		if err := ValidateConfig(cfg); err == nil {
 			t.Error("invalid external web scheme should fail")
+		}
+	})
+
+	t.Run("S3 attachment storage", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.S3Enabled = true
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("enabled S3 storage without a bucket should fail")
+		}
+
+		cfg.S3Bucket = "owlmail"
+		cfg.S3Region = ""
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("enabled S3 storage without a region should fail")
+		}
+
+		cfg.S3Region = "us-east-1"
+		cfg.S3Endpoint = "ftp://objects.example.test"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("non-HTTP S3 endpoint should fail")
+		}
+
+		cfg.S3Endpoint = "https://user:pass@objects.example.test"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("S3 endpoint credentials should fail")
+		}
+
+		cfg.S3Endpoint = "http://minio:9000"
+		cfg.S3AccessKeyID = "access"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("partial static S3 credentials should fail")
+		}
+
+		cfg.S3SecretAccessKey = "secret"
+		if err := ValidateConfig(cfg); err != nil {
+			t.Fatalf("valid S3 attachment config error = %v", err)
 		}
 	})
 

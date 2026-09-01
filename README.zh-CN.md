@@ -35,6 +35,7 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 - ✅ **SMTP 服务器** - 接收和存储所有发送的邮件（默认端口 1025）
 - ✅ **Web 界面** - 通过浏览器查看和管理邮件（默认端口 1080）
 - ✅ **邮件持久化** - 邮件保存为 `.eml` 文件，支持从目录加载
+- ✅ **S3 兼容附件存储** - 可选使用对象存储保存解析后的附件，默认仍为本地存储
 - ✅ **邮件转发** - 支持将邮件转发到真实的 SMTP 服务器
 - ✅ **自动中继** - 支持自动转发所有邮件，带规则过滤
 - ✅ **Webhook 消息转发** - 按规则把新邮件转换为自定义消息并发送到通用 HTTP Webhook
@@ -212,6 +213,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 |------|---------|--------|------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP 端口 |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP 主机 |
+| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 单封入站邮件上限，单位 MiB |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
@@ -219,6 +221,15 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | 邮箱最大磁盘 MiB；`0` 表示不限 |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | 后台保留策略清理间隔 |
+| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 将解析后的附件存入 S3 兼容对象存储 |
+| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | 自定义 S3 兼容端点；留空使用 AWS S3 |
+| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 签名区域 |
+| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | 用于附件的已有存储桶 |
+| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | 附件对象键前缀 |
+| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | 可选静态访问密钥；留空使用 AWS 凭据链 |
+| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 可选静态秘密密钥 |
+| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 可选静态凭据会话令牌 |
+| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | 为兼容服务使用路径式存储桶寻址 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth 用户名 |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth 密码 |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | 启用 HTTPS |
@@ -281,6 +292,30 @@ export OWLMAIL_SMTP_PORT=1025
 export OWLMAIL_WEB_PORT=1080
 ./owlmail
 ```
+
+### S3 兼容附件存储
+
+S3 默认关闭，解析后的附件继续存放在 `-mail-directory` 下。开启 S3 后，只有解析
+后的附件进入对象存储；原始 `.eml`、元数据、事务标记及 Webhook outbox 仍保存在
+本地，因此生产环境仍需持久化邮件目录。
+
+```bash
+export OWLMAIL_S3_ENABLED=true
+export OWLMAIL_S3_ENDPOINT=http://minio:9000
+export OWLMAIL_S3_REGION=us-east-1
+export OWLMAIL_S3_BUCKET=owlmail
+export OWLMAIL_S3_PREFIX=owlmail/attachments
+export OWLMAIL_S3_ACCESS_KEY=replace-me
+export OWLMAIL_S3_SECRET_KEY=replace-me
+export OWLMAIL_S3_USE_PATH_STYLE=true
+./owlmail -mail-directory ./owlmail-data
+```
+
+存储桶需要预先创建。留空 endpoint 时使用 AWS S3；不设置 OwlMail 静态密钥时，
+使用 AWS SDK 默认凭据链，可直接使用工作负载角色。附件对象键格式为
+`<prefix>/<email-id>/<generated-filename>`；删除邮件和执行保留策略时，会同步删除
+该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
+`OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
 
 ## 📡 API 文档
 

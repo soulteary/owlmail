@@ -602,10 +602,12 @@ func TestAPIGetAttachment(t *testing.T) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
-	_ = body
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	if string(body) != "attachment content" {
+		t.Errorf("Expected attachment content, got %q", body)
 	}
 }
 

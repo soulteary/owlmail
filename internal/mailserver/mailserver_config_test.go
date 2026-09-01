@@ -28,6 +28,9 @@ func TestNewMailServer(t *testing.T) {
 	if server.host != defaultHost {
 		t.Errorf("Expected host %s, got %s", defaultHost, server.host)
 	}
+	if server.smtpServer.MaxMessageBytes != DefaultMaxMessageBytes {
+		t.Errorf("default MaxMessageBytes = %d, want %d", server.smtpServer.MaxMessageBytes, DefaultMaxMessageBytes)
+	}
 
 	// Test with custom values
 	server2, err := NewMailServer(2525, "127.0.0.1", tmpDir)
@@ -48,6 +51,24 @@ func TestNewMailServer(t *testing.T) {
 	}
 	if server2.mailDir != tmpDir {
 		t.Errorf("Expected mailDir %s, got %s", tmpDir, server2.mailDir)
+	}
+}
+
+func TestNewMailServerWithCustomMessageLimit(t *testing.T) {
+	const limit = int64(256 << 20)
+	server, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{
+		MaxMessageBytes: limit,
+		TLSConfig:       &TLSConfig{Enabled: true},
+	})
+	if err != nil {
+		t.Fatalf("NewMailServerWithOptions() error = %v", err)
+	}
+	defer func() { _ = server.Close() }()
+	if server.smtpServer.MaxMessageBytes != limit {
+		t.Fatalf("MaxMessageBytes = %d, want %d", server.smtpServer.MaxMessageBytes, limit)
+	}
+	if server.smtpsServer == nil || server.smtpsServer.MaxMessageBytes != limit {
+		t.Fatalf("SMTPS MaxMessageBytes was not configured: %#v", server.smtpsServer)
 	}
 }
 

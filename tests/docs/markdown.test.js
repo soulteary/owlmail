@@ -293,7 +293,8 @@ test("security-sensitive authentication limitations remain explicit", () => {
   for (const marker of [
     "do not reject unauthenticated senders",
     "不会拒绝未认证发送方",
-    "1 MiB",
+    "100 MiB",
+    "smtp-max-message-mb",
     "50 recipients",
     "50 个收件人",
   ]) {

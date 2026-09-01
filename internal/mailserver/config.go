@@ -30,6 +30,18 @@ func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *out
 
 // NewMailServerWithFullConfig creates a new mail server instance with full configuration including UUID option
 func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig *outgoing.OutgoingConfig, authConfig *SMTPAuthConfig, tlsConfig *TLSConfig, useUUIDForID bool) (*MailServer, error) {
+	return NewMailServerWithOptions(port, host, mailDir, ServerOptions{
+		OutgoingConfig:  outgoingConfig,
+		AuthConfig:      authConfig,
+		TLSConfig:       tlsConfig,
+		UseUUIDForID:    useUUIDForID,
+		MaxMessageBytes: DefaultMaxMessageBytes,
+	})
+}
+
+// NewMailServerWithOptions creates a mail server with optional external
+// attachment storage and a configurable SMTP message-size limit.
+func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
 	if port == 0 {
 		port = defaultPort
 	}
@@ -39,6 +51,10 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	if mailDir == "" {
 		mailDir = filepath.Join(os.TempDir(), fmt.Sprintf("owlmail-%d", os.Getpid()))
 	}
+	maxMessageBytes := options.MaxMessageBytes
+	if maxMessageBytes <= 0 {
+		maxMessageBytes = DefaultMaxMessageBytes
+	}
 
 	// Create mail directory
 	if err := os.MkdirAll(mailDir, 0755); err != nil {
@@ -46,22 +62,27 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	}
 
 	ms := &MailServer{
-		storeByID:      make(map[string]*types.Email),
-		storeOrder:     make([]string, 0),
-		receivedAtByID: make(map[string]time.Time),
-		mailDir:        mailDir,
-		port:           port,
-		host:           host,
-		eventChan:      make(chan Event, 100),
-		listeners:      make(map[string][]eventListener),
-		authConfig:     authConfig,
-		tlsConfig:      tlsConfig,
-		useUUIDForID:   useUUIDForID,
+		storeByID:               make(map[string]*types.Email),
+		storeOrder:              make([]string, 0),
+		receivedAtByID:          make(map[string]time.Time),
+		mailDir:                 mailDir,
+		port:                    port,
+		host:                    host,
+		maxMessageBytes:         maxMessageBytes,
+		attachmentStore:         options.AttachmentStore,
+		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
+		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
+		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
+		eventChan:               make(chan Event, 100),
+		listeners:               make(map[string][]eventListener),
+		authConfig:              options.AuthConfig,
+		tlsConfig:               options.TLSConfig,
+		useUUIDForID:            options.UseUUIDForID,
 	}
 
 	// Setup outgoing mail if config provided
-	if outgoingConfig != nil {
-		ms.outgoing = outgoing.NewOutgoingMail(outgoingConfig)
+	if options.OutgoingConfig != nil {
+		ms.outgoing = outgoing.NewOutgoingMail(options.OutgoingConfig)
 	}
 
 	// Setup SMTP server
@@ -89,7 +110,7 @@ func (ms *MailServer) setupSMTPServer() error {
 	s.Domain = "localhost"
 	s.ReadTimeout = 10 * time.Second
 	s.WriteTimeout = 10 * time.Second
-	s.MaxMessageBytes = 1024 * 1024
+	s.MaxMessageBytes = ms.maxMessageBytes
 	s.MaxRecipients = 50
 
 	// Configure authentication
@@ -132,7 +153,7 @@ func (ms *MailServer) setupSMTPServer() error {
 		smtps.Domain = "localhost"
 		smtps.ReadTimeout = 10 * time.Second
 		smtps.WriteTimeout = 10 * time.Second
-		smtps.MaxMessageBytes = 1024 * 1024
+		smtps.MaxMessageBytes = ms.maxMessageBytes
 		smtps.MaxRecipients = 50
 
 		// Configure authentication for SMTPS

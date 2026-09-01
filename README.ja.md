@@ -196,6 +196,7 @@ docker buildx build \
 |----------|---------------------|---------|-------------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
+| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 受信メッセージの最大サイズ（MiB） |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
@@ -203,6 +204,15 @@ docker buildx build \
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
+| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | デコード済み添付ファイルを S3 互換ストレージに保存 |
+| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | カスタム S3 エンドポイント。空の場合は AWS S3 |
+| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 リージョン |
+| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | 添付ファイル用の既存バケット |
+| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | オブジェクトキープレフィックス |
+| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | 任意の静的アクセスキー |
+| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 任意の静的シークレットキー |
+| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 任意のセッショントークン |
+| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | パス形式のバケットアドレスを使用 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |
