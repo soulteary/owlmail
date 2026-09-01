@@ -20,15 +20,24 @@ function createClassList() {
 function createElement() {
     const listeners = new Map();
     const attributes = new Map();
+    let textContent = '';
+    let innerHTML = '';
     return {
         listeners,
         attributes,
         classList: createClassList(),
         hidden: true,
         disabled: false,
-        textContent: '',
+        get textContent() { return textContent; },
+        set textContent(value) {
+            textContent = value;
+            innerHTML = value;
+        },
+        get innerHTML() { return innerHTML; },
+        set innerHTML(value) { innerHTML = value; },
         title: '',
         addEventListener(name, handler) { listeners.set(name, handler); },
+        querySelectorAll() { return []; },
         setAttribute(name, value) { attributes.set(name, value); }
     };
 }
@@ -41,10 +50,12 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const notificationToggle = createElement();
     const notificationStatus = createElement();
     const emailDetail = createElement();
+    const emailList = createElement();
     const elements = new Map([
         ['notificationToggle', notificationToggle],
         ['notificationStatus', notificationStatus],
-        ['emailDetail', emailDetail]
+        ['emailDetail', emailDetail],
+        ['emailList', emailList]
     ]);
     const notifications = [];
     const windowListeners = new Map();
@@ -118,6 +129,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     return {
         documentListeners,
         emailDetail,
+        emailList,
         notificationStatus,
         notificationToggle,
         notifications,
@@ -252,12 +264,23 @@ test('mailbox lists use the preview endpoint and preserve query parameters', asy
             return {
                 ok: true,
                 headers: { get: () => 'application/json' },
-                json: async () => ({ emails: [], total: 0 })
+                json: async () => ({
+                    previews: [{
+                        id: 'mail-42',
+                        subject: 'Release notes',
+                        from: 'sender@example.test',
+                        preview: 'Lightweight body preview',
+                        read: false,
+                        hasAttachment: true,
+                        time: '2026-09-01T12:00:00Z'
+                    }],
+                    total: 1
+                })
             };
         }
     });
 
-    await harness.run("API.getEmails(50, 25, 'release notes')");
+    await harness.run("state.currentPage = 2; state.pageSize = 25; state.searchQuery = 'release notes'; loadEmails()");
 
     assert.equal(requests.length, 1);
     const requestURL = new URL(requests[0]);
@@ -265,6 +288,13 @@ test('mailbox lists use the preview endpoint and preserve query parameters', asy
     assert.equal(requestURL.searchParams.get('offset'), '50');
     assert.equal(requestURL.searchParams.get('limit'), '25');
     assert.equal(requestURL.searchParams.get('q'), 'release notes');
+    assert.equal(harness.run('state.emails.length'), 1);
+    assert.equal(harness.run('state.emails[0].id'), 'mail-42');
+    assert.equal(harness.run('state.total'), 1);
+    assert.match(harness.emailList.innerHTML, /sender@example\.test/);
+    assert.match(harness.emailList.innerHTML, /Lightweight body preview/);
+    assert.match(harness.emailList.innerHTML, /email-item unread/);
+    assert.match(harness.emailList.innerHTML, /📎/);
 });
 
 test('email details continue to use the single-email endpoint', async () => {
