@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -26,7 +27,9 @@ func TestMailServerOn(t *testing.T) {
 
 	// Emit event
 	email := &Email{ID: "test-id", Subject: "Test"}
-	server.emit("new", email)
+	if err := server.emit("new", email); err != nil {
+		t.Fatalf("emit new event: %v", err)
+	}
 
 	// Wait for event handler to be called
 	select {
@@ -57,7 +60,9 @@ func TestEventListenersReceiveIndependentSnapshots(t *testing.T) {
 	})
 
 	original := &Email{Subject: "original", Envelope: &Envelope{To: []string{"receiver@example.test"}}}
-	server.emit("isolated", original)
+	if err := server.emit("isolated", original); err != nil {
+		t.Fatalf("emit isolated event: %v", err)
+	}
 	select {
 	case got := <-observed:
 		if got != "original:receiver@example.test" {
@@ -106,7 +111,9 @@ func TestOnWithConcurrencyBoundsHandlersBeforeStartingGoroutines(t *testing.T) {
 		emitters.Add(1)
 		go func() {
 			defer emitters.Done()
-			server.emit("limited", &Email{})
+			if err := server.emit("limited", &Email{}); err != nil {
+				t.Errorf("emit limited event: %v", err)
+			}
 		}()
 	}
 	for index := 0; index < limit; index++ {
@@ -151,14 +158,18 @@ func TestEmitStartsUnlimitedListenersBeforeBoundedBackpressure(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	server.emit("new", &Email{})
+	if err := server.emit("new", &Email{}); err != nil {
+		t.Fatalf("emit first bounded event: %v", err)
+	}
 	<-boundedStarted
 
 	unlimitedStarted := make(chan struct{}, 1)
 	server.On("new", func(_ *Email) { unlimitedStarted <- struct{}{} })
 	secondEmitDone := make(chan struct{})
 	go func() {
-		server.emit("new", &Email{})
+		if err := server.emit("new", &Email{}); err != nil {
+			t.Errorf("emit second bounded event: %v", err)
+		}
 		close(secondEmitDone)
 	}()
 	select {
@@ -191,5 +202,61 @@ func TestOnWithConcurrencyRejectsInvalidRegistration(t *testing.T) {
 	}
 	if err := server.OnWithConcurrency("new", 1, nil); err == nil {
 		t.Fatal("nil handler should fail")
+	}
+}
+
+func TestSynchronousFailureStopsUncommittedNotifications(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	handoffErr := errors.New("injected durable handoff failure")
+	if err := server.OnSynchronous("new", func(*Email) error { return handoffErr }); err != nil {
+		t.Fatal(err)
+	}
+	notified := make(chan struct{}, 1)
+	server.On("new", func(*Email) { notified <- struct{}{} })
+
+	err = server.emit("new", &Email{ID: "uncommitted"})
+	if !errors.Is(err, handoffErr) {
+		t.Fatalf("emit error = %v, want %v", err, handoffErr)
+	}
+	select {
+	case <-notified:
+		t.Fatal("asynchronous listener observed an event whose durable handoff failed")
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+func TestOnSynchronousRejectsMultipleTransactionalHandlers(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	err = server.OnSynchronous("new", func(*Email) error {
+		return errors.New("must never run")
+	})
+	if err == nil {
+		t.Fatal("multiple transactional handlers would allow a partial durable handoff")
+	}
+}
+
+func TestOnSynchronousRejectsEventsWithoutTransactionalRollback(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	err = server.OnSynchronous("delete", func(*Email) error { return nil })
+	if err == nil {
+		t.Fatal("delete does not support transactional handoff rollback")
 	}
 }

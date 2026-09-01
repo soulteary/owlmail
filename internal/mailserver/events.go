@@ -13,14 +13,24 @@ func (ms *MailServer) On(event string, handler func(*types.Email)) {
 
 // OnSynchronous registers a lightweight handoff listener that completes
 // before emit returns. It is intended for durable queue writes, not network
-// delivery or other long-running work.
-func (ms *MailServer) OnSynchronous(event string, handler func(*types.Email)) error {
+// delivery or other long-running work. Only the "new" event has transactional
+// rollback support, and only one handler is allowed because independent durable
+// side effects cannot be rolled back safely when a later handler fails.
+func (ms *MailServer) OnSynchronous(event string, handler func(*types.Email) error) error {
 	if handler == nil {
 		return fmt.Errorf("event handler cannot be nil")
 	}
+	if event != "new" {
+		return fmt.Errorf("synchronous handlers are only supported for new events")
+	}
 	ms.listenersMutex.Lock()
 	defer ms.listenersMutex.Unlock()
-	ms.listeners[event] = append(ms.listeners[event], eventListener{handler: handler, synchronous: true})
+	for _, listener := range ms.listeners[event] {
+		if listener.synchronousHandler != nil {
+			return fmt.Errorf("synchronous %s event handler is already registered", event)
+		}
+	}
+	ms.listeners[event] = append(ms.listeners[event], eventListener{synchronousHandler: handler})
 	return nil
 }
 
@@ -46,27 +56,51 @@ func (ms *MailServer) OnWithConcurrency(event string, maxConcurrency int, handle
 	return nil
 }
 
-// emit sends an event to all listeners
-func (ms *MailServer) emit(event string, email *types.Email) {
+// emitSynchronous runs durable handoff listeners before the caller publishes
+// the state change. A failure aborts the caller's transaction.
+func (ms *MailServer) emitSynchronous(event string, email *types.Email) error {
 	ms.listenersMutex.RLock()
 	listeners := append([]eventListener(nil), ms.listeners[event]...)
 	ms.listenersMutex.RUnlock()
 	for _, listener := range listeners {
-		if listener.synchronous {
-			listener.handler(cloneEmail(email))
+		if listener.synchronousHandler == nil {
+			continue
+		}
+		if err := listener.synchronousHandler(cloneEmail(email)); err != nil {
+			return fmt.Errorf("synchronous %s event handoff: %w", event, err)
 		}
 	}
+	return nil
+}
+
+func (ms *MailServer) hasSynchronousListener(event string) bool {
+	ms.listenersMutex.RLock()
+	defer ms.listenersMutex.RUnlock()
+	for _, listener := range ms.listeners[event] {
+		if listener.synchronousHandler != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// emitAsynchronous starts notification listeners after the state change is
+// committed. These listeners cannot affect the completed transaction.
+func (ms *MailServer) emitAsynchronous(event string, email *types.Email) {
+	ms.listenersMutex.RLock()
+	listeners := append([]eventListener(nil), ms.listeners[event]...)
+	ms.listenersMutex.RUnlock()
 
 	// Start unlimited listeners first so a saturated bounded listener cannot
 	// delay UI broadcasts or lightweight logging handlers registered after it.
 	for _, listener := range listeners {
-		if !listener.synchronous && listener.slots == nil {
+		if listener.handler != nil && listener.slots == nil {
 			emailSnapshot := cloneEmail(email)
 			go listener.handler(emailSnapshot)
 		}
 	}
 	for _, listener := range listeners {
-		if listener.synchronous || listener.slots == nil {
+		if listener.handler == nil || listener.slots == nil {
 			continue
 		}
 		listener.slots <- struct{}{}
@@ -76,4 +110,35 @@ func (ms *MailServer) emit(event string, email *types.Email) {
 			listener.handler(emailSnapshot)
 		}(listener)
 	}
+}
+
+// emitNotificationAndWait invokes ordinary notification handlers inline. It
+// is used for rollback cleanup that must finish before a failed transaction can
+// be retried with the same identifier.
+func (ms *MailServer) emitNotificationAndWait(event string, email *types.Email) {
+	ms.listenersMutex.RLock()
+	listeners := append([]eventListener(nil), ms.listeners[event]...)
+	ms.listenersMutex.RUnlock()
+	for _, listener := range listeners {
+		if listener.handler == nil {
+			continue
+		}
+		if listener.slots != nil {
+			listener.slots <- struct{}{}
+		}
+		listener.handler(cloneEmail(email))
+		if listener.slots != nil {
+			<-listener.slots
+		}
+	}
+}
+
+// emit sends an event to all listeners. Synchronous failures prevent
+// asynchronous notification listeners from observing an uncommitted event.
+func (ms *MailServer) emit(event string, email *types.Email) error {
+	if err := ms.emitSynchronous(event, email); err != nil {
+		return err
+	}
+	ms.emitAsynchronous(event, email)
+	return nil
 }

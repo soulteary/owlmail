@@ -147,10 +147,10 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 
 ```json
 {
-  "version": "0.5.0",
+  "version": "0.6.0",
   "commit": "<完整 Git 提交 SHA>",
   "build_date": "<UTC RFC 3339 时间>",
-  "branch": "v0.5.0",
+  "branch": "v0.6.0",
   "go_version": "go1.27.0",
   "platform": "linux/amd64",
   "compiler": "gc"

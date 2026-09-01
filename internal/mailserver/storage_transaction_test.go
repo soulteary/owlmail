@@ -6,7 +6,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 func validMessage(subject string) []byte {
@@ -38,6 +40,9 @@ func assertNoCommittedOrTemporaryArtifacts(t *testing.T, dir string) {
 		if entry.Name() == quarantineDirName {
 			continue
 		}
+		if _, ok := rollbackFenceID(entry.Name()); ok {
+			continue
+		}
 		if strings.HasSuffix(entry.Name(), ".eml") || strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			t.Fatalf("unexpected storage artifact after rollback: %s", entry.Name())
 		}
@@ -60,6 +65,281 @@ func TestStoreIncomingEmailRollsBackAfterMemoryCommitFailure(t *testing.T) {
 		t.Fatalf("memory store contains %d email(s) after rollback", got)
 	}
 	assertNoCommittedOrTemporaryArtifacts(t, dir)
+}
+
+func TestStoreIncomingEmailRollsBackDurableHandoffFailure(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected outbox failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	err = server.storeIncomingEmail("handoff-message", bytes.NewReader(multipartMessage()), nil)
+	if err == nil || !strings.Contains(err.Error(), "injected outbox failure") {
+		t.Fatalf("expected durable handoff failure, got %v", err)
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("memory store contains %d email(s) after handoff rollback", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "handoff-message")); !os.IsNotExist(err) {
+		t.Fatalf("attachment directory survived handoff rollback: %v", err)
+	}
+	if _, err := os.Stat(server.metadataPath("handoff-message")); !os.IsNotExist(err) {
+		t.Fatalf("metadata survived handoff rollback: %v", err)
+	}
+	assertNoCommittedOrTemporaryArtifacts(t, dir)
+}
+
+func TestFailedHandoffWaitsForRollbackCleanup(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected handoff failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cleanupStarted := make(chan struct{})
+	releaseCleanup := make(chan struct{})
+	server.On("new-rollback", func(*Email) {
+		close(cleanupStarted)
+		<-releaseCleanup
+	})
+
+	completed := make(chan error, 1)
+	go func() {
+		completed <- server.SaveEmailToStore(
+			"retry-ordering",
+			false,
+			&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+			&Email{Subject: "failed handoff"},
+		)
+	}()
+	<-cleanupStarted
+	select {
+	case err := <-completed:
+		t.Fatalf("failed save returned before rollback cleanup finished: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(releaseCleanup)
+	if err := <-completed; err == nil || !strings.Contains(err.Error(), "injected handoff failure") {
+		t.Fatalf("failed save error = %v", err)
+	}
+}
+
+func TestRecoveryConvertsMalformedFenceToRollback(t *testing.T) {
+	dir := t.TempDir()
+	id := "malformed-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("malformed"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte("acc"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("recovery loaded %d malformed-fenced email(s)", got)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != rollbackFenceState {
+		t.Fatalf("recovered malformed fence = %q, %v", state, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, id+".eml")); !os.IsNotExist(err) {
+		t.Fatalf("malformed-fenced EML survived conservative recovery: %v", err)
+	}
+}
+
+func TestFailedHandoffFencesEMLWhenImmediateCleanupFails(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error {
+		return errors.New("injected outbox failure")
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server.beforeEmailRollback = func(string) error {
+		return errors.New("injected EML cleanup failure")
+	}
+
+	err = server.storeIncomingEmail("fenced-handoff", bytes.NewReader(validMessage("fenced")), nil)
+	if err == nil || !strings.Contains(err.Error(), "injected outbox failure") {
+		t.Fatalf("expected durable handoff failure, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fenced-handoff.eml")); err != nil {
+		t.Fatalf("fault injection did not retain the EML: %v", err)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, "fenced-handoff")); err != nil {
+		t.Fatalf("rollback fence missing: %v", err)
+	}
+
+	restarted, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = restarted.Close() }()
+	if got := len(restarted.GetAllEmail()); got != 0 {
+		t.Fatalf("restart loaded %d rollback-fenced email(s)", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "fenced-handoff.eml")); !os.IsNotExist(err) {
+		t.Fatalf("recovery retained rollback-fenced EML: %v", err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, "fenced-handoff")); err != nil || state != rollbackFenceState {
+		t.Fatalf("durable rollback fence after recovery = %q, %v", state, err)
+	}
+}
+
+func TestRecoveryLoadsEmailAndPreservesAcceptedFenceForWebhookRecovery(t *testing.T) {
+	dir := t.TempDir()
+	id := "accepted-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("accepted"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte(acceptedFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("restart loaded %d email(s) with accepted fence, want 1", got)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("accepted fence needed by webhook recovery = %q, %v", state, err)
+	}
+}
+
+func TestRecoveryRemovesCompletedLocalFence(t *testing.T) {
+	dir := t.TempDir()
+	id := "local-fence"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("local"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rollbackFencePath(dir, id), []byte(localFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("restart loaded %d email(s) with local fence, want 1", got)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, id)); !os.IsNotExist(err) {
+		t.Fatalf("completed local fence survived recovery: %v", err)
+	}
+}
+
+func TestSaveEmailToStorePersistsAcceptedWebhookHandoff(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	id := "non-smtp-handoff"
+	if err := server.SaveEmailToStore(
+		id,
+		false,
+		&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+		&Email{Subject: "accepted outside SMTP"},
+	); err != nil {
+		t.Fatal(err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("non-SMTP accepted handoff fence = %q, %v", state, err)
+	}
+}
+
+func TestSaveEmailToStoreKeepsCommitAfterAcceptedFenceDirectorySyncFailure(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	server.syncAcceptedFenceDirectory = func(string) error {
+		return errors.New("injected accepted-fence directory sync failure")
+	}
+
+	id := "accepted-sync-error"
+	if err := server.SaveEmailToStore(
+		id,
+		false,
+		&Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+		&Email{Subject: "accepted despite directory sync error"},
+	); err != nil {
+		t.Fatalf("accepted handoff was reported as rolled back: %v", err)
+	}
+	if _, err := server.GetEmail(id); err != nil {
+		t.Fatalf("accepted email was not published: %v", err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("accepted handoff fence after directory sync error = %q, %v", state, err)
+	}
+}
+
+func TestReloadPersistsAcceptedWebhookHandoff(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.OnSynchronous("new", func(*Email) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	id := "reload-handoff"
+	if err := os.WriteFile(filepath.Join(dir, id+".eml"), validMessage("reload handoff"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.LoadMailsFromDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	if state, err := readRollbackFenceState(rollbackFencePath(dir, id)); err != nil || state != acceptedFenceState {
+		t.Fatalf("reloaded accepted handoff fence = %q, %v", state, err)
+	}
+}
+
+func TestDeleteAllPreservesTransactionFences(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	fencePath := rollbackFencePath(dir, "deleted-accepted")
+	if err := os.WriteFile(fencePath, []byte(acceptedFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(fencePath); err != nil {
+		t.Fatalf("bulk deletion removed transaction fence: %v", err)
+	}
 }
 
 func TestStoreIncomingEmailRollsBackAttachmentFailure(t *testing.T) {
@@ -102,6 +382,136 @@ func TestStoreIncomingEmailCommitsCompleteMessage(t *testing.T) {
 	}
 	if got := len(server.GetAllEmail()); got != 1 {
 		t.Fatalf("expected one published email, got %d", got)
+	}
+	if _, err := os.Stat(rollbackFencePath(dir, "complete-message")); !os.IsNotExist(err) {
+		t.Fatalf("local-only delivery retained a transaction fence: %v", err)
+	}
+}
+
+func TestIndependentStorageTransactionsRunConcurrently(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	server.beforeStoreCommit = func(email *Email) error {
+		started <- email.ID
+		<-release
+		return nil
+	}
+
+	results := make(chan error, 2)
+	go func() {
+		results <- server.storeIncomingEmail("parallel-one", bytes.NewReader(validMessage("parallel one")), nil)
+	}()
+	go func() {
+		results <- server.storeIncomingEmail("parallel-two", bytes.NewReader(validMessage("parallel two")), nil)
+	}()
+
+	seen := make(map[string]bool)
+	for len(seen) < 2 {
+		select {
+		case id := <-started:
+			seen[id] = true
+		case <-time.After(time.Second):
+			t.Fatalf("independent storage transaction did not start concurrently; started: %v", seen)
+		}
+	}
+	close(release)
+	for index := 0; index < 2; index++ {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := len(server.GetAllEmail()); got != 2 {
+		t.Fatalf("concurrent transactions committed %d emails, want 2", got)
+	}
+}
+
+func TestReloadWaitsForActiveStorageTransaction(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	server.beforeStoreCommit = func(*Email) error {
+		once.Do(func() { close(started) })
+		<-release
+		return nil
+	}
+	stored := make(chan error, 1)
+	go func() {
+		stored <- server.storeIncomingEmail("reload-race", bytes.NewReader(validMessage("reload")), nil)
+	}()
+	<-started
+
+	reloaded := make(chan error, 1)
+	go func() { reloaded <- server.LoadMailsFromDirectory() }()
+	select {
+	case err := <-reloaded:
+		t.Fatalf("reload completed during an active storage transaction: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-stored; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-reloaded; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.GetEmail("reload-race"); err != nil {
+		t.Fatalf("committed email missing after serialized reload: %v", err)
+	}
+}
+
+func TestDeleteAllWaitsForActiveStorageTransaction(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var once sync.Once
+	server.beforeStoreCommit = func(*Email) error {
+		once.Do(func() { close(started) })
+		<-release
+		return nil
+	}
+	stored := make(chan error, 1)
+	go func() {
+		stored <- server.storeIncomingEmail("delete-all-race", bytes.NewReader(validMessage("delete all")), nil)
+	}()
+	<-started
+
+	deleted := make(chan error, 1)
+	go func() { deleted <- server.DeleteAllEmail() }()
+	select {
+	case err := <-deleted:
+		t.Fatalf("delete-all completed during an active storage transaction: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	close(release)
+	if err := <-stored; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-deleted; err != nil {
+		t.Fatal(err)
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("delete-all retained %d committed email(s)", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "delete-all-race.eml")); !os.IsNotExist(err) {
+		t.Fatalf("delete-all retained the committed EML: %v", err)
 	}
 }
 

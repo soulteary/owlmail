@@ -55,7 +55,7 @@ jobs:
           fi
 
           if [[ ! "${VERSION}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]]; then
-            echo "::error::Release version must be a semantic-version tag such as v0.5.0"
+            echo "::error::Release version must be a semantic-version tag such as v0.6.0"
             exit 1
           fi
 
@@ -81,6 +81,42 @@ jobs:
           else
             echo "prerelease=false" >> "${GITHUB_OUTPUT}"
           fi
+
+      - name: Refuse to overwrite exact release image tag
+        shell: bash
+        env:
+          APP_VERSION: ${{ steps.release.outputs.app-version }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IMAGE_REF="${REGISTRY}/${IMAGE_NAME}:${APP_VERSION}"
+          if ! REGISTRY_TOKEN="$(curl --fail --silent --show-error \
+            --user "${GITHUB_ACTOR}:${GHCR_TOKEN}" \
+            --get \
+            --data-urlencode "service=${REGISTRY}" \
+            --data-urlencode "scope=repository:${IMAGE_NAME}:pull" \
+            "https://${REGISTRY}/token" | jq -er '.token // .access_token')"; then
+            echo "::error::Could not exchange the GitHub credential for a GHCR registry token"
+            exit 1
+          fi
+          if ! HTTP_STATUS="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            --header "Authorization: Bearer ${REGISTRY_TOKEN}" \
+            --header 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json' \
+            "https://${REGISTRY}/v2/${IMAGE_NAME}/manifests/${APP_VERSION}")"; then
+            echo "::error::Could not verify whether ${IMAGE_REF} already exists"
+            exit 1
+          fi
+          case "${HTTP_STATUS}" in
+            404)
+              ;;
+            200)
+              echo "::error::Refusing to overwrite published release image ${IMAGE_REF}; create a new patch release"
+              exit 1
+              ;;
+            *)
+              echo "::error::Registry returned HTTP ${HTTP_STATUS} while checking ${IMAGE_REF}; failing closed"
+              exit 1
+              ;;
+          esac
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
@@ -297,7 +333,6 @@ jobs:
             type=semver,pattern={{version}},value=${{ steps.release.outputs.version }}
             type=semver,pattern={{major}}.{{minor}},value=${{ steps.release.outputs.version }},enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
             type=semver,pattern={{major}},value=${{ steps.release.outputs.version }},enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
-            type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ steps.moving-tags.outputs.enabled == 'true' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}

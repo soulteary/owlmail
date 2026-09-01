@@ -6,19 +6,32 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-31
+
 ### Added
 
-- Optional Redis Streams-backed Webhook delivery with restart recovery,
-  dead-letter records, stable delivery IDs, graceful drain, and replay-aware
-  HMAC headers containing a timestamp and nonce.
+- Mailbox governance with independent age, message-count, and disk-usage
+  limits, periodic cleanup metrics, atomic read-state sidecars, and bounded
+  streaming ZIP exports.
+- Optional Redis Streams-backed webhook delivery with restart recovery,
+  dead-letter records, stable delivery IDs, active lease renewal, graceful
+  drain, and replay-aware HMAC headers containing a timestamp and nonce.
+- A local webhook outbox that durably records queue handoffs before Redis or
+  the in-memory worker accepts them.
+- Service-worker browser notifications with inbox-safe click routing and
+  email deep links for mobile browsers.
 
 ### Changed
 
 - The in-memory mail store now uses an ID map with ordered IDs and returns deep
   snapshots to API, WebSocket, webhook, and other event consumers.
-- Mailboxes can enforce age, count, and disk limits with background cleanup;
-  read state uses atomic sidecar metadata and ZIP exports stream with hard
-  source-count and byte limits.
+- Webhook target concurrency is enforced per HTTP request, text globs match
+  arbitrary strings including slashes, and shutdown drains queued and active
+  deliveries up to the configured deadline.
+- Authenticated HTTP and WebSocket origin checks can use an explicitly
+  configured browser-facing scheme when TLS terminates at a trusted proxy.
+- Locale initialization now renders translated empty-state content before the
+  first API response and recognizes `zh-SG` as Simplified Chinese.
 
 ### Release engineering
 
@@ -33,12 +46,23 @@ All notable changes to OwlMail are documented in this file. The format follows
   attestations, a keyless Sigstore signature for the checksum manifest, signed
   container manifests, BuildKit SBOM/provenance attestations, and explicit OCI
   source, revision, version, and license labels.
+- Stable moving image aliases are disabled for older release retries and are
+  revalidated against freshly fetched tags immediately before publication.
 
 ### Fixed
 
 - Incoming messages and attachments are staged, synced, and atomically renamed
   before they become visible in memory. Startup recovery now quarantines
-  incomplete, corrupt, and orphaned storage artifacts.
+  incomplete, corrupt, and orphaned storage artifacts without deleting
+  unrelated directories or previously quarantined evidence.
+- Mail deletion, cleanup, startup restoration, and bulk read operations now
+  surface persistence failures instead of reporting success after disk state
+  diverges from memory.
+- Redis webhook lease renewal verifies ownership atomically, webhook nonce
+  expiry is exclusive at the validity boundary, and individual target
+  schedules no longer block unrelated targets.
+- Browser notifications wait for an active service worker and preserve the
+  selected email when focusing or opening an inbox window.
 
 ## [0.5.0]
 
@@ -103,6 +127,7 @@ All notable changes to OwlMail are documented in this file. The format follows
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/soulteary/owlmail/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/soulteary/owlmail/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/soulteary/owlmail/releases/tag/v0.4.0

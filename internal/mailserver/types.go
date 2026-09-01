@@ -40,28 +40,29 @@ type TLSConfig struct {
 }
 
 type eventListener struct {
-	handler     func(*types.Email)
-	slots       chan struct{}
-	synchronous bool
+	handler            func(*types.Email)
+	synchronousHandler func(*types.Email) error
+	slots              chan struct{}
 }
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
-	storeByID      map[string]*types.Email
-	storeOrder     []string
-	receivedAtByID map[string]time.Time
-	storeMutex     sync.RWMutex
-	mailDir        string
-	port           int
-	host           string
-	smtpServer     *smtp.Server
-	smtpsServer    *smtp.Server // SMTPS server (direct TLS on 465)
-	eventChan      chan Event
-	listeners      map[string][]eventListener
-	listenersMutex sync.RWMutex
-	closers        []io.Closer
-	closersMutex   sync.Mutex
-	outgoing       interface {
+	storeByID               map[string]*types.Email
+	storeOrder              []string
+	receivedAtByID          map[string]time.Time
+	storeMutex              sync.RWMutex
+	storageTransactionMutex sync.RWMutex
+	mailDir                 string
+	port                    int
+	host                    string
+	smtpServer              *smtp.Server
+	smtpsServer             *smtp.Server // SMTPS server (direct TLS on 465)
+	eventChan               chan Event
+	listeners               map[string][]eventListener
+	listenersMutex          sync.RWMutex
+	closers                 []io.Closer
+	closersMutex            sync.Mutex
+	outgoing                interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
 		UpdateConfig(config interface{})
 		GetConfig() interface{}
@@ -79,10 +80,12 @@ type MailServer struct {
 
 	// Storage hooks are intentionally unexported and nil in production. They
 	// provide deterministic fault injection for transaction boundary tests.
-	beforeStoreCommit     func(*types.Email) error
-	beforeAttachmentWrite func(string) error
-	beforeQuarantineMove  func(string) error
-	beforeEmailDelete     func(string) error
+	beforeStoreCommit          func(*types.Email) error
+	beforeAttachmentWrite      func(string) error
+	beforeQuarantineMove       func(string) error
+	beforeEmailRollback        func(string) error
+	beforeEmailDelete          func(string) error
+	syncAcceptedFenceDirectory func(string) error
 }
 
 // GetHost returns the SMTP server host

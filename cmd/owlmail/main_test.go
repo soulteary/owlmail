@@ -459,6 +459,60 @@ func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
 	}
 }
 
+func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
+	mailDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	dispatcher, err := webhooknotify.NewDispatcher(webhooknotify.Config{Targets: []webhooknotify.Target{{
+		Name: "test",
+		URL:  "https://example.com/hook",
+	}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
+		MaxConcurrency: 1,
+		SpoolDir:       mailDir,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outboxPath := filepath.Join(mailDir, ".owlmail-webhook-outbox")
+	defer func() {
+		_ = os.Remove(outboxPath)
+		_ = os.MkdirAll(outboxPath, 0750)
+		_ = service.Close()
+	}()
+	if err := registerWebhookService(server, service); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(outboxPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outboxPath, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	err = server.SaveEmailToStore(
+		"failed-outbox",
+		false,
+		&mailserver.Envelope{From: "sender@example.com", To: []string{"recipient@example.com"}},
+		&mailserver.Email{Subject: "must roll back"},
+	)
+	if err == nil {
+		t.Fatal("email commit succeeded despite the failed webhook outbox")
+	}
+	if _, err := server.GetEmail("failed-outbox"); err == nil {
+		t.Fatal("email became visible after the durable handoff failed")
+	}
+	if _, err := os.Stat(filepath.Join(mailDir, ".owlmail-meta", "failed-outbox.json")); !os.IsNotExist(err) {
+		t.Fatalf("metadata survived failed webhook handoff: %v", err)
+	}
+}
+
 func TestSetupAuthConfig(t *testing.T) {
 	// Test with empty user and password (should return nil)
 	cfg := &config.Config{

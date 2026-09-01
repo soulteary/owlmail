@@ -20,10 +20,12 @@ const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
-	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true)
+	ms.storageTransactionMutex.RLock()
+	defer ms.storageTransactionMutex.RUnlock()
+	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true, false)
 }
 
-func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata bool) error {
+func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata, finalizeRollbackFence bool) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
 
 	parsedEmail.ID = id
@@ -66,8 +68,10 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	storedEmail := cloneEmail(parsedEmail)
 	ms.storeMutex.Lock()
-	_, existed := ms.storeByID[id]
+	previousEmail, existed := ms.storeByID[id]
+	previousEmail = cloneEmail(previousEmail)
 	receivedAt := ms.receivedAtByID[id]
+	previousReceivedAt := receivedAt
 	if receivedAt.IsZero() {
 		receivedAt = time.Now().UTC()
 	}
@@ -78,6 +82,40 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			return fmt.Errorf("persist email metadata: %w", err)
 		}
 	}
+	hasTransactionalHandoff := ms.hasSynchronousListener("new")
+	handoffErr := ms.emitSynchronous("new", storedEmail)
+	if handoffErr == nil && hasTransactionalHandoff {
+		if finalizeRollbackFence {
+			handoffErr = ms.acceptRollbackFence(id)
+		} else {
+			handoffErr = ms.createAcceptedHandoffFence(id)
+		}
+	} else if handoffErr == nil && finalizeRollbackFence {
+		handoffErr = ms.completeLocalRollbackFence(id)
+	}
+	if handoffErr != nil {
+		var rollbackErr error
+		if persistMetadata {
+			if existed {
+				rollbackErr = ms.persistEmailMetadataAt(previousEmail, previousReceivedAt)
+			} else {
+				rollbackErr = ms.deleteEmailMetadata(id)
+				if rollbackErr == nil {
+					rollbackErr = syncStorageDirectory(filepath.Join(ms.mailDir, metadataDirectoryName))
+				}
+			}
+		}
+		ms.storeMutex.Unlock()
+		if hasTransactionalHandoff {
+			// Complete local outbox cleanup before exposing the failure to a
+			// caller that may immediately retry the same email ID.
+			ms.emitNotificationAndWait("new-rollback", storedEmail)
+		}
+		if rollbackErr != nil {
+			return errors.Join(handoffErr, fmt.Errorf("roll back email metadata: %w", rollbackErr))
+		}
+		return handoffErr
+	}
 	if !existed {
 		ms.storeOrder = append(ms.storeOrder, id)
 	}
@@ -87,8 +125,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
 
-	// Emit new email event
-	ms.emit("new", storedEmail)
+	// Notify asynchronous listeners only after the durable handoff and in-memory
+	// commit both succeed.
+	ms.emitAsynchronous("new", storedEmail)
 
 	// Auto relay if enabled
 	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
@@ -251,13 +290,17 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
 	// Emit delete event
-	ms.emit("delete", email)
+	if err := ms.emit("delete", email); err != nil {
+		common.Error("Failed to emit delete event: %v", err)
+	}
 
 	return nil
 }
 
 // DeleteAllEmail deletes all emails
 func (ms *MailServer) DeleteAllEmail() error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	common.Log("Deleting all email")
 
 	ms.storeMutex.Lock()
@@ -271,6 +314,9 @@ func (ms *MailServer) DeleteAllEmail() error {
 	if err == nil {
 		for _, file := range files {
 			if file.IsDir() && (file.Name() == quarantineDirName || file.Name() == webhookOutboxDirectoryName) {
+				continue
+			}
+			if _, fenced := rollbackFenceID(file.Name()); fenced {
 				continue
 			}
 			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
@@ -597,7 +643,20 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 
 // LoadMailsFromDirectory loads emails from the mail directory
 func (ms *MailServer) LoadMailsFromDirectory() error {
+	ms.storageTransactionMutex.Lock()
+	defer ms.storageTransactionMutex.Unlock()
 	var loadErrors []error
+	fencedIDs := make(map[string]struct{})
+	if entries, err := os.ReadDir(ms.mailDir); err == nil {
+		for _, entry := range entries {
+			if id, ok := rollbackFenceID(entry.Name()); ok {
+				state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, entry.Name()))
+				if stateErr != nil || (state != acceptedFenceState && state != localFenceState) {
+					fencedIDs[id] = struct{}{}
+				}
+			}
+		}
+	}
 	if err := ms.recoverStorageArtifacts(); err != nil {
 		common.Error("Storage recovery completed with errors: %v", err)
 		loadErrors = append(loadErrors, err)
@@ -619,6 +678,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		// Extract ID from filename
 		id := strings.TrimSuffix(file.Name(), ".eml")
+		if _, fenced := fencedIDs[id]; fenced {
+			continue
+		}
 		emlPath := filepath.Join(ms.mailDir, file.Name())
 
 		// Check if email already loaded
@@ -659,7 +721,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		email, envelope, parseErr := ms.parseEmailMessage(id, emailFile, nil, false, filepath.Join(ms.mailDir, id))
 		closeErr := emailFile.Close()
 		if parseErr == nil && closeErr == nil {
-			if storeErr := ms.saveEmailToStore(id, markAsRead, envelope, email, false); storeErr != nil {
+			if storeErr := ms.saveEmailToStore(id, markAsRead, envelope, email, false, false); storeErr != nil {
 				loadErrors = append(loadErrors, fmt.Errorf("restore email %s: %w", id, storeErr))
 				continue
 			}

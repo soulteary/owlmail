@@ -4,7 +4,7 @@
 [`soulteary/webhook`](https://github.com/soulteary/webhook)，使用 HMAC-SHA256
 校验完整请求体，把 JSON 字段映射为命令环境变量，并执行 `print-email.sh`。
 
-Compose 示例固定使用已经发布的 OwlMail `0.5.0` 和 WebHook `7.0.0`，避免从
+Compose 示例固定使用已经发布的 OwlMail `0.6.0` 和 WebHook `7.0.0`，避免从
 持续变化的 `main` 分支重新构建 OwlMail，使示例更容易复现和长期维护。
 
 ## 文件说明

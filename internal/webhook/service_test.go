@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -134,6 +136,9 @@ func TestOutboxRetainsJobUntilQueueAcceptsIt(t *testing.T) {
 	if err := outbox.Store(job); err != nil {
 		t.Fatal(err)
 	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
 	queue := &fakeDeliveryQueue{claims: make(chan *queueReceipt, 1), enqueueErr: errors.New("redis unavailable")}
 	service := &Service{queue: queue, outbox: outbox, ctx: context.Background()}
 
@@ -177,8 +182,154 @@ func TestOutboxDecouplesEnqueueFromMemoryQueueCapacity(t *testing.T) {
 		t.Fatal("enqueue blocked on the unavailable in-memory queue")
 	}
 	entries, err := outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("staged outbox entries became consumable before acceptance = %#v, %v", entries, err)
+	}
+	select {
+	case <-service.outboxWake:
+		t.Fatal("staged outbox entry woke the worker before acceptance")
+	default:
+	}
+	if err := service.Commit(testEmail().ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = outbox.List()
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("durable outbox entries = %#v, %v", entries, err)
+	}
+}
+
+func TestServiceCloseWaitsForStagedHandoffDecision(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "staged", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: time.Second, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned before staged handoff was committed: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if err := service.Commit(email.ID); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after staged handoff was committed")
+	}
+}
+
+func TestServiceCloseRetainsFailedPromotionUntilRetrySucceeds(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "retry", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: time.Second, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := service.outbox.dir + "-backup"
+	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Commit(email.ID); err == nil {
+		t.Fatal("blocked outbox promotion unexpectedly succeeded")
+	}
+
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		t.Fatalf("Close returned while accepted promotion was still failing: %v", err)
+	case <-time.After(30 * time.Millisecond):
+	}
+	if err := os.Remove(service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDir, service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	service.wakeOutbox()
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Close did not finish after the promotion retry succeeded")
+	}
+}
+
+func TestServiceCloseTimeoutCancelsPersistentlyFailedPromotion(t *testing.T) {
+	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.WriteHeader(http.StatusNoContent)
+	}))
+	defer receiver.Close()
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "timeout", URL: receiver.URL}}}, receiver.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{
+		MaxConcurrency: 1, ShutdownTimeout: 50 * time.Millisecond, SpoolDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := testEmail()
+	if err := service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := service.outbox.dir + "-backup"
+	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Commit(email.ID); err == nil {
+		t.Fatal("blocked outbox promotion unexpectedly succeeded")
+	}
+	if err := service.Close(); err == nil || !strings.Contains(err.Error(), "webhook drain exceeded") {
+		t.Fatalf("Close error = %v, want bounded drain timeout", err)
+	}
+	if err := os.Remove(service.outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDir, service.outbox.dir); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -194,9 +345,228 @@ func TestOutboxRecreatesMissingDirectory(t *testing.T) {
 	if err := outbox.Store(job); err != nil {
 		t.Fatalf("Store() after directory removal: %v", err)
 	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
 	entries, err := outbox.List()
 	if err != nil || len(entries) != 1 {
 		t.Fatalf("List() after directory recreation = %#v, %v", entries, err)
+	}
+}
+
+func TestOutboxStageSyncFailureRemainsNonConsumable(t *testing.T) {
+	outbox, err := newDeliveryOutbox(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	outbox.syncDirectory = func(string) error {
+		return errors.New("injected directory sync failure")
+	}
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1),
+		ctx: context.Background(), accepting: true,
+	}
+
+	if err := service.Enqueue(testEmail()); err == nil {
+		t.Fatal("unsynced pending outbox handoff must fail")
+	}
+	select {
+	case <-service.outboxWake:
+		// The worker is woken to reclaim the rejected pending entry after the
+		// mail rollback decision becomes visible.
+	default:
+		t.Fatal("failed staged handoff did not schedule pending cleanup")
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("failed staged handoff became consumable = %#v, %v", entries, err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".pending") {
+		t.Fatalf("non-consumable pending handoff = %#v, %v", files, err)
+	}
+}
+
+func TestOutboxRetriesAcceptedPendingPromotion(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "retry-promotion", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	backupDir := outbox.dir + "-backup"
+	if err := os.Rename(outbox.dir, backupDir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{
+		outbox: outbox, outboxWake: make(chan struct{}, 1),
+		memoryQueue: make(chan deliveryJob, 1), ctx: context.Background(),
+	}
+	if err := service.Commit(job.Email.ID); err == nil {
+		t.Fatal("blocked outbox promotion unexpectedly succeeded")
+	}
+	if err := os.Remove(outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(backupDir, outbox.dir); err != nil {
+		t.Fatal(err)
+	}
+
+	if pending, err := service.flushOutbox(); err != nil || !pending {
+		t.Fatalf("promotion retry flush = %v, %v", pending, err)
+	}
+	select {
+	case delivered := <-service.memoryQueue:
+		if delivered.ID != job.ID {
+			t.Fatalf("promoted job = %q, want %q", delivered.ID, job.ID)
+		}
+	default:
+		t.Fatal("accepted pending job was not delivered after promotion retry")
+	}
+}
+
+func TestOutboxRetryResyncsRenamedPromotionBeforeFenceCleanup(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "resync-promotion", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailAcceptedState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	outbox.syncDirectory = func(string) error {
+		return errors.New("injected committed outbox sync failure")
+	}
+	if err := outbox.Commit(job.Email.ID); err == nil {
+		t.Fatal("promotion with failed directory sync unexpectedly succeeded")
+	}
+	if _, err := os.Stat(fencePath); err != nil {
+		t.Fatalf("accepted fence removed before durable promotion: %v", err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".json") {
+		t.Fatalf("renamed promotion after sync failure = %#v, %v", files, err)
+	}
+
+	syncCalls := 0
+	outbox.syncDirectory = func(string) error {
+		syncCalls++
+		return nil
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
+	if syncCalls != 1 {
+		t.Fatalf("promotion retry directory sync calls = %d, want 1", syncCalls)
+	}
+	if _, err := os.Stat(fencePath); !os.IsNotExist(err) {
+		t.Fatalf("accepted fence survived durable promotion retry: %v", err)
+	}
+}
+
+func TestOutboxPrunesPendingJobForRollbackFencedMail(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "rejected-pending", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailRollbackState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.PruneRejectedPending(); err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 0 {
+		t.Fatalf("outbox after rejected pending cleanup = %#v, %v", files, err)
+	}
+}
+
+func TestOutboxKeepsPendingJobForActiveMailTransaction(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "active-pending", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailActiveState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.PruneRejectedPending(); err != nil {
+		t.Fatal(err)
+	}
+	files, err := os.ReadDir(outbox.dir)
+	if err != nil || len(files) != 1 || !strings.HasSuffix(files[0].Name(), ".pending") {
+		t.Fatalf("active transaction pending job = %#v, %v", files, err)
+	}
+}
+
+func TestOutboxKeepsPendingJobWithoutExplicitRollbackFence(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "accepted-then-deleted", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.PruneRejectedPending(); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 || entries[0].job.ID != job.ID {
+		t.Fatalf("accepted deleted-mail handoff = %#v, %v", entries, err)
+	}
+}
+
+func TestRecoverAcceptedPendingAfterEmailDeletion(t *testing.T) {
+	spoolDir := t.TempDir()
+	outbox, err := newDeliveryOutbox(spoolDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job := deliveryJob{ID: "recover-deleted-accepted", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
+	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	fencePath := filepath.Join(spoolDir, mailRollbackFencePrefix+job.Email.ID+mailRollbackFenceSuffix)
+	if err := os.WriteFile(fencePath, []byte(mailAcceptedState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{outbox: outbox, outboxWake: make(chan struct{}, 1)}
+	if err := service.RecoverAcceptedPending(); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := outbox.List()
+	if err != nil || len(entries) != 1 || entries[0].job.ID != job.ID {
+		t.Fatalf("recovered accepted deleted-mail handoff = %#v, %v", entries, err)
+	}
+	if _, err := os.Stat(fencePath); !os.IsNotExist(err) {
+		t.Fatalf("accepted recovery fence survived promotion: %v", err)
 	}
 }
 
@@ -217,6 +587,9 @@ func TestOutboxCloseSignalFlushesAcceptedEntries(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 	job := deliveryJob{ID: "accepted-before-close", EnqueuedAt: time.Now().UTC(), Email: testEmail()}
 	if err := outbox.Store(job); err != nil {
+		t.Fatal(err)
+	}
+	if err := outbox.Commit(job.Email.ID); err != nil {
 		t.Fatal(err)
 	}
 	close(service.outboxClosing)
