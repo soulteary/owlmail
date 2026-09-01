@@ -38,7 +38,7 @@ WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO �
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ⚠️ **인바운드 SMTP 인증** - 설정 항목은 있지만 현재 인증되지 않은 발신자를 거부하지 않습니다
+- ✅ **인바운드 SMTP 인증** - 필수 PLAIN/LOGIN 인증과 설정이 필요 없는 NO AUTH 테스트 모드 지원
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
 - ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
@@ -231,8 +231,8 @@ docker buildx build \
 | `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | Redis URL for durable webhook delivery |
 | `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams key prefix |
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 인바운드 SMTP 사용자 이름; 현재 강제되지 않음 |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 인바운드 SMTP 비밀번호; 현재 강제되지 않음 |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 인바운드 SMTP 사용자 이름; 비밀번호와 함께 설정하면 AUTH 필수 |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 인바운드 SMTP 비밀번호; 사용자 이름과 함께 설정하면 AUTH 필수 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -464,12 +464,17 @@ EOF
   -web 1080
 ```
 
-### 인바운드 SMTP 인증 제한
+### 인바운드 SMTP 인증 모드
+
+`-smtp-user`와 `-smtp-password`를 모두 생략하면 기본 **NO AUTH** 모드가
+사용됩니다. 인증 없는 전송과 함께 SMTP 자격 증명을 요구하는 애플리케이션을 위해
+임의의 PLAIN/LOGIN 자격 증명도 허용합니다. 두 값을 모두 설정하면 SMTP AUTH가
+필수가 됩니다. 하나만 설정하면 NO AUTH로 조용히 돌아가지 않고 시작에 실패합니다.
 
 > [!WARNING]
-> `-smtp-user`와 `-smtp-password`는 현재 설정만 채우며 SMTP 세션은 인증되지
-> 않은 발신자를 거부하지 않습니다. 신뢰할 수 있는 인터페이스, 방화벽 규칙 또는
-> 비공개 터널로 SMTP 리스너를 격리하세요.
+> NO AUTH는 의도적으로 접근 제어를 제공하지 않습니다. 개발 호환성을 위해
+> PLAIN/LOGIN을 TLS 없이도 사용할 수 있으므로 실제 자격 증명을 사용하기 전에
+> TLS를 활성화하고 SMTP 리스너를 격리하세요.
 
 ### Using TLS
 

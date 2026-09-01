@@ -38,7 +38,7 @@ API レスポンスと WebSocket プロトコルは独自です。API や Socket
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to HTTP webhooks with custom message templates
-- ⚠️ **受信 SMTP 認証** - 設定項目はありますが、現在は未認証の送信者を拒否しません
+- ✅ **受信 SMTP 認証** - PLAIN/LOGIN の必須認証と、設定不要の NO AUTH テストモードに対応
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
 - ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
@@ -231,8 +231,8 @@ docker buildx build \
 | `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | Redis URL for durable webhook delivery |
 | `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams key prefix |
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 受信 SMTP ユーザー名。現在は強制されません |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 受信 SMTP パスワード。現在は強制されません |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 受信 SMTP ユーザー名。パスワードと同時設定すると AUTH を必須化 |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 受信 SMTP パスワード。ユーザー名と同時設定すると AUTH を必須化 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -464,12 +464,17 @@ EOF
   -web 1080
 ```
 
-### 受信 SMTP 認証の制限
+### 受信 SMTP 認証モード
+
+`-smtp-user` と `-smtp-password` をどちらも設定しない場合、既定の **NO
+AUTH** モードになります。未認証の配送に加え、SMTP 設定を必須とするアプリの
+ために任意の PLAIN/LOGIN 認証情報も受け入れます。両方を設定すると SMTP AUTH
+が必須になります。片方だけの設定は NO AUTH に戻らず、起動エラーになります。
 
 > [!WARNING]
-> `-smtp-user` と `-smtp-password` は現在設定を保持するだけで、SMTP
-> セッションは未認証の送信者を拒否しません。信頼できるインターフェース、
-> ファイアウォール、またはプライベートトンネルで SMTP リスナーを隔離してください。
+> NO AUTH は意図的にアクセス制御を提供しません。開発互換性のため
+> PLAIN/LOGIN は TLS なしでも使用できるため、実際の認証情報を使う前に TLS を
+> 有効化し、SMTP リスナーを分離してください。
 
 ### Using TLS
 

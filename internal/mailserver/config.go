@@ -42,6 +42,9 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.AuthConfig != nil && options.AuthConfig.Enabled && (options.AuthConfig.Username == "" || options.AuthConfig.Password == "") {
+		return nil, fmt.Errorf("SMTP username and password are both required when authentication is enabled")
+	}
 	if port == 0 {
 		port = defaultPort
 	}
@@ -113,13 +116,10 @@ func (ms *MailServer) setupSMTPServer() error {
 	s.MaxMessageBytes = ms.maxMessageBytes
 	s.MaxRecipients = 50
 
-	// Configure authentication
-	if ms.authConfig != nil && ms.authConfig.Enabled {
-		s.AllowInsecureAuth = true
-		// Note: go-smtp doesn't have EnableAuth, authentication is handled in Session
-	} else {
-		s.AllowInsecureAuth = true
-	}
+	// OwlMail is a development SMTP server. PLAIN and LOGIN must remain usable
+	// without TLS for local testing; deployments that carry real credentials
+	// should enable TLS or isolate the listener.
+	s.AllowInsecureAuth = true
 
 	// Configure TLS for STARTTLS
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
@@ -156,13 +156,7 @@ func (ms *MailServer) setupSMTPServer() error {
 		smtps.MaxMessageBytes = ms.maxMessageBytes
 		smtps.MaxRecipients = 50
 
-		// Configure authentication for SMTPS
-		if ms.authConfig != nil && ms.authConfig.Enabled {
-			smtps.AllowInsecureAuth = true
-			// Note: go-smtp doesn't have EnableAuth, authentication is handled in Session
-		} else {
-			smtps.AllowInsecureAuth = true
-		}
+		smtps.AllowInsecureAuth = true
 
 		// Use same TLS config
 		smtps.TLSConfig = s.TLSConfig

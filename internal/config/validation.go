@@ -37,6 +37,9 @@ func ValidateConfig(cfg *Config) error {
 	if int64(cfg.SMTPMaxMessageMB) > maxMessageMB {
 		return fmt.Errorf("SMTP max message size is too large")
 	}
+	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
+		return fmt.Errorf("SMTP username and password must be configured together")
+	}
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
 	}

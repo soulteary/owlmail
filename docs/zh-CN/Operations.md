@@ -179,16 +179,20 @@ docker run -d \
 确认容器运行时允许非 root 进程绑定 465；如不允许，应按运行时安全策略只授予所需
 的 bind-service 能力。
 
-## SMTP 入口限制与鉴权现状
+## SMTP 入口限制与鉴权模式
 
 SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-message-mb` 或
 `OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限仍为 50，读写
 超时仍为 10 秒。
 
+同时省略 `-smtp-user` 与 `-smtp-password` 时使用 NO AUTH 模式：允许不认证直接
+投递，也接受任意 PLAIN/LOGIN 凭据，便于必须填写凭据的测试客户端零配置接入。
+同时设置两项后强制 SMTP AUTH；未认证事务返回 `530 5.7.0`，错误凭据返回
+`535 5.7.8`。只设置其中一项会启动失败。
+
 > [!WARNING]
-> `-smtp-user` / `-smtp-password` 及其环境变量别名会写入 SMTP 鉴权配置，但当前
-> SMTP 会话**不会拒绝**未认证发送方。不要把这些选项当成访问控制边界。应将
-> SMTP 监听器限制在可信接口，或使用网络策略、防火墙、私有隧道进行隔离。
+> NO AUTH 有意保持开放。为兼容开发环境，OwlMail 也允许在非 TLS 连接上使用
+> PLAIN/LOGIN。请将监听器限制在可信接口，并在使用真实凭据前启用 TLS。
 
 SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证书，否则会生成
 自签名证书并记录警告。Web HTTPS 行为不同：`-https-cert` 与 `-https-key` 两项

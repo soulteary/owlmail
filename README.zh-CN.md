@@ -39,7 +39,7 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 - ✅ **邮件转发** - 支持将邮件转发到真实的 SMTP 服务器
 - ✅ **自动中继** - 支持自动转发所有邮件，带规则过滤
 - ✅ **Webhook 消息转发** - 按规则把新邮件转换为自定义消息并发送到通用 HTTP Webhook
-- ⚠️ **入站 SMTP 认证** - 已提供配置参数，但当前不会拒绝未认证发送方
+- ✅ **入站 SMTP 认证** - 支持强制 PLAIN/LOGIN 认证，并保留零配置的 NO AUTH 测试模式
 - ✅ **TLS/STARTTLS** - 支持加密连接
 - ✅ **SMTPS** - 启用 SMTP TLS 时支持端口 465 的直接 TLS 连接
 
@@ -248,8 +248,8 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | 用于持久、可跨重启投递的 Redis URL |
 | `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams 键前缀 |
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Webhook 优雅排空截止时间 |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 入站 SMTP 用户名设置；当前未强制执行 |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 入站 SMTP 密码设置；当前未强制执行 |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 入站 SMTP 用户名；与密码同时配置后强制 AUTH |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 入站 SMTP 密码；与用户名同时配置后强制 AUTH |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
@@ -523,12 +523,18 @@ Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义�
   -web 1080
 ```
 
-### 入站 SMTP 认证限制
+### 入站 SMTP 认证模式
+
+不配置 `-smtp-user` 和 `-smtp-password` 时，OwlMail 默认使用 **NO AUTH**
+模式：既允许客户端不认证直接投递，也会声明支持 PLAIN/LOGIN，并接受任意凭据，
+方便对接那些必须填写 SMTP 凭据、但本地开发和测试时不希望额外配置服务的应用。
+
+同时配置两项后启用真正的强制 SMTP AUTH。未认证事务会收到 `530 5.7.0`，错误
+凭据会收到 `535 5.7.8`。只配置其中一项时启动失败，不会静默回退到 NO AUTH。
 
 > [!WARNING]
-> `-smtp-user` 与 `-smtp-password` 当前只会写入配置，SMTP 会话不会拒绝未认证
-> 发送方。不要把 SMTP 监听器暴露给不可信网络，也不要把这些参数当成访问控制
-> 边界；请使用接口绑定、防火墙规则或私有隧道进行隔离。
+> NO AUTH 有意不提供访问控制；为兼容开发环境，PLAIN/LOGIN 也允许在未启用 TLS
+> 时使用。请只在本机或可信网络使用 NO AUTH，使用真实凭据前应启用 TLS。
 
 ### 使用 TLS
 

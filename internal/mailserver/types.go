@@ -34,7 +34,8 @@ type Attachment = types.Attachment
 // Envelope is an alias for types.Envelope
 type Envelope = types.Envelope
 
-// SMTPAuthConfig represents SMTP authentication configuration
+// SMTPAuthConfig represents required SMTP authentication configuration. A nil
+// or disabled config selects NO AUTH mode.
 type SMTPAuthConfig struct {
 	Username string
 	Password string

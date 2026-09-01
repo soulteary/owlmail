@@ -28,7 +28,7 @@ MailDev 的 MCP 接口。迁移应被视为一次小型集成改造并配套测�
 | EML 目录 | 支持 | 支持 | 切换前先用归档副本验证 |
 | 单封中继 | 支持 | 支持 | 需要出站 SMTP 设置 |
 | 自动中继 | 支持 | 支持 | OwlMail 支持 allow/deny JSON 规则 |
-| 入站 SMTP 鉴权 | 支持 | 有配置字段，但不会拒绝未认证发送方 | 隔离 OwlMail SMTP 监听器；暂不能迁移鉴权边界 |
+| 入站 SMTP 鉴权 | 支持 | PLAIN/LOGIN；两项凭据同时配置时强制，否则为 NO AUTH | 迁移鉴权边界时同时配置用户名和密码 |
 | Web Basic Auth | 支持 | 支持 | OwlMail 健康检查仍公开 |
 | SMTP TLS / STARTTLS | 支持 | 支持 | 证书路径必须可读 |
 | 直接 SMTPS | 随版本而异 | 开启 SMTP TLS 时监听 465 | OwlMail 特有行为 |

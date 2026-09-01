@@ -31,7 +31,7 @@ by tests, not as a binary swap with a compatibility guarantee.
 | EML directory | Yes | Yes | Test an archive copy before switching |
 | Individual relay | Yes | Yes | Requires outgoing SMTP settings |
 | Automatic relay | Yes | Yes | OwlMail supports allow/deny JSON rules |
-| Inbound SMTP auth | Yes | Configuration fields exist, but unauthenticated senders are not rejected | Isolate OwlMail's SMTP listener; do not migrate an authentication boundary yet |
+| Inbound SMTP auth | Yes | PLAIN/LOGIN; required with both credentials, otherwise NO AUTH | Configure both credentials when migrating an authentication boundary |
 | Web Basic Auth | Yes | Yes | OwlMail health endpoints remain public |
 | SMTP TLS / STARTTLS | Yes | Yes | Certificate paths must be readable |
 | Direct SMTPS | Version-dependent | Yes, port 465 when SMTP TLS is enabled | OwlMail-specific behavior |

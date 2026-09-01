@@ -8,6 +8,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- Real inbound SMTP AUTH with PLAIN and LOGIN mechanisms, constant-time
+  credential checks, and protocol-level rejection of unauthenticated mail
+  transactions.
 - Optional S3-compatible object storage for decoded attachments, including
   bounded transactional uploads and rollback, restart-safe metadata, bounded
   streaming downloads, recoverable deletion and quarantine cleanup,
@@ -16,6 +19,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- The zero-credential default is now documented as NO AUTH mode. It accepts
+  unauthenticated delivery and arbitrary PLAIN/LOGIN credentials for test
+  clients that require SMTP credentials. Configuring both inbound credentials
+  enables required AUTH; configuring only one now fails startup.
 - The SMTP and SMTPS message-size limit is configurable with
   `-smtp-max-message-mb` / `OWLMAIL_SMTP_MAX_MESSAGE_MB` and now defaults to
   100 MiB instead of 1 MiB.

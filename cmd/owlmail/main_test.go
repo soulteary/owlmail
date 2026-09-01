@@ -515,42 +515,32 @@ func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 }
 
 func TestSetupAuthConfig(t *testing.T) {
-	// Test with empty user and password (should return nil)
+	if _, err := setupAuthConfig(nil); err == nil {
+		t.Fatal("setupAuthConfig(nil) should fail")
+	}
+
+	result, err := setupAuthConfig(&config.Config{})
+	if err != nil || result != nil {
+		t.Fatalf("NO AUTH setupAuthConfig() = %#v, %v, want nil, nil", result, err)
+	}
+
+	for _, cfg := range []*config.Config{
+		{SMTPPassword: "pass"},
+		{SMTPUser: "user"},
+	} {
+		if _, err := setupAuthConfig(cfg); err == nil {
+			t.Fatalf("partial credentials %#v should fail", cfg)
+		}
+	}
+
 	cfg := &config.Config{
-		SMTPUser:     "",
-		SMTPPassword: "",
-	}
-	result := setupAuthConfig(cfg)
-	if result != nil {
-		t.Errorf("setupAuthConfig() = %v, want nil", result)
-	}
-
-	// Test with empty user (should return nil)
-	cfg = &config.Config{
-		SMTPUser:     "",
-		SMTPPassword: "pass",
-	}
-	result = setupAuthConfig(cfg)
-	if result != nil {
-		t.Errorf("setupAuthConfig() = %v, want nil", result)
-	}
-
-	// Test with empty password (should return nil)
-	cfg = &config.Config{
-		SMTPUser:     "user",
-		SMTPPassword: "",
-	}
-	result = setupAuthConfig(cfg)
-	if result != nil {
-		t.Errorf("setupAuthConfig() = %v, want nil", result)
-	}
-
-	// Test with both user and password set
-	cfg = &config.Config{
 		SMTPUser:     "user",
 		SMTPPassword: "pass",
 	}
-	result = setupAuthConfig(cfg)
+	result, err = setupAuthConfig(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if result == nil {
 		t.Fatal("setupAuthConfig() = nil, want non-nil")
 	}
@@ -920,6 +910,13 @@ func TestCreateMailServer(t *testing.T) {
 			}
 		}
 	}()
+
+	partialAuthConfig := *cfg
+	partialAuthConfig.MailDir = t.TempDir()
+	partialAuthConfig.SMTPPassword = ""
+	if _, err := createMailServer(&partialAuthConfig); err == nil {
+		t.Fatal("createMailServer() with partial SMTP credentials should fail")
+	}
 
 	// Test with invalid outgoing config (invalid rules file)
 	tmpDir5 := t.TempDir()
