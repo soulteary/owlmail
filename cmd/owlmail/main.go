@@ -111,16 +111,23 @@ func setupOutgoingConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
 	return outgoingConfig, nil
 }
 
-// setupAuthConfig creates SMTP authentication configuration from config
-func setupAuthConfig(cfg *config.Config) *mailserver.SMTPAuthConfig {
-	if cfg.SMTPUser == "" || cfg.SMTPPassword == "" {
-		return nil
+// setupAuthConfig creates required SMTP authentication configuration. When
+// both credentials are omitted OwlMail uses NO AUTH mode.
+func setupAuthConfig(cfg *config.Config) (*mailserver.SMTPAuthConfig, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
+		return nil, fmt.Errorf("SMTP username and password must be configured together")
+	}
+	if cfg.SMTPUser == "" {
+		return nil, nil
 	}
 	return &mailserver.SMTPAuthConfig{
 		Username: cfg.SMTPUser,
 		Password: cfg.SMTPPassword,
 		Enabled:  true,
-	}
+	}, nil
 }
 
 // setupTLSConfig creates TLS configuration from config
@@ -413,7 +420,10 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	}
 
 	// Setup SMTP authentication config
-	authConfig := setupAuthConfig(cfg)
+	authConfig, err := setupAuthConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Setup TLS config
 	tlsConfig := setupTLSConfig(cfg)

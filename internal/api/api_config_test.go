@@ -41,6 +41,9 @@ func TestAPIGetConfig(t *testing.T) {
 	if response["version"] == nil {
 		t.Error("Response should have version field")
 	}
+	if smtpAuth, ok := response["smtpAuth"]; !ok || smtpAuth != nil {
+		t.Errorf("NO AUTH smtpAuth = %#v, want null", smtpAuth)
+	}
 }
 
 func TestAPIGetOutgoingConfig(t *testing.T) {
@@ -243,6 +246,7 @@ func TestAPIGetConfigWithAuth(t *testing.T) {
 	authConfig := &mailserver.SMTPAuthConfig{
 		Enabled:  true,
 		Username: "user",
+		Password: "password",
 	}
 	server, err := mailserver.NewMailServerWithConfig(1025, "localhost", tmpDir, nil, authConfig, nil)
 	if err != nil {

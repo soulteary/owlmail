@@ -38,7 +38,7 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 - ✅ **E-Mail-Weiterleitung** - Unterstützt Weiterleitung von E-Mails an echte SMTP-Server
 - ✅ **Auto-Relay** - Unterstützt automatische Weiterleitung aller E-Mails mit Regel-Filterung
 - ✅ **Webhook-Weiterleitung** - Sendet passende neue E-Mails mit benutzerdefinierten Nachrichtenvorlagen an HTTP-Webhooks
-- ⚠️ **Eingehende SMTP-Authentifizierung** - Konfigurationsparameter sind vorhanden, nicht authentifizierte Absender werden derzeit jedoch nicht abgewiesen
+- ✅ **Eingehende SMTP-Authentifizierung** - Erzwungene PLAIN/LOGIN-Authentifizierung mit konfigurationsfreiem NO-AUTH-Testmodus
 - ✅ **TLS/STARTTLS** - Unterstützt verschlüsselte Verbindungen
 - ✅ **SMTPS** - Unterstützt direkte TLS-Verbindung auf Port 465, wenn SMTP-TLS aktiviert ist
 
@@ -231,8 +231,8 @@ docker buildx build \
 | `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | Redis URL for durable webhook delivery |
 | `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams key prefix |
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Eingehender SMTP-Benutzername; derzeit nicht erzwungen |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Eingehendes SMTP-Passwort; derzeit nicht erzwungen |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Eingehender SMTP-Benutzername; zusammen mit dem Passwort erzwingt er AUTH |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Eingehendes SMTP-Passwort; zusammen mit dem Benutzernamen erzwingt es AUTH |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | SMTP TLS aktivieren |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS-Zertifikatsdatei |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS-Private-Key-Datei |
@@ -466,13 +466,19 @@ EOF
   -web 1080
 ```
 
-### Einschränkung der eingehenden SMTP-Authentifizierung
+### Modi der eingehenden SMTP-Authentifizierung
+
+Ohne `-smtp-user` und `-smtp-password` verwendet OwlMail standardmäßig **NO
+AUTH**. Nicht authentifizierte Zustellung ist erlaubt; PLAIN/LOGIN werden
+dennoch angeboten und beliebige Zugangsdaten akzeptiert, damit Anwendungen mit
+obligatorischen SMTP-Zugangsdaten ohne Serverkonfiguration getestet werden
+können. Sind beide Werte gesetzt, ist SMTP AUTH erforderlich. Ein einzelner
+Wert verhindert den Start, statt unbemerkt auf NO AUTH zurückzufallen.
 
 > [!WARNING]
-> `-smtp-user` und `-smtp-password` füllen derzeit nur die Konfiguration;
-> nicht authentifizierte Absender werden nicht abgewiesen. Schützen Sie den
-> SMTP-Listener durch Interface-Bindung, Firewall-Regeln oder einen privaten
-> Tunnel und verwenden Sie diese Parameter nicht als Zugriffskontrolle.
+> NO AUTH bietet absichtlich keine Zugriffskontrolle. PLAIN/LOGIN sind für die
+> Entwicklung auch ohne TLS erlaubt; verwenden Sie echte Zugangsdaten nur mit
+> TLS und isolieren Sie den Listener.
 
 ### TLS verwenden
 

@@ -173,9 +173,12 @@ The outgoing settings body supports `host`, `port`, `user`, `password`,
 required and `port` must be between 1 and 65535. Changes are in memory; they do
 not rewrite the process flags or environment.
 
-The `smtpAuth` object returned by the settings endpoint reflects configured
-values only. Inbound SMTP authentication is not currently enforced; see
-[Operations](./Operations.md#smtp-ingress-limits-and-authentication-status).
+The `smtpAuth` object returned by the settings endpoint is `null` in NO AUTH
+mode and reflects the configured username (never the password) when required
+authentication is enabled. With both `OWLMAIL_SMTP_USER` and
+`OWLMAIL_SMTP_PASSWORD` set, PLAIN/LOGIN authentication is enforced. Supplying
+only one credential fails startup. See
+[Operations](./Operations.md#smtp-ingress-limits-and-authentication-modes).
 
 ```bash
 curl -u admin:secret \

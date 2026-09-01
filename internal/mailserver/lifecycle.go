@@ -40,8 +40,10 @@ func (ms *MailServer) Listen() error {
 	}
 
 	common.Log("owlmail SMTP Server running at %s:%d", ms.host, ms.port)
-	if ms.authConfig != nil && ms.authConfig.Enabled {
-		common.Log("SMTP authentication enabled (PLAIN/LOGIN)")
+	if ms.authRequired() {
+		common.Log("SMTP AUTH required (PLAIN/LOGIN)")
+	} else {
+		common.Log("SMTP NO AUTH mode enabled (unauthenticated delivery and arbitrary PLAIN/LOGIN credentials accepted)")
 	}
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
 		common.Log("SMTP TLS/STARTTLS enabled")

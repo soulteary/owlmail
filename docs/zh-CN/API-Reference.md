@@ -164,8 +164,10 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 `autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。`host` 必填，`port`
 必须在 1 到 65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。
 
-设置端点返回的 `smtpAuth` 对象只反映配置值；当前不会强制执行入站 SMTP 鉴权，
-详见[运维与排障](./Operations.md#smtp-入口限制与鉴权现状)。
+NO AUTH 模式下，设置端点返回的 `smtpAuth` 为 `null`；启用强制认证后，该对象只
+返回配置的用户名，不会返回密码。同时设置 `OWLMAIL_SMTP_USER` 与
+`OWLMAIL_SMTP_PASSWORD` 后会强制执行 PLAIN/LOGIN 认证；只设置其中一项会启动
+失败。详见[运维与排障](./Operations.md#smtp-入口限制与鉴权模式)。
 
 ```bash
 curl -u admin:secret \

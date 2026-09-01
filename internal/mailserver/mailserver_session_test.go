@@ -101,10 +101,12 @@ func TestSessionMail(t *testing.T) {
 		Enabled:  true,
 	}
 	session.authenticated = false
-	err = session.Mail("from@example.com", nil)
-	// Should still succeed (we just log a warning)
-	if err != nil {
-		t.Errorf("Mail should still succeed with warning, got error: %v", err)
+	err = session.Mail("rejected@example.com", nil)
+	if err != errSMTPAuthRequired {
+		t.Errorf("Mail error = %v, want %v", err, errSMTPAuthRequired)
+	}
+	if session.from != "from@example.com" {
+		t.Errorf("rejected MAIL changed sender to %q", session.from)
 	}
 }
 
@@ -135,8 +137,31 @@ func TestSessionMailWithConnNilConn(t *testing.T) {
 	}
 
 	err = session.Mail("from@example.com", nil)
+	if err != errSMTPAuthRequired {
+		t.Errorf("Mail error = %v, want %v", err, errSMTPAuthRequired)
+	}
+}
+
+func TestSessionCommandsRequireAuthentication(t *testing.T) {
+	server, err := NewMailServerWithConfig(1025, "localhost", t.TempDir(), nil, &SMTPAuthConfig{
+		Username: "user",
+		Password: "pass",
+		Enabled:  true,
+	}, nil)
 	if err != nil {
-		t.Errorf("Mail should succeed, got error: %v", err)
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	session := &Session{mailServer: server}
+	if err := session.Rcpt("to@example.com", nil); err != errSMTPAuthRequired {
+		t.Fatalf("Rcpt() error = %v, want %v", err, errSMTPAuthRequired)
+	}
+	if err := session.Data(bytes.NewReader([]byte("message"))); err != errSMTPAuthRequired {
+		t.Fatalf("Data() error = %v, want %v", err, errSMTPAuthRequired)
+	}
+	if len(server.GetAllEmail()) != 0 {
+		t.Fatal("unauthenticated DATA stored a message")
 	}
 }
 

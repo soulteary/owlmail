@@ -207,19 +207,24 @@ Verify that the container runtime permits the non-root process to bind port 465.
 If it does not, grant only the required bind-service capability according to the
 runtime's security policy.
 
-## SMTP ingress limits and authentication status
+## SMTP ingress limits and authentication modes
 
 The SMTP and SMTPS servers accept at most 100 MiB per message by default. Set
 `-smtp-max-message-mb` or `OWLMAIL_SMTP_MAX_MESSAGE_MB` to a positive MiB value
 to change the limit. The recipient limit remains 50 and read/write timeouts
 remain 10 seconds.
 
+Omitting both `-smtp-user` and `-smtp-password` selects NO AUTH mode. It accepts
+mail without authentication and accepts arbitrary PLAIN/LOGIN credentials so
+test clients that require credential fields can connect without OwlMail-side
+setup. Setting both values requires SMTP AUTH: unauthenticated transactions are
+rejected with `530 5.7.0`, and invalid credentials with `535 5.7.8`. Supplying
+only one value fails startup.
+
 > [!WARNING]
-> `-smtp-user` / `-smtp-password` and their environment aliases populate SMTP
-> authentication configuration, but the current SMTP session does **not**
-> reject unauthenticated senders. Do not use these options as an access-control
-> boundary. Keep the SMTP listener on a trusted interface or protect it with
-> network policy, a firewall, or a private tunnel.
+> NO AUTH is intentionally open. OwlMail also permits PLAIN/LOGIN on a
+> non-TLS connection for development compatibility. Keep the listener on a
+> trusted interface and enable TLS before using real credentials.
 
 For SMTP TLS, OwlMail uses the configured certificate only when both
 `-tls-cert` and `-tls-key` are present; otherwise it generates a self-signed
@@ -308,7 +313,8 @@ tags are intentionally moving.
 |---|---|
 | Web UI is unreachable | Verify `-web-ip`/`OWLMAIL_WEB_HOST`, port publication, and `/healthz`; inspect startup logs for bind or certificate errors |
 | Browser repeatedly asks for credentials | Confirm the effective username/password; a generated password changes on restart; clear stale browser credentials if needed |
-| SMTP is still open after setting SMTP credentials | Current inbound SMTP authentication is not enforced; isolate the listener with interface binding and network controls |
+| SMTP returns `530 Authentication required` | Authenticate with the configured username/password, or remove both values to intentionally use NO AUTH mode |
+| OwlMail fails after setting one SMTP credential | Configure both `-smtp-user` and `-smtp-password`, or remove both; partial credentials never fall back to NO AUTH |
 | Container is unhealthy with HTTPS | Override the image's HTTP healthcheck with an HTTPS probe and correct certificate trust |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |

@@ -262,25 +262,25 @@ test("root README configuration tables match flags, defaults, and environment al
   }
 });
 
-test("security-sensitive authentication limitations remain explicit", () => {
+test("security-sensitive SMTP authentication modes remain explicit", () => {
   const smtpWarnings = new Map([
-    ["README.md", "not currently enforced"],
-    ["README.zh-CN.md", "当前未强制执行"],
-    ["README.de.md", "derzeit nicht erzwungen"],
-    ["README.fr.md", "pas encore appliqué"],
-    ["README.it.md", "attualmente non applicato"],
-    ["README.ja.md", "現在は強制されません"],
-    ["README.ko.md", "현재 강제되지 않음"],
+    ["README.md", "NO AUTH"],
+    ["README.zh-CN.md", "NO AUTH"],
+    ["README.de.md", "NO AUTH"],
+    ["README.fr.md", "NO AUTH"],
+    ["README.it.md", "NO AUTH"],
+    ["README.ja.md", "NO AUTH"],
+    ["README.ko.md", "NO AUTH"],
   ]);
 
   for (const [readme, warning] of smtpWarnings) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
-    assert.ok(markdown.includes(warning), `${readme} obscures the inbound SMTP auth limitation`);
+    assert.ok(markdown.includes(warning), `${readme} obscures the SMTP authentication modes`);
   }
 
   const references = [
-    ["docs/en/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "Startup fails", "not currently enforced"]],
-    ["docs/zh-CN/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "启动失败", "不会强制执行"]],
+    ["docs/en/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "Startup fails", "PLAIN/LOGIN", "NO AUTH"]],
+    ["docs/zh-CN/API-Reference.md", ["OWLMAIL_WEB_USER", "OWLMAIL_WEB_PASSWORD", "启动失败", "PLAIN/LOGIN", "NO AUTH"]],
   ];
   for (const [reference, markers] of references) {
     const markdown = fs.readFileSync(path.join(root, reference), "utf8");
@@ -291,8 +291,10 @@ test("security-sensitive authentication limitations remain explicit", () => {
 
   const help = fs.readFileSync(path.join(root, "web/help.html"), "utf8");
   for (const marker of [
-    "do not reject unauthenticated senders",
-    "不会拒绝未认证发送方",
+    "permits unauthenticated delivery",
+    "允许不认证投递",
+    "PLAIN/LOGIN",
+    "NO AUTH",
     "100 MiB",
     "smtp-max-message-mb",
     "50 recipients",

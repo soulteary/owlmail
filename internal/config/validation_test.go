@@ -155,6 +155,25 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("partial SMTP credentials", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.SMTPUser = "user"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("SMTP username without password should fail")
+		}
+
+		cfg = DefaultConfig()
+		cfg.SMTPPassword = "password"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("SMTP password without username should fail")
+		}
+
+		cfg.SMTPUser = "user"
+		if err := ValidateConfig(cfg); err != nil {
+			t.Fatalf("complete SMTP credentials should be valid: %v", err)
+		}
+	})
+
 	t.Run("invalid log level", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.LogLevel = "invalid"

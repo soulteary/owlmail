@@ -40,7 +40,7 @@ boundary before migrating API or Socket.IO clients.
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to generic HTTP webhooks with custom payload templates
-- ⚠️ **Inbound SMTP Authentication** - Configuration flags exist, but unauthenticated senders are not currently rejected
+- ✅ **Inbound SMTP Authentication** - Required PLAIN/LOGIN authentication with a zero-config NO AUTH mode for testing
 - ✅ **TLS/STARTTLS** - Supports encrypted connections
 - ✅ **SMTPS** - Supports direct TLS connection on port 465 when SMTP TLS is enabled
 
@@ -255,8 +255,8 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | Redis URL for durable, restart-safe webhook delivery |
 | `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams key prefix |
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Inbound SMTP username setting; not currently enforced |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Inbound SMTP password setting; not currently enforced |
+| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Inbound SMTP username; configure together with the password to require AUTH |
+| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Inbound SMTP password; configure together with the username to require AUTH |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -539,13 +539,22 @@ Webhook targets support case-insensitive wildcard rules, custom JSON-safe body t
   -web 1080
 ```
 
-### Inbound SMTP Authentication Limitation
+### Inbound SMTP Authentication Modes
+
+With neither `-smtp-user` nor `-smtp-password` configured, OwlMail uses the
+default **NO AUTH** mode. It accepts unauthenticated delivery and also advertises
+PLAIN/LOGIN, accepting arbitrary credentials for applications that insist on
+SMTP authentication settings during local development.
+
+Configure both values to require real SMTP AUTH. OwlMail rejects a transaction
+before authentication with `530 5.7.0` and rejects invalid credentials with
+`535 5.7.8`. Configuring only one value fails startup instead of silently
+falling back to NO AUTH.
 
 > [!WARNING]
-> `-smtp-user` and `-smtp-password` currently populate configuration, but the
-> SMTP session does not reject unauthenticated senders. Do not expose the SMTP
-> listener to untrusted networks or rely on these flags as an access-control
-> boundary; use interface binding, firewall rules, or a private tunnel.
+> NO AUTH deliberately provides no access-control boundary. PLAIN and LOGIN can
+> also run without TLS for development compatibility, so use localhost or a
+> trusted network, and enable TLS before using real credentials.
 
 ### Using TLS
 
