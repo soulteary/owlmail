@@ -388,6 +388,50 @@ func TestStoreIncomingEmailCommitsCompleteMessage(t *testing.T) {
 	}
 }
 
+func TestIndependentStorageTransactionsRunConcurrently(t *testing.T) {
+	dir := t.TempDir()
+	server, err := NewMailServer(1025, "localhost", dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	started := make(chan string, 2)
+	release := make(chan struct{})
+	server.beforeStoreCommit = func(email *Email) error {
+		started <- email.ID
+		<-release
+		return nil
+	}
+
+	results := make(chan error, 2)
+	go func() {
+		results <- server.storeIncomingEmail("parallel-one", bytes.NewReader(validMessage("parallel one")), nil)
+	}()
+	go func() {
+		results <- server.storeIncomingEmail("parallel-two", bytes.NewReader(validMessage("parallel two")), nil)
+	}()
+
+	seen := make(map[string]bool)
+	for len(seen) < 2 {
+		select {
+		case id := <-started:
+			seen[id] = true
+		case <-time.After(time.Second):
+			t.Fatalf("independent storage transaction did not start concurrently; started: %v", seen)
+		}
+	}
+	close(release)
+	for index := 0; index < 2; index++ {
+		if err := <-results; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := len(server.GetAllEmail()); got != 2 {
+		t.Fatalf("concurrent transactions committed %d emails, want 2", got)
+	}
+}
+
 func TestReloadWaitsForActiveStorageTransaction(t *testing.T) {
 	dir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", dir)
