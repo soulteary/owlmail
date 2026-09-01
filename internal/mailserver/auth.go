@@ -1,8 +1,7 @@
 package mailserver
 
 import (
-	"crypto/sha256"
-	"crypto/subtle"
+	"crypto/hmac"
 	"strings"
 
 	"github.com/emersion/go-sasl"
@@ -31,7 +30,7 @@ func (s *Session) Auth(mechanism string) (sasl.Server, error) {
 	switch strings.ToUpper(mechanism) {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
-			if s.mailServer.authRequired() && identity != "" && secureStringEqual(identity, username) == 0 {
+			if s.mailServer.authRequired() && identity != "" && !secureStringEqual(identity, username) {
 				return smtp.ErrAuthFailed
 			}
 			return s.authenticate(username, password)
@@ -70,13 +69,11 @@ func (ms *MailServer) authRequired() bool {
 func credentialsEqual(username, password, expectedUsername, expectedPassword string) bool {
 	usernameMatches := secureStringEqual(username, expectedUsername)
 	passwordMatches := secureStringEqual(password, expectedPassword)
-	return usernameMatches&passwordMatches == 1
+	return usernameMatches && passwordMatches
 }
 
-func secureStringEqual(value, expected string) int {
-	valueHash := sha256.Sum256([]byte(value))
-	expectedHash := sha256.Sum256([]byte(expected))
-	return subtle.ConstantTimeCompare(valueHash[:], expectedHash[:])
+func secureStringEqual(value, expected string) bool {
+	return hmac.Equal([]byte(value), []byte(expected))
 }
 
 type loginServer struct {
