@@ -45,6 +45,14 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if options.AuthConfig != nil && options.AuthConfig.Enabled && (options.AuthConfig.Username == "" || options.AuthConfig.Password == "") {
 		return nil, fmt.Errorf("SMTP username and password are both required when authentication is enabled")
 	}
+	var authVerifier *credentialVerifier
+	if options.AuthConfig != nil && options.AuthConfig.Enabled {
+		var err error
+		authVerifier, err = newCredentialVerifier(options.AuthConfig.Username, options.AuthConfig.Password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize SMTP credential verifier: %w", err)
+		}
+	}
 	if port == 0 {
 		port = defaultPort
 	}
@@ -79,6 +87,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		eventChan:               make(chan Event, 100),
 		listeners:               make(map[string][]eventListener),
 		authConfig:              options.AuthConfig,
+		authVerifier:            authVerifier,
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}

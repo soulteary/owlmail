@@ -103,6 +103,7 @@ type MailServer struct {
 		Close()
 	}
 	authConfig          *SMTPAuthConfig
+	authVerifier        *credentialVerifier
 	tlsConfig           *TLSConfig
 	useUUIDForID        bool
 	storagePolicy       StoragePolicy
