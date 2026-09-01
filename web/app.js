@@ -1003,7 +1003,7 @@ const API = {
         if (query) {
             params.append('q', query);
         }
-        const response = await fetch(`${API_BASE}/emails?${params}`);
+        const response = await fetch(`${API_BASE}/emails/preview?${params}`);
         return await handleAPIResponse(response);
     },
 
