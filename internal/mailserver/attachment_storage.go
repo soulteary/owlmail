@@ -32,8 +32,7 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 		}
 		stat, statErr := file.Stat()
 		if statErr == nil {
-			err = ms.attachmentStore.Put(
-				context.Background(),
+			err = ms.putRemoteAttachment(
 				id,
 				attachment.GeneratedFileName,
 				attachment.ContentType,
@@ -48,6 +47,19 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 		}
 	}
 	return nil
+}
+
+// putRemoteAttachment bounds each S3 upload so a stalled endpoint cannot keep
+// a storage read lock forever and indirectly block later transactions waiting
+// behind a writer.
+func (ms *MailServer) putRemoteAttachment(id, filename, contentType string, body io.Reader, size int64) error {
+	timeout := ms.attachmentUploadTimeout
+	if timeout <= 0 {
+		timeout = defaultAttachmentUploadTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return ms.attachmentStore.Put(ctx, id, filename, contentType, body, size)
 }
 
 func (ms *MailServer) deleteStoredAttachments(id, localPath string) error {
@@ -74,6 +86,16 @@ func (ms *MailServer) deleteRemoteAttachments(id string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	return ms.attachmentStore.DeleteEmail(ctx, id)
+}
+
+type cancelOnCloseReadCloser struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+}
+
+func (body *cancelOnCloseReadCloser) Close() error {
+	defer body.cancel()
+	return body.ReadCloser.Close()
 }
 
 func (ms *MailServer) findAttachment(id, filename string) (*Attachment, error) {
@@ -229,12 +251,22 @@ func (ms *MailServer) OpenEmailAttachment(id, filename string) (*AttachmentReade
 			return nil, fmt.Errorf("open attachment: %w", err)
 		}
 
-		object, err := ms.attachmentStore.Open(context.Background(), id, attachment.GeneratedFileName)
+		timeout := ms.attachmentOpenTimeout
+		if timeout <= 0 {
+			timeout = defaultAttachmentOpenTimeout
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		object, err := ms.attachmentStore.Open(ctx, id, attachment.GeneratedFileName)
 		if err != nil {
+			cancel()
 			return nil, err
 		}
+		if object == nil || object.Body == nil {
+			cancel()
+			return nil, fmt.Errorf("open remote attachment: response body is empty")
+		}
 		return &AttachmentReader{
-			Body:        object.Body,
+			Body:        &cancelOnCloseReadCloser{ReadCloser: object.Body, cancel: cancel},
 			ContentType: attachment.ContentType,
 			Size:        object.Size,
 		}, nil

@@ -20,6 +20,8 @@ const (
 	// DefaultMaxMessageBytes is the default SMTP DATA limit (100 MiB).
 	DefaultMaxMessageBytes int64 = 100 << 20
 
+	defaultAttachmentUploadTimeout = 5 * time.Minute
+	defaultAttachmentOpenTimeout   = 5 * time.Minute
 	defaultAttachmentDeleteTimeout = 30 * time.Second
 )
 
@@ -82,6 +84,8 @@ type MailServer struct {
 	host                    string
 	maxMessageBytes         int64
 	attachmentStore         attachmentstore.Store
+	attachmentUploadTimeout time.Duration
+	attachmentOpenTimeout   time.Duration
 	attachmentDeleteTimeout time.Duration
 	smtpServer              *smtp.Server
 	smtpsServer             *smtp.Server // SMTPS server (direct TLS on 465)

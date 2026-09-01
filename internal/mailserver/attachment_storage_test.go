@@ -18,7 +18,9 @@ import (
 type memoryAttachmentStore struct {
 	objects       map[string][]byte
 	putErr        error
+	blockPut      bool
 	openErr       error
+	blockOpen     bool
 	deleteErr     error
 	deleteErrByID map[string]error
 	blockDelete   bool
@@ -31,7 +33,11 @@ func newMemoryAttachmentStore() *memoryAttachmentStore {
 	}
 }
 
-func (store *memoryAttachmentStore) Put(_ context.Context, emailID, filename, _ string, body io.Reader, _ int64) error {
+func (store *memoryAttachmentStore) Put(ctx context.Context, emailID, filename, _ string, body io.Reader, _ int64) error {
+	if store.blockPut {
+		<-ctx.Done()
+		return ctx.Err()
+	}
 	if store.putErr != nil {
 		return store.putErr
 	}
@@ -43,7 +49,11 @@ func (store *memoryAttachmentStore) Put(_ context.Context, emailID, filename, _ 
 	return nil
 }
 
-func (store *memoryAttachmentStore) Open(_ context.Context, emailID, filename string) (*attachmentstore.Object, error) {
+func (store *memoryAttachmentStore) Open(ctx context.Context, emailID, filename string) (*attachmentstore.Object, error) {
+	if store.blockOpen {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
 	if store.openErr != nil {
 		return nil, store.openErr
 	}
@@ -286,6 +296,82 @@ func TestRemoteAttachmentUploadFailureRollsBackMessage(t *testing.T) {
 	}
 	if len(remote.objects) != 0 {
 		t.Fatalf("remote objects survived rollback: %#v", remote.objects)
+	}
+}
+
+func TestRemoteAttachmentUploadHasDeadlineAndRollsBack(t *testing.T) {
+	dir := t.TempDir()
+	remote := newMemoryAttachmentStore()
+	remote.blockPut = true
+	server, err := NewMailServerWithOptions(1025, "localhost", dir, ServerOptions{AttachmentStore: remote})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	server.attachmentUploadTimeout = 20 * time.Millisecond
+
+	started := time.Now()
+	err = server.storeIncomingEmail("upload-timeout", bytes.NewReader(multipartMessage()), nil)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("storeIncomingEmail() error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded remote upload took %s", elapsed)
+	}
+	if _, err := server.GetEmail("upload-timeout"); err == nil {
+		t.Fatal("timed-out upload published an email")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "upload-timeout.eml")); !os.IsNotExist(err) {
+		t.Fatalf("timed-out upload retained its EML: %v", err)
+	}
+	if len(remote.objects) != 0 {
+		t.Fatalf("timed-out upload retained remote objects: %#v", remote.objects)
+	}
+}
+
+func TestRemoteAttachmentOpenHasDeadline(t *testing.T) {
+	dir := t.TempDir()
+	remote := newMemoryAttachmentStore()
+	server, err := NewMailServerWithOptions(1025, "localhost", dir, ServerOptions{AttachmentStore: remote})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	const id = "open-timeout"
+	if err := server.storeIncomingEmail(id, bytes.NewReader(multipartMessage()), nil); err != nil {
+		t.Fatal(err)
+	}
+	email, err := server.GetEmail(id)
+	if err != nil || len(email.Attachments) != 1 {
+		t.Fatalf("stored email = %#v, %v", email, err)
+	}
+	filename := email.Attachments[0].GeneratedFileName
+
+	server.attachmentOpenTimeout = 20 * time.Millisecond
+	remote.blockOpen = true
+	started := time.Now()
+	_, err = server.OpenEmailAttachment(id, filename)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("OpenEmailAttachment() error = %v, want context deadline exceeded", err)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("bounded remote open took %s", elapsed)
+	}
+
+	remote.blockOpen = false
+	opened, err := server.OpenEmailAttachment(id, filename)
+	if err != nil {
+		t.Fatalf("OpenEmailAttachment() retry error = %v", err)
+	}
+	content, err := io.ReadAll(opened.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := opened.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "data" {
+		t.Fatalf("opened content = %q", content)
 	}
 }
 

@@ -96,6 +96,9 @@ OwlMail stages attachments locally, writes a durable rollback marker, uploads
 every object under `<prefix>/<email-id>/`, and only then commits the `.eml`
 marker. A failed upload rejects the SMTP transaction and triggers prefix
 cleanup; startup recovery retries cleanup after an interrupted transaction.
+Each attachment upload and remote download stream has a five-minute deadline,
+so an unresponsive endpoint cannot hold a storage transaction or request
+indefinitely.
 Single-email deletion, clear-all, and retention cleanup delete remote objects as
 well as any matching legacy local attachment directory. Before deletion OwlMail
 syncs a per-message deletion fence. Remote cleanup runs first; if it fails, the
