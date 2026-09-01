@@ -20,8 +20,8 @@ const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
-	ms.storageTransactionMutex.Lock()
-	defer ms.storageTransactionMutex.Unlock()
+	ms.storageTransactionMutex.RLock()
+	defer ms.storageTransactionMutex.RUnlock()
 	return ms.saveEmailToStore(id, isRead, envelope, parsedEmail, true, false)
 }
 
