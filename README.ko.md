@@ -196,6 +196,7 @@ docker buildx build \
 |----------|---------------------|---------|-------------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
+| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 수신 메시지 최대 크기(MiB) |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
@@ -203,6 +204,15 @@ docker buildx build \
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
+| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 디코딩된 첨부 파일을 S3 호환 스토리지에 저장 |
+| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | 사용자 지정 S3 엔드포인트. 비우면 AWS S3 사용 |
+| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 리전 |
+| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | 첨부 파일용 기존 버킷 |
+| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | 객체 키 접두사 |
+| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | 선택적 정적 액세스 키 |
+| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 선택적 정적 시크릿 키 |
+| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 선택적 세션 토큰 |
+| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | 경로 스타일 버킷 주소 사용 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |

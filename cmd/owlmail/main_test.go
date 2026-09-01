@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -841,6 +842,7 @@ func TestCreateMailServer(t *testing.T) {
 	cfg := &config.Config{
 		SMTPPort:          1025,
 		SMTPHost:          "localhost",
+		SMTPMaxMessageMB:  64,
 		MailDir:           tmpDir1,
 		OutgoingHost:      "", // No outgoing host
 		UseUUIDForEmailID: false,
@@ -852,6 +854,9 @@ func TestCreateMailServer(t *testing.T) {
 	}
 	if server == nil {
 		t.Fatal("createMailServer() = nil, want non-nil")
+	}
+	if got, want := server.GetMaxMessageBytes(), int64(64<<20); got != want {
+		t.Fatalf("MaxMessageBytes = %d, want %d", got, want)
 	}
 	defer func() {
 		if server != nil {
@@ -930,6 +935,35 @@ func TestCreateMailServer(t *testing.T) {
 	_, err = createMailServer(cfg)
 	if err == nil {
 		t.Error("createMailServer() with invalid rules file should return error")
+	}
+}
+
+func TestSetupAttachmentStore(t *testing.T) {
+	if _, err := setupAttachmentStore(nil); err == nil {
+		t.Fatal("setupAttachmentStore(nil) succeeded")
+	}
+	store, err := setupAttachmentStore(config.DefaultConfig())
+	if err != nil || store != nil {
+		t.Fatalf("disabled setupAttachmentStore() = %#v, %v", store, err)
+	}
+
+	cfg := config.DefaultConfig()
+	cfg.S3Enabled = true
+	cfg.S3Bucket = "owlmail-test"
+	cfg.S3AccessKeyID = "access"
+	cfg.S3SecretAccessKey = "secret"
+	store, err = setupAttachmentStore(cfg)
+	if err != nil || store == nil {
+		t.Fatalf("enabled setupAttachmentStore() = %#v, %v", store, err)
+	}
+}
+
+func TestCreateMailServerRejectsNegativeMessageLimit(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = t.TempDir()
+	cfg.SMTPMaxMessageMB = -1
+	if _, err := createMailServer(cfg); err == nil || !strings.Contains(err.Error(), "greater than zero") {
+		t.Fatalf("createMailServer() error = %v, want invalid message-size error", err)
 	}
 }
 

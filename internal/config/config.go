@@ -14,6 +14,13 @@ import (
 // DefaultMailCleanupInterval balances prompt retention with filesystem load.
 const DefaultMailCleanupInterval = "1h"
 
+// DefaultSMTPMaxMessageMB raises the historical 1 MiB limit while retaining a
+// bounded default suitable for development and test environments.
+const DefaultSMTPMaxMessageMB = 100
+
+const DefaultS3Region = "us-east-1"
+const DefaultS3Prefix = "owlmail/attachments"
+
 // DefaultWebhookMaxConcurrency is the recommended concurrent email delivery
 // limit. Zero remains available as an explicit unlimited mode.
 const DefaultWebhookMaxConcurrency = 8
@@ -196,6 +203,7 @@ type Config struct {
 	// SMTP server configuration
 	SMTPPort            int
 	SMTPHost            string
+	SMTPMaxMessageMB    int
 	MailDir             string
 	MailRetentionDays   int
 	MailMaxMessages     int
@@ -239,6 +247,18 @@ type Config struct {
 	// Email ID configuration
 	UseUUIDForEmailID bool
 
+	// Optional S3-compatible attachment storage. Raw messages and metadata
+	// always remain in MailDir.
+	S3Enabled         bool
+	S3Endpoint        string
+	S3Region          string
+	S3Bucket          string
+	S3Prefix          string
+	S3AccessKeyID     string
+	S3SecretAccessKey string
+	S3SessionToken    string
+	S3UsePathStyle    bool
+
 	// Webhook forwarding configuration
 	WebhookConfig          string
 	WebhookMaxConcurrency  int
@@ -252,6 +272,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		SMTPPort:               1025,
 		SMTPHost:               "localhost",
+		SMTPMaxMessageMB:       DefaultSMTPMaxMessageMB,
 		MailDir:                "",
 		MailRetentionDays:      0,
 		MailMaxMessages:        0,
@@ -280,6 +301,15 @@ func DefaultConfig() *Config {
 		TLSKeyFile:             "",
 		LogLevel:               "normal",
 		UseUUIDForEmailID:      false,
+		S3Enabled:              false,
+		S3Endpoint:             "",
+		S3Region:               DefaultS3Region,
+		S3Bucket:               "",
+		S3Prefix:               DefaultS3Prefix,
+		S3AccessKeyID:          "",
+		S3SecretAccessKey:      "",
+		S3SessionToken:         "",
+		S3UsePathStyle:         false,
 		WebhookConfig:          "",
 		WebhookMaxConcurrency:  DefaultWebhookMaxConcurrency,
 		WebhookRedisURL:        "",
@@ -292,6 +322,7 @@ func DefaultConfig() *Config {
 type FlagRefs struct {
 	SMTPPort               *int
 	SMTPHost               *string
+	SMTPMaxMessageMB       *int
 	MailDir                *string
 	MailRetentionDays      *int
 	MailMaxMessages        *int
@@ -319,6 +350,15 @@ type FlagRefs struct {
 	TLSKeyFile             *string
 	LogLevel               *string
 	UseUUIDForEmailID      *bool
+	S3Enabled              *bool
+	S3Endpoint             *string
+	S3Region               *string
+	S3Bucket               *string
+	S3Prefix               *string
+	S3AccessKeyID          *string
+	S3SecretAccessKey      *string
+	S3SessionToken         *string
+	S3UsePathStyle         *bool
 	WebhookConfig          *string
 	WebhookMaxConcurrency  *int
 	WebhookRedisURL        *string
@@ -333,6 +373,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 	return &FlagRefs{
 		SMTPPort:               fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
 		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
+		SMTPMaxMessageMB:       fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
 		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
 		MailRetentionDays:      fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
 		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
@@ -360,6 +401,15 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		TLSKeyFile:             fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
 		LogLevel:               fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
 		UseUUIDForEmailID:      fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
+		S3Enabled:              fs.Bool("s3-enabled", cfg.S3Enabled, "Store decoded attachments in S3-compatible object storage"),
+		S3Endpoint:             fs.String("s3-endpoint", cfg.S3Endpoint, "S3-compatible endpoint URL (empty uses AWS S3)"),
+		S3Region:               fs.String("s3-region", cfg.S3Region, "S3 region"),
+		S3Bucket:               fs.String("s3-bucket", cfg.S3Bucket, "S3 bucket for attachments"),
+		S3Prefix:               fs.String("s3-prefix", cfg.S3Prefix, "S3 object key prefix for attachments"),
+		S3AccessKeyID:          fs.String("s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
+		S3SecretAccessKey:      fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
+		S3SessionToken:         fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
+		S3UsePathStyle:         fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
 		WebhookConfig:          fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
 		WebhookMaxConcurrency:  fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
 		WebhookRedisURL:        fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
@@ -375,6 +425,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	return &Config{
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
+		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
 		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
 		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),
@@ -410,6 +461,15 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		LogLevel: resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
 
 		UseUUIDForEmailID:      resolveBoolWithFlag(fs, "use-uuid-for-email-id", "OWLMAIL_USE_UUID_FOR_EMAIL_ID", *refs.UseUUIDForEmailID),
+		S3Enabled:              resolveBoolWithFlag(fs, "s3-enabled", "OWLMAIL_S3_ENABLED", *refs.S3Enabled),
+		S3Endpoint:             resolveStringWithFlag(fs, "s3-endpoint", "OWLMAIL_S3_ENDPOINT", *refs.S3Endpoint),
+		S3Region:               resolveStringWithFlag(fs, "s3-region", "OWLMAIL_S3_REGION", *refs.S3Region),
+		S3Bucket:               resolveStringWithFlag(fs, "s3-bucket", "OWLMAIL_S3_BUCKET", *refs.S3Bucket),
+		S3Prefix:               resolveStringWithFlag(fs, "s3-prefix", "OWLMAIL_S3_PREFIX", *refs.S3Prefix),
+		S3AccessKeyID:          resolveStringWithFlag(fs, "s3-access-key", "OWLMAIL_S3_ACCESS_KEY", *refs.S3AccessKeyID),
+		S3SecretAccessKey:      resolveStringWithFlag(fs, "s3-secret-key", "OWLMAIL_S3_SECRET_KEY", *refs.S3SecretAccessKey),
+		S3SessionToken:         resolveStringWithFlag(fs, "s3-session-token", "OWLMAIL_S3_SESSION_TOKEN", *refs.S3SessionToken),
+		S3UsePathStyle:         resolveBoolWithFlag(fs, "s3-use-path-style", "OWLMAIL_S3_USE_PATH_STYLE", *refs.S3UsePathStyle),
 		WebhookConfig:          resolveStringWithFlag(fs, "webhook-config", "OWLMAIL_WEBHOOK_CONFIG", *refs.WebhookConfig),
 		WebhookMaxConcurrency:  resolveIntWithFlag(fs, "webhook-max-concurrency", "OWLMAIL_WEBHOOK_MAX_CONCURRENCY", *refs.WebhookMaxConcurrency),
 		WebhookRedisURL:        resolveStringWithFlag(fs, "webhook-redis-url", "OWLMAIL_WEBHOOK_REDIS_URL", *refs.WebhookRedisURL),

@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -59,7 +60,7 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 		_ = os.Remove(rawPath)
 		_ = os.RemoveAll(stagedAttachments)
 		if !committedEML && committedAttachments {
-			_ = os.RemoveAll(finalAttachments)
+			_ = ms.deleteStoredAttachments(id, finalAttachments)
 		}
 	}()
 
@@ -102,8 +103,14 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 		return err
 	}
 	if len(entries) > 0 {
-		if err := os.Rename(stagedAttachments, finalAttachments); err != nil {
-			return fmt.Errorf("commit attachments: %w", err)
+		if ms.attachmentStore != nil {
+			if err := ms.uploadAttachments(id, stagedAttachments, email.Attachments); err != nil {
+				return fmt.Errorf("commit S3 attachments: %w", err)
+			}
+		} else {
+			if err := os.Rename(stagedAttachments, finalAttachments); err != nil {
+				return fmt.Errorf("commit attachments: %w", err)
+			}
 		}
 		committedAttachments = true
 	}
@@ -256,7 +263,7 @@ func (ms *MailServer) rollbackIncomingEmail(id, emlPath, attachmentPath string) 
 	} else if err := os.Remove(emlPath); err != nil && !errors.Is(err, os.ErrNotExist) {
 		cleanupErrors = append(cleanupErrors, err)
 	}
-	if err := os.RemoveAll(attachmentPath); err != nil {
+	if err := ms.deleteStoredAttachments(id, attachmentPath); err != nil {
 		cleanupErrors = append(cleanupErrors, err)
 	}
 	if err := syncDirectory(ms.mailDir); err != nil {
@@ -357,7 +364,7 @@ func (ms *MailServer) cleanupRollbackFencedEmail(id string) error {
 	if err := os.Remove(filepath.Join(ms.mailDir, id+".eml")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		cleanupErrors = append(cleanupErrors, err)
 	}
-	if err := os.RemoveAll(filepath.Join(ms.mailDir, id)); err != nil {
+	if err := ms.deleteStoredAttachments(id, filepath.Join(ms.mailDir, id)); err != nil {
 		cleanupErrors = append(cleanupErrors, err)
 	}
 	if err := ms.deleteEmailMetadata(id); err != nil {
@@ -380,6 +387,11 @@ func (ms *MailServer) quarantineEmail(id, emlPath, reason string) error {
 		return err
 	}
 	attachmentPath := filepath.Join(ms.mailDir, id)
+	if ms.attachmentStore != nil {
+		if err := ms.attachmentStore.DeleteEmail(context.Background(), id); err != nil {
+			return err
+		}
+	}
 	if _, err := os.Stat(attachmentPath); err == nil {
 		if err := os.Rename(attachmentPath, filepath.Join(destination, "attachments")); err != nil {
 			return err

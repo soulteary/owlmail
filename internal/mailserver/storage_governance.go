@@ -16,6 +16,8 @@ import (
 
 const metadataDirectoryName = ".owlmail-meta"
 
+const currentMetadataVersion = 2
+
 // StoragePolicy bounds the on-disk and in-memory mailbox.
 type StoragePolicy struct {
 	MaxAge          time.Duration
@@ -34,10 +36,16 @@ type StorageMetrics struct {
 }
 
 type emailMetadata struct {
-	Version  int       `json:"version"`
-	ID       string    `json:"id"`
-	Read     bool      `json:"read"`
-	Sequence time.Time `json:"sequence"`
+	Version     int                  `json:"version"`
+	ID          string               `json:"id"`
+	Read        bool                 `json:"read"`
+	Sequence    time.Time            `json:"sequence"`
+	Attachments []attachmentMetadata `json:"attachments,omitempty"`
+}
+
+type attachmentMetadata struct {
+	GeneratedFileName string `json:"generatedFileName"`
+	Size              int64  `json:"size"`
 }
 
 // ConfigureStoragePolicy applies limits immediately and starts periodic cleanup.
@@ -251,7 +259,22 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
-	metadata := emailMetadata{Version: 1, ID: email.ID, Read: email.Read, Sequence: receivedAt}
+	metadata := emailMetadata{
+		Version:     currentMetadataVersion,
+		ID:          email.ID,
+		Read:        email.Read,
+		Sequence:    receivedAt,
+		Attachments: make([]attachmentMetadata, 0, len(email.Attachments)),
+	}
+	for _, attachment := range email.Attachments {
+		if attachment == nil {
+			continue
+		}
+		metadata.Attachments = append(metadata.Attachments, attachmentMetadata{
+			GeneratedFileName: attachment.GeneratedFileName,
+			Size:              attachment.Size,
+		})
+	}
 	encoded, err := json.Marshal(metadata)
 	if err != nil {
 		return err
@@ -288,10 +311,33 @@ func (ms *MailServer) loadEmailMetadata(id string) (emailMetadata, error) {
 	if err := json.Unmarshal(encoded, &metadata); err != nil {
 		return emailMetadata{}, err
 	}
-	if metadata.Version != 1 || metadata.ID != id {
+	if (metadata.Version != 1 && metadata.Version != currentMetadataVersion) || metadata.ID != id {
 		return emailMetadata{}, fmt.Errorf("invalid metadata for %s", id)
 	}
+	for _, attachment := range metadata.Attachments {
+		if err := validateAttachmentFilename(attachment.GeneratedFileName); err != nil {
+			return emailMetadata{}, fmt.Errorf("invalid attachment metadata for %s: %w", id, err)
+		}
+	}
 	return metadata, nil
+}
+
+func restoreAttachmentMetadata(email *Email, metadata emailMetadata) error {
+	if len(metadata.Attachments) == 0 {
+		return nil
+	}
+	if len(metadata.Attachments) != len(email.Attachments) {
+		return fmt.Errorf("attachment metadata count does not match message")
+	}
+	for i, saved := range metadata.Attachments {
+		if email.Attachments[i] == nil {
+			return fmt.Errorf("attachment %d is missing", i)
+		}
+		email.Attachments[i].GeneratedFileName = saved.GeneratedFileName
+		email.Attachments[i].Size = saved.Size
+		email.Attachments[i].Transformed = true
+	}
+	return nil
 }
 
 func (ms *MailServer) deleteEmailMetadata(id string) error {

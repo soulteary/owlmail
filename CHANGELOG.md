@@ -6,6 +6,18 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optional S3-compatible object storage for decoded attachments, including
+  transactional upload rollback, restart-safe metadata, streaming downloads,
+  retention cleanup, and compatibility with existing local attachments.
+
+### Changed
+
+- The SMTP and SMTPS message-size limit is configurable with
+  `-smtp-max-message-mb` / `OWLMAIL_SMTP_MAX_MESSAGE_MB` and now defaults to
+  100 MiB instead of 1 MiB.
+
 ## [0.6.0] - 2026-08-31
 
 ### Added

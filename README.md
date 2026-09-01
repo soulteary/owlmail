@@ -36,6 +36,7 @@ boundary before migrating API or Socket.IO clients.
 - ✅ **SMTP Server** - Receives and stores all sent emails (default port 1025)
 - ✅ **Web Interface** - View and manage emails through a browser (default port 1080)
 - ✅ **Email Persistence** - Emails saved as `.eml` files, supports loading from directory
+- ✅ **S3-compatible Attachments** - Optional object storage for decoded attachments; local storage remains the default
 - ✅ **Email Relay** - Supports forwarding emails to real SMTP servers
 - ✅ **Auto Relay** - Supports automatically forwarding all emails with rule filtering
 - ✅ **Webhook Forwarding** - Sends matching new emails to generic HTTP webhooks with custom payload templates
@@ -219,6 +220,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 |----------|---------------------|---------|-------------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
+| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximum inbound message size in MiB |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
@@ -226,6 +228,15 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
+| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | Store decoded attachments in S3-compatible object storage |
+| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | Custom S3-compatible endpoint; empty uses AWS S3 |
+| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 signing region |
+| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | Existing bucket for attachments |
+| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | Attachment object-key prefix |
+| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | Optional static access key; otherwise use the AWS credential chain |
+| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | Optional static secret key |
+| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | Optional static credential session token |
+| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | Use path-style bucket addressing for compatible services |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |
@@ -290,6 +301,33 @@ export OWLMAIL_SMTP_PORT=1025
 export OWLMAIL_WEB_PORT=1080
 ./owlmail
 ```
+
+### S3-compatible attachment storage
+
+S3 storage is disabled by default. OwlMail otherwise keeps decoded attachments
+under `-mail-directory`. Enabling S3 moves only decoded attachments to object
+storage; raw `.eml` files, metadata, transaction markers, and webhook outbox
+data remain local and still require a persistent mail directory.
+
+```bash
+export OWLMAIL_S3_ENABLED=true
+export OWLMAIL_S3_ENDPOINT=http://minio:9000
+export OWLMAIL_S3_REGION=us-east-1
+export OWLMAIL_S3_BUCKET=owlmail
+export OWLMAIL_S3_PREFIX=owlmail/attachments
+export OWLMAIL_S3_ACCESS_KEY=replace-me
+export OWLMAIL_S3_SECRET_KEY=replace-me
+export OWLMAIL_S3_USE_PATH_STYLE=true
+./owlmail -mail-directory ./owlmail-data
+```
+
+The bucket must already exist. Omit the endpoint to use AWS S3. Omit OwlMail's
+static key settings to use the AWS SDK credential chain, including workload
+roles. Attachment keys use
+`<prefix>/<email-id>/<generated-filename>`; email deletion and retention cleanup
+remove that email's object prefix. Upload must finish before SMTP accepts the
+message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures local files and does
+not include S3 object bytes.
 
 ## 📡 API Documentation
 

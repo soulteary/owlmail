@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/soulteary/owlmail/internal/api"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
@@ -131,6 +133,29 @@ func setupTLSConfig(cfg *config.Config) *mailserver.TLSConfig {
 		KeyFile:  cfg.TLSKeyFile,
 		Enabled:  true,
 	}
+}
+
+func setupAttachmentStore(cfg *config.Config) (attachmentstore.Store, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if !cfg.S3Enabled {
+		return nil, nil
+	}
+	store, err := attachmentstore.NewS3(context.Background(), attachmentstore.S3Config{
+		Endpoint:        cfg.S3Endpoint,
+		Region:          cfg.S3Region,
+		Bucket:          cfg.S3Bucket,
+		Prefix:          cfg.S3Prefix,
+		AccessKeyID:     cfg.S3AccessKeyID,
+		SecretAccessKey: cfg.S3SecretAccessKey,
+		SessionToken:    cfg.S3SessionToken,
+		UsePathStyle:    cfg.S3UsePathStyle,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("configure S3 attachment storage: %w", err)
+	}
+	return store, nil
 }
 
 func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
@@ -392,9 +417,31 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Setup TLS config
 	tlsConfig := setupTLSConfig(cfg)
+	attachmentStore, err := setupAttachmentStore(cfg)
+	if err != nil {
+		return nil, err
+	}
+	maxMessageMB := cfg.SMTPMaxMessageMB
+	if maxMessageMB == 0 {
+		maxMessageMB = config.DefaultSMTPMaxMessageMB
+	}
+	if maxMessageMB < 0 {
+		return nil, fmt.Errorf("SMTP max message size must be greater than zero")
+	}
+	const maxMessageMBWithoutOverflow = int64(^uint64(0)>>1) >> 20
+	if int64(maxMessageMB) > maxMessageMBWithoutOverflow {
+		return nil, fmt.Errorf("SMTP max message size is too large")
+	}
 
 	// Create mail server
-	server, err := mailserver.NewMailServerWithFullConfig(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, outgoingConfig, authConfig, tlsConfig, cfg.UseUUIDForEmailID)
+	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
+		OutgoingConfig:  outgoingConfig,
+		AuthConfig:      authConfig,
+		TLSConfig:       tlsConfig,
+		UseUUIDForID:    cfg.UseUUIDForEmailID,
+		MaxMessageBytes: int64(maxMessageMB) << 20,
+		AttachmentStore: attachmentStore,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
 	}
@@ -406,6 +453,9 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
 		_ = server.Close()
 		return nil, fmt.Errorf("configure storage policy: %w", err)
+	}
+	if attachmentStore != nil {
+		common.Log("S3 attachment storage enabled for bucket %s with prefix %s", cfg.S3Bucket, cfg.S3Prefix)
 	}
 
 	// Register event handlers

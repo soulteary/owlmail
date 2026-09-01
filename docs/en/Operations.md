@@ -67,6 +67,45 @@ orphan attachment directories, and unparseable `.eml` files into
 data. Operators may remove reviewed entries; do not move them directly back
 into the live mail directory while troubleshooting.
 
+### Optional S3-compatible attachment storage
+
+Decoded attachments can be stored in AWS S3 or an S3-compatible service while
+raw messages, metadata, transaction markers, temporary staging files, and the
+webhook outbox remain in `-mail-directory`. Local attachment storage remains the
+default.
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_ENDPOINT=http://minio:9000 \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+OWLMAIL_S3_PREFIX=owlmail/attachments \
+OWLMAIL_S3_ACCESS_KEY=replace-me \
+OWLMAIL_S3_SECRET_KEY=replace-me \
+OWLMAIL_S3_USE_PATH_STYLE=true \
+./owlmail -mail-directory ./owlmail-data
+```
+
+The bucket must exist before OwlMail starts receiving attachments. Leave the
+endpoint empty for AWS S3. Static credentials are optional: when omitted, the
+AWS SDK default credential chain is used, including environment credentials,
+shared configuration, and workload roles. Use path-style addressing only when
+the selected S3-compatible service requires it.
+
+OwlMail stages attachments locally, writes a durable rollback marker, uploads
+every object under `<prefix>/<email-id>/`, and only then commits the `.eml`
+marker. A failed upload rejects the SMTP transaction and triggers prefix
+cleanup; startup recovery retries cleanup after an interrupted transaction.
+Single-email deletion, clear-all, and retention cleanup delete remote objects as
+well as any matching legacy local attachment directory.
+
+Enabling S3 does not migrate existing attachments. Existing local attachments
+remain readable and are removed normally, while newly received attachments use
+S3. Disabling S3 or changing its bucket/prefix does not download or relocate
+objects, so migrate those objects before changing the configuration. The
+`-mail-max-disk-mb` limit and `storage.diskBytes` statistic cover local files
+only and do not include remote object bytes.
+
 ### 3. Persistent Docker deployment
 
 ```bash
@@ -157,9 +196,10 @@ runtime's security policy.
 
 ## SMTP ingress limits and authentication status
 
-The current SMTP server accepts at most 1 MiB per message and 50 recipients,
-with 10-second read and write timeouts. These values are compiled defaults and
-do not currently have command-line overrides.
+The SMTP and SMTPS servers accept at most 100 MiB per message by default. Set
+`-smtp-max-message-mb` or `OWLMAIL_SMTP_MAX_MESSAGE_MB` to a positive MiB value
+to change the limit. The recipient limit remains 50 and read/write timeouts
+remain 10 seconds.
 
 > [!WARNING]
 > `-smtp-user` / `-smtp-password` and their environment aliases populate SMTP
@@ -228,11 +268,12 @@ Outgoing relay is also asynchronous. An API success response acknowledges the
 in-process request, not delivery by the downstream SMTP server; inspect logs and
 the destination system when delivery confirmation matters.
 
-Configuration is not yet validated by one uniform startup pass. Individual
-components reject some invalid settings while other values can be normalized or
-fail later during listener setup. Use the documented values, treat startup
-warnings as actionable, and verify both health endpoints and SMTP receipt after
-configuration changes.
+Configuration is not yet validated by one uniform startup pass. S3 option shape
+is checked when that backend is enabled, but reachability and credentials can
+still fail when an object operation is first attempted. Other components may
+normalize values or fail later during listener setup. Treat startup and operation
+warnings as actionable, and verify both health endpoints, SMTP receipt, and
+attachment download after configuration changes.
 
 ## Backup and upgrade procedure
 

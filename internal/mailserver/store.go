@@ -266,7 +266,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	if err := validatePath(ms.mailDir, attachmentDir); err != nil {
 		return fmt.Errorf("path validation failed: %w", err)
 	}
-	if err := os.RemoveAll(attachmentDir); err != nil {
+	if err := ms.deleteStoredAttachments(id, attachmentDir); err != nil {
 		deletionErrors = append(deletionErrors, fmt.Errorf("delete attachment directory: %w", err))
 	}
 	if err := ms.deleteEmailMetadata(id); err != nil {
@@ -302,6 +302,21 @@ func (ms *MailServer) DeleteAllEmail() error {
 	ms.storageTransactionMutex.Lock()
 	defer ms.storageTransactionMutex.Unlock()
 	common.Log("Deleting all email")
+
+	if ms.attachmentStore != nil {
+		ms.storeMutex.RLock()
+		ids := append([]string(nil), ms.storeOrder...)
+		ms.storeMutex.RUnlock()
+		var deletionErrors []error
+		for _, id := range ids {
+			if err := ms.deleteStoredAttachments(id, filepath.Join(ms.mailDir, id)); err != nil {
+				deletionErrors = append(deletionErrors, fmt.Errorf("delete attachments for %s: %w", id, err))
+			}
+		}
+		if err := errors.Join(deletionErrors...); err != nil {
+			return err
+		}
+	}
 
 	ms.storeMutex.Lock()
 	ms.storeByID = make(map[string]*Email)
@@ -374,34 +389,12 @@ func (ms *MailServer) GetEmailHTML(id string) (string, error) {
 
 // GetEmailAttachment returns attachment file path
 func (ms *MailServer) GetEmailAttachment(id, filename string) (string, string, error) {
-	// Validate email ID to prevent path traversal
-	if err := validateEmailID(id); err != nil {
-		return "", "", fmt.Errorf("invalid email ID: %w", err)
-	}
-	// Validate filename to prevent path traversal
-	if filename == "" || strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
-		return "", "", fmt.Errorf("invalid filename: contains path traversal characters")
-	}
-
-	email, err := ms.GetEmail(id)
+	attachment, err := ms.findAttachment(id, filename)
 	if err != nil {
 		return "", "", err
 	}
-
-	if len(email.Attachments) == 0 {
-		return "", "", fmt.Errorf("email has no attachments")
-	}
-
-	var attachment *Attachment
-	for _, att := range email.Attachments {
-		if att.GeneratedFileName == filename {
-			attachment = att
-			break
-		}
-	}
-
-	if attachment == nil {
-		return "", "", fmt.Errorf("attachment not found")
+	if ms.attachmentStore != nil {
+		return "", "", fmt.Errorf("attachment is stored remotely; use OpenEmailAttachment")
 	}
 
 	attachmentPath := filepath.Join(ms.mailDir, id, attachment.GeneratedFileName)
@@ -598,6 +591,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 						ContentType: partMediaType,
 						FileName:    filename,
 						ContentID:   contentID,
+						Size:        int64(len(body)),
 					}
 
 					if saveAttachments {
@@ -701,11 +695,13 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 
 		markAsRead := false
 		metadataLoaded := false
-		if metadata, metadataErr := ms.loadEmailMetadata(id); metadataErr == nil {
+		metadata := emailMetadata{}
+		if loadedMetadata, metadataErr := ms.loadEmailMetadata(id); metadataErr == nil {
+			metadata = loadedMetadata
 			metadataLoaded = true
-			markAsRead = metadata.Read
+			markAsRead = loadedMetadata.Read
 			ms.storeMutex.Lock()
-			ms.receivedAtByID[id] = metadata.Sequence
+			ms.receivedAtByID[id] = loadedMetadata.Sequence
 			ms.storeMutex.Unlock()
 		} else if !os.IsNotExist(metadataErr) {
 			common.Error("Ignoring invalid metadata for %s: %v", id, metadataErr)
@@ -721,11 +717,25 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		email, envelope, parseErr := ms.parseEmailMessage(id, emailFile, nil, false, filepath.Join(ms.mailDir, id))
 		closeErr := emailFile.Close()
 		if parseErr == nil && closeErr == nil {
+			persistRestoredMetadata := !metadataLoaded || (metadata.Version < currentMetadataVersion && len(email.Attachments) == 0)
+			if metadataLoaded {
+				if metadataErr := restoreAttachmentMetadata(email, metadata); metadataErr != nil {
+					loadErrors = append(loadErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, metadataErr))
+					continue
+				}
+			}
+			if len(email.Attachments) > 0 && (!metadataLoaded || len(metadata.Attachments) == 0) {
+				if metadataErr := ms.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); metadataErr != nil {
+					common.Verbose("Could not restore legacy attachment names for %s: %v", id, metadataErr)
+				} else {
+					persistRestoredMetadata = true
+				}
+			}
 			if storeErr := ms.saveEmailToStore(id, markAsRead, envelope, email, false, false); storeErr != nil {
 				loadErrors = append(loadErrors, fmt.Errorf("restore email %s: %w", id, storeErr))
 				continue
 			}
-			if !metadataLoaded {
+			if persistRestoredMetadata {
 				if metadataErr := ms.persistEmailMetadata(email); metadataErr != nil {
 					common.Error("Restored email %s without metadata: %v", id, metadataErr)
 					loadErrors = append(loadErrors, fmt.Errorf("persist restored metadata for %s: %w", id, metadataErr))

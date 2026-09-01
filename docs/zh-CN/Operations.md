@@ -58,6 +58,36 @@ OwlMail 在同一目录中暂存并同步原始邮件与附件，附件先提交
 `<mail-directory>/quarantine/`，而不是把损坏数据静默载入或删除。确认内容不再
 需要后，可由运维人员清理该目录；排障前不要把其中的文件直接移回邮件目录。
 
+### 可选 S3 兼容附件存储
+
+可以把解析后的附件存入 AWS S3 或 S3 兼容服务；原始邮件、元数据、事务标记、临时
+暂存文件和 Webhook outbox 仍保存在 `-mail-directory`。默认继续使用本地附件存储。
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_ENDPOINT=http://minio:9000 \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+OWLMAIL_S3_PREFIX=owlmail/attachments \
+OWLMAIL_S3_ACCESS_KEY=replace-me \
+OWLMAIL_S3_SECRET_KEY=replace-me \
+OWLMAIL_S3_USE_PATH_STYLE=true \
+./owlmail -mail-directory ./owlmail-data
+```
+
+OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用 AWS S3。静态密钥
+可以不配置，此时使用 AWS SDK 默认凭据链，包括环境凭据、共享配置和工作负载角色。
+只有选定的 S3 兼容服务要求时，才开启路径式寻址。
+
+OwlMail 会先在本地暂存附件并写入持久回滚标记，再把全部对象上传至
+`<prefix>/<email-id>/`，最后提交 `.eml` 标记。上传失败会拒绝 SMTP 事务并清理
+对象前缀；若进程在事务中断，启动恢复会继续重试清理。删除单封邮件、清空邮箱和
+保留策略清理都会删除远端对象，同时清理可能存在的旧本地附件目录。
+
+开启 S3 不会自动迁移已有附件：旧本地附件仍可读取并正常删除，新邮件附件写入
+S3。关闭 S3 或修改 bucket/prefix 也不会自动下载或搬迁对象，变更前应先完成迁移。
+`-mail-max-disk-mb` 与 `storage.diskBytes` 只统计本地文件，不包含远端对象占用。
+
 ### 3. 持久化 Docker 部署
 
 ```bash
@@ -142,8 +172,9 @@ docker run -d \
 
 ## SMTP 入口限制与鉴权现状
 
-当前 SMTP 服务器单封邮件最多 1 MiB、最多 50 个收件人，读写超时均为 10 秒；
-这些是编译期默认值，目前没有对应命令行参数。
+SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-message-mb` 或
+`OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限仍为 50，读写
+超时仍为 10 秒。
 
 > [!WARNING]
 > `-smtp-user` / `-smtp-password` 及其环境变量别名会写入 SMTP 鉴权配置，但当前
@@ -201,9 +232,10 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 出站中继同样是异步的。API 成功响应只确认进程内请求已被接受，不代表下游 SMTP
 已经完成投递；需要确认投递时，应检查 OwlMail 日志与目标系统。
 
-项目目前尚未通过一次统一的启动校验覆盖所有配置。部分非法设置由各组件拒绝，
-另一些值可能被归一化，或在监听器启动阶段才失败。请使用文档中的取值，将启动
-警告视为需要处理的问题，并在修改配置后同时验证健康端点与 SMTP 收件。
+项目尚未通过一次统一启动校验覆盖所有配置。启用 S3 时会先检查其配置结构，但
+可达性和凭据仍可能在首次对象操作时才暴露错误；其他组件也可能在监听器启动阶段
+才归一化取值或失败。请把启动及运行告警视为需要处理的问题，并在修改配置后同时
+验证健康端点、SMTP 收件和附件下载。
 
 ## 备份与升级流程
 

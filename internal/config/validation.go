@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -28,6 +29,13 @@ func ValidateConfig(cfg *Config) error {
 		if err := ValidatePort(cfg.OutgoingPort, "Outgoing port"); err != nil {
 			return err
 		}
+	}
+	if cfg.SMTPMaxMessageMB <= 0 {
+		return fmt.Errorf("SMTP max message size must be greater than zero")
+	}
+	const maxMessageMB = int64(^uint64(0)>>1) >> 20
+	if int64(cfg.SMTPMaxMessageMB) > maxMessageMB {
+		return fmt.Errorf("SMTP max message size is too large")
 	}
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
@@ -62,6 +70,27 @@ func ValidateConfig(cfg *Config) error {
 		}
 		if cfg.HTTPSKeyFile == "" {
 			return fmt.Errorf("HTTPS key file is required when HTTPS is enabled")
+		}
+	}
+
+	if cfg.S3Enabled {
+		if strings.TrimSpace(cfg.S3Bucket) == "" {
+			return fmt.Errorf("S3 bucket is required when S3 attachment storage is enabled")
+		}
+		if strings.TrimSpace(cfg.S3Region) == "" {
+			return fmt.Errorf("S3 region is required when S3 attachment storage is enabled")
+		}
+		if (cfg.S3AccessKeyID == "") != (cfg.S3SecretAccessKey == "") {
+			return fmt.Errorf("S3 access key and secret key must be configured together")
+		}
+		if cfg.S3SessionToken != "" && cfg.S3AccessKeyID == "" {
+			return fmt.Errorf("S3 session token requires static access key credentials")
+		}
+		if cfg.S3Endpoint != "" {
+			endpoint, err := url.Parse(cfg.S3Endpoint)
+			if err != nil || endpoint.Host == "" || (endpoint.Scheme != "http" && endpoint.Scheme != "https") || endpoint.User != nil || endpoint.RawQuery != "" || endpoint.Fragment != "" {
+				return fmt.Errorf("S3 endpoint must be an HTTP or HTTPS URL without credentials, query, or fragment")
+			}
 		}
 	}
 

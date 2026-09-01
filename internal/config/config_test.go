@@ -253,6 +253,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.SMTPHost != "localhost" {
 		t.Errorf("DefaultConfig().SMTPHost = %q, want %q", cfg.SMTPHost, "localhost")
 	}
+	if cfg.SMTPMaxMessageMB != DefaultSMTPMaxMessageMB {
+		t.Errorf("DefaultConfig().SMTPMaxMessageMB = %d, want %d", cfg.SMTPMaxMessageMB, DefaultSMTPMaxMessageMB)
+	}
 	if cfg.WebPort != 1080 {
 		t.Errorf("DefaultConfig().WebPort = %d, want %d", cfg.WebPort, 1080)
 	}
@@ -274,6 +277,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.UseUUIDForEmailID != false {
 		t.Errorf("DefaultConfig().UseUUIDForEmailID = %v, want %v", cfg.UseUUIDForEmailID, false)
 	}
+	if cfg.S3Enabled || cfg.S3Endpoint != "" || cfg.S3Bucket != "" || cfg.S3Region != DefaultS3Region || cfg.S3Prefix != DefaultS3Prefix || cfg.S3UsePathStyle {
+		t.Errorf("unexpected default S3 attachment config: %#v", cfg)
+	}
 	if cfg.WebhookConfig != "" {
 		t.Errorf("DefaultConfig().WebhookConfig = %q, want empty", cfg.WebhookConfig)
 	}
@@ -286,6 +292,55 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WebhookRedisURL != "" || cfg.WebhookRedisPrefix != "owlmail:webhooks" || cfg.WebhookShutdownTimeout != "15s" {
 		t.Errorf("unexpected default webhook queue config: %#v", cfg)
 	}
+}
+
+func TestSMTPAndS3ConfigResolution(t *testing.T) {
+	t.Run("CLI flags", func(t *testing.T) {
+		fs := flag.NewFlagSet("smtp-s3-cli", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		err := fs.Parse([]string{
+			"-smtp-max-message-mb", "256",
+			"-s3-enabled",
+			"-s3-endpoint", "http://minio:9000",
+			"-s3-region", "test-region-1",
+			"-s3-bucket", "owlmail-test",
+			"-s3-prefix", "mail/attachments",
+			"-s3-access-key", "access",
+			"-s3-secret-key", "secret",
+			"-s3-session-token", "token",
+			"-s3-use-path-style",
+		})
+		if err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		cfg := ResolveConfig(fs, refs)
+		if cfg.SMTPMaxMessageMB != 256 || !cfg.S3Enabled || cfg.S3Endpoint != "http://minio:9000" || cfg.S3Region != "test-region-1" || cfg.S3Bucket != "owlmail-test" || cfg.S3Prefix != "mail/attachments" || cfg.S3AccessKeyID != "access" || cfg.S3SecretAccessKey != "secret" || cfg.S3SessionToken != "token" || !cfg.S3UsePathStyle {
+			t.Fatalf("unexpected resolved CLI config: %#v", cfg)
+		}
+	})
+
+	t.Run("environment variables", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTP_MAX_MESSAGE_MB", "512")
+		t.Setenv("OWLMAIL_S3_ENABLED", "true")
+		t.Setenv("OWLMAIL_S3_ENDPOINT", "https://objects.example.test")
+		t.Setenv("OWLMAIL_S3_REGION", "region-2")
+		t.Setenv("OWLMAIL_S3_BUCKET", "mail-bucket")
+		t.Setenv("OWLMAIL_S3_PREFIX", "tenant/owlmail")
+		t.Setenv("OWLMAIL_S3_ACCESS_KEY", "env-access")
+		t.Setenv("OWLMAIL_S3_SECRET_KEY", "env-secret")
+		t.Setenv("OWLMAIL_S3_SESSION_TOKEN", "env-token")
+		t.Setenv("OWLMAIL_S3_USE_PATH_STYLE", "true")
+
+		fs := flag.NewFlagSet("smtp-s3-env", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatalf("Parse() error = %v", err)
+		}
+		cfg := ResolveConfig(fs, refs)
+		if cfg.SMTPMaxMessageMB != 512 || !cfg.S3Enabled || cfg.S3Endpoint != "https://objects.example.test" || cfg.S3Region != "region-2" || cfg.S3Bucket != "mail-bucket" || cfg.S3Prefix != "tenant/owlmail" || cfg.S3AccessKeyID != "env-access" || cfg.S3SecretAccessKey != "env-secret" || cfg.S3SessionToken != "env-token" || !cfg.S3UsePathStyle {
+			t.Fatalf("unexpected resolved environment config: %#v", cfg)
+		}
+	})
 }
 
 func TestDefineAndResolveConfig(t *testing.T) {

@@ -123,13 +123,17 @@ func (api *API) getAttachment(c fiber.Ctx) error {
 	id := c.Params("id")
 	filename := c.Params("filename")
 
-	attachmentPath, contentType, err := api.mailServer.GetEmailAttachment(id, filename)
+	attachment, err := api.mailServer.OpenEmailAttachment(id, filename)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 	}
 
-	c.Set("Content-Type", contentType)
-	return c.SendFile(attachmentPath)
+	c.Set("Content-Type", attachment.ContentType)
+	maxInt := int64(^uint(0) >> 1)
+	if attachment.Size >= 0 && attachment.Size <= maxInt {
+		return c.SendStream(attachment.Body, int(attachment.Size))
+	}
+	return c.SendStream(attachment.Body)
 }
 
 // downloadEmail handles GET /api/v1/emails/:id/raw

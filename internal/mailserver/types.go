@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/emersion/go-smtp"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
+	"github.com/soulteary/owlmail/internal/outgoing"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -14,6 +16,9 @@ const (
 	defaultPort    = 1025
 	defaultHost    = "localhost"
 	defaultMailDir = "owlmail"
+
+	// DefaultMaxMessageBytes is the default SMTP DATA limit (100 MiB).
+	DefaultMaxMessageBytes int64 = 100 << 20
 )
 
 // Email is an alias for types.Email
@@ -39,6 +44,24 @@ type TLSConfig struct {
 	Enabled  bool
 }
 
+// ServerOptions contains optional runtime integrations and SMTP behavior.
+// Zero MaxMessageBytes selects DefaultMaxMessageBytes.
+type ServerOptions struct {
+	OutgoingConfig  *outgoing.OutgoingConfig
+	AuthConfig      *SMTPAuthConfig
+	TLSConfig       *TLSConfig
+	UseUUIDForID    bool
+	MaxMessageBytes int64
+	AttachmentStore attachmentstore.Store
+}
+
+// AttachmentReader describes an attachment opened for HTTP streaming.
+type AttachmentReader struct {
+	Body        io.ReadCloser
+	ContentType string
+	Size        int64
+}
+
 type eventListener struct {
 	handler            func(*types.Email)
 	synchronousHandler func(*types.Email) error
@@ -55,6 +78,8 @@ type MailServer struct {
 	mailDir                 string
 	port                    int
 	host                    string
+	maxMessageBytes         int64
+	attachmentStore         attachmentstore.Store
 	smtpServer              *smtp.Server
 	smtpsServer             *smtp.Server // SMTPS server (direct TLS on 465)
 	eventChan               chan Event
@@ -96,6 +121,11 @@ func (ms *MailServer) GetHost() string {
 // GetPort returns the SMTP server port
 func (ms *MailServer) GetPort() int {
 	return ms.port
+}
+
+// GetMaxMessageBytes returns the configured inbound SMTP message-size limit.
+func (ms *MailServer) GetMaxMessageBytes() int64 {
+	return ms.maxMessageBytes
 }
 
 // GetMailDir returns the mail directory path
