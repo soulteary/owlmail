@@ -1193,16 +1193,21 @@ function renderEmailList() {
     }
 
     container.innerHTML = state.emails.map(email => {
-        const from = email.from && email.from.length > 0 
-            ? formatAddress(email.from[0])
-            : t('unknown');
+        const from = typeof email.from === 'string'
+            ? (email.from || t('unknown'))
+            : email.from && email.from.length > 0
+                ? formatAddress(email.from[0])
+                : t('unknown');
         const time = formatTime(email.time);
-        const preview = email.text ? email.text.substring(0, 100) : '';
+        const previewText = email.preview || email.text || '';
+        const preview = previewText.substring(0, 100);
         const unreadClass = email.read ? '' : 'unread';
         const selectedClass = state.currentEmail && state.currentEmail.id === email.id ? 'selected' : '';
         const attachments = email.attachments && email.attachments.length > 0
             ? `<div class="email-item-attachments">📎 ${t('attachments', { count: email.attachments.length })}</div>`
-            : '';
+            : email.hasAttachment
+                ? '<div class="email-item-attachments">📎</div>'
+                : '';
 
         return `
             <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
@@ -1322,7 +1327,7 @@ async function loadEmails() {
             state.pageSize,
             state.searchQuery
         );
-        state.emails = data.emails || [];
+        state.emails = data.previews || [];
         state.total = data.total || 0;
         renderEmailList();
         updateEmailCount();
