@@ -20,20 +20,49 @@ function createClassList() {
 function createElement() {
     const listeners = new Map();
     const attributes = new Map();
-    return {
+    let innerHTML = '';
+    let textContent = '';
+    const element = {
         listeners,
         attributes,
         classList: createClassList(),
         hidden: true,
         disabled: false,
-        textContent: '',
         title: '',
         addEventListener(name, handler) { listeners.set(name, handler); },
-        setAttribute(name, value) { attributes.set(name, value); }
+        setAttribute(name, value) { attributes.set(name, value); },
+        querySelectorAll() { return []; }
+    };
+    Object.defineProperties(element, {
+        innerHTML: {
+            get() { return innerHTML; },
+            set(value) { innerHTML = String(value); }
+        },
+        textContent: {
+            get() { return textContent; },
+            set(value) {
+                textContent = String(value);
+                innerHTML = textContent
+                    .replaceAll('&', '&amp;')
+                    .replaceAll('<', '&lt;')
+                    .replaceAll('>', '&gt;');
+            }
+        }
+    });
+    return element;
+}
+
+function jsonResponse(data) {
+    return {
+        ok: true,
+        status: 200,
+        headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'application/json' : null },
+        async json() { return data; },
+        async text() { return JSON.stringify(data); }
     };
 }
 
-function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false } = {}) {
+function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl = null } = {}) {
     const storage = new Map();
     if (savedPreference !== null) {
         storage.set('owlmail.browserNotifications.enabled', savedPreference);
@@ -41,12 +70,15 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const notificationToggle = createElement();
     const notificationStatus = createElement();
     const emailDetail = createElement();
+    const emailList = createElement();
     const elements = new Map([
         ['notificationToggle', notificationToggle],
         ['notificationStatus', notificationStatus],
-        ['emailDetail', emailDetail]
+        ['emailDetail', emailDetail],
+        ['emailList', emailList]
     ]);
     const notifications = [];
+    const fetchRequests = [];
     const windowListeners = new Map();
     const documentListeners = new Map();
     const serviceNotifications = [];
@@ -105,9 +137,14 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         console,
         setTimeout() { return 1; },
         clearTimeout() {},
-        fetch: async () => { throw new Error('unexpected fetch'); },
+        fetch: async (url, options) => {
+            fetchRequests.push({ url: String(url), options });
+            if (!fetchImpl) throw new Error('unexpected fetch');
+            return fetchImpl(url, options);
+        },
         WebSocket: function WebSocket() {},
         URL,
+        URLSearchParams,
         Blob,
         confirm: () => true
     };
@@ -117,6 +154,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     return {
         documentListeners,
         emailDetail,
+        emailList,
+        fetchRequests,
         notificationStatus,
         notificationToggle,
         notifications,
@@ -127,6 +166,65 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         run(source) { return vm.runInContext(source, sandbox); }
     };
 }
+
+test('mailbox lists use the preview endpoint and consume preview results', async () => {
+    const harness = createHarness({
+        fetchImpl: async () => jsonResponse({
+            total: 1,
+            limit: 25,
+            offset: 50,
+            previews: [{
+                id: 'mail-42',
+                time: '2026-09-01T00:00:00Z',
+                read: false,
+                subject: 'Quarterly report',
+                from: 'sender@example.test',
+                preview: 'Compact body preview',
+                hasAttachment: true
+            }]
+        })
+    });
+
+    await harness.run(`
+        state.currentPage = 2;
+        state.pageSize = 25;
+        state.searchQuery = 'quarterly report';
+        loadEmails();
+    `);
+
+    assert.equal(harness.fetchRequests.length, 1);
+    const requestURL = new URL(harness.fetchRequests[0].url);
+    assert.equal(requestURL.pathname, '/api/v1/emails/preview');
+    assert.equal(requestURL.searchParams.get('offset'), '50');
+    assert.equal(requestURL.searchParams.get('limit'), '25');
+    assert.equal(requestURL.searchParams.get('q'), 'quarterly report');
+    assert.equal(harness.run('state.emails[0].id'), 'mail-42');
+    assert.equal(harness.run('state.emails[0].read'), false);
+    assert.equal(harness.run('state.emails[0].time'), '2026-09-01T00:00:00Z');
+    assert.equal(harness.run('state.emails[0].preview'), 'Compact body preview');
+    assert.equal(harness.run('state.total'), 1);
+    assert.match(harness.emailList.innerHTML, /email-item unread/);
+    assert.match(harness.emailList.innerHTML, /sender@example\.test/);
+    assert.match(harness.emailList.innerHTML, /Compact body preview/);
+    assert.match(harness.emailList.innerHTML, /📎/);
+});
+
+test('selected messages still use the single-email detail endpoint', async () => {
+    const harness = createHarness({
+        fetchImpl: async () => jsonResponse({
+            id: 'mail-42',
+            subject: 'Quarterly report',
+            html: '<p>Full message body</p>'
+        })
+    });
+
+    await harness.run("loadEmailDetail('mail-42')");
+
+    assert.equal(harness.fetchRequests.length, 1);
+    const requestURL = new URL(harness.fetchRequests[0].url);
+    assert.equal(requestURL.pathname, '/api/v1/emails/mail-42');
+    assert.equal(harness.run('state.currentEmail.html'), '<p>Full message body</p>');
+});
 
 test('initialization never prompts and keeps notifications disabled by default', () => {
     const harness = createHarness();

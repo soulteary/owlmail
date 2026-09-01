@@ -995,7 +995,7 @@ async function handleAPIResponse(response) {
 
 // API Functions - 使用新的 RESTful API 设计
 const API = {
-    async getEmails(offset = 0, limit = 50, query = '') {
+    async getEmailPreviews(offset = 0, limit = 50, query = '') {
         const params = new URLSearchParams({
             offset: offset.toString(),
             limit: limit.toString()
@@ -1003,7 +1003,7 @@ const API = {
         if (query) {
             params.append('q', query);
         }
-        const response = await fetch(`${API_BASE}/emails?${params}`);
+        const response = await fetch(`${API_BASE}/emails/preview?${params}`);
         return await handleAPIResponse(response);
     },
 
@@ -1193,16 +1193,17 @@ function renderEmailList() {
     }
 
     container.innerHTML = state.emails.map(email => {
-        const from = email.from && email.from.length > 0 
-            ? formatAddress(email.from[0])
-            : t('unknown');
+        const from = Array.isArray(email.from)
+            ? (email.from.length > 0 ? formatAddress(email.from[0]) : t('unknown'))
+            : (email.from ? formatAddress(email.from) : t('unknown'));
         const time = formatTime(email.time);
-        const preview = email.text ? email.text.substring(0, 100) : '';
+        const previewText = typeof email.preview === 'string' ? email.preview : email.text;
+        const preview = previewText ? previewText.substring(0, 100) : '';
         const unreadClass = email.read ? '' : 'unread';
         const selectedClass = state.currentEmail && state.currentEmail.id === email.id ? 'selected' : '';
-        const attachments = email.attachments && email.attachments.length > 0
+        const attachments = Array.isArray(email.attachments) && email.attachments.length > 0
             ? `<div class="email-item-attachments">📎 ${t('attachments', { count: email.attachments.length })}</div>`
-            : '';
+            : (email.hasAttachment ? '<div class="email-item-attachments">📎</div>' : '');
 
         return `
             <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
@@ -1317,12 +1318,12 @@ function renderAttachments(attachments, emailId) {
 async function loadEmails() {
     try {
         showLoading();
-        const data = await API.getEmails(
+        const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
             state.searchQuery
         );
-        state.emails = data.emails || [];
+        state.emails = data.previews || [];
         state.total = data.total || 0;
         renderEmailList();
         updateEmailCount();
