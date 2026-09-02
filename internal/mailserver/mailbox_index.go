@@ -240,7 +240,7 @@ func (ms *MailServer) resetMailboxStorePositionsLocked() {
 	ms.nextStorePosition = len(ms.storeOrder)
 }
 
-func (ms *MailServer) deleteMailboxIndex(id string) {
+func (ms *MailServer) deleteMailboxIndexLocked(id string) {
 	if ms.mailboxIndex == nil || !ms.mailboxIndexReady.Load() {
 		return
 	}

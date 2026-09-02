@@ -156,8 +156,13 @@ func (ms *MailServer) deletionCandidates() ([]string, error) {
 	return ids, nil
 }
 
-func (ms *MailServer) removeEmailFromMemory(id string) {
+// deleteEmailFromRuntimeState keeps the derived index and authoritative
+// in-memory view synchronized with read-state upserts, which use the same
+// store lock.
+func (ms *MailServer) deleteEmailFromRuntimeState(id string) {
 	ms.storeMutex.Lock()
+	defer ms.storeMutex.Unlock()
+	ms.deleteMailboxIndexLocked(id)
 	delete(ms.storeByID, id)
 	delete(ms.receivedAtByID, id)
 	delete(ms.storePositionByID, id)
@@ -167,5 +172,4 @@ func (ms *MailServer) removeEmailFromMemory(id string) {
 			break
 		}
 	}
-	ms.storeMutex.Unlock()
 }

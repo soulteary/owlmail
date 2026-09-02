@@ -20,6 +20,19 @@ type blockingRebuildMailboxIndex struct {
 	release chan struct{}
 }
 
+type blockingDeleteMailboxIndex struct {
+	MailboxIndex
+	started chan struct{}
+	release chan struct{}
+}
+
+func (index *blockingDeleteMailboxIndex) Delete(id string) error {
+	err := index.MailboxIndex.Delete(id)
+	close(index.started)
+	<-index.release
+	return err
+}
+
 func (index *blockingRebuildMailboxIndex) blockNextRebuild() (<-chan struct{}, chan<- struct{}) {
 	index.mutex.Lock()
 	defer index.mutex.Unlock()
@@ -357,6 +370,60 @@ func TestMailboxIndexRebuildSerializesReadStateMutations(t *testing.T) {
 	results, total := server.QueryEmailPreviews(EmailQuery{Read: &read, Limit: 10})
 	if total != 1 || len(results) != 1 || results[0].ID != id {
 		t.Fatalf("read state after overlapping rebuild = %#v, total %d", results, total)
+	}
+}
+
+func TestMailboxIndexDeletionSerializesReadStateMutations(t *testing.T) {
+	directory := t.TempDir()
+	sqliteIndex, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := &blockingDeleteMailboxIndex{
+		MailboxIndex: sqliteIndex,
+		started:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = sqliteIndex.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "read-during-delete"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), validMessage(id), 0600); err != nil {
+		t.Fatal(err)
+	}
+	email := &types.Email{ID: id, Subject: "Unread", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	deleted := make(chan struct{})
+	go func() {
+		server.deleteEmailFromRuntimeState(id)
+		close(deleted)
+	}()
+	<-index.started
+	serialized := !server.storeMutex.TryLock()
+	if !serialized {
+		server.storeMutex.Unlock()
+		close(index.release)
+		<-deleted
+		t.Fatal("runtime-state deletion released the store lock after deleting the index row")
+	}
+	readDone := make(chan error, 1)
+	go func() { readDone <- server.ReadEmail(id) }()
+	close(index.release)
+	<-deleted
+	if err := <-readDone; err == nil {
+		t.Fatal("ReadEmail found message after runtime-state deletion")
+	}
+	results, total := server.QueryEmailPreviews(EmailQuery{Limit: 10})
+	if total != 0 || len(results) != 0 {
+		t.Fatalf("indexed query retained deleted message: %#v, total %d", results, total)
 	}
 }
 

@@ -293,8 +293,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		return err
 	}
 
-	ms.deleteMailboxIndex(id)
-	ms.removeEmailFromMemory(id)
+	ms.deleteEmailFromRuntimeState(id)
 	ms.deletedMessages.Add(1)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
@@ -331,8 +330,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: %w", id, err))
 			continue
 		}
-		ms.deleteMailboxIndex(id)
-		ms.removeEmailFromMemory(id)
+		ms.deleteEmailFromRuntimeState(id)
 		ms.deletedMessages.Add(1)
 	}
 	if err := errors.Join(deletionErrors...); err != nil {
