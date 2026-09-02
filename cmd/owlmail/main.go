@@ -21,6 +21,7 @@ import (
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/mcpserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
+	"github.com/soulteary/owlmail/internal/sendmail"
 	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
 
@@ -700,6 +701,9 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
+		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "migrate-attachments" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runAttachmentMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)

@@ -22,6 +22,8 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
   - ルート、認証、レスポンス形式、WebSocket イベント、および MailDev との相違点。
 - **[運用・トラブルシューティング](../en/Operations.md)** (English、[中文](../zh-CN/Operations.md))
   - デプロイ、永続化、セキュリティ、TLS、容量、障害診断。
+- **[sendmail 互換 CLI](./Sendmail.md)**
+  - PHP `sendmail_path`、Cron、SMTP/TLS/AUTH、安定した終了コード。
 - **[Webhook 転送](../en/Webhook-Forwarding.md)** (English、[中文](../zh-CN/Webhook-Forwarding.md))
   - フィルター、カスタムペイロード、HMAC 署名、再試行、`soulteary/webhook` 連携。
 - **[実行可能な Webhook 例](../../examples/webhooks/README.md)** (English、[中文](../../examples/webhooks/README.zh-CN.md))

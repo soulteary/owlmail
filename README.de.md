@@ -54,6 +54,7 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 - 🆕 **Verbesserte RESTful API** - Standardisierteres API-Design (`/api/v1/*`)
 - 🆕 **Integrierte Hilfe** - Lokaler zweisprachiger Leitfaden im Posteingang oder unter `/help`
 - 🆕 **Webhook-Konfigurator** - Eingebetteter lokaler Editor unter `/webhooks` zum Erstellen, Importieren, Prüfen, Kopieren und Herunterladen von Weiterleitungsregeln
+- 🆕 **Sendmail-kompatible CLI** - [`owlmail sendmail`](./docs/de/Sendmail.md) übergibt PHP-, Cron- und Altprogramm-Nachrichten über die normale SMTP-Grenze
 
 ### Kompatibilität
 

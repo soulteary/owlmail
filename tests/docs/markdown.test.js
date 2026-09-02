@@ -267,6 +267,38 @@ test("root README configuration tables match flags, defaults, and environment al
   }
 });
 
+test("sendmail CLI documentation covers every locale and its stable contract", () => {
+  const localeDocs = ["en", "zh-CN", "de", "fr", "it", "ja", "ko"].map(
+    (locale) => `docs/${locale}/Sendmail.md`,
+  );
+  for (const document of localeDocs) {
+    const markdown = fs.readFileSync(path.join(root, document), "utf8");
+    for (const marker of [
+      "owlmail sendmail -t -i",
+      "sendmail_path",
+      "OWLMAIL_SENDMAIL_HOST",
+      "OWLMAIL_SENDMAIL_PORT",
+      "OWLMAIL_SENDMAIL_STARTTLS",
+      "OWLMAIL_SENDMAIL_SMTPS",
+      "OWLMAIL_SENDMAIL_USERNAME",
+      "OWLMAIL_SENDMAIL_PASSWORD",
+      "OWLMAIL_SENDMAIL_TIMEOUT",
+      "`64`",
+      "`65`",
+      "`69`",
+      "`74`",
+      "`75`",
+    ]) {
+      assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
+    }
+  }
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("Sendmail.md"), `${readme} does not link the sendmail guide`);
+  }
+});
+
 test("security-sensitive SMTP authentication modes remain explicit", () => {
   const smtpWarnings = new Map([
     ["README.md", "NO AUTH"],

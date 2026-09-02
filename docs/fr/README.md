@@ -24,6 +24,8 @@ langue dans des répertoires distincts.
     différences documentées avec MailDev.
 - **[Exploitation et dépannage](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - Déploiement, persistance, sécurité, TLS, capacité et diagnostic.
+- **[CLI compatible sendmail](./Sendmail.md)**
+  - PHP `sendmail_path`, Cron, SMTP/TLS/AUTH et codes de sortie stables.
 - **[Transmission Webhook](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))
   - Filtres, charges utiles personnalisées, signatures HMAC, tentatives et
     intégration avec `soulteary/webhook`.

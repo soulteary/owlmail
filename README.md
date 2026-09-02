@@ -56,6 +56,7 @@ boundary before migrating API or Socket.IO clients.
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **Built-in Help** - Local bilingual guide available from the inbox or at `/help`
 - 🆕 **Webhook Configurator** - Embedded local editor at `/webhooks` for building, importing, validating, copying, and downloading forwarding rules
+- 🆕 **Sendmail-compatible CLI** - [`owlmail sendmail`](./docs/en/Sendmail.md) lets PHP, cron, and legacy programs submit through the normal SMTP security and capacity boundary
 
 ### Compatibility
 
