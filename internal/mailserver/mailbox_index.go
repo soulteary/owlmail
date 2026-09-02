@@ -1,10 +1,10 @@
 package mailserver
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
+	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/owlmail/internal/common"
 )
 
@@ -166,4 +166,3 @@ func (ms *MailServer) mailboxIndexStatus() map[string]interface{} {
 	}
 }
 
-var _ = fmt.Sprintf
