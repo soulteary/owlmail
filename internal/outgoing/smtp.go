@@ -150,7 +150,8 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 		return err
 	}
 
-	dialer := &net.Dialer{Timeout: timeouts.connect}
+	connectDeadline := phaseDeadline(ctx, timeouts.connect)
+	dialer := &net.Dialer{Deadline: connectDeadline}
 	conn, err := dialer.DialContext(ctx, "tcp", addr)
 	if err != nil {
 		return relayContextError(ctx, err)
@@ -187,7 +188,11 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 		smtpConn = tlsConn
 	}
 
-	if err := setPhaseDeadline(ctx, smtpConn, timeouts.connect); err != nil {
+	if config.TLSMode == TLSModeSMTPS {
+		if err := setPhaseDeadline(ctx, smtpConn, timeouts.connect); err != nil {
+			return err
+		}
+	} else if err := setAbsoluteDeadline(ctx, smtpConn, connectDeadline); err != nil {
 		return err
 	}
 	client, err := smtp.NewClient(smtpConn, host)
@@ -262,15 +267,23 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 	return nil
 }
 
-func setPhaseDeadline(ctx context.Context, conn net.Conn, timeout time.Duration) error {
+func phaseDeadline(ctx context.Context, timeout time.Duration) time.Time {
 	deadline := time.Now().Add(timeout)
 	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
-		deadline = contextDeadline
+		return contextDeadline
 	}
+	return deadline
+}
+
+func setAbsoluteDeadline(ctx context.Context, conn net.Conn, deadline time.Time) error {
 	if err := conn.SetDeadline(deadline); err != nil {
 		return relayContextError(ctx, err)
 	}
 	return nil
+}
+
+func setPhaseDeadline(ctx context.Context, conn net.Conn, timeout time.Duration) error {
+	return setAbsoluteDeadline(ctx, conn, phaseDeadline(ctx, timeout))
 }
 
 func relayContextError(ctx context.Context, err error) error {
