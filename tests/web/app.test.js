@@ -226,7 +226,7 @@ test('selected messages still use the single-email detail endpoint', async () =>
     assert.equal(harness.run('state.currentEmail.html'), '<p>Full message body</p>');
 });
 
-test('HTML previews use a zero-permission sandbox and no-referrer policy', () => {
+test('HTML previews survive attribute parsing with a zero-permission sandbox', async () => {
     const harness = createHarness();
     const preview = harness.run(`renderHTML(
         '<form action="https://attacker.test"><a target="_top" href="https://attacker.test">leave</a></form>',
@@ -237,6 +237,21 @@ test('HTML previews use a zero-permission sandbox and no-referrer policy', () =>
     assert.match(preview, /sandbox=""/);
     assert.match(preview, /referrerpolicy="no-referrer"/);
     assert.doesNotMatch(preview, /allow-scripts|allow-forms|allow-popups|allow-top-navigation/);
+
+    let parsedSrcdoc = null;
+    await new HTMLRewriter()
+        .on('iframe', {
+            element(element) {
+                parsedSrcdoc = element.getAttribute('srcdoc');
+            }
+        })
+        .transform(new Response(preview))
+        .text();
+    assert.match(parsedSrcdoc, /&lt;meta http-equiv=&quot;Content-Security-Policy&quot;/);
+    assert.match(parsedSrcdoc, /&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;/);
+    assert.match(parsedSrcdoc, /&lt;form action=&quot;https:\/\/attacker\.test&quot;&gt;/);
+    assert.match(parsedSrcdoc, /&lt;\/form&gt;$/);
+
     const csp = harness.run('previewContentSecurityPolicy(false)');
     assert.match(csp, /script-src 'none'/);
     assert.match(csp, /form-action 'none'/);

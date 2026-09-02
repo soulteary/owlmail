@@ -1390,7 +1390,7 @@ function renderHTML(html, emailId, attachments) {
                     <button type="button" class="btn btn-secondary" onclick="loadRemoteContent('${emailId}')">${t('loadRemoteContent')}</button>
                 </div>
             ` : ''}
-            <iframe id="${iframeId}" title="${t('emailPreviewTitle')}" sandbox="" referrerpolicy="no-referrer" srcdoc="${escapeHtml(previewDocument)}"></iframe>
+            <iframe id="${iframeId}" title="${t('emailPreviewTitle')}" sandbox="" referrerpolicy="no-referrer" srcdoc="${escapeHtmlAttribute(previewDocument)}"></iframe>
         </div>
     `;
 }
@@ -1619,6 +1619,12 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function escapeHtmlAttribute(text) {
+    return escapeHtml(text)
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
 }
 
 function updateEmailCount() {
