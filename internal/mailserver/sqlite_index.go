@@ -49,8 +49,9 @@ ON CONFLICT(id) DO UPDATE SET
 `
 
 type SQLiteMailboxIndex struct {
-	db   *sql.DB
-	path string
+	db              *sql.DB
+	path            string
+	afterQueryCount func()
 }
 
 func NewSQLiteMailboxIndex(path string) (*SQLiteMailboxIndex, error) {
@@ -191,21 +192,33 @@ func (index *SQLiteMailboxIndex) Clear() error {
 
 func (index *SQLiteMailboxIndex) Query(query EmailQuery) ([]IndexedEmailResult, int, error) {
 	where, args := sqliteMailboxWhere(query)
-	var total int
-	if err := index.db.QueryRow("SELECT COUNT(*) FROM mailbox_index"+where, args...).Scan(&total); err != nil {
+	transaction, err := index.db.Begin()
+	if err != nil {
 		return nil, 0, err
 	}
+	defer func() { _ = transaction.Rollback() }()
+	var total int
+	if err := transaction.QueryRow("SELECT COUNT(*) FROM mailbox_index"+where, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	if index.afterQueryCount != nil {
+		index.afterQueryCount()
+	}
 	if query.Limit <= 0 {
+		if err := transaction.Commit(); err != nil {
+			return nil, 0, err
+		}
 		return []IndexedEmailResult{}, total, nil
 	}
 	order := sqliteMailboxOrder(query.SortBy, query.SortOrder)
 	pageArgs := append(append([]interface{}{}, args...), query.Limit, max(query.Offset, 0))
-	rows, err := index.db.Query("SELECT id, is_read FROM mailbox_index"+where+order+" LIMIT ? OFFSET ?", pageArgs...)
+	rows, err := transaction.Query("SELECT id, is_read FROM mailbox_index"+where+order+" LIMIT ? OFFSET ?", pageArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer func() { _ = rows.Close() }()
-	results := make([]IndexedEmailResult, 0, query.Limit)
+	capacity := min(query.Limit, total)
+	results := make([]IndexedEmailResult, 0, capacity)
 	for rows.Next() {
 		var result IndexedEmailResult
 		var read int
@@ -215,7 +228,16 @@ func (index *SQLiteMailboxIndex) Query(query EmailQuery) ([]IndexedEmailResult, 
 		result.Read = read != 0
 		results = append(results, result)
 	}
-	return results, total, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	if err := rows.Close(); err != nil {
+		return nil, 0, err
+	}
+	if err := transaction.Commit(); err != nil {
+		return nil, 0, err
+	}
+	return results, total, nil
 }
 
 func sqliteMailboxWhere(query EmailQuery) (string, []interface{}) {

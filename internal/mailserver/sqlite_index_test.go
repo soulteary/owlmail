@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -69,6 +70,48 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 				t.Fatalf("SQLite artifact %s permissions = %o, want 600", artifact, got)
 			}
 		}
+	}
+	results, total, err = index.Query(EmailQuery{Limit: int(^uint(0) >> 1)})
+	if err != nil || total != 1 || len(results) != 1 {
+		t.Fatalf("unbounded compatibility query = %#v, total %d, err %v", results, total, err)
+	}
+}
+
+func TestSQLiteMailboxIndexUsesOneSnapshotForCountAndPage(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mailbox.db")
+	index, err := NewSQLiteMailboxIndex(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = index.Close() }()
+	writer, err := NewSQLiteMailboxIndex(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Close() }()
+	now := time.Now().UTC()
+	first := IndexedEmail{ID: "first", MessageTime: now, ReceivedAt: now}
+	second := IndexedEmail{ID: "second", MessageTime: now.Add(time.Second), ReceivedAt: now.Add(time.Second)}
+	if err := index.Rebuild([]IndexedEmail{first}); err != nil {
+		t.Fatal(err)
+	}
+	index.afterQueryCount = func() {
+		if err := writer.Upsert(second); err != nil {
+			t.Errorf("concurrent index update: %v", err)
+		}
+	}
+
+	results, total, err := index.Query(EmailQuery{Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if total != 1 || len(results) != 1 || results[0].ID != "first" {
+		t.Fatalf("mixed query snapshot = %#v, total %d", results, total)
+	}
+	index.afterQueryCount = nil
+	results, total, err = index.Query(EmailQuery{Limit: 10})
+	if err != nil || total != 2 || len(results) != 2 {
+		t.Fatalf("query after concurrent update = %#v, total %d, err %v", results, total, err)
 	}
 }
 
@@ -163,5 +206,45 @@ func TestDeleteAllPreservesNestedSQLiteIndex(t *testing.T) {
 	status := server.GetEmailStats()["index"].(map[string]interface{})
 	if status["ready"] != true {
 		t.Fatalf("nested index was disabled: %#v", status)
+	}
+}
+
+func TestDeleteRejectsSQLiteIndexInsideEmailDirectory(t *testing.T) {
+	directory := t.TempDir()
+	id := "index-owner"
+	indexPath := filepath.Join(directory, id, "mailbox.db")
+	index, err := NewSQLiteMailboxIndex(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = index.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), []byte("message"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	email := &types.Email{ID: id, Subject: "Index owner", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := server.DeleteEmail(id); err == nil || !strings.Contains(err.Error(), "mailbox index") {
+		t.Fatalf("DeleteEmail() error = %v, want protected-index error", err)
+	}
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("SQLite index was removed: %v", err)
+	}
+	if _, err := server.GetEmail(id); err != nil {
+		t.Fatalf("email was removed despite protected index: %v", err)
+	}
+	if err := server.DeleteAllEmail(); err == nil || !strings.Contains(err.Error(), "mailbox index") {
+		t.Fatalf("DeleteAllEmail() error = %v, want protected-index error", err)
+	}
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("SQLite index was removed by delete-all: %v", err)
 	}
 }

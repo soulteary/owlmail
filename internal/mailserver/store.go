@@ -279,6 +279,9 @@ func (ms *MailServer) DeleteEmail(id string) error {
 			return fmt.Errorf("delete email rejected: %w", err)
 		}
 	}
+	if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(filepath.Join(ms.mailDir, id)) {
+		return fmt.Errorf("delete email rejected: mailbox index is stored inside the email attachment directory")
+	}
 
 	if err := ms.ensureDeletionFence(id); err != nil {
 		return err
@@ -312,6 +315,10 @@ func (ms *MailServer) DeleteAllEmail() error {
 	}
 	var deletionErrors []error
 	for _, id := range ids {
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(filepath.Join(ms.mailDir, id)) {
+			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: mailbox index is stored inside the email attachment directory", id))
+			continue
+		}
 		if err := ms.ensureDeletionFence(id); err != nil {
 			deletionErrors = append(deletionErrors, fmt.Errorf("fence deletion for %s: %w", id, err))
 			continue
