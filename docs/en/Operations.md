@@ -369,7 +369,7 @@ Consequently it inherits all of these boundaries:
 - `-base-pathname` moves the endpoint. The unprefixed `/mcp` path remains 404,
   so a subpath deployment does not gain a root-level bypass.
 
-The MCP service exposes exactly five closed-world, read-only tools:
+The MCP service exposes exactly seven closed-world, read-only tools:
 
 | Tool | Result boundary |
 |---|---|
@@ -378,12 +378,37 @@ The MCP service exposes exactly five closed-world, read-only tools:
 | `get_email` | One detached mailbox snapshot; sanitized HTML is opt-in |
 | `get_email_source` | Raw RFC 5322 source as lossless base64; decoded bytes are limited to 1 MiB by default and 100 MiB maximum |
 | `list_attachments` | Names, content types, sizes, hashes, and storage metadata; never bytes |
+| `get_latest_email` | The newest one to 20 compact summaries, ordered by mailbox time |
+| `wait_for_email` | Waits for a new recipient/subject/text match through the delivery event stream; never polls |
 
 There are no MCP tools for deleting, marking read, relaying, forwarding,
 downloading attachments, changing configuration, or reloading the mailbox.
 `list_emails` and `search_emails` reuse `QueryEmailPreviews`; `get_email` and
 `list_attachments` use the mailbox's deep-copy `GetEmail` boundary rather than
 maintaining a second index or returning internal pointers.
+
+`wait_for_email` defaults to 30 seconds and has a hard two-minute maximum; a
+shorter MCP session timeout is also an upper bound. At most four calls per
+session and 64 calls per process may wait concurrently. Client cancellation,
+session deletion or timeout, and process shutdown remove waiters immediately.
+The waiter registry is bounded and receives committed `new` events through one
+mailbox listener, so it neither performs high-frequency polling nor creates a
+background goroutine per waiter.
+
+The same server provides `owlmail://inbox` and `owlmail://stats` resources plus
+the `owlmail://email/{id}` resource template. Inbox content is capped at 50
+summaries. Email resource text is capped at 32 KiB and reports truncation;
+HTML, headers, source, and attachment bytes are omitted. The
+`registration_verification_email`, `password_reset_email`, and
+`wait_for_delivery` prompts compose only these read-only capabilities.
+
+Compact summaries and email details include `web_url`. By default OwlMail
+builds it from the Web listener, HTTPS or `OWLMAIL_WEB_EXTERNAL_SCHEME`, and
+the normalized base pathname. For a public reverse-proxy address, set
+`-web-external-url https://mail.example.com` or
+`OWLMAIL_WEB_EXTERNAL_URL=https://mail.example.com`; the value must be an
+HTTP(S) origin without credentials, query, fragment, or path. Continue to set
+the proxy path with `-base-pathname`, for example `/owlmail`.
 
 Multiple clients may hold independent sessions. Unknown IDs return HTTP 404,
 client `DELETE` closes a session, and idle sessions close after

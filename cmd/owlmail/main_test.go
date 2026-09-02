@@ -30,6 +30,50 @@ import (
 // while another calls InitLogger.
 var loggerEventTestMu sync.Mutex
 
+func TestMCPWebBaseURL(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		edit func(*config.Config)
+		want string
+	}{
+		{name: "local HTTP", want: "http://localhost:1080"},
+		{name: "HTTPS listener", edit: func(cfg *config.Config) { cfg.HTTPSEnabled = true }, want: "https://localhost:1080"},
+		{name: "proxy scheme and base path", edit: func(cfg *config.Config) {
+			cfg.WebExternalScheme = "https"
+			cfg.WebHost = "0.0.0.0"
+			cfg.BasePathname = "/owlmail/"
+		}, want: "https://localhost:1080/owlmail"},
+		{name: "external origin", edit: func(cfg *config.Config) {
+			cfg.WebExternalURL = "https://mail.example.test/"
+			cfg.BasePathname = "/owlmail"
+		}, want: "https://mail.example.test/owlmail"},
+		{name: "external port", edit: func(cfg *config.Config) {
+			cfg.WebExternalURL = "http://mail.example.test:8080"
+		}, want: "http://mail.example.test:8080"},
+		{name: "IPv6 listener", edit: func(cfg *config.Config) { cfg.WebHost = "[::1]" }, want: "http://[::1]:1080"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			if test.edit != nil {
+				test.edit(cfg)
+			}
+			got, err := mcpWebBaseURL(cfg)
+			if err != nil || got != test.want {
+				t.Fatalf("mcpWebBaseURL() = %q, %v; want %q", got, err, test.want)
+			}
+		})
+	}
+}
+
+func TestNormalizedWebExternalScheme(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.WebExternalURL = " \tHTTPS://mail.example.test/\n"
+	got, err := normalizedWebExternalScheme(cfg)
+	if err != nil || got != "https" {
+		t.Fatalf("normalizedWebExternalScheme() = %q, %v; want https", got, err)
+	}
+}
+
 func TestCompleteWebAuthConfig(t *testing.T) {
 	if _, err := completeWebAuthConfig(nil, nil); err == nil {
 		t.Fatal("nil config should fail")

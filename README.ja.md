@@ -201,6 +201,7 @@ docker buildx build \
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | SMTP・STARTTLS・SMTPS 全体でのプロセス単位の同時 DATA トランザクション数。`0` は無制限。上限時は再試行可能な `451 4.3.2` を返す |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
+| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成するメール深層リンク用のブラウザー公開 HTTP(S) origin。プロキシのサブパスは `-base-pathname` で別途設定 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` などの URL パス接頭辞。既定はルートパス |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade を明示的に有効化。Socket.IO は引き続き非互換 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp` で読み取り専用 MCP Streamable HTTP エンドポイントを有効化 |

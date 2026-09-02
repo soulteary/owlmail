@@ -225,6 +225,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Concurrent DATA transactions per process across SMTP, STARTTLS, and SMTPS; `0` is unlimited; a full limit returns retryable `451 4.3.2` |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
+| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Enable the opt-in MailDev `/api` REST facade; Socket.IO remains unsupported |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
@@ -303,11 +304,16 @@ MCP is disabled by default. Enable the official Streamable HTTP endpoint with
 an authenticated Web deployment therefore requires the same Basic Auth
 credentials for every MCP request.
 
-The server exposes only `list_emails`, `search_emails`, `get_email`,
-`get_email_source`, and `list_attachments`. List/search results are compact,
-`get_email` omits HTML unless explicitly requested, source reads default to a
-1 MiB decoded-byte cap and return lossless base64, and attachment content is
-never exposed as a tool. See the
+The server exposes seven read-only tools, adding `get_latest_email` and the
+event-driven `wait_for_email` testing workflow to the existing compact query,
+detached detail, bounded source, and attachment-metadata tools. It also exposes
+bounded `owlmail://inbox`, `owlmail://stats`, and `owlmail://email/{id}`
+resources plus registration verification, password reset, and delivery-wait
+prompts. Email results include Web UI deep links. For a reverse proxy, set
+`-web-external-url https://mail.example.com` (or
+`OWLMAIL_WEB_EXTERNAL_URL`) and configure its path separately with
+`-base-pathname`. No tool returns attachment bytes, and HTML remains opt-in only
+for `get_email`. See the
 [operations guide](./docs/en/Operations.md#read-only-mcp-for-test-agents) for
 the complete security and lifecycle contract.
 

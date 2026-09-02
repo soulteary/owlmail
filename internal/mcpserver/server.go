@@ -24,19 +24,31 @@ const (
 	maximumPageSize       = 1000
 	defaultSourceMaxBytes = 1 << 20
 	maximumSourceMaxBytes = 100 << 20
+	defaultMaxWaiters     = 64
+	defaultSessionWaiters = 4
+	defaultWaitTimeout    = 30 * time.Second
+	maximumWaitTimeout    = 2 * time.Minute
 )
 
 // Options configures the read-only MCP endpoint.
 type Options struct {
-	SessionTimeout  time.Duration
-	ShutdownTimeout time.Duration
+	SessionTimeout       time.Duration
+	ShutdownTimeout      time.Duration
+	WebBaseURL           string
+	MaxWaiters           int
+	MaxWaitersPerSession int
+	MaxWaitTimeout       time.Duration
 }
 
 // Service owns the SDK server, Streamable HTTP handler, and active sessions.
 type Service struct {
+	mailbox         *mailserver.MailServer
 	handler         *mcp.StreamableHTTPHandler
 	sessionTimeout  time.Duration
 	shutdownTimeout time.Duration
+	maxWaitTimeout  time.Duration
+	webBaseURL      string
+	waiters         *waiterHub
 
 	mu        sync.Mutex
 	closing   bool
@@ -57,12 +69,38 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 	if options.ShutdownTimeout <= 0 {
 		return nil, fmt.Errorf("MCP shutdown timeout must be positive")
 	}
+	if options.MaxWaiters < 0 || options.MaxWaitersPerSession < 0 || options.MaxWaitTimeout < 0 {
+		return nil, fmt.Errorf("MCP waiter limits cannot be negative")
+	}
+	if options.MaxWaitTimeout > maximumWaitTimeout {
+		return nil, fmt.Errorf("MCP maximum wait timeout cannot exceed %s", maximumWaitTimeout)
+	}
+	if options.MaxWaiters == 0 {
+		options.MaxWaiters = defaultMaxWaiters
+	}
+	if options.MaxWaitersPerSession == 0 {
+		options.MaxWaitersPerSession = defaultSessionWaiters
+	}
+	if options.MaxWaitTimeout == 0 {
+		options.MaxWaitTimeout = maximumWaitTimeout
+	}
+	if options.MaxWaitersPerSession > options.MaxWaiters {
+		return nil, fmt.Errorf("MCP per-session waiter limit cannot exceed the process limit")
+	}
+	webBaseURL, err := normalizeWebBaseURL(options.WebBaseURL)
+	if err != nil {
+		return nil, err
+	}
 
 	service := &Service{
+		mailbox:         mailbox,
 		sessionTimeout:  options.SessionTimeout,
 		shutdownTimeout: options.ShutdownTimeout,
+		maxWaitTimeout:  options.MaxWaitTimeout,
+		webBaseURL:      webBaseURL,
 		sessions:        make(map[string]*time.Timer),
 	}
+	service.waiters = newWaiterHub(options.MaxWaiters, options.MaxWaitersPerSession)
 	implementationVersion := version.Default().Version
 	if implementationVersion == "" {
 		implementationVersion = "development"
@@ -75,7 +113,14 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 		Instructions: "Read-only access to the OwlMail test mailbox. No tool can delete, mark, relay, forward, or otherwise modify mail.",
 		GetSessionID: rand.Text,
 	})
-	registerTools(server, mailbox)
+	registerTools(server, mailbox, service)
+	registerResources(server, mailbox, service)
+	registerPrompts(server, service)
+	// One bounded dispatcher is enough: notify only snapshots the bounded waiter
+	// set, evaluates filters, and publishes an ID to buffered result channels.
+	if err := mailbox.OnWithConcurrency("new", 1, service.waiters.notify); err != nil {
+		return nil, fmt.Errorf("register MCP new-email listener: %w", err)
+	}
 	service.handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
 		return server
 	}, &mcp.StreamableHTTPOptions{
@@ -156,6 +201,7 @@ func (service *Service) forgetSession(sessionID string) {
 	}
 	delete(service.sessions, sessionID)
 	service.mu.Unlock()
+	service.waiters.cancelSession(sessionID)
 }
 
 func (service *Service) sessionIDs() []string {
@@ -186,6 +232,7 @@ func (service *Service) Close() error {
 		service.mu.Lock()
 		service.closing = true
 		service.mu.Unlock()
+		service.waiters.close()
 
 		done := make(chan struct{})
 		go func() {
@@ -271,10 +318,10 @@ type searchEmailsInput struct {
 }
 
 type emailPage struct {
-	Total  int                       `json:"total"`
-	Offset int                       `json:"offset"`
-	Limit  int                       `json:"limit"`
-	Emails []mailserver.EmailPreview `json:"emails"`
+	Total  int            `json:"total"`
+	Offset int            `json:"offset"`
+	Limit  int            `json:"limit"`
+	Emails []emailSummary `json:"emails"`
 }
 
 type emailIDInput struct {
@@ -317,6 +364,7 @@ type emailDetail struct {
 	Size            int64     `json:"size"`
 	SizeHuman       string    `json:"size_human"`
 	AttachmentCount int       `json:"attachment_count"`
+	WebURL          string    `json:"web_url,omitempty"`
 }
 
 type getEmailOutput struct {
@@ -352,7 +400,7 @@ type listAttachmentsOutput struct {
 	Attachments []attachment `json:"attachments"`
 }
 
-func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
+func registerTools(server *mcp.Server, mailbox *mailserver.MailServer, service *Service) {
 	annotations := &mcp.ToolAnnotations{
 		ReadOnlyHint:    true,
 		IdempotentHint:  true,
@@ -369,7 +417,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 			return nil, emailPage{}, err
 		}
 		emails, total := mailbox.QueryEmailPreviews(query)
-		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: emails}, nil
+		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_emails",
@@ -384,7 +432,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 			return nil, emailPage{}, err
 		}
 		emails, total := mailbox.QueryEmailPreviews(query)
-		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: emails}, nil
+		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_email",
@@ -395,7 +443,9 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 		if err != nil {
 			return nil, getEmailOutput{}, err
 		}
-		return nil, getEmailOutput{Email: makeEmailDetail(email, input.IncludeHTML)}, nil
+		detail := makeEmailDetail(email, input.IncludeHTML)
+		detail.WebURL = service.webURL(email.ID)
+		return nil, getEmailOutput{Email: detail}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_email_source",
@@ -450,6 +500,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 		})
 		return nil, listAttachmentsOutput{ID: input.ID, Attachments: attachments}, nil
 	})
+	registerWorkflowTools(server, mailbox, service, annotations)
 }
 
 func makeEmailQuery(input emailQueryInput, text string) (mailserver.EmailQuery, error) {
