@@ -246,6 +246,14 @@ func (ms *MailServer) GetEmail(id string) (*Email, error) {
 	return nil, fmt.Errorf("email was not found")
 }
 
+// GetEmailReceivedAt returns OwlMail's capture timestamp for an email.
+func (ms *MailServer) GetEmailReceivedAt(id string) (time.Time, bool) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	receivedAt, ok := ms.receivedAtByID[id]
+	return receivedAt, ok
+}
+
 // GetAllEmail returns all emails
 func (ms *MailServer) GetAllEmail() []*Email {
 	ms.storeMutex.RLock()
