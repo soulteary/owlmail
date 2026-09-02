@@ -41,10 +41,11 @@ process-specific temporary directory `owlmail-<pid>` while parsed state is held
 in memory. That location is not a durable archive. This profile is intended for
 one developer on a trusted machine.
 
-Readiness check:
+Liveness and readiness checks:
 
 ```bash
 curl --fail http://localhost:1080/healthz
+curl --fail http://localhost:1080/readyz
 ```
 
 ### 2. Local inbox with persistence
@@ -112,6 +113,27 @@ endpoint empty for AWS S3. Static credentials are optional: when omitted, the
 AWS SDK default credential chain is used, including environment credentials,
 shared configuration, and workload roles. Use path-style addressing only when
 the selected S3-compatible service requires it.
+
+When S3 is enabled, OwlMail immediately starts a read-only `HeadBucket` probe
+and refreshes the cached result every 30 seconds. Each probe has a three-second
+deadline by default. Configure these bounds with
+`OWLMAIL_S3_HEALTH_CHECK_INTERVAL` and `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` (or the
+matching flags). Readiness requests never wait for S3:
+
+- `/healthz` and `/api/v1/health` are liveness endpoints. They do not depend on
+  S3, so a temporary outage does not trigger a process restart loop.
+- `/readyz` and `/api/v1/ready` report the cached dependency state and return
+  HTTP 503 until the latest S3 probe succeeds.
+- Response details are restricted to stable categories such as `checking`,
+  `permission_denied`, `not_found`, `timeout`, `network`, and `unavailable`;
+  provider messages, endpoints, and credentials are never returned.
+
+The compatibility default is non-strict: a failed initial probe leaves the
+process running but not ready, and later successful probes recover readiness.
+Set `OWLMAIL_S3_STARTUP_CHECK=true` (or `-s3-startup-check`) when a deployment
+must reject bad buckets, credentials, or connectivity before opening listeners.
+The strict check uses the same configured timeout and reports only the safe
+error category.
 
 OwlMail streams attachments into local staging files, writes a durable rollback
 marker, uploads every object under `<prefix>/<email-id>/`, and only then commits
@@ -181,8 +203,9 @@ password cannot be printed. Retrieve startup output with:
 docker logs owlmail
 ```
 
-Basic Auth protects the UI, API, assets, and WebSocket endpoints, but
-`/healthz` and `/api/v1/health` intentionally remain public for probes. Use
+Basic Auth protects the UI, API, assets, and WebSocket endpoints, but the
+`/healthz`, `/readyz`, `/api/v1/health`, and `/api/v1/ready` probe endpoints
+intentionally remain public. Use
 HTTPS or a trusted reverse proxy when credentials cross a network.
 
 When TLS terminates at that proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME=https` so
@@ -315,11 +338,11 @@ in-process request, not delivery by the downstream SMTP server; inspect logs and
 the destination system when delivery confirmation matters.
 
 Configuration is not yet validated by one uniform startup pass. S3 option shape
-is checked when that backend is enabled, but reachability and credentials can
-still fail when an object operation is first attempted. Other components may
-normalize values or fail later during listener setup. Treat startup and operation
-warnings as actionable, and verify both health endpoints, SMTP receipt, and
-attachment download after configuration changes.
+is checked when that backend is enabled, while its background readiness probe
+detects bucket, credential, and network failures before the first attachment
+delivery. Other components may normalize values or fail later during listener
+setup. Treat startup and operation warnings as actionable, and verify liveness,
+readiness, SMTP receipt, and attachment download after configuration changes.
 
 ## Backup and upgrade procedure
 
@@ -327,7 +350,7 @@ attachment download after configuration changes.
 2. Copy or snapshot the complete mail directory/volume.
 3. Record the image tag or binary version and effective flags/environment.
 4. Start the new version against a copy when the archive is important.
-5. Check `/healthz`, open representative HTML messages and attachments, then
+5. Check `/healthz` and `/readyz`, open representative HTML messages and attachments, then
    send a new test message.
 6. Keep the backup until rollback is no longer required.
 
@@ -344,6 +367,7 @@ tags are intentionally moving.
 | SMTP returns `530 Authentication required` | Authenticate with the configured username/password, or remove both values to intentionally use NO AUTH mode |
 | OwlMail fails after setting one SMTP credential | Configure both `-smtp-user` and `-smtp-password`, or remove both; partial credentials never fall back to NO AUTH |
 | Container is unhealthy with HTTPS | Override the image's HTTP healthcheck with an HTTPS probe and correct certificate trust |
+| `/readyz` returns 503 with S3 enabled | Use the safe category to distinguish bucket/permission, timeout, network, and general availability failures; inspect protected process/provider logs for details |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |
 | SMTP works but direct SMTPS does not | Publish port 465, check certificate paths and runtime permission to bind a privileged port |
@@ -356,5 +380,6 @@ Useful checks:
 ```bash
 docker logs --tail 200 owlmail
 curl --fail http://localhost:1080/healthz
+curl --fail http://localhost:1080/readyz
 curl -u admin:secret http://localhost:1080/api/v1/version
 ```

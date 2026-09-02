@@ -146,7 +146,8 @@ reported in process logs after the HTTP response.
 | `GET /api/v1/settings/outgoing` | current outgoing SMTP settings; password is omitted |
 | `PUT /api/v1/settings/outgoing` | replace outgoing SMTP settings |
 | `PATCH /api/v1/settings/outgoing` | update selected outgoing SMTP fields |
-| `GET /api/v1/health` | unauthenticated liveness check |
+| `GET /api/v1/health` | unauthenticated liveness check, independent of S3 |
+| `GET /api/v1/ready` | unauthenticated cached dependency readiness check |
 | `GET /api/v1/version` | build/version information |
 | `GET /api/v1/ws` | native WebSocket endpoint |
 
@@ -226,6 +227,7 @@ for existing OwlMail integrations. Prefer `/api/v1` for new code.
 | `PUT /config/outgoing` | `PUT /api/v1/settings/outgoing` |
 | `PATCH /config/outgoing` | `PATCH /api/v1/settings/outgoing` |
 | `GET /healthz` | `GET /api/v1/health` |
+| `GET /readyz` | `GET /api/v1/ready` |
 | `GET /reloadMailsFromDirectory` | reload the configured mail directory |
 
 ## WebSocket protocol

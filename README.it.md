@@ -213,6 +213,9 @@ docker buildx build \
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | Chiave segreta statica opzionale |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | Token di sessione opzionale |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | Usa l’indirizzamento bucket path-style |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | Interrompe l'avvio se il controllo S3 fallisce |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | Intervallo del controllo readiness S3 |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 3s | Timeout per ogni controllo S3 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | Nome utente HTTP Basic Auth |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | Password HTTP Basic Auth |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Abilita HTTPS |
@@ -354,7 +357,8 @@ equivalenti esatti dell'API MailDev corrente. Consulta il
 #### Configurazione e Sistema
 
 - `GET /config` - Ottieni informazioni di configurazione
-- `GET /healthz` - Controllo salute
+- `GET /healthz` - Controllo liveness
+- `GET /readyz` - Controllo readiness
 - `GET /reloadMailsFromDirectory` - Ricarica email da directory
 - `GET /socket.io` - Connessione WebSocket (WebSocket standard, non Socket.IO)
 
@@ -402,7 +406,8 @@ OwlMail fornisce un design API RESTful più standardizzato:
 - `GET /api/v1/settings/outgoing` - Ottieni configurazione in uscita
 - `PUT /api/v1/settings/outgoing` - Aggiorna configurazione in uscita
 - `PATCH /api/v1/settings/outgoing` - Aggiorna parzialmente configurazione in uscita
-- `GET /api/v1/health` - Controllo salute
+- `GET /api/v1/health` - Controllo liveness
+- `GET /api/v1/ready` - Controllo readiness
 - `GET /api/v1/ws` - Connessione WebSocket
 
 Il contratto corrente, incluse sottorisorse, autenticazione, risposte ed eventi

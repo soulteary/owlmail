@@ -5,12 +5,16 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"sort"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/smithy-go"
 )
 
 type fakeS3Client struct {
@@ -20,6 +24,39 @@ type fakeS3Client struct {
 	getErr       error
 	listErr      error
 	deleteErr    error
+	headMu       sync.Mutex
+	headErr      error
+	headBlock    bool
+	headCalls    int
+}
+
+func (client *fakeS3Client) HeadBucket(ctx context.Context, _ *s3.HeadBucketInput, _ ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+	client.headMu.Lock()
+	client.headCalls++
+	err := client.headErr
+	block := client.headBlock
+	client.headMu.Unlock()
+	if block {
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &s3.HeadBucketOutput{}, nil
+}
+
+func (client *fakeS3Client) setHeadResult(err error, block bool) {
+	client.headMu.Lock()
+	client.headErr = err
+	client.headBlock = block
+	client.headMu.Unlock()
+}
+
+func (client *fakeS3Client) headCallCount() int {
+	client.headMu.Lock()
+	defer client.headMu.Unlock()
+	return client.headCalls
 }
 
 func newFakeS3Client() *fakeS3Client {
@@ -133,6 +170,74 @@ func TestS3StorePutOpenAndDeleteEmail(t *testing.T) {
 	if _, ok := client.objects["owlmail/attachments/mail-10/keep.txt"]; !ok {
 		t.Fatal("neighboring email prefix was deleted")
 	}
+}
+
+func TestS3StoreCheckHealth(t *testing.T) {
+	client := newFakeS3Client()
+	store := newS3Store(client, "mail-bucket", "attachments")
+	if err := store.CheckHealth(context.Background()); err != nil {
+		t.Fatalf("CheckHealth() error = %v", err)
+	}
+	client.setHeadResult(&smithy.GenericAPIError{Code: "AccessDenied", Message: "secret provider detail"}, false)
+	status := CheckHealth(context.Background(), store)
+	if status.Ready || status.Category != HealthPermissionDenied {
+		t.Fatalf("permission status = %#v", status)
+	}
+	client.setHeadResult(&smithy.GenericAPIError{Code: "NoSuchBucket", Message: "missing"}, false)
+	if status := CheckHealth(context.Background(), store); status.Ready || status.Category != HealthNotFound {
+		t.Fatalf("missing bucket status = %#v", status)
+	}
+	client.setHeadResult(&net.DNSError{Err: "dial failed", Name: "objects.example.test"}, false)
+	if status := CheckHealth(context.Background(), store); status.Ready || status.Category != HealthNetwork {
+		t.Fatalf("network status = %#v", status)
+	}
+	if got := client.headCallCount(); got != 4 {
+		t.Fatalf("HeadBucket calls = %d, want 4", got)
+	}
+}
+
+func TestMonitoredS3StoreTimeoutRecoveryAndClose(t *testing.T) {
+	client := newFakeS3Client()
+	client.setHeadResult(nil, true)
+	store := newS3Store(client, "mail-bucket", "attachments")
+	monitored, err := NewMonitoredStore(store, 10*time.Millisecond, 15*time.Millisecond)
+	if err != nil {
+		t.Fatalf("NewMonitoredStore() error = %v", err)
+	}
+	waitForHealthStatus(t, monitored, HealthTimeout)
+
+	client.setHeadResult(nil, false)
+	waitForHealthStatus(t, monitored, HealthOK)
+	if !monitored.Readiness().Ready {
+		t.Fatalf("recovered readiness = %#v", monitored.Readiness())
+	}
+
+	if err := monitored.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if status := monitored.Readiness(); status.Ready || status.Category != HealthClosed {
+		t.Fatalf("closed readiness = %#v", status)
+	}
+	calls := client.headCallCount()
+	time.Sleep(30 * time.Millisecond)
+	if got := client.headCallCount(); got != calls {
+		t.Fatalf("HeadBucket called after Close: before=%d after=%d", calls, got)
+	}
+	if err := monitored.Close(); err != nil {
+		t.Fatalf("second Close() error = %v", err)
+	}
+}
+
+func waitForHealthStatus(t *testing.T, provider ReadinessProvider, category string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if status := provider.Readiness(); status.Category == category {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("health category = %q, want %q", provider.Readiness().Category, category)
 }
 
 func TestS3StorePropagatesClientErrors(t *testing.T) {

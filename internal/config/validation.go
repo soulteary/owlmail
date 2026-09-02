@@ -98,6 +98,14 @@ func ValidateConfig(cfg *Config) error {
 				return fmt.Errorf("S3 endpoint must be an HTTP or HTTPS URL without credentials, query, or fragment")
 			}
 		}
+		interval, err := time.ParseDuration(cfg.S3HealthInterval)
+		if err != nil || interval <= 0 {
+			return fmt.Errorf("S3 health check interval must be a positive duration")
+		}
+		timeout, err := time.ParseDuration(cfg.S3HealthTimeout)
+		if err != nil || timeout <= 0 {
+			return fmt.Errorf("S3 health check timeout must be a positive duration")
+		}
 	}
 
 	// Validate auto relay rules file path if specified

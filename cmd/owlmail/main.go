@@ -162,7 +162,39 @@ func setupAttachmentStore(cfg *config.Config) (attachmentstore.Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("configure S3 attachment storage: %w", err)
 	}
-	return store, nil
+	return setupAttachmentStoreHealth(cfg, store)
+}
+
+func setupAttachmentStoreHealth(cfg *config.Config, store attachmentstore.Store) (attachmentstore.Store, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if store == nil {
+		return nil, fmt.Errorf("attachment store is nil")
+	}
+	interval, err := time.ParseDuration(cfg.S3HealthInterval)
+	if err != nil || interval <= 0 {
+		return nil, fmt.Errorf("invalid S3 health check interval %q", cfg.S3HealthInterval)
+	}
+	timeout, err := time.ParseDuration(cfg.S3HealthTimeout)
+	if err != nil || timeout <= 0 {
+		return nil, fmt.Errorf("invalid S3 health check timeout %q", cfg.S3HealthTimeout)
+	}
+	initial := attachmentstore.HealthStatus{Category: attachmentstore.HealthChecking}
+	if cfg.S3StartupCheck {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		status := attachmentstore.CheckHealth(ctx, store)
+		cancel()
+		if !status.Ready {
+			return nil, fmt.Errorf("S3 startup check failed: %s", status.Category)
+		}
+		initial = status
+	}
+	monitored, err := attachmentstore.NewMonitoredStore(store, interval, timeout, initial)
+	if err != nil {
+		return nil, fmt.Errorf("configure S3 health monitoring: %w", err)
+	}
+	return monitored, nil
 }
 
 func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
@@ -457,7 +489,16 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		AttachmentStore: attachmentStore,
 	})
 	if err != nil {
+		if closer, ok := attachmentStore.(io.Closer); ok {
+			_ = closer.Close()
+		}
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
+	}
+	if closer, ok := attachmentStore.(io.Closer); ok {
+		if err := server.AddCloser(closer); err != nil {
+			_ = server.Close()
+			return nil, fmt.Errorf("register attachment store health monitor: %w", err)
+		}
 	}
 	storagePolicy, err := setupStoragePolicy(cfg)
 	if err != nil {

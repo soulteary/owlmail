@@ -145,6 +145,18 @@ func (ms *MailServer) GetMailDir() string {
 	return ms.mailDir
 }
 
+// GetAttachmentReadiness returns the cached attachment-store state. It never
+// performs provider I/O and therefore is safe to use from an HTTP probe.
+func (ms *MailServer) GetAttachmentReadiness() attachmentstore.HealthStatus {
+	if ms.attachmentStore == nil {
+		return attachmentstore.HealthStatus{Ready: true, Category: attachmentstore.HealthDisabled}
+	}
+	if provider, ok := ms.attachmentStore.(attachmentstore.ReadinessProvider); ok {
+		return provider.Readiness()
+	}
+	return attachmentstore.HealthStatus{Ready: true, Category: attachmentstore.HealthUnsupported}
+}
+
 // GetAuthConfig returns the SMTP authentication configuration
 func (ms *MailServer) GetAuthConfig() *SMTPAuthConfig {
 	return ms.authConfig

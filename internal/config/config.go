@@ -20,6 +20,8 @@ const DefaultSMTPMaxMessageMB = 100
 
 const DefaultS3Region = "us-east-1"
 const DefaultS3Prefix = "owlmail/attachments"
+const DefaultS3HealthCheckInterval = "30s"
+const DefaultS3HealthCheckTimeout = "3s"
 
 // DefaultWebhookMaxConcurrency is the recommended concurrent email delivery
 // limit. Zero remains available as an explicit unlimited mode.
@@ -259,6 +261,9 @@ type Config struct {
 	S3SecretAccessKey string
 	S3SessionToken    string
 	S3UsePathStyle    bool
+	S3StartupCheck    bool
+	S3HealthInterval  string
+	S3HealthTimeout   string
 
 	// Webhook forwarding configuration
 	WebhookConfig          string
@@ -312,6 +317,9 @@ func DefaultConfig() *Config {
 		S3SecretAccessKey:      "",
 		S3SessionToken:         "",
 		S3UsePathStyle:         false,
+		S3StartupCheck:         false,
+		S3HealthInterval:       DefaultS3HealthCheckInterval,
+		S3HealthTimeout:        DefaultS3HealthCheckTimeout,
 		WebhookConfig:          "",
 		WebhookMaxConcurrency:  DefaultWebhookMaxConcurrency,
 		WebhookRedisURL:        "",
@@ -362,6 +370,9 @@ type FlagRefs struct {
 	S3SecretAccessKey      *string
 	S3SessionToken         *string
 	S3UsePathStyle         *bool
+	S3StartupCheck         *bool
+	S3HealthInterval       *string
+	S3HealthTimeout        *string
 	WebhookConfig          *string
 	WebhookMaxConcurrency  *int
 	WebhookRedisURL        *string
@@ -414,6 +425,9 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		S3SecretAccessKey:      fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
 		S3SessionToken:         fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
 		S3UsePathStyle:         fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
+		S3StartupCheck:         fs.Bool("s3-startup-check", cfg.S3StartupCheck, "Require a successful S3 health check before startup"),
+		S3HealthInterval:       fs.String("s3-health-check-interval", cfg.S3HealthInterval, "Interval between cached S3 readiness checks"),
+		S3HealthTimeout:        fs.String("s3-health-check-timeout", cfg.S3HealthTimeout, "Timeout for each S3 health check"),
 		WebhookConfig:          fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
 		WebhookMaxConcurrency:  fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
 		WebhookRedisURL:        fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
@@ -475,6 +489,9 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		S3SecretAccessKey:      resolveStringWithFlag(fs, "s3-secret-key", "OWLMAIL_S3_SECRET_KEY", *refs.S3SecretAccessKey),
 		S3SessionToken:         resolveStringWithFlag(fs, "s3-session-token", "OWLMAIL_S3_SESSION_TOKEN", *refs.S3SessionToken),
 		S3UsePathStyle:         resolveBoolWithFlag(fs, "s3-use-path-style", "OWLMAIL_S3_USE_PATH_STYLE", *refs.S3UsePathStyle),
+		S3StartupCheck:         resolveBoolWithFlag(fs, "s3-startup-check", "OWLMAIL_S3_STARTUP_CHECK", *refs.S3StartupCheck),
+		S3HealthInterval:       resolveStringWithFlag(fs, "s3-health-check-interval", "OWLMAIL_S3_HEALTH_CHECK_INTERVAL", *refs.S3HealthInterval),
+		S3HealthTimeout:        resolveStringWithFlag(fs, "s3-health-check-timeout", "OWLMAIL_S3_HEALTH_CHECK_TIMEOUT", *refs.S3HealthTimeout),
 		WebhookConfig:          resolveStringWithFlag(fs, "webhook-config", "OWLMAIL_WEBHOOK_CONFIG", *refs.WebhookConfig),
 		WebhookMaxConcurrency:  resolveIntWithFlag(fs, "webhook-max-concurrency", "OWLMAIL_WEBHOOK_MAX_CONCURRENCY", *refs.WebhookMaxConcurrency),
 		WebhookRedisURL:        resolveStringWithFlag(fs, "webhook-redis-url", "OWLMAIL_WEBHOOK_REDIS_URL", *refs.WebhookRedisURL),

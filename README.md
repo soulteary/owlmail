@@ -237,6 +237,9 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | Optional static secret key |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | Optional static credential session token |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | Use path-style bucket addressing for compatible services |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | Fail startup unless the S3 bucket health check succeeds |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | Background S3 readiness refresh interval |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 3s | Timeout for each S3 readiness probe |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |
@@ -332,6 +335,13 @@ request or startup; pending deletions are not republished. Upload must finish
 before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
 local files and does not include S3 object bytes.
 
+OwlMail uses `HeadBucket` to refresh a cached S3 readiness result every 30
+seconds by default. `/readyz` and `/api/v1/ready` return that cache and never
+contact S3 synchronously. Existing `/healthz` and `/api/v1/health` endpoints are
+liveness checks and stay healthy during a temporary S3 outage. Startup remains
+non-strict for compatibility; set `OWLMAIL_S3_STARTUP_CHECK=true` to require the
+first bounded probe to succeed before listeners start.
+
 ## 📡 API Documentation
 
 ### API Response Format
@@ -411,7 +421,8 @@ the [API reference](./docs/en/API-Reference.md#maildev-migration-boundary).
 #### Configuration and System
 
 - `GET /config` - Get configuration information
-- `GET /healthz` - Health check
+- `GET /healthz` - Liveness check
+- `GET /readyz` - Cached dependency readiness check
 - `GET /reloadMailsFromDirectory` - Reload emails from directory
 - `GET /socket.io` - WebSocket connection (standard WebSocket, not Socket.IO)
 
@@ -459,7 +470,8 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/settings/outgoing` - Get outgoing configuration
 - `PUT /api/v1/settings/outgoing` - Update outgoing configuration
 - `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
-- `GET /api/v1/health` - Health check
+- `GET /api/v1/health` - Liveness check
+- `GET /api/v1/ready` - Cached dependency readiness check
 - `GET /api/v1/version` - Version info
 - `GET /api/v1/ws` - WebSocket connection
 

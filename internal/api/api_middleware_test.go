@@ -399,3 +399,24 @@ func TestHealthzSkippedAuth(t *testing.T) {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
 }
+
+func TestReadinessSkippedAuth(t *testing.T) {
+	tmpDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	for _, path := range []string{"/readyz", "/api/v1/ready"} {
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("%s error = %v", path, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", path, resp.StatusCode)
+		}
+	}
+}

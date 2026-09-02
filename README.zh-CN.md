@@ -230,6 +230,9 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 可选静态秘密密钥 |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 可选静态凭据会话令牌 |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | 为兼容服务使用路径式存储桶寻址 |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | S3 存储桶健康检查失败时阻止启动 |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | 后台刷新 S3 readiness 的间隔 |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 3s | 每次 S3 readiness 探测的超时 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth 用户名 |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth 密码 |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | 启用 HTTPS |
@@ -318,6 +321,12 @@ export OWLMAIL_S3_USE_PATH_STYLE=true
 该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
 `OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
 
+OwlMail 默认每 30 秒使用 `HeadBucket` 刷新一次 S3 readiness 缓存。
+`/readyz` 和 `/api/v1/ready` 只读取缓存，不会在请求中同步访问 S3；现有
+`/healthz` 和 `/api/v1/health` 是 liveness，S3 暂时不可用时仍保持正常。
+为兼容已有部署，默认不会因首次探测失败而退出；如需严格启动检查，请设置
+`OWLMAIL_S3_STARTUP_CHECK=true`。
+
 ## 📡 API 文档
 
 ### API 响应格式
@@ -396,7 +405,8 @@ API 的精确等价实现；差异见 [API 参考](./docs/zh-CN/API-Reference.md
 #### 配置和系统
 
 - `GET /config` - 获取配置信息
-- `GET /healthz` - 健康检查
+- `GET /healthz` - 存活检查
+- `GET /readyz` - 缓存的依赖就绪检查
 - `GET /reloadMailsFromDirectory` - 重新加载邮件目录
 - `GET /socket.io` - WebSocket 连接（标准 WebSocket，非 Socket.IO）
 
@@ -444,7 +454,8 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/settings/outgoing` - 获取出站配置
 - `PUT /api/v1/settings/outgoing` - 更新出站配置
 - `PATCH /api/v1/settings/outgoing` - 部分更新出站配置
-- `GET /api/v1/health` - 健康检查
+- `GET /api/v1/health` - 存活检查
+- `GET /api/v1/ready` - 缓存的依赖就绪检查
 - `GET /api/v1/version` - 版本信息
 - `GET /api/v1/ws` - WebSocket 连接
 

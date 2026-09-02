@@ -334,6 +334,16 @@ func TestValidateConfig(t *testing.T) {
 		if err := ValidateConfig(cfg); err != nil {
 			t.Fatalf("valid S3 attachment config error = %v", err)
 		}
+
+		cfg.S3HealthInterval = "0s"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("non-positive S3 health interval should fail")
+		}
+		cfg.S3HealthInterval = DefaultS3HealthCheckInterval
+		cfg.S3HealthTimeout = "invalid"
+		if err := ValidateConfig(cfg); err == nil {
+			t.Error("invalid S3 health timeout should fail")
+		}
 	})
 
 	t.Run("valid full config", func(t *testing.T) {

@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/health-kit/v2"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 	webassets "github.com/soulteary/owlmail/web"
@@ -114,7 +115,7 @@ func (api *API) setupRoutes() {
 
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/api/v1/health"))
+		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/readyz", "/api/v1/health", "/api/v1/ready"))
 	}
 
 	// Static files are embedded in the executable so the UI and help page work
@@ -153,6 +154,7 @@ func (api *API) setupRoutes() {
 		if strings.HasPrefix(path, "/email") ||
 			strings.HasPrefix(path, "/config") ||
 			strings.HasPrefix(path, "/healthz") ||
+			strings.HasPrefix(path, "/readyz") ||
 			strings.HasPrefix(path, "/socket.io") ||
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
@@ -215,6 +217,7 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 
 	// Health check (adaptor for health-kit)
 	v1.Get("/health", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	v1.Get("/ready", api.readiness)
 	// Version info (adaptor for version-kit)
 	v1.Get("/version", adaptor.HTTPHandler(version.Handler()))
 	// WebSocket (adaptor for gorilla/websocket Upgrade)
@@ -290,7 +293,46 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 
 	// Health check route (MailDev compatible)
 	app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	app.Get("/readyz", api.readiness)
 
 	// Reload mails from directory route (MailDev compatible)
 	app.Get("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
+}
+
+func (api *API) readiness(c fiber.Ctx) error {
+	status := api.mailServer.GetAttachmentReadiness()
+	code := http.StatusOK
+	state := "ready"
+	if !status.Ready {
+		code = http.StatusServiceUnavailable
+		state = "not_ready"
+	}
+	return c.Status(code).JSON(fiber.Map{
+		"status":  state,
+		"service": "owlmail",
+		"checks": fiber.Map{
+			"attachment_store": fiber.Map{
+				"status":   state,
+				"category": safeHealthCategory(status.Category),
+			},
+		},
+	})
+}
+
+func safeHealthCategory(category string) string {
+	switch category {
+	case attachmentstore.HealthOK,
+		attachmentstore.HealthDisabled,
+		attachmentstore.HealthUnsupported,
+		attachmentstore.HealthChecking,
+		attachmentstore.HealthPermissionDenied,
+		attachmentstore.HealthNotFound,
+		attachmentstore.HealthTimeout,
+		attachmentstore.HealthNetwork,
+		attachmentstore.HealthUnavailable,
+		attachmentstore.HealthClosed:
+		return category
+	default:
+		return attachmentstore.HealthUnavailable
+	}
 }

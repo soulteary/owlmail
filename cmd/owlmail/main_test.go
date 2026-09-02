@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/cli-kit/testutil"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
@@ -951,14 +955,41 @@ func TestSetupAttachmentStore(t *testing.T) {
 		t.Fatalf("disabled setupAttachmentStore() = %#v, %v", store, err)
 	}
 
+}
+
+type testHealthStore struct {
+	err error
+}
+
+func (store *testHealthStore) CheckHealth(context.Context) error { return store.err }
+func (store *testHealthStore) Put(context.Context, string, string, string, io.Reader, int64) error {
+	return nil
+}
+func (store *testHealthStore) Open(context.Context, string, string) (*attachmentstore.Object, error) {
+	return nil, errors.New("not implemented")
+}
+func (store *testHealthStore) DeleteEmail(context.Context, string) error { return nil }
+
+func TestSetupAttachmentStoreHealthStrictAndCompatible(t *testing.T) {
 	cfg := config.DefaultConfig()
-	cfg.S3Enabled = true
-	cfg.S3Bucket = "owlmail-test"
-	cfg.S3AccessKeyID = "access"
-	cfg.S3SecretAccessKey = "secret"
-	store, err = setupAttachmentStore(cfg)
-	if err != nil || store == nil {
-		t.Fatalf("enabled setupAttachmentStore() = %#v, %v", store, err)
+	cfg.S3HealthInterval = "10ms"
+	cfg.S3HealthTimeout = "10ms"
+	fake := &testHealthStore{err: errors.New("https://access:secret@example.test private detail")}
+
+	cfg.S3StartupCheck = true
+	if _, err := setupAttachmentStoreHealth(cfg, fake); err == nil || !strings.Contains(err.Error(), attachmentstore.HealthUnavailable) || strings.Contains(err.Error(), "secret") || strings.Contains(err.Error(), "example.test") {
+		t.Fatalf("strict startup error = %v", err)
+	}
+
+	cfg.S3StartupCheck = false
+	store, err := setupAttachmentStoreHealth(cfg, fake)
+	if err != nil {
+		t.Fatalf("non-strict setup error = %v", err)
+	}
+	if closer, ok := store.(io.Closer); ok {
+		_ = closer.Close()
+	} else {
+		t.Fatal("monitored store is not closable")
 	}
 }
 

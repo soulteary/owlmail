@@ -36,10 +36,11 @@ EML 数据，避免再创建一个邮箱规模的内存缓冲区。
 原始邮件和附件写入当前进程专用的临时目录 `owlmail-<pid>`，解析后的状态保存在
 内存中；该目录不是持久归档。该档位适合可信机器上的单开发者场景。
 
-就绪检查：
+存活与就绪检查：
 
 ```bash
 curl --fail http://localhost:1080/healthz
+curl --fail http://localhost:1080/readyz
 ```
 
 ### 2. 带持久化的本地收件箱
@@ -92,6 +93,23 @@ OWLMAIL_S3_USE_PATH_STYLE=true \
 OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用 AWS S3。静态密钥
 可以不配置，此时使用 AWS SDK 默认凭据链，包括环境凭据、共享配置和工作负载角色。
 只有选定的 S3 兼容服务要求时，才开启路径式寻址。
+
+启用 S3 后，OwlMail 会立即执行只读的 `HeadBucket` 探测，并默认每 30 秒刷新一次
+缓存结果；每次探测默认最多等待 3 秒。可以通过
+`OWLMAIL_S3_HEALTH_CHECK_INTERVAL`、`OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` 或对应命令行
+参数调整：
+
+- `/healthz` 和 `/api/v1/health` 是 liveness，不依赖 S3；S3 暂时不可用不会导致
+  进程被反复重启。
+- `/readyz` 和 `/api/v1/ready` 只返回缓存的依赖状态，不会同步访问 S3；最近一次
+  探测成功前返回 HTTP 503，恢复后自动返回 200。
+- 响应只包含 `checking`、`permission_denied`、`not_found`、`timeout`、`network`、
+  `unavailable` 等稳定类别，不返回供应商错误、endpoint 或任何凭据。
+
+为兼容已有部署，默认使用非严格启动：首次探测失败时进程继续运行，但 readiness
+失败，后续探测成功即可恢复。如果部署必须在监听端口前验证 bucket、凭据和网络，
+设置 `OWLMAIL_S3_STARTUP_CHECK=true` 或 `-s3-startup-check`。严格检查使用相同的探测
+超时，并且启动错误也只报告安全类别。
 
 OwlMail 会把附件流式写入本地暂存文件并写入持久回滚标记，再把全部对象上传至
 `<prefix>/<email-id>/`，最后提交 `.eml` 标记。上传失败会拒绝 SMTP 事务并清理
@@ -150,8 +168,8 @@ OwlMail 会启动失败。查看启动输出：
 docker logs owlmail
 ```
 
-Basic Auth 保护 UI、API、静态资源和 WebSocket，但 `/healthz` 与
-`/api/v1/health` 会有意保持公开，便于探针检查。凭据通过网络传输时，应启用
+Basic Auth 保护 UI、API、静态资源和 WebSocket，但 `/healthz`、`/readyz`、
+`/api/v1/health` 和 `/api/v1/ready` 会有意保持公开，便于探针检查。凭据通过网络传输时，应启用
 HTTPS 或可信反向代理。
 
 若 TLS 在反向代理终止，请设置 `OWLMAIL_WEB_EXTERNAL_SCHEME=https`，让已鉴权的
@@ -264,10 +282,10 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 出站中继同样是异步的。API 成功响应只确认进程内请求已被接受，不代表下游 SMTP
 已经完成投递；需要确认投递时，应检查 OwlMail 日志与目标系统。
 
-项目尚未通过一次统一启动校验覆盖所有配置。启用 S3 时会先检查其配置结构，但
-可达性和凭据仍可能在首次对象操作时才暴露错误；其他组件也可能在监听器启动阶段
-才归一化取值或失败。请把启动及运行告警视为需要处理的问题，并在修改配置后同时
-验证健康端点、SMTP 收件和附件下载。
+项目尚未通过一次统一启动校验覆盖所有配置。启用 S3 时会检查配置结构，并通过后台
+readiness 探测在首封附件邮件之前发现 bucket、凭据和网络问题；其他组件仍可能在
+监听器启动阶段才归一化取值或失败。请把启动及运行告警视为需要处理的问题，并在
+修改配置后同时验证 liveness、readiness、SMTP 收件和附件下载。
 
 ## 备份与升级流程
 
@@ -275,7 +293,7 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 2. 完整复制或快照邮件目录/卷。
 3. 记录镜像标签或二进制版本及有效参数/环境变量。
 4. 重要归档应先让新版本读取副本。
-5. 检查 `/healthz`、抽样打开 HTML 和附件，再发送一封新测试邮件。
+5. 检查 `/healthz` 和 `/readyz`、抽样打开 HTML 和附件，再发送一封新测试邮件。
 6. 在不再需要回滚前保留备份。
 
 可复现环境应记录并部署正式发布的
@@ -290,6 +308,7 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 | 浏览器反复要求凭据 | 核对实际用户名/密码；自动密码重启后会变化；必要时清除浏览器缓存凭据 |
 | 设置 SMTP 凭据后入口仍然开放 | 当前入站 SMTP 鉴权未强制执行；使用接口绑定与网络控制隔离监听器 |
 | HTTPS 容器显示 unhealthy | 用 HTTPS 探针和正确证书信任覆盖镜像的 HTTP healthcheck |
+| 启用 S3 后 `/readyz` 返回 503 | 根据安全类别区分 bucket/权限、超时、网络及一般可用性问题；详细信息只查看受保护的进程或供应商日志 |
 | 浏览器没有通知 | 在收件箱中开启，使用 HTTPS 或 localhost，并在浏览器网站设置中恢复权限 |
 | Webhook 投递慢 | 检查接收器延迟、超时和重试；提高并发前先修复接收器或减少重试 |
 | SMTP 正常但直接 SMTPS 失败 | 发布 465 端口，核对证书路径及运行时绑定特权端口的权限 |
@@ -302,5 +321,6 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 ```bash
 docker logs --tail 200 owlmail
 curl --fail http://localhost:1080/healthz
+curl --fail http://localhost:1080/readyz
 curl -u admin:secret http://localhost:1080/api/v1/version
 ```

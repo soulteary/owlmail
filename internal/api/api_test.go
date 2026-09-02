@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -11,9 +12,23 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
+
+type readinessTestStore struct {
+	status attachmentstore.HealthStatus
+}
+
+func (store *readinessTestStore) Put(context.Context, string, string, string, io.Reader, int64) error {
+	return nil
+}
+func (store *readinessTestStore) Open(context.Context, string, string) (*attachmentstore.Object, error) {
+	return nil, os.ErrNotExist
+}
+func (store *readinessTestStore) DeleteEmail(context.Context, string) error { return nil }
+func (store *readinessTestStore) Readiness() attachmentstore.HealthStatus { return store.status }
 
 func setupTestAPI(t *testing.T) (*API, *mailserver.MailServer, string) {
 	tmpDir := t.TempDir()
@@ -124,6 +139,76 @@ func TestAPIHealthCheck(t *testing.T) {
 	}
 	if response["service"] != "owlmail" {
 		t.Errorf("Expected service 'owlmail', got '%v'", response["service"])
+	}
+}
+
+func TestReadinessIsIndependentFromLiveness(t *testing.T) {
+	store := &readinessTestStore{status: attachmentstore.HealthStatus{
+		Category: attachmentstore.HealthPermissionDenied,
+	}}
+	server, err := mailserver.NewMailServerWithOptions(1025, "localhost", t.TempDir(), mailserver.ServerOptions{AttachmentStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPI(server, 1080, "localhost")
+
+	for _, path := range []string{"/readyz", "/api/v1/ready"} {
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("%s error = %v", path, err)
+		}
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("%s status = %d", path, resp.StatusCode)
+		}
+		var payload struct {
+			Status string `json:"status"`
+			Checks map[string]struct {
+				Status   string `json:"status"`
+				Category string `json:"category"`
+			} `json:"checks"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&payload); err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if payload.Status != "not_ready" || payload.Checks["attachment_store"].Category != attachmentstore.HealthPermissionDenied {
+			t.Fatalf("%s payload = %#v", path, payload)
+		}
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("liveness during S3 failure = %d", resp.StatusCode)
+	}
+}
+
+func TestReadinessSanitizesUnknownCategory(t *testing.T) {
+	store := &readinessTestStore{status: attachmentstore.HealthStatus{Category: "https://access:secret@objects.example.test"}}
+	server, err := mailserver.NewMailServerWithOptions(1025, "localhost", t.TempDir(), mailserver.ServerOptions{AttachmentStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPI(server, 1080, "localhost")
+	req, _ := http.NewRequest(http.MethodGet, "/readyz", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if strings.Contains(string(body), "secret") || strings.Contains(string(body), "example.test") || !strings.Contains(string(body), attachmentstore.HealthUnavailable) {
+		t.Fatalf("unsafe readiness body = %s", body)
 	}
 }
 
