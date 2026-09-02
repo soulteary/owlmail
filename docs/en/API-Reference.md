@@ -67,7 +67,7 @@ contract so route additions and removals cannot silently drift.
 - When the optional MailDev REST facade is enabled, only
   `GET /api/email/:id` reproduces MailDev's read-on-fetch side effect.
 - Collection and preview endpoints default to `limit=50` and `offset=0`. The
-  maximum limit is 1000; invalid values fall back to their defaults.
+  maximum limit is 1000; invalid values return `400`.
 - Timestamps are JSON-encoded Go `time.Time` values in RFC 3339 form.
 - Successful mutations usually return `code`, `message`, and optional `data`.
   Handler-level API errors return an HTTP error status plus `code`, `error`,
