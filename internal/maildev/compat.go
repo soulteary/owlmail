@@ -124,7 +124,7 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		Subject:       email.Subject,
 		Source:        filepath.Join(mailDir, email.ID+".eml"),
 		Size:          email.Size,
-		SizeHuman:     email.SizeHuman,
+		SizeHuman:     formatBytes(email.Size),
 		From:          addresses(email.From),
 		To:            addresses(email.To),
 		CC:            addressesOrNil(email.CC),
@@ -137,9 +137,6 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		Envelope: Envelope{
 			To: make([]EnvelopeAddress, 0),
 		},
-	}
-	if result.SizeHuman == "" {
-		result.SizeHuman = formatBytes(result.Size)
 	}
 	if email.Envelope != nil {
 		result.Envelope.From = EnvelopeAddress{Address: email.Envelope.From}
@@ -181,12 +178,9 @@ func FromEmail(email *types.Email, mailDir string) Email {
 func ToSummary(email *types.Email) Summary {
 	result := Summary{
 		ID: email.ID, Time: email.Time, Read: email.Read, Subject: email.Subject,
-		Size: email.Size, SizeHuman: email.SizeHuman, From: addresses(email.From),
+		Size: email.Size, SizeHuman: formatBytes(email.Size), From: addresses(email.From),
 		To: addresses(email.To), CC: addressesOrNil(email.CC),
 		AttachmentCount: len(email.Attachments), Preview: summaryPreview(email.Text),
-	}
-	if result.SizeHuman == "" {
-		result.SizeHuman = formatBytes(result.Size)
 	}
 	return result
 }
@@ -196,13 +190,10 @@ func ToSummary(email *types.Email) Summary {
 func FromEmailSummary(email mailserver.EmailSummary) Summary {
 	result := Summary{
 		ID: email.ID, Time: email.Time, Read: email.Read, Subject: email.Subject,
-		Size: email.Size, SizeHuman: email.SizeHuman,
+		Size: email.Size, SizeHuman: formatBytes(email.Size),
 		From: summaryAddresses(email.From), To: summaryAddresses(email.To),
 		CC: addressesOrNilFromSummary(email.CC), AttachmentCount: email.AttachmentCount,
 		Preview: summaryPreview(email.Text),
-	}
-	if result.SizeHuman == "" {
-		result.SizeHuman = formatBytes(result.Size)
 	}
 	return result
 }
@@ -385,21 +376,22 @@ func priority(headers map[string]interface{}) string {
 }
 
 func formatBytes(size int64) string {
-	if size < 1024 {
-		return fmt.Sprintf("%d B", size)
+	if size <= 0 {
+		return "0 Bytes"
 	}
-	units := []string{"KB", "MB", "GB", "TB"}
+	units := []string{"Bytes", "KB", "MB", "GB", "TB"}
 	value := float64(size)
-	for _, unit := range units {
+	unitIndex := 0
+	for value >= 1024 && unitIndex < len(units)-1 {
 		value /= 1024
-		if value < 1024 || unit == units[len(units)-1] {
-			if value == float64(int64(value)) {
-				return fmt.Sprintf("%.0f %s", value, unit)
-			}
-			return fmt.Sprintf("%.1f %s", value, unit)
-		}
+		unitIndex++
 	}
-	return fmt.Sprintf("%d B", size)
+	if unitIndex == 0 {
+		return fmt.Sprintf("%d Bytes", size)
+	}
+	formatted := strconv.FormatFloat(value, 'f', 2, 64)
+	formatted = strings.TrimRight(strings.TrimRight(formatted, "0"), ".")
+	return formatted + " " + units[unitIndex]
 }
 
 // MatchesFilters applies MailDev's exact, case-sensitive query-string field

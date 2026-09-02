@@ -8,13 +8,14 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
 func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 	received := time.Date(2026, time.January, 5, 19, 2, 9, 0, time.UTC)
 	source := &types.Email{
-		ID: "XwgKAxto", Time: received, Subject: "Surfers", Size: 1024,
+		ID: "XwgKAxto", Time: received, Subject: "Surfers", Size: 1024, SizeHuman: "1.00 KB",
 		From: []*mail.Address{{Name: "Angelo Pappas", Address: "angelo@fbi.gov"}},
 		To:   []*mail.Address{{Name: "Johnny Utah", Address: "johnny@fbi.gov"}},
 		Headers: map[string]interface{}{
@@ -64,6 +65,9 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 	if dto.InReplyTo != "<earlier@fbi.gov>" {
 		t.Fatalf("InReplyTo = %q", dto.InReplyTo)
 	}
+	if dto.SizeHuman != "1 KB" {
+		t.Fatalf("SizeHuman = %q, want MailDev-formatted size", dto.SizeHuman)
+	}
 	if _, exists := dto.Headers["Date"]; exists {
 		t.Fatalf("headers were not normalized to MailDev lowercase keys: %#v", dto.Headers)
 	}
@@ -85,12 +89,17 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 func TestToSummaryMatchesMailDevProjection(t *testing.T) {
 	dto := ToSummary(&types.Email{
 		ID: "summary", Subject: "Subject", Text: "  hello\n\tworld  ",
+		Size: 2560, SizeHuman: "2.50 KiB",
 		From:        []*mail.Address{{Address: "from@example.com"}},
 		To:          []*mail.Address{{Address: "to@example.com"}},
 		Attachments: []*types.Attachment{{}, {}},
 	})
-	if dto.Preview != "hello world" || dto.AttachmentCount != 2 {
+	if dto.Preview != "hello world" || dto.AttachmentCount != 2 || dto.SizeHuman != "2.5 KB" {
 		t.Fatalf("unexpected summary: %#v", dto)
+	}
+	projected := FromEmailSummary(mailserver.EmailSummary{Size: 1024, SizeHuman: "1.00 KB"})
+	if projected.SizeHuman != "1 KB" {
+		t.Fatalf("projected SizeHuman = %q, want MailDev-formatted size", projected.SizeHuman)
 	}
 	encoded, err := json.Marshal(dto)
 	if err != nil {
@@ -99,6 +108,26 @@ func TestToSummaryMatchesMailDevProjection(t *testing.T) {
 	for _, forbidden := range []string{`"html"`, `"text"`, `"headers"`} {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("body field leaked into summary: %s", encoded)
+		}
+	}
+}
+
+func TestFormatBytesMatchesMailDev(t *testing.T) {
+	for _, tc := range []struct {
+		size int64
+		want string
+	}{
+		{-1, "0 Bytes"},
+		{0, "0 Bytes"},
+		{500, "500 Bytes"},
+		{1024, "1 KB"},
+		{1234, "1.21 KB"},
+		{2560, "2.5 KB"},
+		{1572864, "1.5 MB"},
+		{1073741824, "1 GB"},
+	} {
+		if got := formatBytes(tc.size); got != tc.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", tc.size, got, tc.want)
 		}
 	}
 }
