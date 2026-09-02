@@ -4,6 +4,24 @@
 关闭行为和常见故障。协议细节见 [API 参考](./API-Reference.md)与
 [Webhook 消息转发](./Webhook-Forwarding.md)。
 
+## 分层配置文件
+
+使用 `-config PATH` 或 `OWLMAIL_CONFIG_FILE` 加载扁平的 YAML 或 JSON 对象。
+键名使用不带开头短横线的 CLI 参数名：
+
+```yaml
+smtp: 1025
+web: 1080
+web-ip: 127.0.0.1
+mail-directory: ./data/mail
+metrics-enabled: true
+log-level: normal
+```
+
+优先级依次为 CLI 参数、MailDev 兼容环境变量、`OWLMAIL_*` 环境变量、配置文件、
+内置默认值。未知、重复、嵌套、null、超大或类型错误的文件值会使启动失败。文件上限
+为 1 MiB。包含密码或对象存储凭据的配置文件不应提交到源码仓库，并应限制文件权限。
+
 ## 邮箱保留策略与状态
 
 OwlMail 可以同时限制邮件年龄、封数和磁盘占用：

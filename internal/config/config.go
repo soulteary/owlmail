@@ -1,11 +1,12 @@
 // Package config provides configuration parsing with MailDev environment variable compatibility.
 // It uses cli-kit for environment variable management and validation.
 //
-// Priority order: CLI flags > MAILDEV_* env vars > OWLMAIL_* env vars > default values
+// Priority order: CLI flags > MAILDEV_* env vars > OWLMAIL_* env vars > config file > default values
 package config
 
 import (
 	"flag"
+	"os"
 	"strconv"
 
 	"github.com/soulteary/cli-kit/env"
@@ -251,6 +252,7 @@ func ResolveLogLevel(fs *flag.FlagSet, flagName, defaultValue string) string {
 
 // Config holds all application configuration
 type Config struct {
+	ConfigFile string
 	// SMTP server configuration
 	SMTPPort            int
 	SMTPHost            string
@@ -345,6 +347,7 @@ type Config struct {
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
+		ConfigFile:                  "",
 		SMTPPort:                    1025,
 		SMTPHost:                    "localhost",
 		SMTPMaxMessageMB:            DefaultSMTPMaxMessageMB,
@@ -419,6 +422,7 @@ func DefaultConfig() *Config {
 
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
+	ConfigFile                  *string
 	SMTPPort                    *int
 	SMTPHost                    *string
 	SMTPMaxMessageMB            *int
@@ -492,8 +496,16 @@ type FlagRefs struct {
 // DefineFlags defines all configuration flags on the given FlagSet.
 // It returns FlagRefs which should be passed to ResolveConfig after parsing.
 func DefineFlags(fs *flag.FlagSet) *FlagRefs {
-	cfg := DefaultConfig()
+	return DefineFlagsWithDefaults(fs, DefaultConfig())
+}
+
+// DefineFlagsWithDefaults defines flags using a preloaded configuration layer.
+func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
 	return &FlagRefs{
+		ConfigFile:                  fs.String("config", cfg.ConfigFile, "YAML or JSON configuration file"),
 		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
 		SMTPHost:                    fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		SMTPMaxMessageMB:            fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
@@ -571,6 +583,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	outgoingSecure, outgoingTLSMode := resolveOutgoingTransport(fs, *refs.OutgoingSecure, *refs.OutgoingTLSMode)
 	return &Config{
+		ConfigFile:          resolveStringWithFlag(fs, "config", "OWLMAIL_CONFIG_FILE", *refs.ConfigFile),
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
@@ -708,11 +721,22 @@ func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 // ParseFlags is a convenience function that defines flags, parses arguments, and resolves config.
 // Note: This uses flag.CommandLine, so it should only be used in main().
 // For tests, use DefineFlags and ResolveConfig separately.
-func ParseFlags() *Config {
+func ParseFlags() (*Config, error) {
 	fs := flag.CommandLine
-	refs := DefineFlags(fs)
+	configPath, err := configFileFromArgs(os.Args[1:])
+	if err != nil {
+		return nil, err
+	}
+	defaults := DefaultConfig()
+	if configPath != "" {
+		defaults, err = LoadConfigFile(configPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	refs := DefineFlagsWithDefaults(fs, defaults)
 	flag.Parse()
-	return ResolveConfig(fs, refs)
+	return ResolveConfig(fs, refs), nil
 }
 
 // resolveStringWithFlag resolves a string value considering CLI flag was already parsed

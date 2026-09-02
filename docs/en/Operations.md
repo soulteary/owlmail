@@ -5,6 +5,26 @@ readiness, persistence, webhook capacity, shutdown behavior, and common failure
 modes. See the [API Reference](./API-Reference.md) and
 [Webhook Forwarding](./Webhook-Forwarding.md) for protocol details.
 
+## Layered configuration files
+
+Use `-config PATH` or `OWLMAIL_CONFIG_FILE` to load a flat YAML or JSON object.
+Keys are the documented CLI option names without the leading dash:
+
+```yaml
+smtp: 1025
+web: 1080
+web-ip: 127.0.0.1
+mail-directory: ./data/mail
+metrics-enabled: true
+log-level: normal
+```
+
+Precedence is CLI flags, MailDev-compatible environment aliases, `OWLMAIL_*`
+environment variables, the configuration file, then built-in defaults. Unknown,
+duplicate, nested, null, oversized, and type-invalid file values fail startup.
+The file is limited to 1 MiB. Keep files containing passwords or object-storage
+credentials out of source control and restrict their filesystem permissions.
+
 ## Mailbox retention and state
 
 OwlMail can enforce age, message-count, and disk-usage limits together:
