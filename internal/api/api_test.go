@@ -28,7 +28,7 @@ func (store *readinessTestStore) Open(context.Context, string, string) (*attachm
 	return nil, os.ErrNotExist
 }
 func (store *readinessTestStore) DeleteEmail(context.Context, string) error { return nil }
-func (store *readinessTestStore) Readiness() attachmentstore.HealthStatus { return store.status }
+func (store *readinessTestStore) Readiness() attachmentstore.HealthStatus   { return store.status }
 
 func setupTestAPI(t *testing.T) (*API, *mailserver.MailServer, string) {
 	tmpDir := t.TempDir()
