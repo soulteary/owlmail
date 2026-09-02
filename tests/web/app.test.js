@@ -361,6 +361,36 @@ test('email detail offers HTML, text, headers, and source tabs', () => {
     }
     assert.match(markup, /role="tablist"/);
     assert.match(markup, /role="tabpanel"/);
+    assert.match(markup, /tabindex="0"/);
+    for (const locale of ['zh-CN', 'en', 'de', 'it', 'fr', 'ko', 'ja']) {
+        assert.equal(harness.run(`Boolean(translations[${JSON.stringify(locale)}].contentSource)`), true);
+    }
+});
+
+test('email content tabs support arrow-key navigation', () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'mail-1', html: '', text: 'hello', headers: {}, attachments: [] }; emailContentTab = 'text'`);
+    let prevented = false;
+    harness.run(`handleEmailContentTabKeydown({ key: 'ArrowRight', preventDefault() { globalThis.prevented = true; } }, 'text')`);
+    prevented = harness.run('globalThis.prevented');
+    assert.equal(prevented, true);
+    assert.equal(harness.run('emailContentTab'), 'headers');
+});
+
+test('source load failures replace the loading placeholder', async () => {
+    const harness = createHarness({
+        fetchImpl: async () => ({
+            ok: false,
+            status: 500,
+            headers: { get: () => 'application/json' },
+            async json() { return { message: 'source unavailable' }; },
+            async text() { return '{"message":"source unavailable"}'; }
+        })
+    });
+    harness.run(`state.currentEmail = { id: 'mail-1', html: '', text: 'hello', headers: {}, attachments: [] }`);
+    await harness.run(`setEmailContentTab('source')`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Loading source'), false);
+    assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), true);
 });
 
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
