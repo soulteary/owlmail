@@ -228,7 +228,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | 邮箱最大磁盘 MiB；`0` 表示不限 |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | 后台保留策略清理间隔 |
-| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | empty | 可选的 SQLite 邮箱查询索引路径；索引可重建，EML 文件仍是权威数据源 |
+| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 可选的 SQLite 邮箱查询索引路径；索引可重建，EML 文件仍是权威数据源 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 将解析后的附件存入 S3 兼容对象存储 |
 | `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | 自定义 S3 兼容端点；留空使用 AWS S3 |
 | `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 签名区域 |
