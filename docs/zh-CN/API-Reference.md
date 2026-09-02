@@ -341,6 +341,27 @@ polling transport，也不发送 MailDev 的 `newMail`、`deleteMail` 事件。
 客户端可发送 `{ "type": "ping" }` 并收到 `{ "type": "pong" }`。这里没有
 Socket.IO 帧、事件协商或降级传输。
 
+## 可选 MailCatcher REST facade
+
+设置 `-mailcatcher-rest-compat` 或 `OWLMAIL_MAILCATCHER_REST_COMPAT=true` 可启用
+MailCatcher 风格的消息路由。该功能默认关闭，并遵循 OwlMail 的基础路径与 Web Basic
+Auth 策略。
+
+| 方法与路径 | 用途 |
+|---|---|
+| `GET /messages` | 列出消息元数据 |
+| `DELETE /messages` | 删除全部消息 |
+| `GET /messages/:id.json` | 返回消息元数据、格式与附件 |
+| `GET /messages/:id.html` | 返回已重写 CID URL 的 HTML 正文 |
+| `GET /messages/:id.plain` | 返回纯文本正文 |
+| `GET /messages/:id.source` | 返回 RFC 822 源码 |
+| `GET /messages/:id.eml` | 下载 RFC 822 邮件 |
+| `GET /messages/:id/parts/:cid` | 按内容 ID 返回附件或内联 MIME 部分 |
+| `DELETE /messages/:id` | 删除单封消息 |
+
+这是 REST 迁移辅助层，不模拟 MailCatcher 的 WebSocket 总线或整数 ID 分配；客户端应将
+ID 视为不透明字符串。
+
 ## MailDev 迁移边界
 
 当前 MailDev 文档将 REST API 放在 `/api` 下，提供 `/api/email/summary` 和

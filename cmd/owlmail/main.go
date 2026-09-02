@@ -454,6 +454,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
+	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
 	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
@@ -503,6 +504,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 	if cfg.MailDevRESTCompat {
 		common.Log("MailDev REST compatibility facade enabled at %s://%s:%d%s/api", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
+	}
+	if cfg.MailCatcherRESTCompat {
+		common.Log("MailCatcher REST compatibility facade enabled at %s://%s:%d%s/messages", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
 	}
 	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
 	if cfg.WebUser != "" && cfg.WebPassword != "" {

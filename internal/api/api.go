@@ -24,25 +24,26 @@ import (
 
 // API represents the REST API server
 type API struct {
-	mailServer        *mailserver.MailServer
-	app               *fiber.App
-	port              int
-	host              string
-	wsUpgrader        websocket.Upgrader
-	wsClients         map[*websocket.Conn]*sync.Mutex
-	wsClientsLock     sync.RWMutex
-	authUser          string
-	authPassword      string
-	httpsEnabled      bool
-	httpsCertFile     string
-	httpsKeyFile      string
-	externalScheme    string
-	basePathname      string
-	mailDevRESTCompat bool
-	metricsEnabled    bool
-	metrics           *prometheusMetrics
-	mcpHandler        http.Handler
-	relayJobs         *relayJobStore
+	mailServer            *mailserver.MailServer
+	app                   *fiber.App
+	port                  int
+	host                  string
+	wsUpgrader            websocket.Upgrader
+	wsClients             map[*websocket.Conn]*sync.Mutex
+	wsClientsLock         sync.RWMutex
+	authUser              string
+	authPassword          string
+	httpsEnabled          bool
+	httpsCertFile         string
+	httpsKeyFile          string
+	externalScheme        string
+	basePathname          string
+	mailDevRESTCompat     bool
+	mailCatcherRESTCompat bool
+	metricsEnabled        bool
+	metrics               *prometheusMetrics
+	mcpHandler            http.Handler
+	relayJobs             *relayJobStore
 }
 
 // NewAPI creates a new API server instance
@@ -118,6 +119,12 @@ func (api *API) SetBasePathname(basePathname string) error {
 func (api *API) SetMailDevRESTCompat(enabled bool) {
 	api.mailDevRESTCompat = enabled
 	api.mailServer.SetRetainAllHeaders(enabled)
+	api.setupRoutes()
+}
+
+// SetMailCatcherRESTCompat enables or disables the opt-in MailCatcher facade.
+func (api *API) SetMailCatcherRESTCompat(enabled bool) {
+	api.mailCatcherRESTCompat = enabled
 	api.setupRoutes()
 }
 
@@ -215,6 +222,9 @@ func (api *API) setupRoutes() {
 	if api.mailDevRESTCompat {
 		api.setupMailDevRESTCompatRoutes(app)
 	}
+	if api.mailCatcherRESTCompat {
+		api.setupMailCatcherRESTCompatRoutes(app)
+	}
 
 	// ============================================================================
 	// New improved RESTful API routes
@@ -249,6 +259,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/mcp") ||
 			strings.HasPrefix(path, "/metrics") ||
 			strings.HasPrefix(path, "/api/") ||
+			strings.HasPrefix(path, "/messages") ||
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
 			strings.HasPrefix(path, "/service-worker.js") ||
