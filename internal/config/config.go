@@ -197,6 +197,29 @@ func ResolveBool(fs *flag.FlagSet, flagName, owlmailKey string, defaultValue boo
 	return defaultValue
 }
 
+// resolveOutgoingTransport resolves the modern TLS mode and the legacy secure
+// alias as one setting, so a higher-priority source cannot be shadowed by the
+// other selector. At the same priority, the explicit TLS mode is preferred.
+func resolveOutgoingTransport(fs *flag.FlagSet, defaultSecure bool, defaultTLSMode string) (bool, string) {
+	if fs != nil && flagutil.HasFlag(fs, "outgoing-tls-mode") {
+		return false, flagutil.GetString(fs, "outgoing-tls-mode", defaultTLSMode)
+	}
+	if fs != nil && flagutil.HasFlag(fs, "outgoing-secure") {
+		return flagutil.GetBool(fs, "outgoing-secure", defaultSecure), ""
+	}
+
+	if env.Has("MAILDEV_OUTGOING_SECURE") {
+		return env.GetBool("MAILDEV_OUTGOING_SECURE", defaultSecure), ""
+	}
+	if value := env.Get("OWLMAIL_OUTGOING_TLS_MODE", ""); value != "" {
+		return false, value
+	}
+	if env.Has("OWLMAIL_OUTGOING_SECURE") {
+		return env.GetBool("OWLMAIL_OUTGOING_SECURE", defaultSecure), ""
+	}
+	return defaultSecure, defaultTLSMode
+}
+
 // ResolveLogLevel resolves the log level with MailDev compatibility.
 // MailDev uses MAILDEV_VERBOSE and MAILDEV_SILENT environment variables.
 // OwlMail uses OWLMAIL_LOG_LEVEL with values: silent, normal, verbose
@@ -546,6 +569,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 // This should be called after DefineFlags and fs.Parse().
 // Priority: CLI flags > MAILDEV_* env > OWLMAIL_* env > default values
 func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
+	outgoingSecure, outgoingTLSMode := resolveOutgoingTransport(fs, *refs.OutgoingSecure, *refs.OutgoingTLSMode)
 	return &Config{
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
@@ -582,8 +606,8 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		OutgoingPort:                resolveIntWithFlag(fs, "outgoing-port", "OWLMAIL_OUTGOING_PORT", *refs.OutgoingPort),
 		OutgoingUser:                resolveStringWithFlag(fs, "outgoing-user", "OWLMAIL_OUTGOING_USER", *refs.OutgoingUser),
 		OutgoingPass:                resolveStringWithFlag(fs, "outgoing-pass", "OWLMAIL_OUTGOING_PASSWORD", *refs.OutgoingPass),
-		OutgoingSecure:              resolveBoolWithFlag(fs, "outgoing-secure", "OWLMAIL_OUTGOING_SECURE", *refs.OutgoingSecure),
-		OutgoingTLSMode:             resolveStringWithFlag(fs, "outgoing-tls-mode", "OWLMAIL_OUTGOING_TLS_MODE", *refs.OutgoingTLSMode),
+		OutgoingSecure:              outgoingSecure,
+		OutgoingTLSMode:             outgoingTLSMode,
 		OutgoingInsecureSkipVerify:  resolveBoolWithFlag(fs, "outgoing-insecure-skip-verify", "OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY", *refs.OutgoingInsecureSkipVerify),
 		OutgoingConnectTimeout:      resolveStringWithFlag(fs, "outgoing-connect-timeout", "OWLMAIL_OUTGOING_CONNECT_TIMEOUT", *refs.OutgoingConnectTimeout),
 		OutgoingTLSHandshakeTimeout: resolveStringWithFlag(fs, "outgoing-tls-handshake-timeout", "OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT", *refs.OutgoingTLSHandshakeTimeout),
