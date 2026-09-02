@@ -203,6 +203,7 @@ docker buildx build \
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` などの URL パス接頭辞。既定はルートパス |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade を明示的に有効化。Socket.IO は引き続き非互換 |
+| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | ベースパス配下の `/metrics` で Prometheus メトリクスを公開。Web Basic Auth 設定時は同じ認証で保護 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp` で読み取り専用 MCP Streamable HTTP エンドポイントを有効化 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | アイドル状態の MCP セッションを終了 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | シャットダウン時に MCP セッションを終了する期限 |

@@ -203,6 +203,7 @@ docker buildx build \
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Host API Web |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Prefisso del percorso URL come `/owlmail`; la radice resta predefinita |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Abilita esplicitamente il facade REST MailDev sotto `/api`; Socket.IO resta incompatibile |
+| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Espone metriche Prometheus su `/metrics` rispettando il percorso base; usa la Basic Auth Web se configurata |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Abilita l'endpoint MCP Streamable HTTP in sola lettura in `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Chiude le sessioni MCP inattive |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Termine per chiudere le sessioni MCP durante l'arresto |
