@@ -584,10 +584,13 @@ func resolveSMTPMaxConcurrencyWithFlag(fs *flag.FlagSet, flagValue int) int {
 	return value
 }
 
-// resolveSMTPMaxRecipientsWithFlag preserves invalid environment input as a
+// resolveSMTPMaxRecipientsWithFlag preserves invalid explicit input as a
 // validation failure instead of silently falling back to the default.
 func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 	if flagutil.HasFlag(fs, "smtp-max-recipients") {
+		if flagValue == 0 {
+			return -1
+		}
 		return flagValue
 	}
 	if !env.Has("OWLMAIL_SMTP_MAX_RECIPIENTS") {
@@ -598,7 +601,7 @@ func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 		return flagValue
 	}
 	value, err := strconv.Atoi(raw)
-	if err != nil {
+	if err != nil || value == 0 {
 		return -1
 	}
 	return value

@@ -47,6 +47,36 @@ func TestSMTPMaxRecipientsRejectsMalformedEnvironment(t *testing.T) {
 	}
 }
 
+func TestSMTPMaxRecipientsRejectsExplicitZero(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		env  bool
+	}{
+		{name: "flag"},
+		{name: "environment", env: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fs := flag.NewFlagSet("smtp-max-recipients-zero", flag.ContinueOnError)
+			refs := DefineFlags(fs)
+			args := []string{"-smtp-max-recipients=0"}
+			if test.env {
+				t.Setenv("OWLMAIL_SMTP_MAX_RECIPIENTS", "0")
+				args = nil
+			}
+			if err := fs.Parse(args); err != nil {
+				t.Fatal(err)
+			}
+			cfg := ResolveConfig(fs, refs)
+			if cfg.SMTPMaxRecipients != -1 {
+				t.Fatalf("SMTPMaxRecipients = %d, want invalid sentinel -1", cfg.SMTPMaxRecipients)
+			}
+			if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "greater than zero") {
+				t.Fatalf("ValidateConfig() error = %v, want recipient-limit validation error", err)
+			}
+		})
+	}
+}
+
 func TestSMTPProtocolLimitsRejectInvalidValues(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"read timeout":  func(cfg *Config) { cfg.SMTPReadTimeout = "never" },
