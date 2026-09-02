@@ -30,7 +30,10 @@ const (
 	DefaultQuitTimeout         = 5 * time.Second
 )
 
-var ErrSTARTTLSUnsupported = errors.New("outgoing SMTP server does not support STARTTLS")
+var (
+	ErrSTARTTLSUnsupported  = errors.New("outgoing SMTP server does not support STARTTLS")
+	ErrAUTHPlainUnsupported = errors.New("outgoing SMTP server does not advertise AUTH PLAIN")
+)
 
 type smtpTimeouts struct {
 	connect      time.Duration
@@ -242,6 +245,10 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		if config.TLSMode == TLSModePlain {
 			return fmt.Errorf("outgoing SMTP authentication requires TLS")
 		}
+		mechanisms, ok := client.Extension("AUTH")
+		if !ok || !supportsAuthMechanism(mechanisms, "PLAIN") {
+			return ErrAUTHPlainUnsupported
+		}
 		if err := setPhaseDeadline(ctx, smtpConn, timeouts.auth); err != nil {
 			return err
 		}
@@ -308,6 +315,15 @@ func remainingPhaseBudget(deadline time.Time) time.Duration {
 		return 0
 	}
 	return remaining
+}
+
+func supportsAuthMechanism(advertised, required string) bool {
+	for _, mechanism := range strings.Fields(advertised) {
+		if strings.EqualFold(mechanism, required) {
+			return true
+		}
+	}
+	return false
 }
 
 func setAbsoluteDeadline(ctx context.Context, conn net.Conn, deadline time.Time) error {
