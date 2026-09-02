@@ -27,8 +27,9 @@ for stable credentials. Startup fails if that generated password cannot be
 written to stderr, because no recoverable credential would remain. The health
 endpoints remain unauthenticated. When Basic Auth is enabled, browser requests
 carrying an `Origin` header and WebSocket upgrades must come from OwlMail's own
-origin; server-to-server clients that omit `Origin` are accepted. Use HTTPS
-outside a trusted local development machine.
+origin; this same-origin check still applies to the unauthenticated health
+endpoints and can return plain-text `403`. Server-to-server clients that omit
+`Origin` are accepted. Use HTTPS outside a trusted local development machine.
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
@@ -222,7 +223,9 @@ development defaults for values that were not injected.
 The outgoing settings body supports `host`, `port`, `user`, `password`,
 `secure`, `autoRelay`, `autoRelayAddr`, `allowRules`, and `denyRules`. `host` is
 required and `port` must be between 1 and 65535. Changes are in memory; they do
-not rewrite the process flags or environment.
+not rewrite the process flags or environment. In PATCH requests, rule lists
+must be arrays when present; use an empty array to clear a list because `null`
+is not an update.
 
 The `smtpAuth` object returned by the settings endpoint is `null` in NO AUTH
 mode and reflects the configured username (never the password) when required

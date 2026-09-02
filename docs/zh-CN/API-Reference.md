@@ -23,8 +23,9 @@ MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一
 自动生成的密码会在每次重启时变化；需要固定凭据时请显式配置两项。如果无法
 将该密码写入 stderr，OwlMail 会启动失败，因为此时不存在可恢复的有效凭据。
 健康检查端点不要求鉴权。启用 Basic Auth 后，携带 `Origin` 的浏览器请求和
-WebSocket 升级必须来自 OwlMail 自身源；不携带 `Origin` 的服务端客户端仍可
-访问。离开可信本地开发环境时应同时启用 HTTPS。
+WebSocket 升级必须来自 OwlMail 自身源；此同源检查仍适用于无需鉴权的健康检查
+端点，并可能返回纯文本 `403`。不携带 `Origin` 的服务端客户端仍可访问。离开
+可信本地开发环境时应同时启用 HTTPS。
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
@@ -190,6 +191,8 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 出站设置请求体支持 `host`、`port`、`user`、`password`、`secure`、
 `autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。`host` 必填，`port`
 必须在 1 到 65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。
+PATCH 请求中的规则列表如出现必须是数组；要清空列表请传空数组，`null` 不会触发
+更新。
 
 NO AUTH 模式下，设置端点返回的 `smtpAuth` 为 `null`；启用强制认证后，该对象只
 返回配置的用户名，不会返回密码。同时设置 `OWLMAIL_SMTP_USER` 与

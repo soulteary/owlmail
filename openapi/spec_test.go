@@ -57,6 +57,7 @@ func TestDocumentsParseAndStayEquivalent(t *testing.T) {
 
 	validateDocumentShape(t, parsedJSON)
 	validateSecuritySemantics(t, parsedJSON)
+	validatePatchSemantics(t, parsedJSON)
 	validateQuerySemantics(t, parsedJSON)
 	validateRelaySemantics(t, parsedJSON)
 	validateLocalReferences(t, parsedJSON, parsedJSON)
@@ -99,6 +100,24 @@ func validateSecuritySemantics(t *testing.T, document map[string]any) {
 		operation := paths[path].(map[string]any)["get"].(map[string]any)
 		if public, ok := operation["security"].([]any); !ok || len(public) != 0 {
 			t.Errorf("GET %s security = %#v, want an explicit public override", path, operation["security"])
+		}
+		responses := operation["responses"].(map[string]any)
+		if _, ok := responses["403"]; !ok {
+			t.Errorf("GET %s does not document the browser same-origin 403 response", path)
+		}
+	}
+}
+
+func validatePatchSemantics(t *testing.T, document map[string]any) {
+	t.Helper()
+	components := document["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	patch := schemas["OutgoingSettingsPatch"].(map[string]any)
+	properties := patch["properties"].(map[string]any)
+	for _, name := range []string{"allowRules", "denyRules"} {
+		property := properties[name].(map[string]any)
+		if got := property["type"]; got != "array" {
+			t.Errorf("OutgoingSettingsPatch.%s type = %#v, want non-null array", name, got)
 		}
 	}
 }

@@ -766,6 +766,8 @@ paths:
       tags:
       - Operations
       summary: Check process liveness
+      description: Unauthenticated. When Basic Auth deployment middleware is active, a browser request with a foreign `Origin`
+        is rejected with a plain-text 403 before reaching this handler.
       operationId: getHealth
       security: []
       x-owlmail-public: true
@@ -779,13 +781,16 @@ paths:
               example:
                 status: ok
                 service: owlmail
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /ready:
     get:
       tags:
       - Operations
       summary: Check cached dependency readiness
       description: Reads the cached attachment-store health and never performs a synchronous S3 request. Responses expose
-        only safe categories.
+        only safe categories. This endpoint is unauthenticated, but when Basic Auth deployment middleware is active, a browser
+        request with a foreign `Origin` is rejected with a plain-text 403 before reaching this handler.
       operationId: getReadiness
       security: []
       x-owlmail-public: true
@@ -814,6 +819,8 @@ paths:
                     status: unready
                     error_category: permission
                     checked_at: '2026-09-02T12:00:00Z'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /version:
     get:
       tags:
@@ -1410,15 +1417,11 @@ components:
         autoRelayAddr:
           type: string
         allowRules:
-          type:
-          - array
-          - 'null'
+          type: array
           items:
             type: string
         denyRules:
-          type:
-          - array
-          - 'null'
+          type: array
           items:
             type: string
       additionalProperties: true
