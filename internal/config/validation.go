@@ -41,6 +41,15 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.SMTPMaxConcurrency < 0 {
 		return fmt.Errorf("SMTP max concurrency must be a non-negative integer")
 	}
+	if readTimeout, err := time.ParseDuration(cfg.SMTPReadTimeout); err != nil || readTimeout <= 0 {
+		return fmt.Errorf("SMTP read timeout must be a positive duration")
+	}
+	if writeTimeout, err := time.ParseDuration(cfg.SMTPWriteTimeout); err != nil || writeTimeout <= 0 {
+		return fmt.Errorf("SMTP write timeout must be a positive duration")
+	}
+	if cfg.SMTPMaxRecipients <= 0 {
+		return fmt.Errorf("SMTP max recipients must be greater than zero")
+	}
 	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
 		return fmt.Errorf("SMTP username and password must be configured together")
 	}

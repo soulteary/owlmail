@@ -199,6 +199,9 @@ docker buildx build \
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP-Host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximale Größe eingehender Nachrichten in MiB |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Gleichzeitige DATA-Transaktionen pro Prozess über SMTP, STARTTLS und SMTPS; `0` ist unbegrenzt; bei vollem Limit folgt ein wiederholbarer Fehler `451 4.3.2` |
+| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | Lese-Timeout für SMTP-Befehle und DATA |
+| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | Schreib-Timeout für SMTP-Antworten |
+| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximale Empfängerzahl pro Nachricht |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web-API-Port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web-API-Host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL-Pfadpräfix wie `/owlmail`; standardmäßig wird der Root-Pfad verwendet |

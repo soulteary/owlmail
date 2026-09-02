@@ -199,6 +199,9 @@ docker buildx build \
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 受信メッセージの最大サイズ（MiB） |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | SMTP・STARTTLS・SMTPS 全体でのプロセス単位の同時 DATA トランザクション数。`0` は無制限。上限時は再試行可能な `451 4.3.2` を返す |
+| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP コマンドおよび DATA の読み取りタイムアウト |
+| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 応答の書き込みタイムアウト |
+| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 1 メッセージあたりの最大受信者数 |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` などの URL パス接頭辞。既定はルートパス |

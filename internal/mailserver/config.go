@@ -45,6 +45,12 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if options.MaxDataConcurrency < 0 {
 		return nil, fmt.Errorf("SMTP DATA max concurrency must be zero or greater")
 	}
+	if options.ReadTimeout < 0 || options.WriteTimeout < 0 {
+		return nil, fmt.Errorf("SMTP timeouts must be zero or greater")
+	}
+	if options.MaxRecipients < 0 {
+		return nil, fmt.Errorf("SMTP max recipients must be zero or greater")
+	}
 	if options.AuthRequireTLS && (options.TLSConfig == nil || !options.TLSConfig.Enabled) {
 		return nil, fmt.Errorf("SMTP AUTH cannot require TLS without an enabled TLS configuration")
 	}
@@ -72,6 +78,18 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if maxMessageBytes <= 0 {
 		maxMessageBytes = DefaultMaxMessageBytes
 	}
+	readTimeout := options.ReadTimeout
+	if readTimeout == 0 {
+		readTimeout = defaultSMTPReadTimeout
+	}
+	writeTimeout := options.WriteTimeout
+	if writeTimeout == 0 {
+		writeTimeout = defaultSMTPWriteTimeout
+	}
+	maxRecipients := options.MaxRecipients
+	if maxRecipients == 0 {
+		maxRecipients = defaultSMTPMaxRecipients
+	}
 
 	// Create mail directory
 	if err := os.MkdirAll(mailDir, 0755); err != nil {
@@ -87,6 +105,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
 		maxDataConcurrency:      options.MaxDataConcurrency,
+		readTimeout:             readTimeout,
+		writeTimeout:            writeTimeout,
+		maxRecipients:           maxRecipients,
 		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
@@ -131,10 +152,10 @@ func (ms *MailServer) setupSMTPServer() error {
 
 	s.Addr = fmt.Sprintf("%s:%d", ms.host, ms.port)
 	s.Domain = "localhost"
-	s.ReadTimeout = 10 * time.Second
-	s.WriteTimeout = 10 * time.Second
+	s.ReadTimeout = ms.readTimeout
+	s.WriteTimeout = ms.writeTimeout
 	s.MaxMessageBytes = ms.maxMessageBytes
-	s.MaxRecipients = 50
+	s.MaxRecipients = ms.maxRecipients
 	s.EnableSMTPUTF8 = true
 
 	// Preserve the development-friendly default while allowing deployments to
@@ -171,10 +192,10 @@ func (ms *MailServer) setupSMTPServer() error {
 		smtps := smtp.NewServer(be)
 		smtps.Addr = fmt.Sprintf("%s:465", ms.host)
 		smtps.Domain = "localhost"
-		smtps.ReadTimeout = 10 * time.Second
-		smtps.WriteTimeout = 10 * time.Second
+		smtps.ReadTimeout = ms.readTimeout
+		smtps.WriteTimeout = ms.writeTimeout
 		smtps.MaxMessageBytes = ms.maxMessageBytes
-		smtps.MaxRecipients = 50
+		smtps.MaxRecipients = ms.maxRecipients
 		smtps.EnableSMTPUTF8 = true
 
 		smtps.AllowInsecureAuth = !ms.authRequireTLS
