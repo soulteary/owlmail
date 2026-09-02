@@ -63,6 +63,7 @@ type EmailSummaryAddress struct {
 type EmailSummary struct {
 	ID              string
 	Time            time.Time
+	ReceivedAt      time.Time
 	Read            bool
 	Subject         string
 	Size            int64
@@ -72,6 +73,8 @@ type EmailSummary struct {
 	CC              []EmailSummaryAddress
 	AttachmentCount int
 	Text            string
+	EnvelopeFrom    string
+	EnvelopeTo      []string
 }
 
 // QueryEmails returns detached full-email snapshots for one page and the
@@ -149,12 +152,15 @@ type emailQueryEntry struct {
 	source          *types.Email
 	id              string
 	time            time.Time
+	receivedAt      time.Time
 	read            bool
 	subject         string
 	from            []emailQueryAddress
 	to              []emailQueryAddress
 	cc              []emailQueryAddress
 	calculatedBCC   []emailQueryAddress
+	envelopeFrom    string
+	envelopeTo      []string
 	text            string
 	html            string
 	size            int64
@@ -196,7 +202,9 @@ func (ms *MailServer) snapshotEmailQueryEntries(query EmailQuery) []emailQueryEn
 			if query.MatchStoreEmail != nil && !query.MatchStoreEmail(email) {
 				continue
 			}
-			entries = append(entries, snapshotEmailQueryEntry(email, needFrom, needTo))
+			entry := snapshotEmailQueryEntry(email, needFrom, needTo)
+			entry.receivedAt = ms.receivedAtByID[id]
+			entries = append(entries, entry)
 		}
 	}
 	return entries
@@ -234,6 +242,10 @@ func (ms *MailServer) snapshotSummaryQueryAddresses(entries []emailQueryEntry) {
 		entries[i].from = snapshotQueryAddresses(entries[i].source.From)
 		entries[i].to = snapshotQueryAddresses(entries[i].source.To)
 		entries[i].cc = snapshotQueryAddresses(entries[i].source.CC)
+		if entries[i].source.Envelope != nil {
+			entries[i].envelopeFrom = entries[i].source.Envelope.From
+			entries[i].envelopeTo = append([]string(nil), entries[i].source.Envelope.To...)
+		}
 	}
 }
 
@@ -442,6 +454,7 @@ func makeEmailSummary(email emailQueryEntry) EmailSummary {
 	return EmailSummary{
 		ID:              email.id,
 		Time:            email.time,
+		ReceivedAt:      email.receivedAt,
 		Read:            email.read,
 		Subject:         email.subject,
 		Size:            email.size,
@@ -451,6 +464,8 @@ func makeEmailSummary(email emailQueryEntry) EmailSummary {
 		CC:              makeEmailSummaryAddresses(email.cc),
 		AttachmentCount: email.attachmentCount,
 		Text:            email.text,
+		EnvelopeFrom:    email.envelopeFrom,
+		EnvelopeTo:      email.envelopeTo,
 	}
 }
 
