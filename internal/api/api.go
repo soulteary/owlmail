@@ -141,6 +141,11 @@ func (api *API) setupRoutes() {
 		}
 		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...))
 	}
+	if api.basePathname != "" {
+		// Register the fixed image health check before the bare-base redirect.
+		// This ordering matters when the configured base pathname is /healthz.
+		app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	}
 
 	// Static files are embedded in the executable so the UI and help page work
 	// regardless of the process working directory.
@@ -158,7 +163,11 @@ func (api *API) setupRoutes() {
 	if api.basePathname != "" {
 		app.Use(func(c fiber.Ctx) error {
 			if c.Method() == http.MethodGet && c.Path() == api.basePathname {
-				return c.Redirect().Status(http.StatusPermanentRedirect).To(api.route("/"))
+				location := api.route("/")
+				if query := c.Request().URI().QueryString(); len(query) != 0 {
+					location += "?" + string(query)
+				}
+				return c.Redirect().Status(http.StatusPermanentRedirect).To(location)
 			}
 			return c.Next()
 		})
@@ -336,11 +345,6 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 
 	// Health check route (MailDev compatible)
 	app.Get(api.route("/healthz"), adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
-	if api.basePathname != "" {
-		// Keep the fixed image health check working when browser and API routes
-		// are mounted below a reverse-proxy prefix.
-		app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
-	}
 	app.Get(api.route("/readyz"), api.readiness)
 
 	// Reload mails from directory route (MailDev compatible)

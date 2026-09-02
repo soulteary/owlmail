@@ -322,14 +322,22 @@ func TestBasePathRouting(t *testing.T) {
 				t.Fatal(err)
 			}
 			if tt.prefix != "" {
-				req, _ := http.NewRequest(http.MethodGet, tt.prefix, nil)
-				resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
-				if err != nil {
-					t.Fatal(err)
-				}
-				_ = resp.Body.Close()
-				if resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != tt.prefix+"/" {
-					t.Errorf("GET %s redirect = (%d, %q), want (308, %q)", tt.prefix, resp.StatusCode, resp.Header.Get("Location"), tt.prefix+"/")
+				for _, redirect := range []struct {
+					request string
+					want    string
+				}{
+					{request: tt.prefix, want: tt.prefix + "/"},
+					{request: tt.prefix + "?email=message%2Fid&tab=html", want: tt.prefix + "/?email=message%2Fid&tab=html"},
+				} {
+					req, _ := http.NewRequest(http.MethodGet, redirect.request, nil)
+					resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+					if err != nil {
+						t.Fatal(err)
+					}
+					_ = resp.Body.Close()
+					if resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != redirect.want {
+						t.Errorf("GET %s redirect = (%d, %q), want (308, %q)", redirect.request, resp.StatusCode, resp.Header.Get("Location"), redirect.want)
+					}
 				}
 			}
 
@@ -411,6 +419,28 @@ func TestBasePathRouting(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBasePathHealthzKeepsImageHealthCheckReachable(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	if err := api.SetBasePathname("/healthz"); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("GET /healthz status = %d, want 200", resp.StatusCode)
+	}
+	if !strings.Contains(string(body), `"status":"ok"`) {
+		t.Fatalf("GET /healthz returned non-health response: %s", body)
 	}
 }
 

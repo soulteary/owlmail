@@ -1,8 +1,10 @@
 package api
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
@@ -402,5 +404,20 @@ func TestHealthzSkippedAuth(t *testing.T) {
 		if resp.StatusCode != http.StatusOK {
 			t.Errorf("GET %s status = %d, want 200", route, resp.StatusCode)
 		}
+	}
+
+	healthBaseAPI := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
+	if err := healthBaseAPI.SetBasePathname("/healthz"); err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
+	resp, err := healthBaseAPI.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.Contains(string(body), `"status":"ok"`) {
+		t.Errorf("GET /healthz with matching base path returned status %d, body %s", resp.StatusCode, body)
 	}
 }
