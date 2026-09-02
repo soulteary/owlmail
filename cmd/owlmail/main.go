@@ -838,7 +838,7 @@ func main() {
 	cfg, err := config.ParseFlags()
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "Failed to parse configuration: %v\n", err)
-		return
+		os.Exit(1)
 	}
 
 	// Initialize application
