@@ -169,10 +169,12 @@ Both batch routes accept:
 Native v1 relay routes require outgoing SMTP configuration and return `202`
 with an opaque job ID, a base-path-aware `statusUrl`, and the current state.
 Poll that URL until the state is `succeeded` or `failed`. Failed jobs expose a
-bounded `errorCategory`, never the raw downstream error. Completed jobs are
-process-local, retained for 24 hours, and bounded to 1000 records. Historical
-`/email` aliases keep their existing response behavior; the opt-in MailDev
-facade continues to wait for its relay attempt.
+bounded `errorCategory`, never the raw downstream error. Jobs are process-local
+and completed records are retained for 24 hours. The status store keeps at most
+1000 jobs and evicts completed records first; if all slots are active, a new
+request returns `503` with `Retry-After: 1` instead of evicting active work.
+Historical `/email` aliases keep their existing response behavior; the opt-in
+MailDev facade continues to wait for its relay attempt.
 
 ### Settings and system
 
