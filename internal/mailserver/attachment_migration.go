@@ -66,13 +66,14 @@ type attachmentMigrationPlan struct {
 }
 
 type attachmentMigrationItem struct {
-	index       int
-	filename    string
-	contentType string
-	size        int64
-	sha256      string
-	localPath   string
-	localExists bool
+	index          int
+	filename       string
+	contentType    string
+	size           int64
+	sha256         string
+	localPath      string
+	localExists    bool
+	remoteVerified bool
 }
 
 // MigrateLocalAttachments migrates decoded local attachments to the configured
@@ -108,28 +109,38 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 		return summary, err
 	}
 	var migrationErrors []error
-	for _, plan := range plans {
+	for planIndex := range plans {
+		plan := &plans[planIndex]
 		summary.EmailsScanned++
 		summary.AttachmentsScanned += len(plan.attachments)
-		for _, item := range plan.attachments {
+		for itemIndex := range plan.attachments {
+			item := &plan.attachments[itemIndex]
 			alreadyMigrated := plan.metadata.Attachments[item.index].Storage == attachmentStorageS3
 			if !alreadyMigrated {
 				summary.Planned++
 			}
-			if !options.DryRun {
+			if !options.DryRun && item.localExists {
 				continue
 			}
-			if !alreadyMigrated && item.localExists {
-				reportAttachmentMigration(options, item, plan.emailID, "planned", 0, nil)
+			if options.DryRun && !alreadyMigrated && item.localExists {
+				reportAttachmentMigration(options, *item, plan.emailID, "planned", 0, nil)
 				continue
 			}
 
-			attempts, verifyErr := retryAttachmentMigration(ctx, options, item, plan.emailID, false, store)
+			attempts, verifyErr := retryAttachmentMigration(ctx, options, *item, plan.emailID, false, store)
 			summary.RetryAttempts += attempts - 1
 			if verifyErr != nil {
 				summary.Failed++
-				migrationErrors = append(migrationErrors, fmt.Errorf("dry-run verify remote attachment %s/%s: %w", plan.emailID, item.filename, verifyErr))
-				reportAttachmentMigration(options, item, plan.emailID, "failed", attempts, verifyErr)
+				operation := "preflight verify remote-only attachment"
+				if options.DryRun {
+					operation = "dry-run verify remote attachment"
+				}
+				migrationErrors = append(migrationErrors, fmt.Errorf("%s %s/%s: %w", operation, plan.emailID, item.filename, verifyErr))
+				reportAttachmentMigration(options, *item, plan.emailID, "failed", attempts, verifyErr)
+				continue
+			}
+			if !options.DryRun {
+				item.remoteVerified = true
 				continue
 			}
 			summary.AlreadyMigrated++
@@ -138,10 +149,10 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 			if alreadyMigrated {
 				status = "already-migrated"
 			}
-			reportAttachmentMigration(options, item, plan.emailID, status, attempts, nil)
+			reportAttachmentMigration(options, *item, plan.emailID, status, attempts, nil)
 		}
 	}
-	if options.DryRun {
+	if options.DryRun || len(migrationErrors) != 0 {
 		return summary, errors.Join(migrationErrors...)
 	}
 
@@ -154,8 +165,10 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 			}
 
 			alreadyMigrated := plan.metadata.Attachments[item.index].Storage == attachmentStorageS3
-			verified := false
-			if alreadyMigrated || !item.localExists {
+			verified := item.remoteVerified
+			if verified {
+				summary.AlreadyMigrated++
+			} else if alreadyMigrated || !item.localExists {
 				attempts, verifyErr := retryAttachmentMigration(ctx, options, *item, plan.emailID, false, store)
 				summary.RetryAttempts += attempts - 1
 				if verifyErr == nil {

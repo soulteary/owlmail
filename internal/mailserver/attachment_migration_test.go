@@ -439,6 +439,60 @@ func TestAttachmentMigrationRecognizesVersionTwoRemoteObject(t *testing.T) {
 	if upgraded.Version != currentMetadataVersion || upgraded.Attachments[0].ContentSHA256 == "" || upgraded.Attachments[0].Storage != attachmentStorageS3 {
 		t.Fatalf("upgraded metadata = %#v", upgraded)
 	}
+	if calls := store.openCalls["legacy-remote/"+filename]; calls != 1 {
+		t.Fatalf("remote verification calls = %d, want one retained preflight result", calls)
+	}
+}
+
+func TestAttachmentMigrationVerifiesRemoteOnlySourcesBeforeWrites(t *testing.T) {
+	directory := t.TempDir()
+	localFilename, localPath := createLocalMigrationMessage(t, directory, "a-local", multipartMessage())
+	remoteFilename, remotePath := createLocalMigrationMessage(t, directory, "z-remote", multipartMessage())
+	remoteData, err := os.ReadFile(remotePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remoteMetadata := migrationMetadata(t, directory, "z-remote")
+	remoteMetadata.Attachments[0].Storage = attachmentStorageS3
+	if err := persistMigrationMetadata(directory, remoteMetadata); err != nil {
+		t.Fatal(err)
+	}
+	localMetadataPath := filepath.Join(directory, metadataDirectoryName, "a-local.json")
+	localMetadataBefore, err := os.ReadFile(localMetadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Dir(remotePath)); err != nil {
+		t.Fatal(err)
+	}
+	store := newMigrationFakeStore()
+	corrupted := append([]byte(nil), remoteData...)
+	corrupted[0] ^= 0xff
+	store.objects["z-remote/"+remoteFilename] = corrupted
+
+	summary, migrationErr := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions())
+	if migrationErr == nil || !strings.Contains(migrationErr.Error(), "preflight verify remote-only attachment z-remote/") || !strings.Contains(migrationErr.Error(), "SHA-256 mismatch") {
+		t.Fatalf("migration error = %v", migrationErr)
+	}
+	if summary.Failed != 1 || summary.Uploaded != 0 || summary.Verified != 0 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	if len(store.putCalls) != 0 {
+		t.Fatalf("remote preflight failure uploaded objects: %#v", store.putCalls)
+	}
+	if calls := store.openCalls["z-remote/"+remoteFilename]; calls != 1 {
+		t.Fatalf("remote verification calls = %d, want 1", calls)
+	}
+	localMetadataAfter, err := os.ReadFile(localMetadataPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(localMetadataBefore, localMetadataAfter) {
+		t.Fatal("remote preflight failure changed earlier metadata")
+	}
+	if _, err := os.Stat(localPath); err != nil {
+		t.Fatalf("remote preflight failure changed earlier local source %s: %v", localFilename, err)
+	}
 }
 
 func TestAttachmentMigrationDryRunDoesNotWrite(t *testing.T) {
