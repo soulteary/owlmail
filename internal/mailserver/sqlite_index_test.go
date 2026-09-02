@@ -332,18 +332,35 @@ func TestMailboxIndexRebuildSerializesReadStateMutations(t *testing.T) {
 	}
 }
 
-func TestValidateMailboxIndexPathRejectsMetadataNamespace(t *testing.T) {
+func TestValidateMailboxIndexPathRejectsManagedNamespaces(t *testing.T) {
 	directory := t.TempDir()
-	for _, path := range []string{
-		filepath.Join(directory, metadataDirectoryName),
-		filepath.Join(directory, metadataDirectoryName, "mailbox.db"),
+	for name, path := range map[string]string{
+		"metadata root":   filepath.Join(directory, metadataDirectoryName),
+		"metadata child":  filepath.Join(directory, metadataDirectoryName, "mailbox.db"),
+		"deletion fence":  deletionFencePath(directory, "message"),
+		"rollback fence":  rollbackFencePath(directory, "message"),
+		"temporary file":  filepath.Join(directory, storageTempPrefix+"mailbox.db"),
+		"temporary tree":  filepath.Join(directory, storageTempPrefix+"index", "mailbox.db"),
+		"quarantine":      filepath.Join(directory, quarantineDirName, "mailbox.db"),
+		"webhook outbox":  filepath.Join(directory, webhookOutboxDirectoryName, "mailbox.db"),
+		"mail directory":  directory,
 	} {
-		if err := ValidateMailboxIndexPath(directory, path); err == nil {
-			t.Fatalf("ValidateMailboxIndexPath(%q) accepted managed metadata storage", path)
-		}
+		t.Run(name, func(t *testing.T) {
+			if err := ValidateMailboxIndexPath(directory, path); err == nil {
+				t.Fatalf("ValidateMailboxIndexPath(%q) accepted managed storage", path)
+			}
+		})
 	}
-	if err := ValidateMailboxIndexPath(directory, filepath.Join(directory, "mailbox.db")); err != nil {
-		t.Fatalf("ValidateMailboxIndexPath rejected root index: %v", err)
+	for name, path := range map[string]string{
+		"root index":   filepath.Join(directory, "mailbox.db"),
+		"nested index": filepath.Join(directory, ".index", "mailbox.db"),
+		"external":     filepath.Join(t.TempDir(), "mailbox.db"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := ValidateMailboxIndexPath(directory, path); err != nil {
+				t.Fatalf("ValidateMailboxIndexPath(%q) rejected safe storage: %v", path, err)
+			}
+		})
 	}
 }
 

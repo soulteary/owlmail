@@ -42,28 +42,43 @@ type MailboxIndex interface {
 	Close() error
 }
 
-// ValidateMailboxIndexPath rejects locations managed by OwlMail's durable
-// message metadata writer. Metadata files are atomically replaced and removed
-// without consulting the optional derived index, so sharing that namespace
+// ValidateMailboxIndexPath rejects locations managed by OwlMail's storage and
+// recovery machinery. Those paths are atomically replaced, moved, or removed
+// without consulting the optional derived index, so sharing their namespace
 // would eventually detach, corrupt, or delete the live SQLite database.
 func ValidateMailboxIndexPath(mailDir, indexPath string) error {
 	if strings.TrimSpace(indexPath) == "" {
 		return nil
 	}
-	metadataRoot, err := filepath.Abs(filepath.Join(ResolveMailDirectory(mailDir), metadataDirectoryName))
+	mailRoot, err := filepath.Abs(ResolveMailDirectory(mailDir))
 	if err != nil {
-		return fmt.Errorf("resolve mailbox metadata directory: %w", err)
+		return fmt.Errorf("resolve mail directory: %w", err)
 	}
 	absoluteIndex, err := filepath.Abs(indexPath)
 	if err != nil {
 		return fmt.Errorf("resolve mailbox index path: %w", err)
 	}
-	relative, err := filepath.Rel(metadataRoot, absoluteIndex)
+	relative, err := filepath.Rel(mailRoot, absoluteIndex)
 	if err != nil {
-		return fmt.Errorf("compare mailbox index and metadata paths: %w", err)
+		return fmt.Errorf("compare mailbox index and mail paths: %w", err)
 	}
-	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return nil
+	}
+	if relative == "." {
+		return fmt.Errorf("mailbox index path must not replace the mail directory")
+	}
+	firstComponent := strings.Split(relative, string(filepath.Separator))[0]
+	switch firstComponent {
+	case metadataDirectoryName:
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail metadata directory")
+	case quarantineDirName:
+		return fmt.Errorf("mailbox index path must not be inside the OwlMail quarantine directory")
+	case webhookOutboxDirectoryName:
+		return fmt.Errorf("mailbox index path must not be inside the OwlMail webhook outbox directory")
+	}
+	if strings.HasPrefix(firstComponent, storageTempPrefix) {
+		return fmt.Errorf("mailbox index path must not use the OwlMail transaction artifact namespace")
 	}
 	return nil
 }
