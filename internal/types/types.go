@@ -25,6 +25,9 @@ type Email struct {
 	Size          int64                  `json:"size"`
 	SizeHuman     string                 `json:"sizeHuman"`
 	Headers       map[string]interface{} `json:"headers"`
+	// AllHeaders retains the complete parsed header set for compatibility
+	// projections without changing OwlMail's native JSON response.
+	AllHeaders map[string]interface{} `json:"-"`
 }
 
 // Attachment represents an email attachment

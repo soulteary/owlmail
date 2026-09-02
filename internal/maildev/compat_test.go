@@ -22,6 +22,12 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 			"In-Reply-To": "<earlier@fbi.gov>",
 			"X-Priority":  "1",
 		},
+		AllHeaders: map[string]interface{}{
+			"date":        "Sun, 05 Jan 2026 19:02:09 +0000",
+			"in-reply-to": "<earlier@fbi.gov>",
+			"x-priority":  "1",
+			"x-test-id":   "custom-123",
+		},
 		Attachments: []*types.Attachment{{
 			FileName: "logo.png", GeneratedFileName: "safe.png", ContentType: "image/png",
 			ContentDisposition: "attachment", ContentID: "logo@fbi.gov", Size: 24,
@@ -63,6 +69,16 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 	}
 	if dto.Headers["date"] == nil {
 		t.Fatalf("lowercase date header missing: %#v", dto.Headers)
+	}
+	if dto.Headers["x-test-id"] != "custom-123" {
+		t.Fatalf("custom header missing: %#v", dto.Headers)
+	}
+	nativeJSON, err := json.Marshal(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(nativeJSON), "custom-123") {
+		t.Fatalf("internal complete headers leaked into native JSON: %s", nativeJSON)
 	}
 }
 
@@ -126,15 +142,19 @@ func TestMatchesFiltersRejectsUnexportedFieldTraversal(t *testing.T) {
 }
 
 func TestEmbedAttachmentURLsUsesFacadeAndBasePath(t *testing.T) {
-	html := `<img src="cid:logo@example.test"><img src="https://example.test/pixel">`
-	result := EmbedAttachmentURLs(html, "/owlmail", "email-1", []Attachment{{
-		ContentID: "logo@example.test", GeneratedFileName: "safe logo.png",
-	}})
+	html := `<img src="cid:logo@example.test"><img src="cid:dollar@example.test"><img src="https://example.test/pixel">`
+	result := EmbedAttachmentURLs(html, "/owlmail", "email-1", []Attachment{
+		{ContentID: "logo@example.test", GeneratedFileName: "safe logo.png"},
+		{ContentID: "dollar@example.test", GeneratedFileName: "safe.p$ng"},
+	})
 	if !strings.Contains(result, `src="/owlmail/api/email/email-1/attachment/safe%20logo.png"`) {
 		t.Fatalf("CID URL was not rewritten through the facade: %s", result)
 	}
 	if !strings.Contains(result, `src="https://example.test/pixel"`) {
 		t.Fatalf("unrelated image URL changed: %s", result)
+	}
+	if !strings.Contains(result, `src="/owlmail/api/email/email-1/attachment/safe.p$ng"`) {
+		t.Fatalf("dollar-prefixed replacement text was expanded: %s", result)
 	}
 }
 

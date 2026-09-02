@@ -307,8 +307,9 @@ func TestMailDevRESTListFiltersSortsAndPaginatesBeforeProjection(t *testing.T) {
 	for _, fixture := range fixtures {
 		email := &types.Email{
 			ID: fixture.id, Time: fixture.time, Subject: fixture.id,
-			From: []*mail.Address{{Address: fixture.from}},
-			To:   []*mail.Address{{Address: "recipient@example.test"}},
+			From:       []*mail.Address{{Address: fixture.from}},
+			To:         []*mail.Address{{Address: "recipient@example.test"}},
+			AllHeaders: map[string]interface{}{"x-test-id": fixture.id},
 		}
 		writeCompatFixture(t, server, mailDir, email, &types.Envelope{
 			From: fixture.from, To: []string{"recipient@example.test"},
@@ -320,6 +321,16 @@ func TestMailDevRESTListFiltersSortsAndPaginatesBeforeProjection(t *testing.T) {
 	decodeCompatJSON(t, resp, &page)
 	if len(page) != 1 || page[0]["id"] != "old-alice" {
 		t.Fatalf("filtered page = %#v", page)
+	}
+
+	resp = compatRequest(t, api, http.MethodGet, "/api/email?headers.x-test-id=new-alice", nil, "")
+	decodeCompatJSON(t, resp, &page)
+	if len(page) != 1 || page[0]["id"] != "new-alice" {
+		t.Fatalf("custom-header filtered page = %#v", page)
+	}
+	headers, ok := page[0]["headers"].(map[string]interface{})
+	if !ok || headers["x-test-id"] != "new-alice" {
+		t.Fatalf("custom header missing from facade response: %#v", page[0])
 	}
 }
 

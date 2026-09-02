@@ -526,6 +526,24 @@ func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachm
 	return email, nil
 }
 
+func collectAllHeaders(headers mail.Header) map[string]interface{} {
+	grouped := make(map[string][]string)
+	fields := headers.Fields()
+	for fields.Next() {
+		key := strings.ToLower(fields.Key())
+		grouped[key] = append(grouped[key], fields.Value())
+	}
+	result := make(map[string]interface{}, len(grouped))
+	for key, values := range grouped {
+		if len(values) == 1 {
+			result[key] = values[0]
+		} else {
+			result[key] = values
+		}
+	}
+	return result
+}
+
 // parseEmailMessage parses a message without publishing it to the in-memory
 // store. This separation lets SMTP DATA finish all durable filesystem work
 // before the new-email event becomes visible.
@@ -544,6 +562,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	// Extract headers
 	// Wrap in mail.Header to get decoding support
 	headers := mail.Header{Header: msg.Header}
+	email.AllHeaders = collectAllHeaders(headers)
 
 	// Parse all headers into Headers map
 	// Common headers to parse
@@ -562,9 +581,6 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 			}
 		}
 	}
-	// Note: Additional custom headers can be added here if needed
-	// For now, we parse the most common headers listed above
-
 	// Parse date from headers
 	if email.Time, err = headers.Date(); err != nil {
 		email.Time = parseEmailDate(headers.Header)

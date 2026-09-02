@@ -113,6 +113,10 @@ type ConfigResponse struct {
 }
 
 func FromEmail(email *types.Email, mailDir string) Email {
+	headerSource := email.AllHeaders
+	if len(headerSource) == 0 {
+		headerSource = email.Headers
+	}
 	result := Email{
 		ID:            email.ID,
 		Time:          email.Time,
@@ -128,7 +132,7 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		CalculatedBCC: addresses(email.CalculatedBCC),
 		HTML:          email.HTML,
 		Text:          email.Text,
-		Headers:       normalizeHeaders(email.Headers),
+		Headers:       normalizeHeaders(headerSource),
 		Attachments:   make([]Attachment, 0, len(email.Attachments)),
 		Envelope: Envelope{
 			To: make([]EnvelopeAddress, 0),
@@ -265,7 +269,9 @@ func EmbedAttachmentURLs(html, basePath, emailID string, attachments []Attachmen
 		}
 		pattern := regexp.MustCompile(`src=("|')cid:` + regexp.QuoteMeta(attachment.ContentID) + `("|')`)
 		target := basePath + "/api/email/" + url.PathEscape(emailID) + "/attachment/" + url.PathEscape(attachment.GeneratedFileName)
-		html = pattern.ReplaceAllString(html, `src="`+target+`"`)
+		html = pattern.ReplaceAllStringFunc(html, func(string) string {
+			return `src="` + target + `"`
+		})
 	}
 	return html
 }

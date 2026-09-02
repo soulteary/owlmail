@@ -22,6 +22,7 @@ func cloneEmail(email *types.Email) *types.Email {
 	cloned.Attachments = cloneAttachments(email.Attachments)
 	cloned.Envelope = cloneEnvelope(email.Envelope)
 	cloned.Headers = cloneHeaders(email.Headers)
+	cloned.AllHeaders = cloneHeaders(email.AllHeaders)
 	return &cloned
 }
 

@@ -1415,6 +1415,8 @@ func TestParseEmailWithSimpleText(t *testing.T) {
 	emailContent := []byte("From: from@example.com\r\n" +
 		"To: to@example.com\r\n" +
 		"Subject: Simple Text Email\r\n" +
+		"X-Test-ID: first\r\n" +
+		"X-Test-ID: second\r\n" +
 		"Date: Mon, 02 Jan 2006 15:04:05 -0700\r\n" +
 		"Content-Type: text/plain\r\n" +
 		"\r\n" +
@@ -1442,6 +1444,13 @@ func TestParseEmailWithSimpleText(t *testing.T) {
 	}
 	if email.Text == "" {
 		t.Error("Text body should not be empty")
+	}
+	custom, ok := email.AllHeaders["x-test-id"].([]string)
+	if !ok || len(custom) != 2 || custom[0] != "first" || custom[1] != "second" {
+		t.Fatalf("complete custom headers = %#v", email.AllHeaders)
+	}
+	if _, leaked := email.Headers["X-Test-ID"]; leaked {
+		t.Fatalf("custom header changed native header projection: %#v", email.Headers)
 	}
 }
 
