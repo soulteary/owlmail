@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -143,7 +144,6 @@ func TestSQLiteMailboxIndexOwnsFilesystemAliases(t *testing.T) {
 		filepath.Join(alias, ".index"),
 		filepath.Join(alias, ".index", "mailbox.db"),
 		filepath.Join(alias, ".index", "mailbox.db-wal"),
-		strings.ToUpper(path),
 	} {
 		if !index.OwnsPath(owned) {
 			t.Errorf("OwnsPath(%q) = false for filesystem alias", owned)
@@ -151,6 +151,23 @@ func TestSQLiteMailboxIndexOwnsFilesystemAliases(t *testing.T) {
 	}
 	if index.OwnsPath(filepath.Join(alias, "other.db")) {
 		t.Fatal("OwnsPath accepted unrelated file through filesystem alias")
+	}
+	caseVariant := filepath.Join(filepath.Dir(path), "MAILBOX.DB")
+	caseFile, err := os.OpenFile(caseVariant, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	switch {
+	case err == nil:
+		if closeErr := caseFile.Close(); closeErr != nil {
+			t.Fatal(closeErr)
+		}
+		if index.OwnsPath(caseVariant) {
+			t.Fatal("OwnsPath conflated distinct case-variant files")
+		}
+	case errors.Is(err, os.ErrExist):
+		if !index.OwnsPath(caseVariant) {
+			t.Fatal("OwnsPath missed a case alias on a case-insensitive filesystem")
+		}
+	default:
+		t.Fatalf("create case-variant ownership probe: %v", err)
 	}
 }
 

@@ -118,27 +118,53 @@ func (index *SQLiteMailboxIndex) OwnsPath(path string) bool {
 	if err != nil {
 		return false
 	}
-	if ownsSQLiteMailboxPath(absolute, index.path) {
-		return true
+	for _, databasePath := range []string{index.path, index.resolvedPath} {
+		if ownsSQLiteMailboxPathSpelling(absolute, databasePath) {
+			return true
+		}
 	}
-	resolved, err := resolveExistingPathIdentity(absolute)
+	candidateInfo, err := os.Stat(absolute)
 	if err != nil {
 		return false
 	}
-	return ownsSQLiteMailboxPath(resolved, index.resolvedPath)
+	for _, databasePath := range []string{index.path, index.resolvedPath} {
+		if ownsSQLiteMailboxPathIdentity(candidateInfo, databasePath) {
+			return true
+		}
+	}
+	return false
 }
 
-func ownsSQLiteMailboxPath(candidate, databasePath string) bool {
+func ownsSQLiteMailboxPathSpelling(candidate, databasePath string) bool {
 	for _, owned := range []string{databasePath, databasePath + "-wal", databasePath + "-shm"} {
-		relative, inside, err := relativePathWithinRoot(candidate, owned)
-		if err != nil || !inside {
+		if candidate == owned {
+			return true
+		}
+	}
+	return false
+}
+
+func ownsSQLiteMailboxPathIdentity(candidateInfo os.FileInfo, databasePath string) bool {
+	for _, owned := range []string{databasePath, databasePath + "-wal", databasePath + "-shm"} {
+		ownedInfo, err := os.Stat(owned)
+		if err != nil {
 			continue
 		}
-		if relative == "." {
+		if os.SameFile(candidateInfo, ownedInfo) {
 			return true
 		}
-		if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
-			return true
+		if !candidateInfo.IsDir() {
+			continue
+		}
+		for directory := filepath.Dir(owned); ; directory = filepath.Dir(directory) {
+			directoryInfo, err := os.Stat(directory)
+			if err == nil && os.SameFile(candidateInfo, directoryInfo) {
+				return true
+			}
+			parent := filepath.Dir(directory)
+			if parent == directory {
+				break
+			}
 		}
 	}
 	return false
