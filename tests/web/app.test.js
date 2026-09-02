@@ -10,7 +10,9 @@ const styleSource = fs.readFileSync(path.join(__dirname, '../../web/style.css'),
 function createClassList() {
     const values = new Set();
     return {
+        add(...names) { names.forEach((name) => values.add(name)); },
         contains: (name) => values.has(name),
+        remove(...names) { names.forEach((name) => values.delete(name)); },
         toggle(name, enabled) {
             if (enabled) values.add(name);
             else values.delete(name);
@@ -95,6 +97,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const serviceNotifications = [];
     const serviceWorkerRegistrations = [];
     const webSocketURLs = [];
+    const historyCalls = [];
+    const alerts = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -110,7 +114,33 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const window = {
         Notification,
         isSecureContext: secure,
-        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test', search: '' },
+        location: {
+            origin: 'http://owlmail.test',
+            protocol: 'http:',
+            host: 'owlmail.test',
+            pathname: '/',
+            search: '',
+            hash: '',
+            href: 'http://owlmail.test/'
+        },
+        history: {
+            pushState(state, title, url) {
+                historyCalls.push({ method: 'pushState', state, title, url: String(url) });
+                const next = new URL(String(url), window.location.href);
+                window.location.href = next.href;
+                window.location.pathname = next.pathname;
+                window.location.search = next.search;
+                window.location.hash = next.hash;
+            },
+            replaceState(state, title, url) {
+                historyCalls.push({ method: 'replaceState', state, title, url: String(url) });
+                const next = new URL(String(url), window.location.href);
+                window.location.href = next.href;
+                window.location.pathname = next.pathname;
+                window.location.search = next.search;
+                window.location.hash = next.hash;
+            }
+        },
         addEventListener(name, handler) { windowListeners.set(name, handler); },
         focus() {}
     };
@@ -164,12 +194,14 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         URL,
         URLSearchParams,
         Blob,
+        alert(message) { alerts.push(String(message)); },
         confirm: () => true
     };
     vm.createContext(sandbox);
     vm.runInContext(appSource, sandbox, { filename: 'web/app.js' });
 
     return {
+        alerts,
         documentListeners,
         emailDetail,
         emailList,
@@ -177,6 +209,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         emailViewportFrame,
         emailViewportStage,
         fetchRequests,
+        historyCalls,
         notificationStatus,
         notificationToggle,
         notifications,
@@ -529,4 +562,150 @@ test('initial language setup translates the empty email detail', () => {
     harness.run("setLanguage('fr', false)");
 
     assert.match(harness.emailDetail.innerHTML, /Sélectionnez un email/);
+});
+
+
+test('email selection updates browser history and popstate restores the message', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+
+    await harness.run("loadEmailDetail('mail-42')");
+    assert.equal(harness.historyCalls.length, 1);
+    assert.equal(harness.historyCalls[0].method, 'pushState');
+    assert.equal(new URL(harness.historyCalls[0].url, 'http://owlmail.test').searchParams.get('email'), 'mail-42');
+
+    harness.window.location.href = 'http://owlmail.test/?email=mail-17';
+    harness.window.location.search = '?email=mail-17';
+    harness.run('handleHistoryNavigation()');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-17');
+
+    harness.window.location.href = 'http://owlmail.test/';
+    harness.window.location.search = '';
+    harness.run('handleHistoryNavigation()');
+    assert.equal(harness.run('state.currentEmail'), null);
+});
+
+test('mailbox keyboard navigation supports arrows, j/k, escape, and ignores inputs', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+    harness.run("state.emails = [{ id: 'mail-1' }, { id: 'mail-2' }]");
+
+    await harness.run("handleMailboxKeydown({ key: 'j', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-1');
+
+    await harness.run("handleMailboxKeydown({ key: 'ArrowDown', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-2');
+
+    const requestsBeforeInput = harness.fetchRequests.length;
+    harness.run("handleMailboxKeydown({ key: 'k', target: { tagName: 'INPUT' }, preventDefault() {} })");
+    assert.equal(harness.fetchRequests.length, requestsBeforeInput);
+
+    harness.run("handleMailboxKeydown({ key: 'Escape', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail'), null);
+    assert.equal(harness.window.location.search, '');
+});
+
+
+test('slower email detail responses cannot overwrite newer navigation', async () => {
+    const pending = new Map();
+    const harness = createHarness({
+        fetchImpl: (url) => new Promise((resolve) => {
+            const id = new URL(url).pathname.split('/').pop();
+            pending.set(id, () => resolve(jsonResponse({ id, subject: id, from: [], to: [], attachments: [] })));
+        })
+    });
+
+    const first = harness.run("loadEmailDetail('mail-slow')");
+    const second = harness.run("loadEmailDetail('mail-fast')");
+    pending.get('mail-fast')();
+    await second;
+    pending.get('mail-slow')();
+    await first;
+
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-fast');
+    assert.equal(new URL(harness.window.location.href).searchParams.get('email'), 'mail-fast');
+});
+
+test('reselecting the current email does not add a duplicate history entry', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+
+    await harness.run("loadEmailDetail('mail-42')");
+    await harness.run("loadEmailDetail('mail-42')");
+
+    assert.equal(harness.historyCalls.length, 1);
+    assert.equal(harness.historyCalls[0].method, 'pushState');
+});
+
+test('delayed initial deep link cannot supersede newer history navigation', async () => {
+    let resolvePreview;
+    const detailRequests = [];
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const requestURL = new URL(url);
+            if (requestURL.pathname.endsWith('/emails/preview')) {
+                return new Promise((resolve) => {
+                    resolvePreview = () => resolve(jsonResponse({ previews: [], total: 0 }));
+                });
+            }
+            const id = requestURL.pathname.split('/').pop();
+            detailRequests.push(id);
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+    harness.window.location.href = 'http://owlmail.test/?email=mail-a';
+    harness.window.location.search = '?email=mail-a';
+
+    harness.documentListeners.get('DOMContentLoaded')();
+    harness.window.location.href = 'http://owlmail.test/?email=mail-b';
+    harness.window.location.search = '?email=mail-b';
+    harness.run('handleHistoryNavigation()');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-b');
+
+    resolvePreview();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(detailRequests, ['mail-b']);
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-b');
+});
+
+test('failed history detail load clears the previously rendered selection', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            if (id === 'mail-missing') {
+                return {
+                    ok: false,
+                    status: 404,
+                    headers: { get: () => 'application/json' },
+                    async json() { return { message: 'not found' }; },
+                    async text() { return '{"message":"not found"}'; }
+                };
+            }
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+    await harness.run("loadEmailDetail('mail-a')");
+    harness.window.location.href = 'http://owlmail.test/?email=mail-missing';
+    harness.window.location.search = '?email=mail-missing';
+
+    harness.run('handleHistoryNavigation()');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    assert.equal(harness.run('state.currentEmail'), null);
+    assert.equal(harness.window.location.search, '?email=mail-missing');
+    assert.equal(harness.alerts.length, 1);
 });

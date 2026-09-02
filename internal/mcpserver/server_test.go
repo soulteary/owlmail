@@ -39,7 +39,7 @@ func TestReadOnlyToolsUseMailboxSnapshots(t *testing.T) {
 		tools = append(tools, tool)
 	}
 	sort.Slice(tools, func(i, j int) bool { return tools[i].Name < tools[j].Name })
-	wantNames := []string{"get_email", "get_email_source", "list_attachments", "list_emails", "search_emails"}
+	wantNames := []string{"get_email", "get_email_source", "get_latest_email", "list_attachments", "list_emails", "search_emails", "wait_for_email"}
 	if len(tools) != len(wantNames) {
 		t.Fatalf("tools = %d, want %d", len(tools), len(wantNames))
 	}

@@ -38,6 +38,7 @@ func TestMailboxQueryFiltersSortsAndPaginates(t *testing.T) {
 		{name: "subject descending", query: EmailQuery{SortBy: "subject", SortOrder: "desc", Limit: 10}, want: []string{"id-3", "id-2", "id-1"}},
 		{name: "from ascending", query: EmailQuery{SortBy: "from", SortOrder: "asc", Limit: 10}, want: []string{"id-1", "id-2", "id-3"}},
 		{name: "size ascending", query: EmailQuery{SortBy: "size", SortOrder: "asc", Limit: 10}, want: []string{"id-2", "id-3", "id-1"}},
+		{name: "store descending", query: EmailQuery{SortBy: "store", SortOrder: "desc", Limit: 10}, want: []string{"id-3", "id-2", "id-1"}},
 		{name: "unknown sort preserves store order", query: EmailQuery{SortBy: "unknown", SortOrder: "asc", Limit: 10}, want: []string{"id-1", "id-2", "id-3"}},
 		{name: "pagination after filtering", query: EmailQuery{Text: "needle", SortBy: "subject", SortOrder: "asc", Offset: 1, Limit: 1}, want: []string{"id-2"}},
 	}
@@ -95,6 +96,15 @@ func TestMailboxQueryReturnsDetachedResults(t *testing.T) {
 	previewsAgain, _ := server.QueryEmailPreviews(query)
 	if previewsAgain[0].To[0] != "team@example.test" {
 		t.Fatalf("preview query exposed mutable store state: %#v", previewsAgain[0])
+	}
+	previewByID, exists := server.GetEmailPreview("id-1")
+	if !exists || previewByID.ID != "id-1" || len(previewByID.To) != 1 {
+		t.Fatalf("preview by ID = %#v, %v", previewByID, exists)
+	}
+	previewByID.To[0] = "mutated@example.test"
+	previewByIDAgain, _ := server.GetEmailPreview("id-1")
+	if previewByIDAgain.To[0] != "team@example.test" {
+		t.Fatalf("preview by ID exposed mutable store state: %#v", previewByIDAgain)
 	}
 }
 

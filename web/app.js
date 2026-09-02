@@ -771,6 +771,86 @@ let state = {
     ws: null
 };
 
+function currentEmailIDFromLocation() {
+    try {
+        const fallback = `${window.location.origin || ''}${window.location.pathname || '/'}${window.location.search || ''}`;
+        const url = new URL(window.location.href || fallback, window.location.origin || undefined);
+        return url.searchParams.get('email') || '';
+    } catch (_) {
+        return '';
+    }
+}
+
+function updateEmailLocation(emailID, mode = 'push') {
+    if (!window.history || typeof window.history.pushState !== 'function') return;
+    if (currentEmailIDFromLocation() === (emailID || '')) return;
+    try {
+        const fallback = `${window.location.origin || ''}${window.location.pathname || '/'}${window.location.search || ''}`;
+        const url = new URL(window.location.href || fallback, window.location.origin || undefined);
+        if (emailID) url.searchParams.set('email', emailID);
+        else url.searchParams.delete('email');
+        const method = mode === 'replace' ? 'replaceState' : 'pushState';
+        window.history[method]({ emailID: emailID || null }, '', `${url.pathname}${url.search}${url.hash}`);
+    } catch (error) {
+        console.warn('Unable to update email navigation history:', error);
+    }
+}
+
+let emailDetailRequestSequence = 0;
+
+function clearEmailSelection(historyMode = 'push') {
+    emailDetailRequestSequence += 1;
+    remoteContentAllowedEmailID = null;
+    state.currentEmail = null;
+    renderEmailDetail();
+    renderEmailList();
+    if (historyMode !== 'none') updateEmailLocation('', historyMode);
+}
+
+function isEditableKeyboardTarget(target) {
+    if (!target) return false;
+    if (target.isContentEditable) return true;
+    const tagName = String(target.tagName || '').toLowerCase();
+    return tagName === 'input' || tagName === 'textarea' || tagName === 'select';
+}
+
+function handleMailboxKeydown(event) {
+    if (!event || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
+        return;
+    }
+    if (event.key === 'Escape' && state.currentEmail) {
+        event.preventDefault();
+        clearEmailSelection('push');
+        return;
+    }
+
+    let direction = 0;
+    if (event.key === 'ArrowDown' || event.key === 'j') direction = 1;
+    if (event.key === 'ArrowUp' || event.key === 'k') direction = -1;
+    if (direction === 0 || state.emails.length === 0) return;
+
+    const currentID = state.currentEmail && state.currentEmail.id;
+    const currentIndex = state.emails.findIndex((email) => email.id === currentID);
+    const nextIndex = currentIndex < 0
+        ? (direction > 0 ? 0 : state.emails.length - 1)
+        : Math.max(0, Math.min(state.emails.length - 1, currentIndex + direction));
+    const nextEmail = state.emails[nextIndex];
+    if (!nextEmail || nextEmail.id === currentID) return;
+
+    event.preventDefault();
+    return loadEmailDetail(nextEmail.id);
+}
+
+function handleHistoryNavigation() {
+    const emailID = currentEmailIDFromLocation();
+    if (!emailID) {
+        clearEmailSelection('none');
+        return;
+    }
+    if (state.currentEmail && state.currentEmail.id === emailID) return;
+    void loadEmailDetail(emailID, { historyMode: 'none' });
+}
+
 const EMAIL_VIEWPORT_PRESETS = Object.freeze([
     { key: '100%', label: '100%', width: '100%' },
     { key: '1440', label: '1440 px', width: '1440px' },
@@ -1153,8 +1233,7 @@ function handleWebSocketMessage(data) {
         renderEmailList();
         updateEmailCount();
         if (state.currentEmail && state.currentEmail.id === data.id) {
-            state.currentEmail = null;
-            renderEmailDetail();
+            clearEmailSelection('replace');
         }
     }
 }
@@ -1257,7 +1336,7 @@ function renderEmailList() {
             : (email.hasAttachment ? '<div class="email-item-attachments">📎</div>' : '');
 
         return `
-            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
+            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}" tabindex="0" role="button">
                 <div class="email-item-header">
                     <span class="email-item-from">${escapeHtml(from)}</span>
                     <span class="email-item-time">${time}</span>
@@ -1274,6 +1353,11 @@ function renderEmailList() {
         item.addEventListener('click', () => {
             const id = item.dataset.id;
             loadEmailDetail(id);
+        });
+        item.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' && event.key !== ' ') return;
+            event.preventDefault();
+            loadEmailDetail(item.dataset.id);
         });
     });
 }
@@ -1523,15 +1607,32 @@ async function loadEmails() {
     }
 }
 
-async function loadEmailDetail(id) {
+async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
+    if (!id) {
+        clearEmailSelection(historyMode);
+        return;
+    }
+    const requestSequence = ++emailDetailRequestSequence;
     try {
         showLoading();
         const email = await API.getEmail(id);
+        if (requestSequence !== emailDetailRequestSequence) return;
+        if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
         remoteContentAllowedEmailID = null;
         state.currentEmail = email;
         renderEmailDetail();
         renderEmailList(); // Update selected state
+        if (historyMode !== 'none') updateEmailLocation(id, historyMode);
+        const selected = Array.from(document.getElementById('emailList')?.querySelectorAll('.email-item') || [])
+            .find((item) => item.dataset.id === id);
+        if (selected && typeof selected.scrollIntoView === 'function') {
+            selected.scrollIntoView({ block: 'nearest' });
+        }
     } catch (error) {
+        if (requestSequence !== emailDetailRequestSequence) return;
+        if (historyMode === 'none' && currentEmailIDFromLocation() === id) {
+            clearEmailSelection('none');
+        }
         console.error('Failed to load email detail:', error);
         const errorMsg = parseAPIError(error);
         alert(t('loadEmailDetailError', { error: errorMsg }));
@@ -1550,8 +1651,7 @@ async function deleteEmail(id) {
         state.emails = state.emails.filter(e => e.id !== id);
         state.total--;
         if (state.currentEmail && state.currentEmail.id === id) {
-            state.currentEmail = null;
-            renderEmailDetail();
+            clearEmailSelection('replace');
         }
         renderEmailList();
         updateEmailCount();
@@ -1572,9 +1672,8 @@ async function deleteAllEmails() {
         await API.deleteAllEmails();
         state.emails = [];
         state.total = 0;
-        state.currentEmail = null;
+        clearEmailSelection('replace');
         renderEmailList();
-        renderEmailDetail();
         updateEmailCount();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
@@ -1815,12 +1914,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize opt-in browser notifications without prompting on page load.
     initializeBrowserNotifications();
 
-    // Load initial emails, then honor a service-worker notification deep link.
-    const initialEmailID = new URLSearchParams(window.location.search || '').get('email');
+    // Load initial emails, then honor an email deep link without adding a
+    // duplicate browser-history entry.
+    const initialEmailID = currentEmailIDFromLocation();
     const initialLoad = loadEmails();
     if (initialEmailID) {
-        void Promise.resolve(initialLoad).then(() => loadEmailDetail(initialEmailID));
+        void Promise.resolve(initialLoad).then(() => {
+            if (currentEmailIDFromLocation() !== initialEmailID) return;
+            return loadEmailDetail(initialEmailID, { historyMode: 'none' });
+        });
     }
+
+    window.addEventListener('popstate', handleHistoryNavigation);
+    document.addEventListener('keydown', handleMailboxKeydown);
 
     // Connect WebSocket
     connectWebSocket();

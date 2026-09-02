@@ -199,8 +199,12 @@ docker buildx build \
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 수신 메시지 최대 크기(MiB) |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | SMTP, STARTTLS, SMTPS 전체에서 프로세스별 동시 DATA 트랜잭션 수; `0`은 무제한; 한도 도달 시 재시도 가능한 `451 4.3.2` 반환 |
+| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP 명령 및 DATA 읽기 제한 시간 |
+| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 응답 쓰기 제한 시간 |
+| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 메시지당 최대 수신자 수 |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
+| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 생성된 이메일 딥 링크에 사용할 브라우저 공개 HTTP(S) origin. 프록시 하위 경로는 `-base-pathname`으로 별도 설정 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` 같은 URL 경로 접두사. 기본값은 루트 경로 |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade를 명시적으로 활성화하며 Socket.IO는 계속 호환되지 않음 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp`에서 읽기 전용 MCP Streamable HTTP 엔드포인트 활성화 |

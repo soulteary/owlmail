@@ -116,8 +116,28 @@ func TestAuthenticatedMCPProtocolUsesPrefixedRoute(t *testing.T) {
 		}
 		toolCount++
 	}
-	if toolCount != 5 {
-		t.Fatalf("authenticated MCP tools = %d, want 5", toolCount)
+	if toolCount != 7 {
+		t.Fatalf("authenticated MCP tools = %d, want 7", toolCount)
+	}
+	resourceCount := 0
+	for _, err := range session.Resources(context.Background(), nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		resourceCount++
+	}
+	if resourceCount != 2 {
+		t.Fatalf("authenticated MCP resources = %d, want 2", resourceCount)
+	}
+	promptCount := 0
+	for _, err := range session.Prompts(context.Background(), nil) {
+		if err != nil {
+			t.Fatal(err)
+		}
+		promptCount++
+	}
+	if promptCount != 3 {
+		t.Fatalf("authenticated MCP prompts = %d, want 3", promptCount)
 	}
 }
 

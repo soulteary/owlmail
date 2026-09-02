@@ -108,6 +108,20 @@ func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int)
 	return previews, total
 }
 
+// GetEmailPreview returns one detached summary using the same snapshot and
+// formatting boundary as QueryEmailPreviews.
+func (ms *MailServer) GetEmailPreview(id string) (EmailPreview, bool) {
+	ms.storeMutex.RLock()
+	email, exists := ms.storeByID[id]
+	if !exists {
+		ms.storeMutex.RUnlock()
+		return EmailPreview{}, false
+	}
+	entry := snapshotEmailQueryEntry(email, true, true)
+	ms.storeMutex.RUnlock()
+	return makeEmailPreview(entry), true
+}
+
 // QueryEmailSummaries returns lightweight detached summary projections for
 // one page. Unlike QueryEmails, it never clones complete message bodies,
 // headers, envelopes, or attachment records.
@@ -317,6 +331,11 @@ func sortEmailMatches(emails []emailQueryEntry, sortBy, sortOrder string) {
 	ascending := sortOrder == "asc"
 	switch sortBy {
 	case "store":
+		if sortOrder == "desc" {
+			for left, right := 0, len(emails)-1; left < right; left, right = left+1, right-1 {
+				emails[left], emails[right] = emails[right], emails[left]
+			}
+		}
 		return
 	case "":
 		sort.Slice(emails, func(i, j int) bool {

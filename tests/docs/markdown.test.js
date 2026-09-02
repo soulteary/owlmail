@@ -336,6 +336,12 @@ test("security-sensitive SMTP authentication modes remain explicit", () => {
     "smtp-max-message-mb",
     "50 recipients",
     "50 个收件人",
+    "smtp-read-timeout",
+    "OWLMAIL_SMTP_READ_TIMEOUT",
+    "smtp-write-timeout",
+    "OWLMAIL_SMTP_WRITE_TIMEOUT",
+    "smtp-max-recipients",
+    "OWLMAIL_SMTP_MAX_RECIPIENTS",
     "OWLMAIL_SMTP_MAX_CONCURRENCY",
     "451 4.3.2",
   ]) {
@@ -384,6 +390,41 @@ test("OpenAPI contract is linked from every translated README", () => {
     ]) {
       assert.ok(markdown.includes(marker), `${readme} is missing OpenAPI marker ${marker}`);
     }
+  }
+});
+
+test("three-way comparison stays source-pinned and reflects MCP support", () => {
+  for (const document of [
+    "docs/en/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
+    "docs/zh-CN/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
+  ]) {
+    const markdown = fs.readFileSync(path.join(root, document), "utf8");
+    for (const marker of [
+      "OwlMail × MailDev × MailCatcher",
+      "2026-09-02",
+      "279571b62a5e4891f0a204837d8553b131b89b20",
+      "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
+      "43e488e2a5692532c131a87d5bd16a973ee8db56",
+      "0.11.0",
+      "MCP",
+      "MailCatcher",
+    ]) {
+      assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
+    }
+    assert.ok(!markdown.includes("| MCP server | Current MailDev provides one | No |"));
+    assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
+    assert.ok(!markdown.includes("with five closed-world"));
+    assert.ok(!markdown.includes("只包含五个封闭只读能力"));
+    assert.ok(markdown.includes("<base-pathname>/mcp"));
+  }
+
+  for (const locale of ["de", "fr", "it", "ja", "ko"]) {
+    const stub = fs.readFileSync(
+      path.join(root, `docs/${locale}/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md`),
+      "utf8",
+    );
+    assert.ok(stub.includes("main"), `${locale} comparison does not qualify the MCP branch`);
+    assert.ok(stub.includes("v0.6.0"), `${locale} comparison does not qualify the stable release`);
   }
 });
 

@@ -314,7 +314,7 @@ MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，�
 - `-base-pathname` 会同时移动 MCP 端点。此时无前缀 `/mcp` 保持 404，不会产生
   根路径认证旁路。
 
-MCP 服务严格只提供五个封闭域、只读工具：
+MCP 服务严格只提供七个封闭域、只读工具：
 
 | 工具 | 输出边界 |
 |---|---|
@@ -323,11 +323,32 @@ MCP 服务严格只提供五个封闭域、只读工具：
 | `get_email` | 单封邮件的深复制快照；清洗后的 HTML 需要显式请求 |
 | `get_email_source` | 使用无损 base64 返回 RFC 5322 原始 source；原始字节默认最多 1 MiB，最大 100 MiB |
 | `list_attachments` | 名称、类型、大小、哈希和存储元数据；从不返回附件字节 |
+| `get_latest_email` | 按邮箱时间返回最新 1 至 20 封邮件的轻量摘要 |
+| `wait_for_email` | 通过投递事件流等待新的收件人、主题或文本匹配；不进行轮询 |
 
 不存在删除、标记已读、转发、中继、下载附件、修改配置或重新加载邮箱的 MCP
 工具。`list_emails` 与 `search_emails` 复用 `QueryEmailPreviews`；`get_email` 和
 `list_attachments` 复用邮箱的深复制 `GetEmail` 边界，不维护第二套索引，也不
 返回内部可变指针。
+
+`wait_for_email` 默认等待 30 秒，硬上限为 2 分钟；若 MCP session timeout
+更短，则以后者为上限。每个 session 最多同时等待 4 个调用，全进程最多 64 个。
+客户端取消、session 删除或超时以及进程关闭都会立即移除 waiter。waiter 表有界，
+并通过单个邮箱 listener 接收已提交的 `new` 事件，不会高频轮询，也不会为每个
+waiter 启动后台 goroutine。
+
+同一服务还提供 `owlmail://inbox`、`owlmail://stats` Resources 和
+`owlmail://email/{id}` Resource template。inbox 最多返回 50 条摘要；单封邮件
+Resource 的文本最多 32 KiB 并标明是否截断，且不包含 HTML、headers、source 或
+附件字节。`registration_verification_email`、`password_reset_email` 和
+`wait_for_delivery` Prompts 只组合上述只读能力。
+
+轻量摘要和邮件详情包含 `web_url`。默认根据 Web listener、HTTPS 或
+`OWLMAIL_WEB_EXTERNAL_SCHEME` 以及规范化后的 base pathname 生成。通过反向代理
+对外服务时，可设置 `-web-external-url https://mail.example.com` 或
+`OWLMAIL_WEB_EXTERNAL_URL=https://mail.example.com`；该值必须是无凭据、query、
+fragment 和 path 的 HTTP(S) origin。代理子路径继续通过 `-base-pathname` 单独
+设置，例如 `/owlmail`。
 
 多个客户端可以维持相互独立的会话。未知 session ID 返回 HTTP 404；客户端
 `DELETE` 会关闭会话；空闲会话在 `-mcp-session-timeout` 后关闭（默认 `30m`）。
@@ -390,8 +411,11 @@ docker run -d \
 ## SMTP 入口限制与鉴权模式
 
 SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-message-mb` 或
-`OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限仍为 50，读写
-超时仍为 10 秒。
+`OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限默认为 50，可用
+`-smtp-max-recipients` 或 `OWLMAIL_SMTP_MAX_RECIPIENTS` 调整。读写超时默认为
+10 秒，可分别用 `-smtp-read-timeout` / `OWLMAIL_SMTP_READ_TIMEOUT` 和
+`-smtp-write-timeout` / `OWLMAIL_SMTP_WRITE_TIMEOUT` 调整。收件人上限必须为正数，
+超时必须为正数的 Go duration 字符串。
 
 OwlMail 默认还会把每个进程同时处理的 SMTP 邮件正文事务限制为 8 个。可通过
 `-smtp-max-concurrency` 或 `OWLMAIL_SMTP_MAX_CONCURRENCY` 调整；显式设置为

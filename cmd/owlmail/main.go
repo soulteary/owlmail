@@ -9,8 +9,12 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
+	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -442,7 +446,11 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
 	}
-	if err := apiServer.SetExternalScheme(cfg.WebExternalScheme); err != nil {
+	externalScheme, err := normalizedWebExternalScheme(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := apiServer.SetExternalScheme(externalScheme); err != nil {
 		return nil, err
 	}
 	if cfg.MCPEnabled {
@@ -454,8 +462,12 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		if err != nil || shutdownTimeout <= 0 {
 			return nil, fmt.Errorf("invalid MCP shutdown timeout %q", cfg.MCPShutdownTimeout)
 		}
+		webBaseURL, err := mcpWebBaseURL(cfg)
+		if err != nil {
+			return nil, err
+		}
 		mcpService, err := mcpserver.New(server, mcpserver.Options{
-			SessionTimeout: sessionTimeout, ShutdownTimeout: shutdownTimeout,
+			SessionTimeout: sessionTimeout, ShutdownTimeout: shutdownTimeout, WebBaseURL: webBaseURL,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("create MCP service: %w", err)
@@ -497,6 +509,54 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	return apiServer, nil
+}
+
+func normalizedWebExternalScheme(cfg *config.Config) (string, error) {
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return "", err
+	}
+	if externalURL == "" {
+		return cfg.WebExternalScheme, nil
+	}
+	parsedExternalURL, err := url.Parse(externalURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid Web external URL: %w", err)
+	}
+	return parsedExternalURL.Scheme, nil
+}
+
+func mcpWebBaseURL(cfg *config.Config) (string, error) {
+	if cfg == nil {
+		return "", fmt.Errorf("config is nil")
+	}
+	basePathname, err := config.NormalizeBasePathname(cfg.BasePathname)
+	if err != nil {
+		return "", err
+	}
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return "", err
+	}
+	if externalURL != "" {
+		return externalURL + basePathname, nil
+	}
+
+	scheme := cfg.WebExternalScheme
+	if scheme == "" {
+		scheme = "http"
+		if cfg.HTTPSEnabled {
+			scheme = "https"
+		}
+	}
+	host := cfg.WebHost
+	if host == "" || host == "0.0.0.0" || host == "::" || host == "[::]" {
+		host = "localhost"
+	} else if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
+	}
+	origin := (&url.URL{Scheme: scheme, Host: net.JoinHostPort(host, strconv.Itoa(cfg.WebPort))}).String()
+	return origin + basePathname, nil
 }
 
 // setupGracefulShutdown sets up signal handling for graceful shutdown
@@ -613,6 +673,29 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if int64(maxMessageMB) > maxMessageMBWithoutOverflow {
 		return nil, fmt.Errorf("SMTP max message size is too large")
 	}
+	readTimeoutValue := cfg.SMTPReadTimeout
+	if readTimeoutValue == "" {
+		readTimeoutValue = config.DefaultSMTPReadTimeout
+	}
+	readTimeout, err := time.ParseDuration(readTimeoutValue)
+	if err != nil || readTimeout <= 0 {
+		return nil, fmt.Errorf("SMTP read timeout must be a positive duration")
+	}
+	writeTimeoutValue := cfg.SMTPWriteTimeout
+	if writeTimeoutValue == "" {
+		writeTimeoutValue = config.DefaultSMTPWriteTimeout
+	}
+	writeTimeout, err := time.ParseDuration(writeTimeoutValue)
+	if err != nil || writeTimeout <= 0 {
+		return nil, fmt.Errorf("SMTP write timeout must be a positive duration")
+	}
+	maxRecipients := cfg.SMTPMaxRecipients
+	if maxRecipients == 0 {
+		maxRecipients = config.DefaultSMTPMaxRecipients
+	}
+	if maxRecipients < 0 {
+		return nil, fmt.Errorf("SMTP max recipients must be greater than zero")
+	}
 	mailboxIndex, err := setupMailboxIndex(cfg)
 	if err != nil {
 		return nil, err
@@ -627,6 +710,9 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		UseUUIDForID:       cfg.UseUUIDForEmailID,
 		MaxMessageBytes:    int64(maxMessageMB) << 20,
 		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
+		ReadTimeout:        readTimeout,
+		WriteTimeout:       writeTimeout,
+		MaxRecipients:      maxRecipients,
 		RetainAllHeaders:   cfg.MailDevRESTCompat,
 		AttachmentStore:    attachmentStore,
 		AttachmentHealth:   healthProvider,

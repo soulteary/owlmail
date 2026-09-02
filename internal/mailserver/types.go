@@ -19,7 +19,10 @@ const (
 	defaultMailDir = "owlmail"
 
 	// DefaultMaxMessageBytes is the default SMTP DATA limit (100 MiB).
-	DefaultMaxMessageBytes int64 = 100 << 20
+	DefaultMaxMessageBytes   int64 = 100 << 20
+	defaultSMTPReadTimeout         = 10 * time.Second
+	defaultSMTPWriteTimeout        = 10 * time.Second
+	defaultSMTPMaxRecipients       = 50
 
 	defaultAttachmentUploadTimeout = 5 * time.Minute
 	defaultAttachmentOpenTimeout   = 5 * time.Minute
@@ -52,7 +55,8 @@ type TLSConfig struct {
 
 // ServerOptions contains optional runtime integrations and SMTP behavior.
 // Zero MaxMessageBytes selects DefaultMaxMessageBytes. Zero
-// MaxDataConcurrency leaves SMTP DATA concurrency unlimited.
+// MaxDataConcurrency leaves SMTP DATA concurrency unlimited. Zero protocol
+// timeout and recipient fields select their established defaults.
 type ServerOptions struct {
 	OutgoingConfig     *outgoing.OutgoingConfig
 	AuthConfig         *SMTPAuthConfig
@@ -61,6 +65,9 @@ type ServerOptions struct {
 	UseUUIDForID       bool
 	MaxMessageBytes    int64
 	MaxDataConcurrency int
+	ReadTimeout        time.Duration
+	WriteTimeout       time.Duration
+	MaxRecipients      int
 	RetainAllHeaders   bool
 	AttachmentStore    attachmentstore.Store
 	AttachmentHealth   attachmentstore.ReadinessProvider
@@ -92,6 +99,9 @@ type MailServer struct {
 	host                    string
 	maxMessageBytes         int64
 	maxDataConcurrency      int
+	readTimeout             time.Duration
+	writeTimeout            time.Duration
+	maxRecipients           int
 	retainAllHeaders        atomic.Bool
 	dataLimiter             *dataLimiter
 	attachmentStore         attachmentstore.Store
@@ -162,6 +172,21 @@ func (ms *MailServer) GetMaxMessageBytes() int64 {
 // Zero means unlimited.
 func (ms *MailServer) GetMaxDataConcurrency() int {
 	return ms.maxDataConcurrency
+}
+
+// GetReadTimeout returns the SMTP read timeout shared by SMTP and SMTPS.
+func (ms *MailServer) GetReadTimeout() time.Duration {
+	return ms.readTimeout
+}
+
+// GetWriteTimeout returns the SMTP write timeout shared by SMTP and SMTPS.
+func (ms *MailServer) GetWriteTimeout() time.Duration {
+	return ms.writeTimeout
+}
+
+// GetMaxRecipients returns the maximum recipients accepted per message.
+func (ms *MailServer) GetMaxRecipients() int {
+	return ms.maxRecipients
 }
 
 // GetMailDir returns the mail directory path

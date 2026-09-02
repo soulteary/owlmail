@@ -24,6 +24,13 @@ const DefaultSMTPMaxMessageMB = 100
 // mode for deployments that need the historical behavior.
 const DefaultSMTPMaxConcurrency = 8
 
+// SMTP connection limits apply consistently to SMTP, STARTTLS, and SMTPS.
+const DefaultSMTPReadTimeout = "10s"
+const DefaultSMTPWriteTimeout = "10s"
+const DefaultSMTPMaxRecipients = 50
+
+const invalidSMTPTimeout = "invalid"
+
 const DefaultS3Region = "us-east-1"
 const DefaultS3Prefix = "owlmail/attachments"
 const DefaultS3HealthCheckInterval = "30s"
@@ -219,6 +226,9 @@ type Config struct {
 	SMTPHost            string
 	SMTPMaxMessageMB    int
 	SMTPMaxConcurrency  int
+	SMTPReadTimeout     string
+	SMTPWriteTimeout    string
+	SMTPMaxRecipients   int
 	MailDir             string
 	MailRetentionDays   int
 	MailMaxMessages     int
@@ -232,6 +242,7 @@ type Config struct {
 	WebUser            string
 	WebPassword        string
 	WebExternalScheme  string
+	WebExternalURL     string
 	BasePathname       string
 	MailDevRESTCompat  bool
 	MCPEnabled         bool
@@ -299,6 +310,9 @@ func DefaultConfig() *Config {
 		SMTPHost:               "localhost",
 		SMTPMaxMessageMB:       DefaultSMTPMaxMessageMB,
 		SMTPMaxConcurrency:     DefaultSMTPMaxConcurrency,
+		SMTPReadTimeout:        DefaultSMTPReadTimeout,
+		SMTPWriteTimeout:       DefaultSMTPWriteTimeout,
+		SMTPMaxRecipients:      DefaultSMTPMaxRecipients,
 		MailDir:                "",
 		MailRetentionDays:      0,
 		MailMaxMessages:        0,
@@ -310,6 +324,7 @@ func DefaultConfig() *Config {
 		WebUser:                "",
 		WebPassword:            "",
 		WebExternalScheme:      "",
+		WebExternalURL:         "",
 		BasePathname:           "",
 		MailDevRESTCompat:      false,
 		MCPEnabled:             false,
@@ -360,6 +375,9 @@ type FlagRefs struct {
 	SMTPHost               *string
 	SMTPMaxMessageMB       *int
 	SMTPMaxConcurrency     *int
+	SMTPReadTimeout        *string
+	SMTPWriteTimeout       *string
+	SMTPMaxRecipients      *int
 	MailDir                *string
 	MailRetentionDays      *int
 	MailMaxMessages        *int
@@ -370,6 +388,7 @@ type FlagRefs struct {
 	WebHost                *string
 	WebUser                *string
 	WebPassword            *string
+	WebExternalURL         *string
 	BasePathname           *string
 	MailDevRESTCompat      *bool
 	MCPEnabled             *bool
@@ -422,6 +441,9 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		SMTPMaxMessageMB:       fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
 		SMTPMaxConcurrency:     fs.Int("smtp-max-concurrency", cfg.SMTPMaxConcurrency, "Maximum concurrent SMTP DATA transactions per process (0 = unlimited)"),
+		SMTPReadTimeout:        fs.String("smtp-read-timeout", cfg.SMTPReadTimeout, "SMTP command and DATA read timeout"),
+		SMTPWriteTimeout:       fs.String("smtp-write-timeout", cfg.SMTPWriteTimeout, "SMTP response write timeout"),
+		SMTPMaxRecipients:      fs.Int("smtp-max-recipients", cfg.SMTPMaxRecipients, "Maximum recipients accepted per message"),
 		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
 		MailRetentionDays:      fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
 		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
@@ -432,6 +454,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		WebExternalURL:         fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
 		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MailDevRESTCompat:      fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
 		MCPEnabled:             fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
@@ -485,6 +508,9 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
 		SMTPMaxConcurrency:  resolveSMTPMaxConcurrencyWithFlag(fs, *refs.SMTPMaxConcurrency),
+		SMTPReadTimeout:     resolveSMTPTimeoutWithFlag(fs, "smtp-read-timeout", "OWLMAIL_SMTP_READ_TIMEOUT", *refs.SMTPReadTimeout),
+		SMTPWriteTimeout:    resolveSMTPTimeoutWithFlag(fs, "smtp-write-timeout", "OWLMAIL_SMTP_WRITE_TIMEOUT", *refs.SMTPWriteTimeout),
+		SMTPMaxRecipients:   resolveSMTPMaxRecipientsWithFlag(fs, *refs.SMTPMaxRecipients),
 		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
 		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),
@@ -497,6 +523,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebUser:            resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
 		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
 		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		WebExternalURL:     resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
 		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
 		MailDevRESTCompat:  resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
 		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
@@ -547,6 +574,16 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	}
 }
 
+// resolveSMTPTimeoutWithFlag keeps an omitted field compatible with manually
+// constructed Config values while preserving an explicitly empty flag as an
+// invalid duration for startup validation.
+func resolveSMTPTimeoutWithFlag(fs *flag.FlagSet, flagName, owlmailKey, flagValue string) string {
+	if flagutil.HasFlag(fs, flagName) && flagValue == "" {
+		return invalidSMTPTimeout
+	}
+	return resolveStringWithFlag(fs, flagName, owlmailKey, flagValue)
+}
+
 // resolveSMTPMaxConcurrencyWithFlag keeps the established CLI-over-environment
 // priority while rejecting malformed environment values. ResolveConfig cannot
 // return an error without breaking its public API, so malformed values use the
@@ -564,6 +601,29 @@ func resolveSMTPMaxConcurrencyWithFlag(fs *flag.FlagSet, flagValue int) int {
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil {
+		return -1
+	}
+	return value
+}
+
+// resolveSMTPMaxRecipientsWithFlag preserves invalid explicit input as a
+// validation failure instead of silently falling back to the default.
+func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
+	if flagutil.HasFlag(fs, "smtp-max-recipients") {
+		if flagValue == 0 {
+			return -1
+		}
+		return flagValue
+	}
+	if !env.Has("OWLMAIL_SMTP_MAX_RECIPIENTS") {
+		return flagValue
+	}
+	raw := env.Get("OWLMAIL_SMTP_MAX_RECIPIENTS", "")
+	if raw == "" {
+		return flagValue
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil || value == 0 {
 		return -1
 	}
 	return value

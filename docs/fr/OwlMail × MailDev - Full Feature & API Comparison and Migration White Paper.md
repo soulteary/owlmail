@@ -1,4 +1,4 @@
-# OwlMail × MailDev : Livre blanc complet sur les fonctionnalités, l'API et la migration
+# OwlMail × MailDev × MailCatcher : Livre blanc complet sur les fonctionnalités, l'API et la migration
 
 > **Une comparaison approfondie au niveau du code source + Guide de migration pour les utilisateurs et les développeurs**
 
@@ -14,12 +14,12 @@
 
 ## 📋 Résumé exécutif
 
-OwlMail et MailDev couvrent les mêmes workflows de développement essentiels,
+OwlMail, MailDev et MailCatcher couvrent les mêmes workflows de développement essentiels,
 mais ils ne sont **ni identiques au niveau du protocole, ni interchangeables sans
 validation**. Les préfixes API, les réponses, l'état de lecture et le protocole
 temps réel diffèrent. Consultez la [référence API](../en/API-Reference.md).
 
-L'option `-maildev-rest-compat`, désactivée par défaut, expose les routes REST
+OwlMail fournit, uniquement sur la branche main examinée (pas dans la v0.6.0), un point de terminaison MCP en lecture seule, désactivé par défaut. MailDev 3 propose un workflow MCP plus large ; MailCatcher n'intègre pas MCP. L'option `-maildev-rest-compat`, désactivée par défaut, expose les routes REST
 MailDev actuelles sous `/api`. Elle n'ajoute aucune compatibilité Socket.IO.
 
 > **Note** : Le contenu complet sera disponible une fois la traduction terminée. En attendant, veuillez vous référer à la version anglaise pour les détails complets.

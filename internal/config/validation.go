@@ -41,6 +41,15 @@ func ValidateConfig(cfg *Config) error {
 	if cfg.SMTPMaxConcurrency < 0 {
 		return fmt.Errorf("SMTP max concurrency must be a non-negative integer")
 	}
+	if readTimeout, err := time.ParseDuration(cfg.SMTPReadTimeout); err != nil || readTimeout <= 0 {
+		return fmt.Errorf("SMTP read timeout must be a positive duration")
+	}
+	if writeTimeout, err := time.ParseDuration(cfg.SMTPWriteTimeout); err != nil || writeTimeout <= 0 {
+		return fmt.Errorf("SMTP write timeout must be a positive duration")
+	}
+	if cfg.SMTPMaxRecipients <= 0 {
+		return fmt.Errorf("SMTP max recipients must be greater than zero")
+	}
 	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
 		return fmt.Errorf("SMTP username and password must be configured together")
 	}
@@ -49,6 +58,16 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
+	}
+	externalURL, err := NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return err
+	}
+	if externalURL != "" && cfg.WebExternalScheme != "" {
+		parsed, _ := url.Parse(externalURL)
+		if parsed.Scheme != cfg.WebExternalScheme {
+			return fmt.Errorf("web external URL and external scheme must agree")
+		}
 	}
 	if _, err := NormalizeBasePathname(cfg.BasePathname); err != nil {
 		return err
@@ -147,6 +166,33 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// NormalizeWebExternalURL validates the browser-visible origin used in
+// generated links. The reverse-proxy path remains configured independently by
+// BasePathname so callers cannot accidentally apply it twice.
+func NormalizeWebExternalURL(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || !parsed.IsAbs() || parsed.Host == "" {
+		return "", fmt.Errorf("web external URL must be an absolute http or https origin")
+	}
+	parsed.Scheme = strings.ToLower(parsed.Scheme)
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return "", fmt.Errorf("web external URL must use http or https")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.Opaque != "" {
+		return "", fmt.Errorf("web external URL must not contain credentials, query, or fragment")
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", fmt.Errorf("web external URL must not contain a path; use base pathname instead")
+	}
+	parsed.Path = ""
+	parsed.RawPath = ""
+	return parsed.String(), nil
 }
 
 // NormalizeBasePathname converts a browser-visible URL prefix to the canonical
