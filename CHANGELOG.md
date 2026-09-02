@@ -8,6 +8,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- A sendmail-compatible `owlmail sendmail` subcommand for PHP, cron, and
+  legacy programs. It submits stdin through the normal SMTP boundary, supports
+  `-t`, `-f`, `-i`/`-oi`, explicit recipients, AUTH, STARTTLS, and SMTPS,
+  removes Bcc fields, negotiates SMTPUTF8, and returns stable sysexits-style
+  statuses for usage, message-data, permanent SMTP, local I/O, and temporary
+  SMTP failures.
 - A configurable per-process SMTP DATA concurrency limit shared by ordinary
   SMTP, STARTTLS, and SMTPS. The default of eight protects MIME parsing,
   transactional staging, attachment hashing, and S3 uploads; `0` preserves an

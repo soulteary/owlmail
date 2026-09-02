@@ -55,6 +55,7 @@ client API ou Socket.IO.
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **Aide intégrée** - Guide local bilingue depuis la boîte de réception ou `/help`
 - 🆕 **Configurateur Webhook** - Éditeur local intégré sous `/webhooks` pour créer, importer, valider, copier et télécharger les règles de transfert
+- 🆕 **CLI compatible sendmail** - [`owlmail sendmail`](./docs/fr/Sendmail.md) soumet les messages PHP, Cron et historiques via la frontière SMTP normale
 
 ### Compatibility
 
