@@ -231,10 +231,10 @@ func parseEmailQuery(c fiber.Ctx) (mailserver.EmailQuery, error) {
 		query.DateTo = &dateTo
 	}
 	if read := c.Query("read"); read != "" {
-		readValue, err := strconv.ParseBool(read)
-		if err != nil {
+		if read != "true" && read != "false" {
 			return mailserver.EmailQuery{}, fmt.Errorf("read must be true or false")
 		}
+		readValue := read == "true"
 		query.Read = &readValue
 	}
 	return query, nil
