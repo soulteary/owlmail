@@ -125,6 +125,86 @@ func TestSendMailDataDeadline(t *testing.T) {
 	<-commands
 }
 
+func TestSendMailEnvelopeDeadlineCoversAllRecipients(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+
+		reader := bufio.NewReader(conn)
+		_, _ = fmt.Fprint(conn, "220 localhost ESMTP\r\n")
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				return
+			}
+			command := strings.TrimSpace(line)
+			switch {
+			case strings.HasPrefix(command, "EHLO "):
+				_, _ = fmt.Fprint(conn, "250 localhost\r\n")
+			case strings.HasPrefix(command, "MAIL FROM:"):
+				_, _ = fmt.Fprint(conn, "250 ok\r\n")
+			case strings.HasPrefix(command, "RCPT TO:"):
+				time.Sleep(100 * time.Millisecond)
+				if _, writeErr := fmt.Fprint(conn, "250 ok\r\n"); writeErr != nil {
+					return
+				}
+			case command == "DATA":
+				_, _ = fmt.Fprint(conn, "354 continue\r\n")
+				for {
+					dataLine, dataErr := reader.ReadString('\n')
+					if dataErr != nil {
+						return
+					}
+					if strings.TrimSpace(dataLine) == "." {
+						break
+					}
+				}
+				_, _ = fmt.Fprint(conn, "250 queued\r\n")
+			case command == "QUIT":
+				_, _ = fmt.Fprint(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = fmt.Fprint(conn, "500 unexpected command\r\n")
+			}
+		}
+	}()
+
+	start := time.Now()
+	err = sendMailWithConfig(
+		context.Background(),
+		listener.Addr().String(),
+		nil,
+		"from@example.test",
+		[]string{"one@example.test", "two@example.test", "three@example.test"},
+		[]byte("body"),
+		&OutgoingConfig{TLSMode: TLSModePlain, EnvelopeTimeout: "150ms"},
+	)
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatal("sendMailWithConfig() error = nil, want the shared envelope deadline to expire")
+	}
+	if elapsed >= 250*time.Millisecond {
+		t.Fatalf("sendMailWithConfig() took %s, envelope timeout was reset per recipient", elapsed)
+	}
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("timed-out SMTP connection remained open")
+	}
+}
+
 func TestSendMailCancellation(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
