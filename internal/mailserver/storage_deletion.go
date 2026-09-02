@@ -160,6 +160,7 @@ func (ms *MailServer) removeEmailFromMemory(id string) {
 	ms.storeMutex.Lock()
 	delete(ms.storeByID, id)
 	delete(ms.receivedAtByID, id)
+	delete(ms.storePositionByID, id)
 	for i, storedID := range ms.storeOrder {
 		if storedID == id {
 			ms.storeOrder = append(ms.storeOrder[:i], ms.storeOrder[i+1:]...)

@@ -343,6 +343,8 @@ func (ms *MailServer) DeleteAllEmail() error {
 	ms.storeByID = make(map[string]*Email)
 	ms.storeOrder = make([]string, 0)
 	ms.receivedAtByID = make(map[string]time.Time)
+	ms.storePositionByID = make(map[string]int)
+	ms.nextStorePosition = 0
 	ms.storeMutex.Unlock()
 	ms.clearMailboxIndex()
 

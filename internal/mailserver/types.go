@@ -92,6 +92,8 @@ type MailServer struct {
 	storeByID               map[string]*types.Email
 	storeOrder              []string
 	receivedAtByID          map[string]time.Time
+	storePositionByID       map[string]int
+	nextStorePosition       int
 	storeMutex              sync.RWMutex
 	storageTransactionMutex sync.RWMutex
 	mailDir                 string

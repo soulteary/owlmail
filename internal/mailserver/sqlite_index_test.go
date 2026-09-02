@@ -113,6 +113,39 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 	}
 }
 
+func TestSQLiteMailboxIndexPreservesWideMessageTimeRange(t *testing.T) {
+	index, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = index.Close() }()
+	receivedAt := time.Now().UTC()
+	ancient := time.Date(1200, time.January, 2, 3, 4, 5, 123, time.UTC)
+	modern := time.Date(2026, time.January, 2, 3, 4, 5, 456, time.UTC)
+	future := time.Date(2500, time.January, 2, 3, 4, 5, 789, time.UTC)
+	if err := index.Rebuild([]IndexedEmail{
+		{ID: "ancient", MessageTime: ancient, ReceivedAt: receivedAt, StorePosition: 0},
+		{ID: "modern", MessageTime: modern, ReceivedAt: receivedAt, StorePosition: 1},
+		{ID: "future", MessageTime: future, ReceivedAt: receivedAt, StorePosition: 2},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	results, total, err := index.Query(EmailQuery{SortBy: "time", SortOrder: "asc", Limit: 10})
+	if err != nil || total != 3 || len(results) != 3 || results[0].ID != "ancient" || results[1].ID != "modern" || results[2].ID != "future" {
+		t.Fatalf("wide-range time order = %#v, total %d, err %v", results, total, err)
+	}
+	dateFrom := time.Date(2300, time.January, 1, 0, 0, 0, 0, time.UTC)
+	results, total, err = index.Query(EmailQuery{DateFrom: &dateFrom, Limit: 10})
+	if err != nil || total != 1 || len(results) != 1 || results[0].ID != "future" {
+		t.Fatalf("wide-range lower bound = %#v, total %d, err %v", results, total, err)
+	}
+	dateTo := time.Date(1500, time.January, 1, 0, 0, 0, 0, time.UTC)
+	results, total, err = index.Query(EmailQuery{DateTo: &dateTo, Limit: 10})
+	if err != nil || total != 1 || len(results) != 1 || results[0].ID != "ancient" {
+		t.Fatalf("wide-range upper bound = %#v, total %d, err %v", results, total, err)
+	}
+}
+
 func TestSQLiteMailboxIndexUsesOneSnapshotForCountAndPage(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mailbox.db")
 	index, err := NewSQLiteMailboxIndex(path)
@@ -199,6 +232,52 @@ func TestMailServerUsesSQLiteIndexAndSynchronizesMutations(t *testing.T) {
 	stats := server.GetEmailStats()["index"].(map[string]interface{})
 	if stats["enabled"] != true || stats["ready"] != true || stats["backend"] != "sqlite" {
 		t.Fatalf("index stats = %#v", stats)
+	}
+}
+
+func TestMailboxIndexUsesStableConstantTimeStorePositions(t *testing.T) {
+	directory := t.TempDir()
+	index, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = index.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	save := func(id string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(directory, id+".eml"), validMessage(id), 0600); err != nil {
+			t.Fatal(err)
+		}
+		email := &types.Email{ID: id, Subject: id, Time: time.Now()}
+		envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+		if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, id := range []string{"position-one", "position-two", "position-three"} {
+		save(id)
+	}
+	if err := server.DeleteEmail("position-two"); err != nil {
+		t.Fatal(err)
+	}
+	save("position-four")
+
+	server.storeMutex.RLock()
+	thirdPosition := server.storePositionByID["position-three"]
+	fourthPosition := server.storePositionByID["position-four"]
+	nextPosition := server.nextStorePosition
+	server.storeMutex.RUnlock()
+	if thirdPosition != 2 || fourthPosition != 3 || nextPosition != 4 {
+		t.Fatalf("stable positions = third %d, fourth %d, next %d", thirdPosition, fourthPosition, nextPosition)
+	}
+	results, total := server.QueryEmailPreviews(EmailQuery{SortBy: "store", SortOrder: "desc", Limit: 10})
+	if total != 3 || len(results) != 3 || results[0].ID != "position-four" || results[1].ID != "position-three" || results[2].ID != "position-one" {
+		t.Fatalf("descending stable store order = %#v, total %d", results, total)
 	}
 }
 

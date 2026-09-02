@@ -12,10 +12,12 @@ import (
 )
 
 const sqliteMailboxSchema = `
-CREATE TABLE IF NOT EXISTS mailbox_index (
+CREATE TABLE IF NOT EXISTS mailbox_index_v2 (
 	id TEXT PRIMARY KEY,
-	message_time INTEGER NOT NULL,
-	received_at INTEGER NOT NULL,
+	message_time_seconds INTEGER NOT NULL,
+	message_time_nanoseconds INTEGER NOT NULL,
+	received_at_seconds INTEGER NOT NULL,
+	received_at_nanoseconds INTEGER NOT NULL,
 	is_read INTEGER NOT NULL,
 	subject_search TEXT NOT NULL,
 	text_search TEXT NOT NULL,
@@ -27,19 +29,23 @@ CREATE TABLE IF NOT EXISTS mailbox_index (
 	size INTEGER NOT NULL,
 	store_position INTEGER NOT NULL
 );
-CREATE INDEX IF NOT EXISTS mailbox_index_time ON mailbox_index(message_time);
-CREATE INDEX IF NOT EXISTS mailbox_index_read ON mailbox_index(is_read);
-CREATE INDEX IF NOT EXISTS mailbox_index_store ON mailbox_index(store_position);
+CREATE INDEX IF NOT EXISTS mailbox_index_v2_time ON mailbox_index_v2(message_time_seconds, message_time_nanoseconds);
+CREATE INDEX IF NOT EXISTS mailbox_index_v2_read ON mailbox_index_v2(is_read);
+CREATE INDEX IF NOT EXISTS mailbox_index_v2_store ON mailbox_index_v2(store_position);
 `
 
 const sqliteMailboxUpsert = `
-INSERT INTO mailbox_index (
-	id, message_time, received_at, is_read, subject_search, text_search,
+INSERT INTO mailbox_index_v2 (
+	id, message_time_seconds, message_time_nanoseconds,
+	received_at_seconds, received_at_nanoseconds, is_read, subject_search, text_search,
 	html_search, from_search, visible_recipients_search, bcc_addresses_search,
 	first_from, size, store_position
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
-	message_time=excluded.message_time, received_at=excluded.received_at,
+	message_time_seconds=excluded.message_time_seconds,
+	message_time_nanoseconds=excluded.message_time_nanoseconds,
+	received_at_seconds=excluded.received_at_seconds,
+	received_at_nanoseconds=excluded.received_at_nanoseconds,
 	is_read=excluded.is_read, subject_search=excluded.subject_search,
 	text_search=excluded.text_search, html_search=excluded.html_search,
 	from_search=excluded.from_search,
@@ -141,7 +147,7 @@ func (index *SQLiteMailboxIndex) Rebuild(records []IndexedEmail) error {
 		return err
 	}
 	defer func() { _ = transaction.Rollback() }()
-	if _, err := transaction.Exec("DELETE FROM mailbox_index"); err != nil {
+	if _, err := transaction.Exec("DELETE FROM mailbox_index_v2"); err != nil {
 		return err
 	}
 	statement, err := transaction.Prepare(sqliteMailboxUpsert)
@@ -173,7 +179,8 @@ func sqliteMailboxValues(record IndexedEmail) []interface{} {
 		read = 1
 	}
 	return []interface{}{
-		record.ID, record.MessageTime.UnixNano(), record.ReceivedAt.UnixNano(), read,
+		record.ID, record.MessageTime.Unix(), record.MessageTime.Nanosecond(),
+		record.ReceivedAt.Unix(), record.ReceivedAt.Nanosecond(), read,
 		record.SubjectSearch, record.TextSearch, record.HTMLSearch, record.FromSearch,
 		record.VisibleRecipientsSearch, record.BCCAddressesSearch, record.FirstFrom,
 		record.Size, record.StorePosition,
@@ -181,12 +188,12 @@ func sqliteMailboxValues(record IndexedEmail) []interface{} {
 }
 
 func (index *SQLiteMailboxIndex) Delete(id string) error {
-	_, err := index.db.Exec("DELETE FROM mailbox_index WHERE id = ?", id)
+	_, err := index.db.Exec("DELETE FROM mailbox_index_v2 WHERE id = ?", id)
 	return err
 }
 
 func (index *SQLiteMailboxIndex) Clear() error {
-	_, err := index.db.Exec("DELETE FROM mailbox_index")
+	_, err := index.db.Exec("DELETE FROM mailbox_index_v2")
 	return err
 }
 
@@ -198,7 +205,7 @@ func (index *SQLiteMailboxIndex) Query(query EmailQuery) ([]IndexedEmailResult, 
 	}
 	defer func() { _ = transaction.Rollback() }()
 	var total int
-	if err := transaction.QueryRow("SELECT COUNT(*) FROM mailbox_index"+where, args...).Scan(&total); err != nil {
+	if err := transaction.QueryRow("SELECT COUNT(*) FROM mailbox_index_v2"+where, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	if index.afterQueryCount != nil {
@@ -212,7 +219,7 @@ func (index *SQLiteMailboxIndex) Query(query EmailQuery) ([]IndexedEmailResult, 
 	}
 	order := sqliteMailboxOrder(query.SortBy, query.SortOrder)
 	pageArgs := append(append([]interface{}{}, args...), query.Limit, max(query.Offset, 0))
-	rows, err := transaction.Query("SELECT id, is_read FROM mailbox_index"+where+order+" LIMIT ? OFFSET ?", pageArgs...)
+	rows, err := transaction.Query("SELECT id, is_read FROM mailbox_index_v2"+where+order+" LIMIT ? OFFSET ?", pageArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -265,12 +272,14 @@ func sqliteMailboxWhere(query EmailQuery) (string, []interface{}) {
 		args = append(args, value, value)
 	}
 	if query.DateFrom != nil {
-		clauses = append(clauses, "message_time >= ?")
-		args = append(args, query.DateFrom.UnixNano())
+		seconds, nanoseconds := query.DateFrom.Unix(), query.DateFrom.Nanosecond()
+		clauses = append(clauses, "(message_time_seconds > ? OR (message_time_seconds = ? AND message_time_nanoseconds >= ?))")
+		args = append(args, seconds, seconds, nanoseconds)
 	}
 	if query.DateTo != nil {
-		clauses = append(clauses, "message_time <= ?")
-		args = append(args, query.DateTo.UnixNano())
+		seconds, nanoseconds := query.DateTo.Unix(), query.DateTo.Nanosecond()
+		clauses = append(clauses, "(message_time_seconds < ? OR (message_time_seconds = ? AND message_time_nanoseconds <= ?))")
+		args = append(args, seconds, seconds, nanoseconds)
 	}
 	if query.Read != nil {
 		value := 0
@@ -293,7 +302,7 @@ func sqliteMailboxOrder(sortBy, sortOrder string) string {
 	}
 	switch sortBy {
 	case "time":
-		return " ORDER BY message_time" + direction + ", store_position ASC"
+		return " ORDER BY message_time_seconds" + direction + ", message_time_nanoseconds" + direction + ", store_position ASC"
 	case "subject":
 		return " ORDER BY subject_search" + direction + ", store_position ASC"
 	case "from":
@@ -308,7 +317,7 @@ func sqliteMailboxOrder(sortBy, sortOrder string) string {
 		}
 		return " ORDER BY store_position ASC"
 	case "":
-		return " ORDER BY message_time DESC, store_position ASC"
+		return " ORDER BY message_time_seconds DESC, message_time_nanoseconds DESC, store_position ASC"
 	default:
 		return " ORDER BY store_position ASC"
 	}

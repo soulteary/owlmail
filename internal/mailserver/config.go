@@ -108,6 +108,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		storeByID:               make(map[string]*types.Email),
 		storeOrder:              make([]string, 0),
 		receivedAtByID:          make(map[string]time.Time),
+		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
 		port:                    port,
 		host:                    host,

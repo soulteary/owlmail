@@ -106,8 +106,9 @@ func (ms *MailServer) rebuildMailboxIndex() error {
 	if ms.mailboxIndex == nil {
 		return nil
 	}
-	ms.storeMutex.RLock()
-	defer ms.storeMutex.RUnlock()
+	ms.storeMutex.Lock()
+	defer ms.storeMutex.Unlock()
+	ms.resetMailboxStorePositionsLocked()
 	records := make([]IndexedEmail, 0, len(ms.storeOrder))
 	for position, id := range ms.storeOrder {
 		if email, ok := ms.storeByID[id]; ok {
@@ -125,16 +126,31 @@ func (ms *MailServer) upsertMailboxIndexLocked(email *Email, receivedAt time.Tim
 	if ms.mailboxIndex == nil || !ms.mailboxIndexReady.Load() || email == nil {
 		return
 	}
-	position := 0
-	for index, id := range ms.storeOrder {
-		if id == email.ID {
-			position = index
-			break
-		}
-	}
+	position := ms.mailboxStorePositionLocked(email.ID)
 	if err := ms.mailboxIndex.Upsert(makeIndexedEmail(email, receivedAt, position)); err != nil {
 		ms.disableMailboxIndex("update", err)
 	}
+}
+
+func (ms *MailServer) mailboxStorePositionLocked(id string) int {
+	if ms.storePositionByID == nil {
+		ms.resetMailboxStorePositionsLocked()
+	}
+	if position, exists := ms.storePositionByID[id]; exists {
+		return position
+	}
+	position := ms.nextStorePosition
+	ms.nextStorePosition++
+	ms.storePositionByID[id] = position
+	return position
+}
+
+func (ms *MailServer) resetMailboxStorePositionsLocked() {
+	ms.storePositionByID = make(map[string]int, len(ms.storeOrder))
+	for position, id := range ms.storeOrder {
+		ms.storePositionByID[id] = position
+	}
+	ms.nextStorePosition = len(ms.storeOrder)
 }
 
 func (ms *MailServer) deleteMailboxIndex(id string) {
