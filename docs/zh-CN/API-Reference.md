@@ -159,9 +159,11 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 
 原生 v1 中继路由要求先配置出站 SMTP，并返回 `202`、不透明任务 ID、跟随基础路径
 的 `statusUrl` 和当前状态。轮询该地址直到状态变为 `succeeded` 或 `failed`。
-失败任务只暴露受限的 `errorCategory`，不会返回下游原始错误。已完成任务仅保存在
-当前进程中，保留 24 小时且最多保存 1000 条。历史 `/email` 别名保持原响应行为；
-可选 MailDev facade 仍会等待中继尝试完成。
+失败任务只暴露受限的 `errorCategory`，不会返回下游原始错误。任务仅保存在当前
+进程中，完成记录保留 24 小时。状态存储最多保存 1000 条，优先淘汰已完成记录；
+如果所有槽位都在执行，新请求返回 `503` 和 `Retry-After: 1`，不会淘汰执行中
+任务。历史 `/email` 别名保持原响应行为；可选 MailDev facade 仍会等待中继尝试
+完成。
 
 ### 设置与系统
 
