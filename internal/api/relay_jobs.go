@@ -14,7 +14,10 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 )
 
-var errRelayJobCapacity = errors.New("relay job status capacity reached")
+var (
+	errRelayJobCapacity       = errors.New("relay job status capacity reached")
+	errRelayRecipientTooLong = errors.New("relay recipient exceeds size limit")
+)
 
 const (
 	relayJobQueued    = "queued"
@@ -24,6 +27,7 @@ const (
 	defaultRelayJobTTL              = 24 * time.Hour
 	defaultRelayJobLimit            = 1000
 	defaultRelayJobMinimumRetention = time.Minute
+	defaultRelayRecipientMaxBytes   = 1024
 )
 
 type relayJob struct {
@@ -69,6 +73,9 @@ func randomRelayJobID() (string, error) {
 }
 
 func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
+	if len(relayTo) > defaultRelayRecipientMaxBytes {
+		return relayJob{}, errRelayRecipientTooLong
+	}
 	id, err := store.newID()
 	if err != nil {
 		return relayJob{}, err
@@ -215,6 +222,9 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
 	job, err := api.relayJobs.create(id, relayTo)
+	if errors.Is(err, errRelayRecipientTooLong) {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
+	}
 	if errors.Is(err, errRelayJobCapacity) {
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))

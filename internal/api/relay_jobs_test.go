@@ -38,6 +38,48 @@ func TestRelayJobStoreTracksSafeTerminalStatus(t *testing.T) {
 	}
 }
 
+func TestRelayJobStoreRejectsOversizedRecipient(t *testing.T) {
+	store := newRelayJobStore()
+	if _, err := store.create("mail-1", strings.Repeat("x", defaultRelayRecipientMaxBytes+1)); !errors.Is(err, errRelayRecipientTooLong) {
+		t.Fatalf("oversized recipient error = %v, want %v", err, errRelayRecipientTooLong)
+	}
+	if len(store.jobs) != 0 || len(store.order) != 0 {
+		t.Fatalf("oversized recipient was retained: jobs=%d order=%d", len(store.jobs), len(store.order))
+	}
+}
+
+func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
+	email := &types.Email{ID: "oversized-relay", Subject: "Oversized relay", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	payload, err := json.Marshal(map[string]string{"relayTo": strings.Repeat("x", defaultRelayRecipientMaxBytes+1)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", strings.NewReader(string(payload)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("oversized recipient status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
+	}
+	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+		t.Fatalf("oversized recipient created a relay job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	}
+}
+
 func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 	directory := t.TempDir()
 	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{

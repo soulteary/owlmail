@@ -170,9 +170,12 @@ Native v1 relay routes require outgoing SMTP configuration and return `202`
 with an opaque job ID, a base-path-aware `statusUrl`, and the current state.
 Poll that URL until the state is `succeeded` or `failed`. Failed jobs expose a
 bounded `errorCategory`, never the raw downstream error. Jobs are process-local
-and completed records are retained for 24 hours. The status store keeps at most
-1000 jobs and evicts completed records first; if all slots are active, a new
-request returns `503` with `Retry-After: 1` instead of evicting active work.
+and completed records expire after 24 hours. The status store keeps at most
+1000 jobs; completed records have a one-minute post-completion protection
+window and may be evicted under capacity pressure after that window. Active
+jobs are never evicted. If all slots are active or protected, a new request
+returns `503` with `Retry-After: 1`. Explicit `relayTo` values are limited to
+1024 UTF-8 bytes before a status record is created.
 Historical `/email` aliases keep their existing response behavior; the opt-in
 MailDev facade continues to wait for its relay attempt.
 
