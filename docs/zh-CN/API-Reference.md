@@ -201,11 +201,14 @@ WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 
 发布二进制与容器镜像会在构建时注入前四项，并冒烟验证版本与提交。普通本地
 `go build` 对未注入字段使用开发默认值。
 
-出站设置请求体支持 `host`、`port`、`user`、`password`、`secure`、
-`autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。`host` 必填，`port`
-必须在 1 到 65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。
-PATCH 请求中的规则列表如出现必须是数组；要清空列表请传空数组，`null` 不会触发
-更新。
+出站设置请求体支持 `host`、`port`、`user`、`password`、`tlsMode`
+（`plain`、强制 `starttls` 或隐式 `smtps`）、`insecureSkipVerify`、六个阶段
+超时字段、`autoRelay`、`autoRelayAddr`、`allowRules`、`denyRules`。为兼容
+MailDev，旧字段 `secure=true` 等同于 `smtps`。默认验证证书和主机名；
+`insecureSkipVerify` 是显式的不安全退出选项。`plain` 模式拒绝凭据，
+`starttls` 在扩展缺失或握手失败时不会降级。`host` 必填，`port` 必须在 1 到
+65535 之间。API 修改仅保存在内存，不会改写进程参数或环境变量。PATCH 请求中的
+规则列表如出现必须是数组；要清空列表请传空数组，`null` 不会触发更新。
 
 NO AUTH 模式下，设置端点返回的 `smtpAuth` 为 `null`；启用强制认证后，该对象只
 返回配置的用户名，不会返回密码。同时设置 `OWLMAIL_SMTP_USER` 与
@@ -229,7 +232,13 @@ curl -u admin:secret \
     "port": 587,
     "user": "relay-user",
     "password": "relay-password",
-    "secure": true
+    "tlsMode": "starttls",
+    "connectTimeout": "10s",
+    "tlsHandshakeTimeout": "10s",
+    "authTimeout": "10s",
+    "envelopeTimeout": "10s",
+    "dataTimeout": "30s",
+    "quitTimeout": "5s"
   }'
 ```
 

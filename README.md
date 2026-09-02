@@ -262,7 +262,15 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | Outgoing SMTP port |
 | `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | Outgoing SMTP username |
 | `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | Outgoing SMTP password |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | Outgoing SMTP TLS |
+| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev-compatible alias for implicit TLS/SMTPS |
+| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | Transport mode: unset is `plain`; or choose mandatory `starttls` or implicit `smtps` |
+| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | Disable certificate and hostname verification (unsafe, explicit opt-in) |
+| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | TCP connection and SMTP greeting deadline |
+| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS/STARTTLS handshake deadline |
+| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH deadline |
+| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT deadline |
+| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA write and acknowledgement deadline |
+| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT deadline |
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Enable auto relay |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
@@ -564,8 +572,13 @@ SMTP_PORT=1025
   -outgoing-port 587 \
   -outgoing-user your-email@gmail.com \
   -outgoing-pass your-password \
-  -outgoing-secure
+  -outgoing-tls-mode starttls
 ```
+
+`starttls` fails if the server does not advertise STARTTLS or the TLS handshake
+or certificate/hostname verification fails. Use `smtps` (or the legacy
+MailDev-compatible `-outgoing-secure`) for implicit TLS, commonly on port 465.
+OwlMail refuses outgoing AUTH in `plain` mode.
 
 ### Auto Relay Mode
 

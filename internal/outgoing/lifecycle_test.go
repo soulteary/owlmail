@@ -38,7 +38,9 @@ func TestOutgoingMailConfigSnapshotsAndDisableSemantics(t *testing.T) {
 	source := &OutgoingConfig{
 		Host:       "old.example.test",
 		Port:       25,
+		User:       "old-user",
 		Password:   "old-secret",
+		Secure:     true,
 		AllowRules: []string{"*@example.test"},
 	}
 	copyingRelay := NewOutgoingMail(source)
@@ -74,7 +76,9 @@ func TestOutgoingMailConfigSnapshotsAndDisableSemantics(t *testing.T) {
 	if err := om.UpdateConfig(&OutgoingConfig{
 		Host:       "new.example.test",
 		Port:       587,
+		User:       "new-user",
 		Password:   "new-secret",
+		Secure:     true,
 		AllowRules: []string{"*@new.example.test"},
 	}); err != nil {
 		t.Fatal(err)

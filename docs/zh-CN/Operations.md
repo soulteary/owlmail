@@ -448,6 +448,27 @@ SMTP TLS 只有在 `-tls-cert` 与 `-tls-key` 同时存在时才使用指定证�
 自签名证书并记录警告。Web HTTPS 行为不同：`-https-cert` 与 `-https-key` 两项
 都必须存在，缺失时 Web 服务无法启动。
 
+## 出站 Relay TLS 与阶段超时
+
+通过 `-outgoing-tls-mode` 或 `OWLMAIL_OUTGOING_TLS_MODE` 明确选择一种传输：
+
+| 模式 | 线上行为 | 凭据 |
+| --- | --- | --- |
+| `plain` | SMTP 全程明文 | 配置用户名/密码时直接拒绝 |
+| `starttls` | 必须声明 STARTTLS 并完成通过验证的握手 | 仅在 TLS 后发送 |
+| `smtps` | TCP 建连后立即进行 TLS 握手 | 仅在 TLS 后发送 |
+
+默认是 `plain`。兼容 MailDev 的 `-outgoing-secure` 和
+`MAILDEV_OUTGOING_SECURE=true` 等同于 `smtps`，不再表示机会式 STARTTLS。
+默认验证证书和主机名。`-outgoing-insecure-skip-verify` 默认关闭，只应在明确
+接受风险的测试环境中显式开启。
+
+连接/问候、TLS 握手、AUTH、MAIL/RCPT、DATA 与 QUIT 分别设置 deadline。
+使用对应的 `-outgoing-{connect,tls-handshake,auth,envelope,data,quit}-timeout`
+参数或 `OWLMAIL_OUTGOING_*_TIMEOUT` 环境变量配置。连接、TLS、AUTH 和信封阶段
+默认 10 秒，DATA 默认 30 秒，QUIT 默认 5 秒。调用方 context 更早到期时，以其
+为准并关闭连接。
+
 ## Webhook 容量档位
 
 `-webhook-max-concurrency` 是跨全部目标和邮件的进程级上限，并按每个目标 HTTP

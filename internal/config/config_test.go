@@ -93,6 +93,61 @@ func TestMailDevRESTCompatConfiguration(t *testing.T) {
 	})
 }
 
+func TestOutgoingTransportPrecedence(t *testing.T) {
+	t.Run("CLI secure overrides OWLMAIL TLS mode", func(t *testing.T) {
+		t.Setenv("OWLMAIL_OUTGOING_TLS_MODE", "starttls")
+		fs := flag.NewFlagSet("outgoing-secure-cli", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-outgoing-secure"}); err != nil {
+			t.Fatal(err)
+		}
+		config := ResolveConfig(fs, refs)
+		if !config.OutgoingSecure || config.OutgoingTLSMode != "" {
+			t.Fatalf("outgoing transport = secure:%v mode:%q, want CLI SMTPS alias", config.OutgoingSecure, config.OutgoingTLSMode)
+		}
+	})
+
+	t.Run("explicit CLI false overrides OWLMAIL TLS mode", func(t *testing.T) {
+		t.Setenv("OWLMAIL_OUTGOING_TLS_MODE", "smtps")
+		fs := flag.NewFlagSet("outgoing-plain-cli", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-outgoing-secure=false"}); err != nil {
+			t.Fatal(err)
+		}
+		config := ResolveConfig(fs, refs)
+		if config.OutgoingSecure || config.OutgoingTLSMode != "" {
+			t.Fatalf("outgoing transport = secure:%v mode:%q, want CLI plain alias", config.OutgoingSecure, config.OutgoingTLSMode)
+		}
+	})
+
+	t.Run("CLI TLS mode overrides MAILDEV secure", func(t *testing.T) {
+		t.Setenv("MAILDEV_OUTGOING_SECURE", "true")
+		fs := flag.NewFlagSet("outgoing-mode-cli", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-outgoing-tls-mode", "starttls"}); err != nil {
+			t.Fatal(err)
+		}
+		config := ResolveConfig(fs, refs)
+		if config.OutgoingSecure || config.OutgoingTLSMode != "starttls" {
+			t.Fatalf("outgoing transport = secure:%v mode:%q, want CLI STARTTLS", config.OutgoingSecure, config.OutgoingTLSMode)
+		}
+	})
+
+	t.Run("MAILDEV secure overrides OWLMAIL TLS mode", func(t *testing.T) {
+		t.Setenv("MAILDEV_OUTGOING_SECURE", "true")
+		t.Setenv("OWLMAIL_OUTGOING_TLS_MODE", "plain")
+		fs := flag.NewFlagSet("outgoing-maildev-env", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		config := ResolveConfig(fs, refs)
+		if !config.OutgoingSecure || config.OutgoingTLSMode != "" {
+			t.Fatalf("outgoing transport = secure:%v mode:%q, want MAILDEV SMTPS alias", config.OutgoingSecure, config.OutgoingTLSMode)
+		}
+	})
+}
+
 func TestResolveString(t *testing.T) {
 	envMgr := testutil.NewEnvManager()
 	defer envMgr.Cleanup()

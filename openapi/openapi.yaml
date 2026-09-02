@@ -789,7 +789,7 @@ paths:
               port: 587
               user: relay-user
               password: relay-password
-              secure: true
+              tlsMode: starttls
               autoRelay: false
               autoRelayAddr: ''
               allowRules: []
@@ -1471,6 +1471,33 @@ components:
           writeOnly: true
         secure:
           type: boolean
+          description: Deprecated MailDev-compatible alias. true selects implicit TLS/SMTPS; false selects plain unless tlsMode is supplied.
+        tlsMode:
+          type: string
+          enum: [plain, starttls, smtps]
+          description: Explicit transport mode. STARTTLS is mandatory in starttls mode and never falls back to plaintext.
+        insecureSkipVerify:
+          type: boolean
+          default: false
+          description: Explicitly disables certificate and hostname verification. Unsafe; applies only to TLS modes.
+        connectTimeout:
+          type: string
+          example: 10s
+        tlsHandshakeTimeout:
+          type: string
+          example: 10s
+        authTimeout:
+          type: string
+          example: 10s
+        envelopeTimeout:
+          type: string
+          example: 10s
+        dataTimeout:
+          type: string
+          example: 30s
+        quitTimeout:
+          type: string
+          example: 5s
         autoRelay:
           type: boolean
         autoRelayAddr:
@@ -1502,6 +1529,24 @@ components:
           writeOnly: true
         secure:
           type: boolean
+          description: Deprecated MailDev-compatible alias. true selects implicit TLS/SMTPS.
+        tlsMode:
+          type: string
+          enum: [plain, starttls, smtps]
+        insecureSkipVerify:
+          type: boolean
+        connectTimeout:
+          type: string
+        tlsHandshakeTimeout:
+          type: string
+        authTimeout:
+          type: string
+        envelopeTimeout:
+          type: string
+        dataTimeout:
+          type: string
+        quitTimeout:
+          type: string
         autoRelay:
           type: boolean
         autoRelayAddr:
@@ -1532,6 +1577,24 @@ components:
           type: string
         secure:
           type: boolean
+          description: true only when the effective mode is implicit TLS/SMTPS.
+        tlsMode:
+          type: string
+          enum: [plain, starttls, smtps]
+        insecureSkipVerify:
+          type: boolean
+        connectTimeout:
+          type: string
+        tlsHandshakeTimeout:
+          type: string
+        authTimeout:
+          type: string
+        envelopeTimeout:
+          type: string
+        dataTimeout:
+          type: string
+        quitTimeout:
+          type: string
         autoRelay:
           type: boolean
         autoRelayAddr:
@@ -1556,6 +1619,14 @@ components:
       - port
       - user
       - secure
+      - tlsMode
+      - insecureSkipVerify
+      - connectTimeout
+      - tlsHandshakeTimeout
+      - authTimeout
+      - envelopeTimeout
+      - dataTimeout
+      - quitTimeout
       - autoRelay
       - autoRelayAddr
       - allowRules
@@ -1569,6 +1640,23 @@ components:
           type: string
         secure:
           type: boolean
+        tlsMode:
+          type: string
+          enum: [plain, starttls, smtps]
+        insecureSkipVerify:
+          type: boolean
+        connectTimeout:
+          type: string
+        tlsHandshakeTimeout:
+          type: string
+        authTimeout:
+          type: string
+        envelopeTimeout:
+          type: string
+        dataTimeout:
+          type: string
+        quitTimeout:
+          type: string
         autoRelay:
           type: boolean
         autoRelayAddr:

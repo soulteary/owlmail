@@ -238,7 +238,15 @@ docker buildx build \
 | `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | Outgoing SMTP port |
 | `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | Outgoing SMTP username |
 | `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | Outgoing SMTP password |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | Outgoing SMTP TLS |
+| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev 互換の暗黙 TLS/SMTPS エイリアス |
+| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | 未設定は `plain`、または必須 `starttls`／暗黙 `smtps` |
+| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | 証明書・ホスト名検証を無効化（危険） |
+| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | 接続／グリーティング期限 |
+| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS ハンドシェイク期限 |
+| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH 期限 |
+| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT 期限 |
+| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA 期限 |
+| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT 期限 |
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Enable auto relay |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
@@ -454,8 +462,12 @@ SMTP_PORT=1025
   -outgoing-port 587 \
   -outgoing-user your-email@gmail.com \
   -outgoing-pass your-password \
-  -outgoing-secure
+  -outgoing-tls-mode starttls
 ```
+
+`starttls` は STARTTLS が通知されない場合や TLS／証明書検証の失敗時に
+終了し、平文へ降格しません。`smtps` は接続開始時から TLS を使用し、
+`plain` モードでは AUTH を許可しません。
 
 ### Auto Relay Mode
 

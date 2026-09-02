@@ -238,7 +238,15 @@ docker buildx build \
 | `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | Ausgehender SMTP-Port |
 | `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | Ausgehender SMTP-Benutzername |
 | `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | Ausgehendes SMTP-Passwort |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | Ausgehendes SMTP TLS |
+| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev-kompatibler Alias für implizites TLS/SMTPS |
+| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | Ohne Wert `plain`; sonst verpflichtendes `starttls` oder implizites `smtps` |
+| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | Zertifikats-/Hostnamenprüfung deaktivieren (unsicher) |
+| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | Connect-/Greeting-Frist |
+| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS-Handshake-Frist |
+| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH-Frist |
+| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT-Frist |
+| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA-Frist |
+| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT-Frist |
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Auto-Relay aktivieren |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto-Relay-Adresse |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto-Relay-Regeldatei |
@@ -456,8 +464,12 @@ SMTP_PORT=1025
   -outgoing-port 587 \
   -outgoing-user your-email@gmail.com \
   -outgoing-pass your-password \
-  -outgoing-secure
+  -outgoing-tls-mode starttls
 ```
+
+`starttls` schlägt ohne angekündigtes STARTTLS oder bei TLS-/Zertifikatsfehlern
+fehl und fällt nie auf Klartext zurück. `smtps` verwendet TLS ab Verbindungsaufbau;
+AUTH ist im Modus `plain` nicht erlaubt.
 
 ### Auto-Relay-Modus
 

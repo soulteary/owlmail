@@ -525,6 +525,30 @@ certificate and logs a warning. Web HTTPS behaves differently: both
 `-https-cert` and `-https-key` are required, and missing files prevent the Web
 server from starting.
 
+## Outgoing relay TLS and deadlines
+
+Select one explicit outbound transport with `-outgoing-tls-mode` or
+`OWLMAIL_OUTGOING_TLS_MODE`:
+
+| Mode | Wire behavior | Credentials |
+| --- | --- | --- |
+| `plain` | SMTP remains cleartext | Rejected when user/password are configured |
+| `starttls` | Requires the advertised STARTTLS extension and a successful verified handshake | Sent only after TLS |
+| `smtps` | TLS handshake starts immediately after TCP connect | Sent only after TLS |
+
+The default is `plain`. The MailDev-compatible `-outgoing-secure` and
+`MAILDEV_OUTGOING_SECURE=true` aliases select `smtps`, not opportunistic
+STARTTLS. Certificates and hostnames are verified by default. Use
+`-outgoing-insecure-skip-verify` only for an explicitly accepted test-only
+risk; it defaults to false.
+
+Connect/greeting, TLS handshake, AUTH, MAIL/RCPT, DATA, and QUIT use independent
+deadlines. Configure them with the corresponding
+`-outgoing-{connect,tls-handshake,auth,envelope,data,quit}-timeout` flags or
+`OWLMAIL_OUTGOING_*_TIMEOUT` variables. Defaults are 10 seconds for connect,
+TLS, AUTH, and envelope, 30 seconds for DATA, and 5 seconds for QUIT. A caller
+context deadline that expires sooner always wins and closes the connection.
+
 ## Webhook capacity profiles
 
 `-webhook-max-concurrency` is process-wide across all targets and messages and

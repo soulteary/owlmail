@@ -28,7 +28,6 @@ func TestAPIGetConfig(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
-	_ = body
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -140,7 +139,7 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 
 	config := map[string]interface{}{
 		"host":     "smtp.example.com",
-		"port":     587,
+		"port":     465,
 		"user":     "user",
 		"password": "top-secret",
 		"secure":   true,
@@ -163,6 +162,51 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 	}
 	if bytes.Contains(body, []byte("password")) || bytes.Contains(body, []byte("top-secret")) {
 		t.Fatal("outgoing update response exposed password")
+	}
+}
+
+func TestAPIOutgoingTLSModesAndPlainAuthRejection(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	plainAuth := []byte(`{"host":"smtp.example.com","port":25,"tlsMode":"plain","user":"relay","password":"secret"}`)
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewReader(plainAuth))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("plain AUTH status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	startTLS := []byte(`{"host":"smtp.example.com","port":587,"tlsMode":"starttls","user":"relay","password":"secret","insecureSkipVerify":false,"dataTimeout":"45s"}`)
+	req, _ = http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewReader(startTLS))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("STARTTLS config status = %d, body = %s", resp.StatusCode, body)
+	}
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	config := result["config"].(map[string]any)
+	if config["tlsMode"] != "starttls" || config["secure"] != false || config["dataTimeout"] != "45s" {
+		t.Fatalf("STARTTLS config response = %#v", config)
+	}
+	if _, ok := config["password"]; ok {
+		t.Fatal("outgoing config response exposed password")
 	}
 }
 
@@ -225,7 +269,9 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	outgoingConfig := &outgoing.OutgoingConfig{
 		Host:     "smtp.example.com",
 		Port:     587,
+		User:     "user",
 		Password: "top-secret",
+		Secure:   true,
 	}
 	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
 		t.Fatal(err)
@@ -593,6 +639,7 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 		"port":     587,
 		"user":     "user",
 		"password": "old-secret",
+		"secure":   true,
 	}
 	jsonBody, _ := json.Marshal(config)
 
@@ -657,8 +704,9 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	if clearResp.StatusCode != http.StatusOK {
 		t.Fatalf("Clear password status = %d, want 200", clearResp.StatusCode)
 	}
-	if got := server.GetOutgoingConfig().Password; got != "" {
-		t.Fatalf("explicit empty PATCH password was not cleared: %q", got)
+	cleared := server.GetOutgoingConfig()
+	if cleared.Password != "" || cleared.User != "" {
+		t.Fatalf("explicit empty PATCH password did not disable credentials: user=%q password=%q", cleared.User, cleared.Password)
 	}
 }
 

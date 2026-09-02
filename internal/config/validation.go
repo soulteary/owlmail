@@ -30,6 +30,39 @@ func ValidateConfig(cfg *Config) error {
 		if err := ValidatePort(cfg.OutgoingPort, "Outgoing port"); err != nil {
 			return err
 		}
+		outgoingTLSMode := strings.ToLower(strings.TrimSpace(cfg.OutgoingTLSMode))
+		if outgoingTLSMode == "" {
+			if cfg.OutgoingSecure {
+				outgoingTLSMode = "smtps"
+			} else {
+				outgoingTLSMode = "plain"
+			}
+		}
+		if outgoingTLSMode != "plain" && outgoingTLSMode != "starttls" && outgoingTLSMode != "smtps" {
+			return fmt.Errorf("outgoing TLS mode must be plain, starttls, or smtps")
+		}
+		if (cfg.OutgoingUser == "") != (cfg.OutgoingPass == "") {
+			return fmt.Errorf("outgoing username and password must be configured together")
+		}
+		if cfg.OutgoingUser != "" && outgoingTLSMode == "plain" {
+			return fmt.Errorf("outgoing SMTP authentication requires starttls or smtps")
+		}
+		outgoingTimeouts := []struct {
+			name  string
+			value string
+		}{
+			{"connect", cfg.OutgoingConnectTimeout},
+			{"TLS handshake", cfg.OutgoingTLSHandshakeTimeout},
+			{"AUTH", cfg.OutgoingAuthTimeout},
+			{"MAIL/RCPT", cfg.OutgoingEnvelopeTimeout},
+			{"DATA", cfg.OutgoingDataTimeout},
+			{"QUIT", cfg.OutgoingQuitTimeout},
+		}
+		for _, timeout := range outgoingTimeouts {
+			if duration, err := time.ParseDuration(timeout.value); err != nil || duration <= 0 {
+				return fmt.Errorf("outgoing %s timeout must be a positive duration", timeout.name)
+			}
+		}
 	}
 	if cfg.SMTPMaxMessageMB <= 0 {
 		return fmt.Errorf("SMTP max message size must be greater than zero")

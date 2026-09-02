@@ -100,13 +100,24 @@ func setupOutgoingConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
 	}
 
 	outgoingConfig := &outgoing.OutgoingConfig{
-		Host:          cfg.OutgoingHost,
-		Port:          cfg.OutgoingPort,
-		User:          cfg.OutgoingUser,
-		Password:      cfg.OutgoingPass,
-		Secure:        cfg.OutgoingSecure,
-		AutoRelay:     cfg.AutoRelay,
-		AutoRelayAddr: cfg.AutoRelayAddr,
+		Host:                cfg.OutgoingHost,
+		Port:                cfg.OutgoingPort,
+		User:                cfg.OutgoingUser,
+		Password:            cfg.OutgoingPass,
+		Secure:              cfg.OutgoingSecure,
+		TLSMode:             outgoing.TLSMode(cfg.OutgoingTLSMode),
+		InsecureSkipVerify:  cfg.OutgoingInsecureSkipVerify,
+		ConnectTimeout:      cfg.OutgoingConnectTimeout,
+		TLSHandshakeTimeout: cfg.OutgoingTLSHandshakeTimeout,
+		AuthTimeout:         cfg.OutgoingAuthTimeout,
+		EnvelopeTimeout:     cfg.OutgoingEnvelopeTimeout,
+		DataTimeout:         cfg.OutgoingDataTimeout,
+		QuitTimeout:         cfg.OutgoingQuitTimeout,
+		AutoRelay:           cfg.AutoRelay,
+		AutoRelayAddr:       cfg.AutoRelayAddr,
+	}
+	if err := outgoingConfig.Validate(); err != nil {
+		return nil, err
 	}
 
 	// Load auto relay rules from JSON file if provided

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/smtp"
 	"os"
 	"strings"
@@ -30,15 +29,24 @@ const defaultEnqueueTimeout = 5 * time.Second
 
 // OutgoingConfig represents the configuration for outgoing mail
 type OutgoingConfig struct {
-	Host          string
-	Port          int
-	User          string
-	Password      string
-	Secure        bool // Use TLS
-	AutoRelay     bool
-	AutoRelayAddr string
-	AllowRules    []string // Allow list patterns
-	DenyRules     []string // Deny list patterns
+	Host                string
+	Port                int
+	User                string
+	Password            string
+	Secure              bool    // Deprecated compatibility alias: true means implicit TLS/SMTPS.
+	TLSMode             TLSMode // plain, starttls, or smtps
+	InsecureSkipVerify  bool
+	ConnectTimeout      string
+	TLSHandshakeTimeout string
+	AuthTimeout         string
+	EnvelopeTimeout     string
+	DataTimeout         string
+	QuitTimeout         string
+	tlsConfig           *tls.Config
+	AutoRelay           bool
+	AutoRelayAddr       string
+	AllowRules          []string // Allow list patterns
+	DenyRules           []string // Deny list patterns
 }
 
 // OutgoingMail handles outgoing email relay
@@ -73,7 +81,7 @@ const relayCopyBufferSize = 32 * 1024
 
 // NewOutgoingMail creates a new outgoing mail handler
 func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
-	config = cloneConfig(config)
+	config = cloneConfig(config).withDefaults()
 
 	om := &OutgoingMail{
 		config:         config,
@@ -149,6 +157,9 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	if config.Host == "" {
 		return ErrNotConfigured
 	}
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("invalid outgoing mail configuration: %w", err)
+	}
 
 	// Determine recipients
 	recipients := getRecipients(task, config)
@@ -177,17 +188,8 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 		auth = smtp.PlainAuth("", config.User, config.Password, config.Host)
 	}
 
-	// Send email using net/smtp
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	useSTARTTLS := config.Secure
-	authOnlyWhenAdvertised := task.Context == nil && !config.Secure
-	if task.Context == nil {
-		// smtp.SendMail, which handled the ordinary asynchronous path before
-		// relay streaming, opportunistically upgraded whenever STARTTLS was
-		// advertised. Preserve that behavior in this performance-only change.
-		useSTARTTLS = true
-	}
-	err = sendMailContext(ctx, addr, auth, sender, recipients, emailFile, useSTARTTLS, authOnlyWhenAdvertised)
+	err = sendMailStreamWithConfig(ctx, addr, auth, sender, recipients, emailFile, config)
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
@@ -208,6 +210,9 @@ func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
 
 func getRecipients(task *RelayTask, config *OutgoingConfig) []string {
 	var recipients []string
+	if config == nil {
+		return recipients
+	}
 
 	// If manual relay with specific address
 	if task.RelayTo != "" {
@@ -240,6 +245,9 @@ func (om *OutgoingMail) filterRecipients(recipients []string) []string {
 
 func filterRecipients(recipients []string, config *OutgoingConfig) []string {
 	filtered := make([]string, 0)
+	if config == nil {
+		return filtered
+	}
 
 	for _, recipient := range recipients {
 		// Process all rules in order to find the last matching rule
@@ -395,9 +403,14 @@ func (om *OutgoingMail) UpdateConfig(config interface{}) error {
 	if !ok {
 		return fmt.Errorf("invalid outgoing mail configuration type %T", config)
 	}
-	next := cloneConfig(cfg)
-	if next.Host != "" && (next.Port <= 0 || next.Port > 65535) {
-		return fmt.Errorf("outgoing mail port must be between 1 and 65535")
+	next := cloneConfig(cfg).withDefaults()
+	if next.Host != "" {
+		if next.Port <= 0 || next.Port > 65535 {
+			return fmt.Errorf("outgoing mail port must be between 1 and 65535")
+		}
+		if err := next.Validate(); err != nil {
+			return err
+		}
 	}
 
 	om.mu.Lock()
@@ -431,6 +444,9 @@ func cloneConfig(config *OutgoingConfig) *OutgoingConfig {
 	clone := *config
 	clone.AllowRules = append([]string(nil), config.AllowRules...)
 	clone.DenyRules = append([]string(nil), config.DenyRules...)
+	if config.tlsConfig != nil {
+		clone.tlsConfig = config.tlsConfig.Clone()
+	}
 	return &clone
 }
 
@@ -451,154 +467,6 @@ func (om *OutgoingMail) Close() {
 		om.wg.Wait()
 	})
 }
-
-type smtpHelloTracker struct {
-	net.Conn
-
-	mu       sync.Mutex
-	pending  string
-	tracking bool
-	usedHELO bool
-}
-
-func (conn *smtpHelloTracker) Write(data []byte) (int, error) {
-	conn.mu.Lock()
-	if conn.tracking {
-		conn.pending += string(data)
-		for {
-			newline := strings.IndexByte(conn.pending, '\n')
-			if newline < 0 {
-				break
-			}
-			line := strings.TrimSuffix(conn.pending[:newline], "\r")
-			conn.pending = conn.pending[newline+1:]
-			if strings.HasPrefix(line, "HELO ") {
-				conn.usedHELO = true
-			}
-		}
-	}
-	conn.mu.Unlock()
-	return conn.Conn.Write(data)
-}
-
-func (conn *smtpHelloTracker) stop() bool {
-	conn.mu.Lock()
-	defer conn.mu.Unlock()
-	conn.tracking = false
-	conn.pending = ""
-	return conn.usedHELO
-}
-
-// sendMailContext performs an SMTP transaction on a connection that is
-// closed when ctx is canceled. Message data is copied through the writer from
-// smtp.Client.Data so net/smtp retains responsibility for CRLF normalization
-// and dot-stuffing. The source is always closed by this function.
-func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, secure, authOnlyWhenAdvertised bool) error {
-	if source == nil {
-		return fmt.Errorf("email source is nil")
-	}
-	source = &relayReadCloser{ReadCloser: source}
-	defer func() {
-		if err := source.Close(); err != nil {
-			common.Verbose("Failed to close email source: %v", err)
-		}
-	}()
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	host, _, err := net.SplitHostPort(addr)
-	if err != nil {
-		return err
-	}
-	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
-	if err != nil {
-		return err
-	}
-	stopCancel := context.AfterFunc(ctx, func() {
-		_ = source.Close()
-		_ = conn.Close()
-	})
-	defer stopCancel()
-	if deadline, ok := ctx.Deadline(); ok {
-		if err := conn.SetDeadline(deadline); err != nil {
-			_ = conn.Close()
-			return err
-		}
-	}
-
-	smtpConn := net.Conn(conn)
-	var helloTracker *smtpHelloTracker
-	if auth != nil && authOnlyWhenAdvertised {
-		helloTracker = &smtpHelloTracker{Conn: conn, tracking: true}
-		smtpConn = helloTracker
-	}
-	client, err := smtp.NewClient(smtpConn, host)
-	if err != nil {
-		_ = conn.Close()
-		return relayContextError(ctx, err)
-	}
-	defer func() {
-		if err := client.Close(); err != nil {
-			common.Verbose("Failed to close SMTP client: %v", err)
-		}
-	}()
-
-	if secure {
-		if ok, _ := client.Extension("STARTTLS"); ok {
-			if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
-				return relayContextError(ctx, err)
-			}
-		}
-	}
-	if auth != nil {
-		if authOnlyWhenAdvertised {
-			authAdvertised, _ := client.Extension("AUTH")
-			usedHELOFallback := helloTracker.stop()
-			if !authAdvertised {
-				if !usedHELOFallback {
-					return errors.New("smtp: server doesn't support AUTH")
-				}
-			} else if err := client.Auth(auth); err != nil {
-				return relayContextError(ctx, err)
-			}
-		} else if err := client.Auth(auth); err != nil {
-			return relayContextError(ctx, err)
-		}
-	}
-	if err := client.Mail(from); err != nil {
-		return relayContextError(ctx, err)
-	}
-	for _, recipient := range to {
-		if err := client.Rcpt(recipient); err != nil {
-			return relayContextError(ctx, err)
-		}
-	}
-	w, err := client.Data()
-	if err != nil {
-		return relayContextError(ctx, err)
-	}
-	if _, err := copyRelayMessage(ctx, w, source); err != nil {
-		// Closing a DATA writer normally sends the terminating dot. Abort the
-		// connection first so a source or write failure cannot submit a
-		// truncated message, then close the writer to release its resources.
-		_ = client.Close()
-		if closeErr := w.Close(); closeErr != nil {
-			common.Verbose("Failed to close aborted SMTP DATA writer: %v", closeErr)
-		}
-		return relayContextError(ctx, fmt.Errorf("stream email data: %w", err))
-	}
-	if err := w.Close(); err != nil {
-		return relayContextError(ctx, err)
-	}
-	if err := client.Quit(); err != nil {
-		return relayContextError(ctx, err)
-	}
-	return nil
-}
-
 func copyRelayMessage(ctx context.Context, destination io.Writer, source io.Reader) (int64, error) {
 	return io.CopyBuffer(destination, &relayContextReader{ctx: ctx, source: source}, make([]byte, relayCopyBufferSize))
 }

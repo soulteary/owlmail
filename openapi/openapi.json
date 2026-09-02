@@ -1124,6 +1124,54 @@
         }
       }
     },
+    "/relay-jobs/{jobID}": {
+      "get": {
+        "tags": [
+          "Relay"
+        ],
+        "summary": "Get asynchronous relay status",
+        "description": "Returns the current state of one process-local relay job. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
+        "operationId": "getRelayJob",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RelayJobID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "RELAY_STATUS",
+                  "message": "Relay job status",
+                  "data": {
+                    "id": "0123456789abcdef0123456789abcdef",
+                    "emailId": "aB3dEfGh",
+                    "status": "succeeded",
+                    "createdAt": "2026-09-02T12:00:00Z",
+                    "updatedAt": "2026-09-02T12:00:01Z",
+                    "completedAt": "2026-09-02T12:00:01Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
     "/settings": {
       "get": {
         "tags": [
@@ -1208,7 +1256,7 @@
                 "port": 587,
                 "user": "relay-user",
                 "password": "relay-password",
-                "secure": true,
+                "tlsMode": "starttls",
                 "autoRelay": false,
                 "autoRelayAddr": "",
                 "allowRules": [],
@@ -1343,9 +1391,6 @@
               }
             }
           },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
           "503": {
             "description": "An enabled dependency is checking or unavailable.",
             "content": {
@@ -1365,6 +1410,9 @@
                 }
               }
             }
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -1497,54 +1545,6 @@
           }
         }
       }
-    },
-    "/relay-jobs/{jobID}": {
-      "get": {
-        "tags": [
-          "Relay"
-        ],
-        "summary": "Get asynchronous relay status",
-        "description": "Returns the current state of one process-local relay job. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
-        "operationId": "getRelayJob",
-        "parameters": [
-          {
-            "$ref": "#/components/parameters/RelayJobID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/APIResponse"
-                },
-                "example": {
-                  "code": "RELAY_STATUS",
-                  "message": "Relay job status",
-                  "data": {
-                    "id": "0123456789abcdef0123456789abcdef",
-                    "emailId": "aB3dEfGh",
-                    "status": "succeeded",
-                    "createdAt": "2026-09-02T12:00:00Z",
-                    "updatedAt": "2026-09-02T12:00:01Z",
-                    "completedAt": "2026-09-02T12:00:01Z"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
-          },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          }
-        }
-      }
     }
   },
   "components": {
@@ -1588,6 +1588,17 @@
           "minLength": 1
         },
         "example": "relay@example.com"
+      },
+      "RelayJobID": {
+        "name": "jobID",
+        "in": "path",
+        "required": true,
+        "description": "Opaque process-local relay job identifier.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": "0123456789abcdef0123456789abcdef"
       },
       "Limit": {
         "name": "limit",
@@ -1705,17 +1716,6 @@
           "type": "string"
         },
         "example": "aB3dEfGh,550e8400-e29b-41d4-a716-446655440000"
-      },
-      "RelayJobID": {
-        "name": "jobID",
-        "in": "path",
-        "required": true,
-        "description": "Opaque process-local relay job identifier.",
-        "schema": {
-          "type": "string",
-          "minLength": 1
-        },
-        "example": "0123456789abcdef0123456789abcdef"
       }
     },
     "schemas": {
@@ -2211,7 +2211,46 @@
             "writeOnly": true
           },
           "secure": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "Deprecated MailDev-compatible alias. true selects implicit TLS/SMTPS; false selects plain unless tlsMode is supplied."
+          },
+          "tlsMode": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "starttls",
+              "smtps"
+            ],
+            "description": "Explicit transport mode. STARTTLS is mandatory in starttls mode and never falls back to plaintext."
+          },
+          "insecureSkipVerify": {
+            "type": "boolean",
+            "default": false,
+            "description": "Explicitly disables certificate and hostname verification. Unsafe; applies only to TLS modes."
+          },
+          "connectTimeout": {
+            "type": "string",
+            "example": "10s"
+          },
+          "tlsHandshakeTimeout": {
+            "type": "string",
+            "example": "10s"
+          },
+          "authTimeout": {
+            "type": "string",
+            "example": "10s"
+          },
+          "envelopeTimeout": {
+            "type": "string",
+            "example": "10s"
+          },
+          "dataTimeout": {
+            "type": "string",
+            "example": "30s"
+          },
+          "quitTimeout": {
+            "type": "string",
+            "example": "5s"
           },
           "autoRelay": {
             "type": "boolean"
@@ -2257,7 +2296,37 @@
             "writeOnly": true
           },
           "secure": {
+            "type": "boolean",
+            "description": "Deprecated MailDev-compatible alias. true selects implicit TLS/SMTPS."
+          },
+          "tlsMode": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "starttls",
+              "smtps"
+            ]
+          },
+          "insecureSkipVerify": {
             "type": "boolean"
+          },
+          "connectTimeout": {
+            "type": "string"
+          },
+          "tlsHandshakeTimeout": {
+            "type": "string"
+          },
+          "authTimeout": {
+            "type": "string"
+          },
+          "envelopeTimeout": {
+            "type": "string"
+          },
+          "dataTimeout": {
+            "type": "string"
+          },
+          "quitTimeout": {
+            "type": "string"
           },
           "autoRelay": {
             "type": "boolean"
@@ -2302,7 +2371,37 @@
             "type": "string"
           },
           "secure": {
+            "type": "boolean",
+            "description": "true only when the effective mode is implicit TLS/SMTPS."
+          },
+          "tlsMode": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "starttls",
+              "smtps"
+            ]
+          },
+          "insecureSkipVerify": {
             "type": "boolean"
+          },
+          "connectTimeout": {
+            "type": "string"
+          },
+          "tlsHandshakeTimeout": {
+            "type": "string"
+          },
+          "authTimeout": {
+            "type": "string"
+          },
+          "envelopeTimeout": {
+            "type": "string"
+          },
+          "dataTimeout": {
+            "type": "string"
+          },
+          "quitTimeout": {
+            "type": "string"
           },
           "autoRelay": {
             "type": "boolean"
@@ -2338,6 +2437,14 @@
           "port",
           "user",
           "secure",
+          "tlsMode",
+          "insecureSkipVerify",
+          "connectTimeout",
+          "tlsHandshakeTimeout",
+          "authTimeout",
+          "envelopeTimeout",
+          "dataTimeout",
+          "quitTimeout",
           "autoRelay",
           "autoRelayAddr",
           "allowRules",
@@ -2355,6 +2462,35 @@
           },
           "secure": {
             "type": "boolean"
+          },
+          "tlsMode": {
+            "type": "string",
+            "enum": [
+              "plain",
+              "starttls",
+              "smtps"
+            ]
+          },
+          "insecureSkipVerify": {
+            "type": "boolean"
+          },
+          "connectTimeout": {
+            "type": "string"
+          },
+          "tlsHandshakeTimeout": {
+            "type": "string"
+          },
+          "authTimeout": {
+            "type": "string"
+          },
+          "envelopeTimeout": {
+            "type": "string"
+          },
+          "dataTimeout": {
+            "type": "string"
+          },
+          "quitTimeout": {
+            "type": "string"
           },
           "autoRelay": {
             "type": "boolean"

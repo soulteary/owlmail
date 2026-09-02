@@ -24,16 +24,7 @@ func (api *API) getConfig(c fiber.Ctx) error {
 
 	outgoingConfig := api.mailServer.GetOutgoingConfig()
 	if outgoingConfig != nil && outgoingConfig.Host != "" {
-		config["outgoing"] = fiber.Map{
-			"host":          outgoingConfig.Host,
-			"port":          outgoingConfig.Port,
-			"user":          outgoingConfig.User,
-			"secure":        outgoingConfig.Secure,
-			"autoRelay":     outgoingConfig.AutoRelay,
-			"autoRelayAddr": outgoingConfig.AutoRelayAddr,
-			"allowRules":    outgoingConfig.AllowRules,
-			"denyRules":     outgoingConfig.DenyRules,
-		}
+		config["outgoing"] = outgoingConfigResponse(outgoingConfig)
 	} else {
 		config["outgoing"] = nil
 	}
@@ -72,17 +63,9 @@ func (api *API) getOutgoingConfig(c fiber.Ctx) error {
 		})
 	}
 
-	return c.JSON(fiber.Map{
-		"enabled":       true,
-		"host":          outgoingConfig.Host,
-		"port":          outgoingConfig.Port,
-		"user":          outgoingConfig.User,
-		"secure":        outgoingConfig.Secure,
-		"autoRelay":     outgoingConfig.AutoRelay,
-		"autoRelayAddr": outgoingConfig.AutoRelayAddr,
-		"allowRules":    outgoingConfig.AllowRules,
-		"denyRules":     outgoingConfig.DenyRules,
-	})
+	response := outgoingConfigResponse(outgoingConfig)
+	response["enabled"] = true
+	return c.JSON(response)
 }
 
 // updateOutgoingConfig handles PUT /api/v1/settings/outgoing
@@ -93,6 +76,9 @@ func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
 	if err := c.Bind().Body(&config); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
+	if config.Password == "" {
+		config.User = ""
+	}
 
 	if config.Host == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeHostRequired, "Host is required"))
@@ -101,24 +87,19 @@ func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
 	if config.Port <= 0 || config.Port > 65535 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 	}
+	if err := config.Validate(); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
+	}
 
 	if err := api.mailServer.SetOutgoingConfig(&config); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeConfigUpdateFailed, err.Error()))
 	}
+	updatedConfig := api.mailServer.GetOutgoingConfig()
 
 	return c.JSON(fiber.Map{
 		"code":    SuccessCodeConfigUpdated,
 		"message": "Outgoing mail configuration updated",
-		"config": fiber.Map{
-			"host":          config.Host,
-			"port":          config.Port,
-			"user":          config.User,
-			"secure":        config.Secure,
-			"autoRelay":     config.AutoRelay,
-			"autoRelayAddr": config.AutoRelayAddr,
-			"allowRules":    config.AllowRules,
-			"denyRules":     config.DenyRules,
-		},
+		"config":  outgoingConfigResponse(updatedConfig),
 	})
 }
 
@@ -144,12 +125,45 @@ func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 		currentConfig.User = user
 	}
 	// PATCH preserves the current password unless the field is present. An
-	// explicit empty string clears it for subsequently accepted relay tasks.
+	// explicit empty string clears both credentials so the resulting snapshot
+	// disables authentication while remaining a valid configuration.
 	if password, ok := updates["password"].(string); ok {
 		currentConfig.Password = password
+		if password == "" {
+			currentConfig.User = ""
+		}
 	}
 	if secure, ok := updates["secure"].(bool); ok {
 		currentConfig.Secure = secure
+		if secure {
+			currentConfig.TLSMode = outgoing.TLSModeSMTPS
+		} else {
+			currentConfig.TLSMode = outgoing.TLSModePlain
+		}
+	}
+	if tlsMode, ok := updates["tlsMode"].(string); ok {
+		currentConfig.TLSMode = outgoing.TLSMode(tlsMode)
+	}
+	if insecureSkipVerify, ok := updates["insecureSkipVerify"].(bool); ok {
+		currentConfig.InsecureSkipVerify = insecureSkipVerify
+	}
+	if connectTimeout, ok := updates["connectTimeout"].(string); ok {
+		currentConfig.ConnectTimeout = connectTimeout
+	}
+	if tlsHandshakeTimeout, ok := updates["tlsHandshakeTimeout"].(string); ok {
+		currentConfig.TLSHandshakeTimeout = tlsHandshakeTimeout
+	}
+	if authTimeout, ok := updates["authTimeout"].(string); ok {
+		currentConfig.AuthTimeout = authTimeout
+	}
+	if envelopeTimeout, ok := updates["envelopeTimeout"].(string); ok {
+		currentConfig.EnvelopeTimeout = envelopeTimeout
+	}
+	if dataTimeout, ok := updates["dataTimeout"].(string); ok {
+		currentConfig.DataTimeout = dataTimeout
+	}
+	if quitTimeout, ok := updates["quitTimeout"].(string); ok {
+		currentConfig.QuitTimeout = quitTimeout
 	}
 	if autoRelay, ok := updates["autoRelay"].(bool); ok {
 		currentConfig.AutoRelay = autoRelay
@@ -181,23 +195,42 @@ func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 	if currentConfig.Port <= 0 || currentConfig.Port > 65535 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 	}
+	if err := currentConfig.Validate(); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
+	}
 
 	if err := api.mailServer.SetOutgoingConfig(currentConfig); err != nil {
 		return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeConfigUpdateFailed, err.Error()))
 	}
+	updatedConfig := api.mailServer.GetOutgoingConfig()
 
 	return c.JSON(fiber.Map{
 		"code":    SuccessCodeConfigUpdated,
 		"message": "Outgoing mail configuration updated",
-		"config": fiber.Map{
-			"host":          currentConfig.Host,
-			"port":          currentConfig.Port,
-			"user":          currentConfig.User,
-			"secure":        currentConfig.Secure,
-			"autoRelay":     currentConfig.AutoRelay,
-			"autoRelayAddr": currentConfig.AutoRelayAddr,
-			"allowRules":    currentConfig.AllowRules,
-			"denyRules":     currentConfig.DenyRules,
-		},
+		"config":  outgoingConfigResponse(updatedConfig),
 	})
+}
+
+func outgoingConfigResponse(config *outgoing.OutgoingConfig) fiber.Map {
+	if config == nil {
+		return fiber.Map{}
+	}
+	return fiber.Map{
+		"host":                config.Host,
+		"port":                config.Port,
+		"user":                config.User,
+		"secure":              config.Secure,
+		"tlsMode":             config.TLSMode,
+		"insecureSkipVerify":  config.InsecureSkipVerify,
+		"connectTimeout":      config.ConnectTimeout,
+		"tlsHandshakeTimeout": config.TLSHandshakeTimeout,
+		"authTimeout":         config.AuthTimeout,
+		"envelopeTimeout":     config.EnvelopeTimeout,
+		"dataTimeout":         config.DataTimeout,
+		"quitTimeout":         config.QuitTimeout,
+		"autoRelay":           config.AutoRelay,
+		"autoRelayAddr":       config.AutoRelayAddr,
+		"allowRules":          config.AllowRules,
+		"denyRules":           config.DenyRules,
+	}
 }
