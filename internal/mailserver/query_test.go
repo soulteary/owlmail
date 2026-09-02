@@ -13,8 +13,8 @@ import (
 
 func queryTestServer(count int) *MailServer {
 	server := &MailServer{
-		storeByID: make(map[string]*Email, count),
-		storeOrder: make([]string, 0, count),
+		storeByID:      make(map[string]*Email, count),
+		storeOrder:     make([]string, 0, count),
 		receivedAtByID: make(map[string]time.Time, count),
 	}
 	for i := 0; i < count; i++ {
@@ -23,7 +23,7 @@ func queryTestServer(count int) *MailServer {
 			ID: id, Time: time.Date(2026, 1, 1, 0, i, 0, 0, time.UTC),
 			Read: i%2 == 0, Subject: fmt.Sprintf("subject %05d", i),
 			From: []*mail.Address{{Name: "Sender", Address: fmt.Sprintf("sender%d@example.test", i%3)}},
-			To: []*mail.Address{{Address: fmt.Sprintf("recipient%d@example.test", i%4)}},
+			To:   []*mail.Address{{Address: fmt.Sprintf("recipient%d@example.test", i%4)}},
 			Text: strings.Repeat("message body ", 128), Size: int64(i), SizeHuman: fmt.Sprintf("%d B", i),
 			Headers: map[string]interface{}{"X-Test": []string{"one", "two"}},
 		}
