@@ -69,6 +69,8 @@ type RelayTask struct {
 	config      *OutgoingConfig
 }
 
+const relayCopyBufferSize = 32 * 1024
+
 // NewOutgoingMail creates a new outgoing mail handler
 func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
 	config = cloneConfig(config)
@@ -133,10 +135,12 @@ func (om *OutgoingMail) startWorkersLocked() {
 
 // relayEmail relays an email to the configured SMTP server
 func (om *OutgoingMail) relayEmail(task *RelayTask) error {
-	if task.Context != nil {
-		if err := task.Context.Err(); err != nil {
-			return err
-		}
+	ctx := task.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	config := task.config
 	if config == nil {
@@ -157,11 +161,6 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	if err != nil {
 		return fmt.Errorf("failed to open email file: %w", err)
 	}
-	defer func() {
-		if err := emailFile.Close(); err != nil {
-			common.Verbose("Failed to close email file: %v", err)
-		}
-	}()
 
 	// Get sender address
 	sender := task.Email.Envelope.From
@@ -172,12 +171,6 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 		sender = "noreply@localhost"
 	}
 
-	// Read email file content
-	emailData, err := io.ReadAll(emailFile)
-	if err != nil {
-		return fmt.Errorf("failed to read email file: %w", err)
-	}
-
 	// Prepare SMTP auth
 	var auth smtp.Auth
 	if config.User != "" && config.Password != "" {
@@ -186,16 +179,15 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 
 	// Send email using net/smtp
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-
-	if task.Context != nil {
-		err = sendMailContext(task.Context, addr, auth, sender, recipients, emailData, config.Secure)
-	} else if config.Secure {
-		// Use TLS
-		err = sendMailTLS(addr, auth, sender, recipients, emailData)
-	} else {
-		// Use plain SMTP
-		err = smtp.SendMail(addr, auth, sender, recipients, emailData)
+	useSTARTTLS := config.Secure
+	authOnlyWhenAdvertised := task.Context == nil && !config.Secure
+	if task.Context == nil {
+		// smtp.SendMail, which handled the ordinary asynchronous path before
+		// relay streaming, opportunistically upgraded whenever STARTTLS was
+		// advertised. Preserve that behavior in this performance-only change.
+		useSTARTTLS = true
 	}
+	err = sendMailContext(ctx, addr, auth, sender, recipients, emailFile, useSTARTTLS, authOnlyWhenAdvertised)
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
@@ -460,70 +452,60 @@ func (om *OutgoingMail) Close() {
 	})
 }
 
-// sendMailTLS sends email using TLS
-func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
-	// Connect to SMTP server
-	client, err := smtp.Dial(addr)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := client.Close(); err != nil {
-			common.Verbose("Failed to close SMTP client: %v", err)
-		}
-	}()
+type smtpHelloTracker struct {
+	net.Conn
 
-	// Check if server supports STARTTLS
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		config := &tls.Config{ServerName: strings.Split(addr, ":")[0]}
-		if err = client.StartTLS(config); err != nil {
-			return err
-		}
-	}
+	mu       sync.Mutex
+	pending  string
+	tracking bool
+	usedHELO bool
+}
 
-	// Authenticate if needed
-	if auth != nil {
-		if err = client.Auth(auth); err != nil {
-			return err
+func (conn *smtpHelloTracker) Write(data []byte) (int, error) {
+	conn.mu.Lock()
+	if conn.tracking {
+		conn.pending += string(data)
+		for {
+			newline := strings.IndexByte(conn.pending, '\n')
+			if newline < 0 {
+				break
+			}
+			line := strings.TrimSuffix(conn.pending[:newline], "\r")
+			conn.pending = conn.pending[newline+1:]
+			if strings.HasPrefix(line, "HELO ") {
+				conn.usedHELO = true
+			}
 		}
 	}
+	conn.mu.Unlock()
+	return conn.Conn.Write(data)
+}
 
-	// Set sender
-	if err = client.Mail(from); err != nil {
-		return err
-	}
-
-	// Set recipients
-	for _, recipient := range to {
-		if err = client.Rcpt(recipient); err != nil {
-			return err
-		}
-	}
-
-	// Send email data
-	w, err := client.Data()
-	if err != nil {
-		return err
-	}
-	_, err = w.Write(msg)
-	if err != nil {
-		if closeErr := w.Close(); closeErr != nil {
-			common.Verbose("Failed to close writer: %v", closeErr)
-		}
-		return err
-	}
-	err = w.Close()
-	if err != nil {
-		return err
-	}
-
-	return client.Quit()
+func (conn *smtpHelloTracker) stop() bool {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	conn.tracking = false
+	conn.pending = ""
+	return conn.usedHELO
 }
 
 // sendMailContext performs an SMTP transaction on a connection that is
-// closed when ctx is canceled. This prevents a timed-out synchronous relay
-// from remaining queued or being delivered later after the caller retries.
-func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte, secure bool) error {
+// closed when ctx is canceled. Message data is copied through the writer from
+// smtp.Client.Data so net/smtp retains responsibility for CRLF normalization
+// and dot-stuffing. The source is always closed by this function.
+func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, secure, authOnlyWhenAdvertised bool) error {
+	if source == nil {
+		return fmt.Errorf("email source is nil")
+	}
+	source = &relayReadCloser{ReadCloser: source}
+	defer func() {
+		if err := source.Close(); err != nil {
+			common.Verbose("Failed to close email source: %v", err)
+		}
+	}()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -535,7 +517,10 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 	if err != nil {
 		return err
 	}
-	stopCancel := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	stopCancel := context.AfterFunc(ctx, func() {
+		_ = source.Close()
+		_ = conn.Close()
+	})
 	defer stopCancel()
 	if deadline, ok := ctx.Deadline(); ok {
 		if err := conn.SetDeadline(deadline); err != nil {
@@ -544,7 +529,13 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}
 
-	client, err := smtp.NewClient(conn, host)
+	smtpConn := net.Conn(conn)
+	var helloTracker *smtpHelloTracker
+	if auth != nil && authOnlyWhenAdvertised {
+		helloTracker = &smtpHelloTracker{Conn: conn, tracking: true}
+		smtpConn = helloTracker
+	}
+	client, err := smtp.NewClient(smtpConn, host)
 	if err != nil {
 		_ = conn.Close()
 		return relayContextError(ctx, err)
@@ -563,7 +554,17 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}
 	if auth != nil {
-		if err := client.Auth(auth); err != nil {
+		if authOnlyWhenAdvertised {
+			authAdvertised, _ := client.Extension("AUTH")
+			usedHELOFallback := helloTracker.stop()
+			if !authAdvertised {
+				if !usedHELOFallback {
+					return errors.New("smtp: server doesn't support AUTH")
+				}
+			} else if err := client.Auth(auth); err != nil {
+				return relayContextError(ctx, err)
+			}
+		} else if err := client.Auth(auth); err != nil {
 			return relayContextError(ctx, err)
 		}
 	}
@@ -579,9 +580,15 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 	if err != nil {
 		return relayContextError(ctx, err)
 	}
-	if _, err := w.Write(msg); err != nil {
-		_ = w.Close()
-		return relayContextError(ctx, err)
+	if _, err := copyRelayMessage(ctx, w, source); err != nil {
+		// Closing a DATA writer normally sends the terminating dot. Abort the
+		// connection first so a source or write failure cannot submit a
+		// truncated message, then close the writer to release its resources.
+		_ = client.Close()
+		if closeErr := w.Close(); closeErr != nil {
+			common.Verbose("Failed to close aborted SMTP DATA writer: %v", closeErr)
+		}
+		return relayContextError(ctx, fmt.Errorf("stream email data: %w", err))
 	}
 	if err := w.Close(); err != nil {
 		return relayContextError(ctx, err)
@@ -590,6 +597,39 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		return relayContextError(ctx, err)
 	}
 	return nil
+}
+
+func copyRelayMessage(ctx context.Context, destination io.Writer, source io.Reader) (int64, error) {
+	return io.CopyBuffer(destination, &relayContextReader{ctx: ctx, source: source}, make([]byte, relayCopyBufferSize))
+}
+
+type relayContextReader struct {
+	ctx    context.Context
+	source io.Reader
+}
+
+type relayReadCloser struct {
+	io.ReadCloser
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func (reader *relayReadCloser) Close() error {
+	reader.closeOnce.Do(func() {
+		reader.closeErr = reader.ReadCloser.Close()
+	})
+	return reader.closeErr
+}
+
+func (reader *relayContextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	read, err := reader.source.Read(buffer)
+	if contextErr := reader.ctx.Err(); contextErr != nil {
+		return 0, contextErr
+	}
+	return read, err
 }
 
 func relayContextError(ctx context.Context, err error) error {
