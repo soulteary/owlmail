@@ -17,6 +17,17 @@ import (
 	"github.com/soulteary/owlmail/internal/types"
 )
 
+var (
+	// ErrNotConfigured is returned when relay is disabled because no host is set.
+	ErrNotConfigured = errors.New("outgoing mail not configured")
+	// ErrQueueFull is returned when a relay task cannot be queued before the timeout.
+	ErrQueueFull = errors.New("relay queue is full")
+	// ErrClosed is returned when work is submitted after the relay has begun closing.
+	ErrClosed = errors.New("outgoing mail is closed")
+)
+
+const defaultEnqueueTimeout = 5 * time.Second
+
 // OutgoingConfig represents the configuration for outgoing mail
 type OutgoingConfig struct {
 	Host          string
@@ -32,12 +43,19 @@ type OutgoingConfig struct {
 
 // OutgoingMail handles outgoing email relay
 type OutgoingMail struct {
-	config      *OutgoingConfig
-	queue       chan *RelayTask
-	workerCount int
-	wg          sync.WaitGroup
-	mu          sync.RWMutex
-	enabled     bool
+	config         *OutgoingConfig
+	queue          chan *RelayTask
+	workerCount    int
+	enqueueTimeout time.Duration
+	wg             sync.WaitGroup
+	enqueueWG      sync.WaitGroup
+	mu             sync.RWMutex
+	enabled        bool
+	workerStarted  bool
+	closed         bool
+	closing        chan struct{}
+	stop           chan struct{}
+	closeOnce      sync.Once
 }
 
 // RelayTask represents a task to relay an email
@@ -48,29 +66,27 @@ type RelayTask struct {
 	IsAutoRelay bool
 	Callback    func(error)
 	Context     context.Context
+	config      *OutgoingConfig
 }
 
 const relayCopyBufferSize = 32 * 1024
 
 // NewOutgoingMail creates a new outgoing mail handler
 func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
-	if config == nil {
-		config = &OutgoingConfig{}
-	}
+	config = cloneConfig(config)
 
 	om := &OutgoingMail{
-		config:      config,
-		queue:       make(chan *RelayTask, 100),
-		workerCount: 1,
-		enabled:     config.Host != "",
+		config:         config,
+		queue:          make(chan *RelayTask, 100),
+		workerCount:    1,
+		enqueueTimeout: defaultEnqueueTimeout,
+		enabled:        config.Host != "",
+		closing:        make(chan struct{}),
+		stop:           make(chan struct{}),
 	}
 
 	if om.enabled {
-		// Start worker goroutines
-		for i := 0; i < om.workerCount; i++ {
-			om.wg.Add(1)
-			go om.worker()
-		}
+		om.startWorkersLocked()
 	}
 
 	return om
@@ -80,11 +96,40 @@ func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
 func (om *OutgoingMail) worker() {
 	defer om.wg.Done()
 
-	for task := range om.queue {
-		err := om.relayEmail(task)
-		if task.Callback != nil {
-			task.Callback(err)
+	for {
+		select {
+		case task := <-om.queue:
+			om.processTask(task)
+		case <-om.stop:
+			// Close waits for active enqueue operations before signaling stop,
+			// so the queue is stable and can be drained without closing it.
+			for {
+				select {
+				case task := <-om.queue:
+					om.processTask(task)
+				default:
+					return
+				}
+			}
 		}
+	}
+}
+
+func (om *OutgoingMail) processTask(task *RelayTask) {
+	err := om.relayEmail(task)
+	if task.Callback != nil {
+		task.Callback(err)
+	}
+}
+
+func (om *OutgoingMail) startWorkersLocked() {
+	if om.workerStarted || om.closed {
+		return
+	}
+	om.workerStarted = true
+	for i := 0; i < om.workerCount; i++ {
+		om.wg.Add(1)
+		go om.worker()
 	}
 }
 
@@ -97,12 +142,16 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if !om.enabled {
-		return fmt.Errorf("outgoing mail not configured")
+	config := task.config
+	if config == nil {
+		config = om.configSnapshot()
+	}
+	if config.Host == "" {
+		return ErrNotConfigured
 	}
 
 	// Determine recipients
-	recipients := om.getRecipients(task)
+	recipients := getRecipients(task, config)
 	if len(recipients) == 0 {
 		return fmt.Errorf("email had no recipients")
 	}
@@ -124,14 +173,14 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 
 	// Prepare SMTP auth
 	var auth smtp.Auth
-	if om.config.User != "" && om.config.Password != "" {
-		auth = smtp.PlainAuth("", om.config.User, om.config.Password, om.config.Host)
+	if config.User != "" && config.Password != "" {
+		auth = smtp.PlainAuth("", config.User, config.Password, config.Host)
 	}
 
 	// Send email using net/smtp
-	addr := fmt.Sprintf("%s:%d", om.config.Host, om.config.Port)
-	useSTARTTLS := om.config.Secure
-	authOnlyWhenAdvertised := task.Context == nil && !om.config.Secure
+	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
+	useSTARTTLS := config.Secure
+	authOnlyWhenAdvertised := task.Context == nil && !config.Secure
 	if task.Context == nil {
 		// smtp.SendMail, which handled the ordinary asynchronous path before
 		// relay streaming, opportunistically upgraded whenever STARTTLS was
@@ -150,6 +199,14 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 
 // getRecipients determines the recipients for relay
 func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
+	config := task.config
+	if config == nil {
+		config = om.configSnapshot()
+	}
+	return getRecipients(task, config)
+}
+
+func getRecipients(task *RelayTask, config *OutgoingConfig) []string {
 	var recipients []string
 
 	// If manual relay with specific address
@@ -158,8 +215,8 @@ func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
 	}
 
 	// If auto relay mode with specific address
-	if task.IsAutoRelay && om.config.AutoRelayAddr != "" {
-		return []string{om.config.AutoRelayAddr}
+	if task.IsAutoRelay && config.AutoRelayAddr != "" {
+		return []string{config.AutoRelayAddr}
 	}
 
 	// Get recipients from envelope
@@ -168,8 +225,8 @@ func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
 	}
 
 	// Apply allow/deny rules
-	if len(om.config.AllowRules) > 0 || len(om.config.DenyRules) > 0 {
-		recipients = om.filterRecipients(recipients)
+	if len(config.AllowRules) > 0 || len(config.DenyRules) > 0 {
+		recipients = filterRecipients(recipients, config)
 	}
 
 	return recipients
@@ -178,23 +235,27 @@ func (om *OutgoingMail) getRecipients(task *RelayTask) []string {
 // filterRecipients applies allow/deny rules to recipients
 // Rules are processed in order, and the last matching rule wins (like MailDev)
 func (om *OutgoingMail) filterRecipients(recipients []string) []string {
+	return filterRecipients(recipients, om.configSnapshot())
+}
+
+func filterRecipients(recipients []string, config *OutgoingConfig) []string {
 	filtered := make([]string, 0)
 
 	for _, recipient := range recipients {
 		// Process all rules in order to find the last matching rule
 		// Start with default: allow if no allow rules, deny if allow rules exist
-		result := len(om.config.AllowRules) == 0
+		result := len(config.AllowRules) == 0
 
 		// Process deny rules
-		for _, rule := range om.config.DenyRules {
-			if om.matchesRule(recipient, rule) {
+		for _, rule := range config.DenyRules {
+			if matchesRule(recipient, rule) {
 				result = false // Deny if matched
 			}
 		}
 
 		// Process allow rules (can override deny)
-		for _, rule := range om.config.AllowRules {
-			if om.matchesRule(recipient, rule) {
+		for _, rule := range config.AllowRules {
+			if matchesRule(recipient, rule) {
 				result = true // Allow if matched
 			}
 		}
@@ -209,6 +270,10 @@ func (om *OutgoingMail) filterRecipients(recipients []string) []string {
 
 // matchesRule checks if an address matches a rule pattern
 func (om *OutgoingMail) matchesRule(address, rule string) bool {
+	return matchesRule(address, rule)
+}
+
+func matchesRule(address, rule string) bool {
 	// Simple pattern matching: supports * wildcard
 	pattern := strings.ToLower(rule)
 	addr := strings.ToLower(address)
@@ -238,25 +303,40 @@ func (om *OutgoingMail) matchesRule(address, rule string) bool {
 }
 
 // RelayMail queues an email for relay
-func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
-	om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, isAutoRelay, callback)
+func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) error {
+	return om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, isAutoRelay, callback)
 }
 
 // RelayMailContext queues an email relay that is canceled if the caller's
 // context expires while the task is queued or in progress.
-func (om *OutgoingMail) RelayMailContext(ctx context.Context, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
+func (om *OutgoingMail) RelayMailContext(ctx context.Context, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	om.enqueueRelay(ctx, true, email, emailPath, relayTo, isAutoRelay, callback)
+	return om.enqueueRelay(ctx, true, email, emailPath, relayTo, isAutoRelay, callback)
 }
 
-func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
+func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) error {
+	om.mu.Lock()
+	if om.closed {
+		om.mu.Unlock()
+		return relayRejected(callback, ErrClosed)
+	}
 	if !om.enabled {
-		if callback != nil {
-			callback(fmt.Errorf("outgoing mail not configured"))
+		om.mu.Unlock()
+		return relayRejected(callback, ErrNotConfigured)
+	}
+	config := cloneConfig(om.config)
+	om.enqueueWG.Add(1)
+	om.mu.Unlock()
+	finishEnqueue := func(err error) error {
+		// Release the lifecycle slot before invoking callbacks. A callback is
+		// allowed to close the relay, and Close waits for these slots to drain.
+		om.enqueueWG.Done()
+		if err != nil {
+			return relayRejected(callback, err)
 		}
-		return
+		return nil
 	}
 
 	task := &RelayTask{
@@ -265,18 +345,16 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 		RelayTo:     relayTo,
 		IsAutoRelay: isAutoRelay,
 		Callback:    callback,
+		config:      config,
 	}
 	if contextAware {
 		task.Context = ctx
 		if err := ctx.Err(); err != nil {
-			if callback != nil {
-				callback(err)
-			}
-			return
+			return finishEnqueue(err)
 		}
 	}
 
-	timer := time.NewTimer(5 * time.Second)
+	timer := time.NewTimer(om.enqueueTimeout)
 	defer timer.Stop()
 	var canceled <-chan struct{}
 	if contextAware {
@@ -284,17 +362,21 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	}
 	select {
 	case om.queue <- task:
-		// Task queued successfully
+		return finishEnqueue(nil)
 	case <-timer.C:
-		// Queue full, call callback with error
-		if callback != nil {
-			callback(fmt.Errorf("relay queue is full"))
-		}
+		return finishEnqueue(ErrQueueFull)
+	case <-om.closing:
+		return finishEnqueue(ErrClosed)
 	case <-canceled:
-		if callback != nil {
-			callback(ctx.Err())
-		}
+		return finishEnqueue(ctx.Err())
 	}
+}
+
+func relayRejected(callback func(error), err error) error {
+	if callback != nil {
+		callback(err)
+	}
+	return err
 }
 
 // IsAutoRelayEnabled checks if auto relay is enabled
@@ -304,28 +386,70 @@ func (om *OutgoingMail) IsAutoRelayEnabled() bool {
 	return om.enabled && om.config.AutoRelay
 }
 
-// UpdateConfig updates the outgoing mail configuration
-func (om *OutgoingMail) UpdateConfig(config interface{}) {
+// UpdateConfig atomically replaces the outgoing mail configuration. An empty
+// host disables new submissions; already queued tasks retain the snapshot they
+// were accepted with. Re-enabling starts the worker once, and an empty password
+// explicitly disables authentication for subsequently accepted tasks.
+func (om *OutgoingMail) UpdateConfig(config interface{}) error {
+	cfg, ok := config.(*OutgoingConfig)
+	if !ok {
+		return fmt.Errorf("invalid outgoing mail configuration type %T", config)
+	}
+	next := cloneConfig(cfg)
+	if next.Host != "" && (next.Port <= 0 || next.Port > 65535) {
+		return fmt.Errorf("outgoing mail port must be between 1 and 65535")
+	}
+
 	om.mu.Lock()
 	defer om.mu.Unlock()
-
-	if cfg, ok := config.(*OutgoingConfig); ok {
-		om.config = cfg
-		om.enabled = cfg.Host != ""
+	if om.closed {
+		return ErrClosed
 	}
+	om.config = next
+	om.enabled = next.Host != ""
+	if om.enabled {
+		om.startWorkersLocked()
+	}
+	return nil
 }
 
 // GetConfig returns the current configuration
 func (om *OutgoingMail) GetConfig() interface{} {
-	om.mu.RLock()
-	defer om.mu.RUnlock()
-	return om.config
+	return om.configSnapshot()
 }
 
-// Close stops the outgoing mail handler
+func (om *OutgoingMail) configSnapshot() *OutgoingConfig {
+	om.mu.RLock()
+	defer om.mu.RUnlock()
+	return cloneConfig(om.config)
+}
+
+func cloneConfig(config *OutgoingConfig) *OutgoingConfig {
+	if config == nil {
+		return &OutgoingConfig{}
+	}
+	clone := *config
+	clone.AllowRules = append([]string(nil), config.AllowRules...)
+	clone.DenyRules = append([]string(nil), config.DenyRules...)
+	return &clone
+}
+
+// Close rejects new work, lets accepted enqueue operations finish, drains the
+// stable queue, and stops the worker. It is safe to call more than once.
 func (om *OutgoingMail) Close() {
-	close(om.queue)
-	om.wg.Wait()
+	om.closeOnce.Do(func() {
+		om.mu.Lock()
+		om.closed = true
+		om.enabled = false
+		close(om.closing)
+		om.mu.Unlock()
+
+		// No new enqueue operation can increment enqueueWG after closed is set.
+		// Waiting here guarantees that workers see a stable queue before draining.
+		om.enqueueWG.Wait()
+		close(om.stop)
+		om.wg.Wait()
+	})
 }
 
 type smtpHelloTracker struct {
@@ -514,3 +638,4 @@ func relayContextError(ctx context.Context, err error) error {
 	}
 	return err
 }
+

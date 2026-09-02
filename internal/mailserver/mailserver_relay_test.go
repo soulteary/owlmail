@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/soulteary/owlmail/internal/outgoing"
@@ -31,7 +32,9 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 		Password: "pass",
 	}
 
-	server.SetOutgoingConfig(config)
+	if err := server.SetOutgoingConfig(config); err != nil {
+		t.Fatal(err)
+	}
 
 	// Get config
 	retrieved := server.GetOutgoingConfig()
@@ -86,7 +89,9 @@ func TestRelayMail(t *testing.T) {
 		Host: "smtp.example.com",
 		Port: 587,
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	// RelayMail will queue the task, but actual relay will fail in test
 	// We can test that it doesn't panic
@@ -140,7 +145,9 @@ func TestRelayMailTo(t *testing.T) {
 		Host: "smtp.example.com",
 		Port: 587,
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	// RelayMailTo will queue the task, but actual relay will fail in test
 	// We can test that it doesn't panic
@@ -195,7 +202,9 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		User:     "user1",
 		Password: "pass1",
 	}
-	server.SetOutgoingConfig(config1)
+	if err := server.SetOutgoingConfig(config1); err != nil {
+		t.Fatal(err)
+	}
 
 	// Update config (test the else branch in SetOutgoingConfig)
 	config2 := &outgoing.OutgoingConfig{
@@ -204,7 +213,9 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		User:     "user2",
 		Password: "pass2",
 	}
-	server.SetOutgoingConfig(config2)
+	if err := server.SetOutgoingConfig(config2); err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify config was updated
 	retrieved := server.GetOutgoingConfig()
@@ -216,6 +227,53 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 	}
 	if retrieved.Port != config2.Port {
 		t.Errorf("Expected port %d, got %d", config2.Port, retrieved.Port)
+	}
+}
+
+func TestOutgoingConfigRelayAndCloseAreConcurrentSafe(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25}); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(2)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			config := &outgoing.OutgoingConfig{}
+			if i%2 == 0 {
+				config = &outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25, Password: "secret"}
+			}
+			_ = server.SetOutgoingConfig(config)
+		}(i)
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = server.RelayMailTo(&Email{ID: "missing"}, "to@example.test", func(error) {})
+			_ = server.GetOutgoingConfig()
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+		_ = server.Close()
+	}()
+
+	close(start)
+	wg.Wait()
+
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25}); !errors.Is(err, outgoing.ErrClosed) {
+		t.Fatalf("SetOutgoingConfig() after Close error = %v, want %v", err, outgoing.ErrClosed)
+	}
+	if err := server.RelayMailTo(&Email{ID: "missing"}, "to@example.test", nil); !errors.Is(err, outgoing.ErrClosed) {
+		t.Fatalf("RelayMailTo() after Close error = %v, want %v", err, outgoing.ErrClosed)
 	}
 }
 

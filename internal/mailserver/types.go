@@ -119,13 +119,15 @@ type MailServer struct {
 	closers                 []io.Closer
 	closersMutex            sync.Mutex
 	outgoing                interface {
-		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
-		RelayMailContext(ctx context.Context, email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
-		UpdateConfig(config interface{})
+		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
+		RelayMailContext(ctx context.Context, email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
+		UpdateConfig(config interface{}) error
 		GetConfig() interface{}
 		IsAutoRelayEnabled() bool
 		Close()
 	}
+	outgoingMutex       sync.RWMutex
+	outgoingClosed      bool
 	authConfig          *SMTPAuthConfig
 	authVerifier        *credentialVerifier
 	authRequireTLS      bool

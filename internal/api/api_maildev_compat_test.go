@@ -217,7 +217,9 @@ func TestMailDevRESTFacadeOperationsAndErrors(t *testing.T) {
 	assertMailDevError(t, resp, http.StatusNotFound, "Email was not found")
 	resp = compatRequest(t, api, http.MethodPost, "/api/email/three/relay", nil, "")
 	assertMailDevError(t, resp, http.StatusInternalServerError, "Outgoing mail not configured")
-	server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example", Port: 25})
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example", Port: 25}); err != nil {
+		t.Fatal(err)
+	}
 	resp = compatRequest(t, api, http.MethodPost, "/api/email/three/relay/not-an-address", nil, "")
 	assertMailDevError(t, resp, http.StatusBadRequest, "Incorrect email address provided: not-an-address")
 
