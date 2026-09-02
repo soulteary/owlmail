@@ -49,8 +49,14 @@ func isActiveAttachmentType(contentType string) bool {
 	if err != nil {
 		mediaType = strings.TrimSpace(strings.Split(contentType, ";")[0])
 	}
-	switch strings.ToLower(mediaType) {
-	case "text/html", "application/xhtml+xml", "image/svg+xml", "application/xml", "text/xml", "application/javascript", "text/javascript":
+	mediaType = strings.ToLower(mediaType)
+	if strings.HasSuffix(mediaType, "+xml") ||
+		strings.Contains(mediaType, "javascript") ||
+		strings.Contains(mediaType, "ecmascript") {
+		return true
+	}
+	switch mediaType {
+	case "text/html", "application/xml", "text/xml", "application/wasm":
 		return true
 	default:
 		return false
