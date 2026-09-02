@@ -1630,6 +1630,9 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         }
     } catch (error) {
         if (requestSequence !== emailDetailRequestSequence) return;
+        if (historyMode === 'none' && currentEmailIDFromLocation() === id) {
+            clearEmailSelection('none');
+        }
         console.error('Failed to load email detail:', error);
         const errorMsg = parseAPIError(error);
         alert(t('loadEmailDetailError', { error: errorMsg }));
@@ -1916,7 +1919,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const initialEmailID = currentEmailIDFromLocation();
     const initialLoad = loadEmails();
     if (initialEmailID) {
-        void Promise.resolve(initialLoad).then(() => loadEmailDetail(initialEmailID, { historyMode: 'none' }));
+        void Promise.resolve(initialLoad).then(() => {
+            if (currentEmailIDFromLocation() !== initialEmailID) return;
+            return loadEmailDetail(initialEmailID, { historyMode: 'none' });
+        });
     }
 
     window.addEventListener('popstate', handleHistoryNavigation);
