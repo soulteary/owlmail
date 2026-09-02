@@ -603,6 +603,17 @@ Outgoing relay is also asynchronous. An API success response acknowledges the
 in-process request, not delivery by the downstream SMTP server; inspect logs and
 the destination system when delivery confirmation matters.
 
+All outgoing relay entry points use the same streaming SMTP transaction. OwlMail
+opens the stored EML only when a worker begins delivery and copies it through a
+fixed 32 KiB buffer into the writer returned by SMTP `DATA`; `net/smtp` remains
+responsible for CRLF normalization and dot-stuffing. Manual relay, relay to an
+explicit address, automatic relay, and the synchronous MailDev-compatible route
+therefore do not create an additional message-sized byte slice. A context
+cancellation, deadline, source read error, DATA write error, or downstream
+disconnect closes the EML source and SMTP connection. If streaming fails after
+`DATA` begins, the connection is aborted before the DATA writer is closed so the
+downstream server cannot accept a truncated message.
+
 Configuration is not yet validated by one uniform startup pass. S3 option shape
 is checked when that backend is enabled, but reachability and credentials can
 still fail when an object operation is first attempted. Other components may

@@ -1,10 +1,12 @@
 package outgoing
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/smtp"
 	"strings"
@@ -124,13 +126,31 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	return sendMailWithConfig(context.Background(), addr, auth, from, to, msg, (&OutgoingConfig{Secure: true}).withDefaults())
 }
 
-// sendMailContext preserves the legacy call shape. secure=true means SMTPS;
-// callers that need mandatory STARTTLS use sendMailWithConfig with TLSModeSTARTTLS.
-func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte, secure bool) error {
-	return sendMailWithConfig(ctx, addr, auth, from, to, msg, (&OutgoingConfig{Secure: secure}).withDefaults())
+// sendMailContext preserves the streaming helper call shape from the relay
+// performance work. secure=true has the fail-closed SMTPS meaning. The final
+// argument is retained for source compatibility; plaintext authentication is
+// now rejected by configuration validation instead of conditionally skipped.
+func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, secure, authOnlyWhenAdvertised bool) error {
+	_ = authOnlyWhenAdvertised
+	return sendMailStreamWithConfig(ctx, addr, auth, from, to, source, (&OutgoingConfig{Secure: secure}).withDefaults())
 }
 
 func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte, rawConfig *OutgoingConfig) error {
+	return sendMailStreamWithConfig(ctx, addr, auth, from, to, io.NopCloser(bytes.NewReader(msg)), rawConfig)
+}
+
+// sendMailStreamWithConfig performs a bounded SMTP transaction while streaming
+// the message through net/smtp's DATA writer. It always closes source.
+func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, rawConfig *OutgoingConfig) error {
+	if source == nil {
+		return fmt.Errorf("email source is nil")
+	}
+	source = &relayReadCloser{ReadCloser: source}
+	defer func() {
+		if err := source.Close(); err != nil {
+			common.Verbose("Failed to close email source: %v", err)
+		}
+	}()
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -156,7 +176,10 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 	if err != nil {
 		return relayContextError(ctx, err)
 	}
-	stopCancel := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	stopCancel := context.AfterFunc(ctx, func() {
+		_ = source.Close()
+		_ = conn.Close()
+	})
 	defer stopCancel()
 	defer func() {
 		if err := conn.Close(); err != nil {
@@ -250,9 +273,15 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 	if err != nil {
 		return relayContextError(ctx, err)
 	}
-	if _, err := w.Write(msg); err != nil {
-		_ = w.Close()
-		return relayContextError(ctx, err)
+	if _, err := copyRelayMessage(ctx, w, source); err != nil {
+		// Closing a DATA writer normally sends the terminating dot. Abort the
+		// connection first so a source or write failure cannot submit a
+		// truncated message, then close the writer to release its resources.
+		_ = client.Close()
+		if closeErr := w.Close(); closeErr != nil {
+			common.Verbose("Failed to close aborted SMTP DATA writer: %v", closeErr)
+		}
+		return relayContextError(ctx, fmt.Errorf("stream email data: %w", err))
 	}
 	if err := w.Close(); err != nil {
 		return relayContextError(ctx, err)
@@ -284,11 +313,4 @@ func setAbsoluteDeadline(ctx context.Context, conn net.Conn, deadline time.Time)
 
 func setPhaseDeadline(ctx context.Context, conn net.Conn, timeout time.Duration) error {
 	return setAbsoluteDeadline(ctx, conn, phaseDeadline(ctx, timeout))
-}
-
-func relayContextError(ctx context.Context, err error) error {
-	if contextErr := ctx.Err(); contextErr != nil {
-		return contextErr
-	}
-	return err
 }

@@ -89,6 +89,11 @@ All notable changes to OwlMail are documented in this file. The format follows
   workers when relay is enabled dynamically, atomically applies updates, and
   coordinates queue submission with idempotent shutdown without exposing SMTP
   passwords through settings responses.
+- Outgoing SMTP relay now streams stored EML files through a fixed 32 KiB
+  buffer into the SMTP `DATA` writer. Manual, addressed, automatic, and
+  synchronous MailDev-compatible relay no longer allocate an additional
+  message-sized byte slice, while cancellation and DATA failures abort the
+  connection before a partial message can be accepted.
 - HTML email previews now combine server-side sanitization with a zero-permission
   iframe sandbox, a no-referrer policy, and a restrictive per-preview CSP.
   Remote images, fonts, stylesheets, and media are blocked by default and can
@@ -238,4 +243,3 @@ Earlier release notes remain available on the
 [0.6.0]: https://github.com/soulteary/owlmail/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/soulteary/owlmail/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/soulteary/owlmail/releases/tag/v0.4.0
-

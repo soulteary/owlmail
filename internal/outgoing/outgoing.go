@@ -77,6 +77,8 @@ type RelayTask struct {
 	config      *OutgoingConfig
 }
 
+const relayCopyBufferSize = 32 * 1024
+
 // NewOutgoingMail creates a new outgoing mail handler
 func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
 	config = cloneConfig(config).withDefaults()
@@ -141,10 +143,12 @@ func (om *OutgoingMail) startWorkersLocked() {
 
 // relayEmail relays an email to the configured SMTP server
 func (om *OutgoingMail) relayEmail(task *RelayTask) error {
-	if task.Context != nil {
-		if err := task.Context.Err(); err != nil {
-			return err
-		}
+	ctx := task.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	config := task.config
 	if config == nil {
@@ -168,11 +172,6 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	if err != nil {
 		return fmt.Errorf("failed to open email file: %w", err)
 	}
-	defer func() {
-		if err := emailFile.Close(); err != nil {
-			common.Verbose("Failed to close email file: %v", err)
-		}
-	}()
 
 	// Get sender address
 	sender := task.Email.Envelope.From
@@ -183,12 +182,6 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 		sender = "noreply@localhost"
 	}
 
-	// Read email file content
-	emailData, err := io.ReadAll(emailFile)
-	if err != nil {
-		return fmt.Errorf("failed to read email file: %w", err)
-	}
-
 	// Prepare SMTP auth
 	var auth smtp.Auth
 	if config.User != "" && config.Password != "" {
@@ -196,11 +189,7 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	}
 
 	addr := fmt.Sprintf("%s:%d", config.Host, config.Port)
-	ctx := task.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	err = sendMailWithConfig(ctx, addr, auth, sender, recipients, emailData, config)
+	err = sendMailStreamWithConfig(ctx, addr, auth, sender, recipients, emailFile, config)
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
@@ -477,4 +466,43 @@ func (om *OutgoingMail) Close() {
 		close(om.stop)
 		om.wg.Wait()
 	})
+}
+func copyRelayMessage(ctx context.Context, destination io.Writer, source io.Reader) (int64, error) {
+	return io.CopyBuffer(destination, &relayContextReader{ctx: ctx, source: source}, make([]byte, relayCopyBufferSize))
+}
+
+type relayContextReader struct {
+	ctx    context.Context
+	source io.Reader
+}
+
+type relayReadCloser struct {
+	io.ReadCloser
+	closeOnce sync.Once
+	closeErr  error
+}
+
+func (reader *relayReadCloser) Close() error {
+	reader.closeOnce.Do(func() {
+		reader.closeErr = reader.ReadCloser.Close()
+	})
+	return reader.closeErr
+}
+
+func (reader *relayContextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	read, err := reader.source.Read(buffer)
+	if contextErr := reader.ctx.Err(); contextErr != nil {
+		return 0, contextErr
+	}
+	return read, err
+}
+
+func relayContextError(ctx context.Context, err error) error {
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
+	}
+	return err
 }
