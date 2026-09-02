@@ -435,6 +435,24 @@ Configure the MCP client URL as `http://localhost:1080/mcp` and send the Basic
 Auth credentials above. For a remotely reachable endpoint, use HTTPS and
 network access controls in addition to authentication.
 
+For local agent clients that launch a subprocess, the same read-only surface is
+available over stdio without opening an HTTP listener:
+
+```json
+{
+  "mcpServers": {
+    "owlmail": {
+      "command": "/absolute/path/to/owlmail",
+      "args": ["mcp-stdio", "-mail-directory", "/absolute/path/to/maildir"]
+    }
+  }
+}
+```
+
+Protocol messages use stdout and OwlMail logs use stderr. The stdio command
+ignores relay, webhook, and retention settings inherited from the environment,
+so its MCP tools and process remain read-only.
+
 ## HTTPS and TLS
 
 Web HTTPS and SMTP TLS are separate settings:

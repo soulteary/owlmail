@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sync"
 
@@ -50,12 +51,18 @@ func getLoggerUnsafe() *logger.Logger {
 // InitLogger initializes the global logger. Holds the lock for the whole call so it does
 // not race with Log/Verbose/Error: logger.New() writes zerolog globals, and Msg() reads them.
 func InitLogger(level LogLevel) {
+	InitLoggerOutput(level, os.Stdout)
+}
+
+// InitLoggerOutput initializes the global console logger on a selected stream.
+// Stdio protocols use stderr so logs cannot corrupt protocol messages.
+func InitLoggerOutput(level LogLevel, output io.Writer) {
 	defaultLogMu.Lock()
 	defer defaultLogMu.Unlock()
 	kitLevel := owlmailToLoggerLevel(level)
 	l := logger.New(logger.Config{
 		Level:       kitLevel,
-		Output:      os.Stdout,
+		Output:      output,
 		Format:      logger.FormatConsole,
 		ServiceName: "owlmail",
 	})

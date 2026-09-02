@@ -373,6 +373,23 @@ fragment 和 path 的 HTTP(S) origin。代理子路径继续通过 `-base-pathna
 将 MCP 客户端 URL 配置为 `http://localhost:1080/mcp` 并携带上述 Basic Auth。
 远程可访问时，除认证外还应使用 HTTPS 和网络访问控制。
 
+对于由本地代理客户端启动的子进程，同一套只读能力也可以通过 stdio 使用，且不会
+打开 HTTP 监听端口：
+
+```json
+{
+  "mcpServers": {
+    "owlmail": {
+      "command": "/absolute/path/to/owlmail",
+      "args": ["mcp-stdio", "-mail-directory", "/absolute/path/to/maildir"]
+    }
+  }
+}
+```
+
+协议消息写入 stdout，OwlMail 日志写入 stderr。stdio 命令会忽略从环境继承的中继、
+Webhook 与保留策略配置，使 MCP 工具和该进程保持只读。
+
 ## HTTPS 与 TLS
 
 Web HTTPS 与 SMTP TLS 是两组独立设置：

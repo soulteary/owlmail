@@ -820,6 +820,54 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	return nil
 }
 
+func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
+	fs := flag.NewFlagSet("mcp-stdio", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	refs := config.DefineFlags(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg := config.ResolveConfig(fs, refs)
+	// The bridge is a read-only mailbox process. Ignore unrelated delivery and
+	// retention settings even if they are present in the parent environment.
+	cfg.OutgoingHost = ""
+	cfg.AutoRelay = false
+	cfg.WebhookConfig = ""
+	cfg.WebhookRedisURL = ""
+	cfg.MailRetentionDays = 0
+	cfg.MailMaxMessages = 0
+	cfg.MailMaxDiskMB = 0
+	if err := config.ValidateConfig(cfg); err != nil {
+		return err
+	}
+	common.InitLoggerOutput(parseLogLevel(cfg.LogLevel), stderr)
+	server, err := createMailServer(cfg)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = server.Close() }()
+	sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
+	if err != nil || sessionTimeout <= 0 {
+		return fmt.Errorf("invalid MCP session timeout %q", cfg.MCPSessionTimeout)
+	}
+	shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout)
+	if err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("invalid MCP shutdown timeout %q", cfg.MCPShutdownTimeout)
+	}
+	webBaseURL, err := mcpWebBaseURL(cfg)
+	if err != nil {
+		return err
+	}
+	service, err := mcpserver.New(server, mcpserver.Options{
+		SessionTimeout: sessionTimeout, ShutdownTimeout: shutdownTimeout, WebBaseURL: webBaseURL,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = service.Close() }()
+	return service.RunStdio(ctx)
+}
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
@@ -830,6 +878,16 @@ func main() {
 		stop()
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Attachment migration failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "mcp-stdio" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := runMCPStdio(ctx, os.Args[2:], os.Stderr)
+		stop()
+		if err != nil && !errors.Is(err, flag.ErrHelp) && !errors.Is(err, context.Canceled) {
+			_, _ = fmt.Fprintf(os.Stderr, "MCP stdio bridge failed: %v\n", err)
 			os.Exit(1)
 		}
 		return
