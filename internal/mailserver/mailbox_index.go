@@ -17,7 +17,8 @@ type IndexedEmail struct {
 	TextSearch       string
 	HTMLSearch       string
 	FromSearch       string
-	RecipientsSearch string
+	VisibleRecipientsSearch string
+	BCCAddressesSearch     string
 	FirstFrom        string
 	Size             int64
 	StorePosition    int
@@ -56,10 +57,9 @@ func indexedAddressText(addresses []*mail.Address, includeName bool) string {
 }
 
 func makeIndexedEmail(email *Email, receivedAt time.Time, position int) IndexedEmail {
-	recipients := make([]*mail.Address, 0, len(email.To)+len(email.CC)+len(email.CalculatedBCC))
-	recipients = append(recipients, email.To...)
-	recipients = append(recipients, email.CC...)
-	recipients = append(recipients, email.CalculatedBCC...)
+	visibleRecipients := make([]*mail.Address, 0, len(email.To)+len(email.CC))
+	visibleRecipients = append(visibleRecipients, email.To...)
+	visibleRecipients = append(visibleRecipients, email.CC...)
 	firstFrom := ""
 	if len(email.From) > 0 && email.From[0] != nil {
 		firstFrom = strings.ToLower(email.From[0].Address)
@@ -68,7 +68,8 @@ func makeIndexedEmail(email *Email, receivedAt time.Time, position int) IndexedE
 		ID: email.ID, MessageTime: email.Time, ReceivedAt: receivedAt, Read: email.Read,
 		SubjectSearch: strings.ToLower(email.Subject), TextSearch: strings.ToLower(email.Text),
 		HTMLSearch: strings.ToLower(email.HTML), FromSearch: indexedAddressText(email.From, true),
-		RecipientsSearch: indexedAddressText(recipients, true), FirstFrom: firstFrom,
+		VisibleRecipientsSearch: indexedAddressText(visibleRecipients, true),
+		BCCAddressesSearch: indexedAddressText(email.CalculatedBCC, false), FirstFrom: firstFrom,
 		Size: email.Size, StorePosition: position,
 	}
 }
