@@ -170,6 +170,10 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 	if err != nil {
 		return relayContextError(ctx, err)
 	}
+	// SMTPS performs a separately budgeted TLS handshake before the server
+	// greeting. Preserve only the connect budget left after dialing so the
+	// handshake cannot reset the dial-and-greeting limit.
+	connectRemaining := remainingPhaseBudget(connectDeadline)
 	stopCancel := context.AfterFunc(ctx, func() {
 		_ = source.Close()
 		_ = conn.Close()
@@ -206,7 +210,7 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 	}
 
 	if config.TLSMode == TLSModeSMTPS {
-		if err := setPhaseDeadline(ctx, smtpConn, timeouts.connect); err != nil {
+		if err := setPhaseDeadline(ctx, smtpConn, connectRemaining); err != nil {
 			return err
 		}
 	} else if err := setAbsoluteDeadline(ctx, smtpConn, connectDeadline); err != nil {
@@ -296,6 +300,14 @@ func phaseDeadline(ctx context.Context, timeout time.Duration) time.Time {
 		return contextDeadline
 	}
 	return deadline
+}
+
+func remainingPhaseBudget(deadline time.Time) time.Duration {
+	remaining := time.Until(deadline)
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 func setAbsoluteDeadline(ctx context.Context, conn net.Conn, deadline time.Time) error {
