@@ -227,4 +227,3 @@ func outgoingConfigResponse(config *outgoing.OutgoingConfig) fiber.Map {
 		"denyRules":           config.DenyRules,
 	}
 }
-

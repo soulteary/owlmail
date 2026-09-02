@@ -478,4 +478,3 @@ func (om *OutgoingMail) Close() {
 		om.wg.Wait()
 	})
 }
-

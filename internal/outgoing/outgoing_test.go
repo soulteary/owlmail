@@ -1337,4 +1337,3 @@ func TestMatchesRuleWithWildcardInMiddle(t *testing.T) {
 		t.Error("Pattern with wildcard in middle should not match different prefix")
 	}
 }
-
