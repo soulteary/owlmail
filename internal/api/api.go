@@ -269,6 +269,10 @@ func (api *API) serveWebAsset(name, contentType string) fiber.Handler {
 func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	v1 := app.Group(api.route("/api/v1"))
 
+	// Read-only, machine-verifiable API contracts.
+	v1.Get("/openapi.json", api.getOpenAPIJSON)
+	v1.Get("/openapi.yaml", api.getOpenAPIYAML)
+
 	// Emails resource
 	emailsGroup := v1.Group("/emails")
 	emailsGroup.Get("", api.getAllEmails)

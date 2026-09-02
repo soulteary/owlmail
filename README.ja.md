@@ -310,6 +310,8 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
+Basic Auth とブラウザーの same-origin ミドルウェアによる拒否は API ハンドラー
+より前に発生するため、プレーンテキストの `401` または `403` になります。
 
 ### Email ID Format
 
@@ -413,10 +415,16 @@ OwlMail provides a more standardized RESTful API design:
 - `PUT /api/v1/settings/outgoing` - Update outgoing configuration
 - `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
 - `GET /api/v1/health` - Health check
+- `GET /api/v1/ready` - キャッシュ済み依存関係 readiness
+- `GET /api/v1/version` - バージョン情報
 - `GET /api/v1/ws` - WebSocket connection
+- `GET /api/v1/openapi.json` - OpenAPI 3.1 コントラクト (JSON)
+- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 コントラクト (YAML)
 
 サブリソース、認証、レスポンス、WebSocket イベントを含む現在の仕様は
-[API リファレンス](./docs/en/API-Reference.md)を参照してください。
+[API リファレンス](./docs/en/API-Reference.md)または
+[OpenAPI コントラクト](./openapi/openapi.yaml)を参照してください。配信される
+コントラクトには設定済みのベースパスが自動的に含まれます。
 
 ## 🔧 Usage Examples
 

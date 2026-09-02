@@ -96,6 +96,7 @@ func (api *API) downloadEmail(c fiber.Ctx) error {
 		filename = sanitizeFilename(fmt.Sprintf("%s-%s", email.ID, email.Subject)) + ".eml"
 	}
 
+	c.Set("Content-Type", "message/rfc822")
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
 	return c.SendFile(emlPath)
 }

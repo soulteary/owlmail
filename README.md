@@ -396,6 +396,8 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
+Basic Auth and browser same-origin middleware failures are plain-text `401` or
+`403` responses because they occur before API handlers.
 
 ### Email ID Format
 
@@ -521,9 +523,13 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/ready` - Cached dependency readiness check
 - `GET /api/v1/version` - Version info
 - `GET /api/v1/ws` - WebSocket connection
+- `GET /api/v1/openapi.json` - OpenAPI 3.1 contract (JSON)
+- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 contract (YAML)
 
 For the current contract, including sub-resources, authentication, response
-shapes, and WebSocket events, see the [API Reference](./docs/en/API-Reference.md).
+shapes, and WebSocket events, see the [API Reference](./docs/en/API-Reference.md)
+or the version-controlled [OpenAPI contract](./openapi/openapi.yaml). The served
+contract automatically includes the configured base pathname.
 
 ## 🔧 Usage Examples
 

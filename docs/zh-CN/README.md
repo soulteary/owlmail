@@ -27,6 +27,7 @@
 - **[API 参考](./API-Reference.md)**
   - 完整路由清单、请求与响应约定、鉴权、原生 WebSocket 事件、curl 示例，以及
     当前 MailDev 迁移边界。
+  - **机器可读合约**：[OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
   - **其他语言**：[English](../en/API-Reference.md)
 
 - **[运维与排障](./Operations.md)**

@@ -365,6 +365,28 @@ test("English and Chinese API references cover every registered API route", () =
   }
 });
 
+test("OpenAPI contract is linked from every translated README", () => {
+  const document = JSON.parse(fs.readFileSync(path.join(root, "openapi/openapi.json"), "utf8"));
+  assert.equal(document.openapi, "3.1.0");
+  assert.equal(document.jsonSchemaDialect, "https://json-schema.org/draft/2020-12/schema");
+
+  const yaml = fs.readFileSync(path.join(root, "openapi/openapi.yaml"), "utf8");
+  assert.ok(yaml.startsWith("openapi: 3.1.0\n"));
+  assert.ok(yaml.includes("/emails/{id}/actions/relay:"));
+  assert.ok(yaml.includes("/ws:"));
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    for (const marker of [
+      "/api/v1/openapi.json",
+      "/api/v1/openapi.yaml",
+      "openapi/openapi.yaml",
+    ]) {
+      assert.ok(markdown.includes(marker), `${readme} is missing OpenAPI marker ${marker}`);
+    }
+  }
+});
+
 test("0.6.0 release documentation and workflow stay connected", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   const releaseStart = changelog.indexOf("## [0.6.0]");
