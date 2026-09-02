@@ -24,6 +24,8 @@ in eigenen Verzeichnissen organisiert.
     dokumentierte MailDev-Unterschiede.
 - **[Betrieb und Fehlerbehebung](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - Bereitstellungsprofile, Persistenz, Sicherheit, TLS, Kapazität und Diagnose.
+- **[Sendmail-kompatible CLI](./Sendmail.md)**
+  - PHP `sendmail_path`, Cron, SMTP/TLS/AUTH und stabile Statuswerte.
 - **[Webhook-Weiterleitung](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))
   - Filter, benutzerdefinierte Payloads, HMAC-Signaturen, Wiederholungen und
     die Integration mit `soulteary/webhook`.
