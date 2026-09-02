@@ -949,7 +949,7 @@
           "Relay"
         ],
         "summary": "Request email relay",
-        "description": "`200` acknowledges receipt of the in-process relay request and an attempt to hand it to the outgoing worker. It does not guarantee queue insertion or downstream SMTP delivery; queue saturation and later failures are reported only in process logs. Query `relayTo` takes precedence over the JSON body. When neither is supplied, the original message recipients are used.",
+        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -978,18 +978,26 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "Successful response",
+          "202": {
+            "description": "Relay request accepted with a queryable job.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/APIResponse"
                 },
                 "example": {
-                  "code": "EMAIL_RELAYED",
-                  "message": "Email relayed successfully",
+                  "code": "RELAY_QUEUED",
+                  "message": "Relay request accepted",
                   "data": {
-                    "relayTo": "relay@example.com"
+                    "job": {
+                      "id": "0123456789abcdef0123456789abcdef",
+                      "emailId": "aB3dEfGh",
+                      "relayTo": "relay@example.com",
+                      "status": "queued",
+                      "createdAt": "2026-09-02T12:00:00Z",
+                      "updatedAt": "2026-09-02T12:00:00Z"
+                    },
+                    "statusUrl": "/api/v1/relay-jobs/0123456789abcdef0123456789abcdef"
                   }
                 }
               }
@@ -1016,7 +1024,7 @@
           "Relay"
         ],
         "summary": "Request email relay to an explicit recipient",
-        "description": "`200` acknowledges receipt and an attempt to hand the request to the outgoing worker; it does not guarantee queue insertion or downstream SMTP delivery. Queue saturation and later failures are reported only in process logs. Recipient syntax is not validated before asynchronous handling.",
+        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
@@ -1027,18 +1035,26 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful response",
+          "202": {
+            "description": "Relay request accepted with a queryable job.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/APIResponse"
                 },
                 "example": {
-                  "code": "EMAIL_RELAYED",
-                  "message": "Email relayed successfully",
+                  "code": "RELAY_QUEUED",
+                  "message": "Relay request accepted",
                   "data": {
-                    "relayTo": "relay@example.com"
+                    "job": {
+                      "id": "0123456789abcdef0123456789abcdef",
+                      "emailId": "aB3dEfGh",
+                      "relayTo": "relay@example.com",
+                      "status": "queued",
+                      "createdAt": "2026-09-02T12:00:00Z",
+                      "updatedAt": "2026-09-02T12:00:00Z"
+                    },
+                    "statusUrl": "/api/v1/relay-jobs/0123456789abcdef0123456789abcdef"
                   }
                 }
               }
@@ -1278,6 +1294,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "503": {
             "description": "An enabled dependency is checking or unavailable.",
             "content": {
@@ -1297,9 +1316,6 @@
                 }
               }
             }
-          },
-          "403": {
-            "$ref": "#/components/responses/Forbidden"
           }
         }
       }
@@ -1429,6 +1445,54 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/relay-jobs/{jobID}": {
+      "get": {
+        "tags": [
+          "Relay"
+        ],
+        "summary": "Get asynchronous relay status",
+        "description": "Returns the current state of one process-local relay job. Completed jobs are retained for 24 hours; the store keeps at most 1000 jobs.",
+        "operationId": "getRelayJob",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/RelayJobID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "RELAY_STATUS",
+                  "message": "Relay job status",
+                  "data": {
+                    "id": "0123456789abcdef0123456789abcdef",
+                    "emailId": "aB3dEfGh",
+                    "status": "succeeded",
+                    "createdAt": "2026-09-02T12:00:00Z",
+                    "updatedAt": "2026-09-02T12:00:01Z",
+                    "completedAt": "2026-09-02T12:00:01Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       }
@@ -1592,6 +1656,17 @@
           "type": "string"
         },
         "example": "aB3dEfGh,550e8400-e29b-41d4-a716-446655440000"
+      },
+      "RelayJobID": {
+        "name": "jobID",
+        "in": "path",
+        "required": true,
+        "description": "Opaque process-local relay job identifier.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": "0123456789abcdef0123456789abcdef"
       }
     },
     "schemas": {
