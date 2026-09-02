@@ -386,6 +386,33 @@ func (ms *MailServer) GetRawEmailContent(id string) ([]byte, error) {
 	return content, nil
 }
 
+// GetRawEmailContentLimit returns at most maxBytes of the original message,
+// together with its full on-disk size and whether the returned content was
+// truncated. It preserves the same ID and path validation as GetRawEmail.
+func (ms *MailServer) GetRawEmailContentLimit(id string, maxBytes int64) ([]byte, int64, bool, error) {
+	if maxBytes <= 0 {
+		return nil, 0, false, fmt.Errorf("maximum source size must be positive")
+	}
+	emlPath, err := ms.GetRawEmail(id)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	file, err := os.Open(emlPath)
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("failed to open email file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	stat, err := file.Stat()
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("failed to inspect email file: %w", err)
+	}
+	content, err := io.ReadAll(io.LimitReader(file, maxBytes))
+	if err != nil {
+		return nil, 0, false, fmt.Errorf("failed to read email file: %w", err)
+	}
+	return content, stat.Size(), stat.Size() > int64(len(content)), nil
+}
+
 // GetEmailHTML returns the HTML content of an email
 func (ms *MailServer) GetEmailHTML(id string) (string, error) {
 	email, err := ms.GetEmail(id)

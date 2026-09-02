@@ -50,6 +50,12 @@ func ValidateConfig(cfg *Config) error {
 	if _, err := NormalizeBasePathname(cfg.BasePathname); err != nil {
 		return err
 	}
+	if sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout); err != nil || sessionTimeout <= 0 {
+		return fmt.Errorf("MCP session timeout must be a positive duration")
+	}
+	if shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout); err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("MCP shutdown timeout must be a positive duration")
+	}
 	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
 		return fmt.Errorf("mail retention limits cannot be negative")
 	}

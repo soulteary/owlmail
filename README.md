@@ -224,6 +224,9 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
+| `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
+| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle MCP sessions |
+| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP sessions during shutdown |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
@@ -287,6 +290,22 @@ A generated password changes on every restart. Read it from the process output
 (`docker logs owlmail` for the container example), or configure both values for
 stable credentials. Startup fails if the generated password cannot be written
 to stderr. Basic Auth credentials should only be used over localhost or HTTPS.
+
+### Read-only MCP
+
+MCP is disabled by default. Enable the official Streamable HTTP endpoint with
+`-mcp-enabled` or `OWLMAIL_MCP_ENABLED=true`, then connect to
+`http://localhost:1080/mcp`. With `-base-pathname /owlmail`, the endpoint is
+`/owlmail/mcp`. It shares the Web listener, HTTPS settings, and HTTP Basic Auth;
+an authenticated Web deployment therefore requires the same Basic Auth
+credentials for every MCP request.
+
+The server exposes only `list_emails`, `search_emails`, `get_email`,
+`get_email_source`, and `list_attachments`. List/search results are compact,
+`get_email` omits HTML unless explicitly requested, source reads default to a
+1 MiB output cap, and attachment content is never exposed as a tool. See the
+[operations guide](./docs/en/Operations.md#read-only-mcp-for-test-agents) for
+the complete security and lifecycle contract.
 
 ### Environment Variable Compatibility
 

@@ -8,6 +8,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- An optional, default-off read-only MCP server using the official Go SDK's
+  Streamable HTTP transport. It exposes compact list/search, detached email,
+  bounded raw source, and attachment-metadata tools; shares Web Basic Auth,
+  HTTPS, and base-path routing; and bounds idle-session and shutdown cleanup.
 - An idempotent `migrate-attachments` offline command for resumable local-to-S3
   attachment migration, with dry-run planning and read-only remote validation,
   bounded retries, per-attachment progress, exact filename/size/SHA-256

@@ -19,6 +19,7 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/mcpserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
 	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
@@ -442,10 +443,37 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := apiServer.SetExternalScheme(cfg.WebExternalScheme); err != nil {
 		return nil, err
 	}
+	if cfg.MCPEnabled {
+		sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
+		if err != nil || sessionTimeout <= 0 {
+			return nil, fmt.Errorf("invalid MCP session timeout %q", cfg.MCPSessionTimeout)
+		}
+		shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout)
+		if err != nil || shutdownTimeout <= 0 {
+			return nil, fmt.Errorf("invalid MCP shutdown timeout %q", cfg.MCPShutdownTimeout)
+		}
+		mcpService, err := mcpserver.New(server, mcpserver.Options{
+			SessionTimeout: sessionTimeout, ShutdownTimeout: shutdownTimeout,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("create MCP service: %w", err)
+		}
+		if err := apiServer.SetMCPHandler(mcpService); err != nil {
+			_ = mcpService.Close()
+			return nil, err
+		}
+		if err := server.AddCloser(mcpService); err != nil {
+			_ = mcpService.Close()
+			return nil, fmt.Errorf("register MCP service closer: %w", err)
+		}
+	}
 
 	protocol := "http"
 	if cfg.HTTPSEnabled {
 		protocol = "https"
+	}
+	if cfg.MCPEnabled {
+		common.Log("Read-only MCP enabled at %s://%s:%d%s/mcp (idle timeout: %s)", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname, cfg.MCPSessionTimeout)
 	}
 	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
 	if cfg.WebUser != "" && cfg.WebPassword != "" {

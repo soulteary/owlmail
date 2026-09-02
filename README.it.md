@@ -200,6 +200,9 @@ docker buildx build \
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Porta API Web |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Host API Web |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Prefisso del percorso URL come `/owlmail`; la radice resta predefinita |
+| `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Abilita l'endpoint MCP Streamable HTTP in sola lettura in `/mcp` |
+| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Chiude le sessioni MCP inattive |
+| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Termine per chiudere le sessioni MCP durante l'arresto |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Directory di archiviazione email |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |

@@ -38,6 +38,7 @@ type API struct {
 	httpsKeyFile   string
 	externalScheme string
 	basePathname   string
+	mcpHandler     http.Handler
 }
 
 // NewAPI creates a new API server instance
@@ -102,6 +103,17 @@ func (api *API) SetBasePathname(basePathname string) error {
 		return err
 	}
 	api.basePathname = normalized
+	api.setupRoutes()
+	return nil
+}
+
+// SetMCPHandler enables the optional MCP endpoint using the same listener,
+// HTTPS configuration, base pathname, and Basic Auth middleware as the Web API.
+func (api *API) SetMCPHandler(handler http.Handler) error {
+	if handler == nil {
+		return fmt.Errorf("MCP handler cannot be nil")
+	}
+	api.mcpHandler = handler
 	api.setupRoutes()
 	return nil
 }
@@ -182,6 +194,9 @@ func (api *API) setupRoutes() {
 	// New improved RESTful API routes
 	// ============================================================================
 	api.setupImprovedAPIRoutes(app)
+	if api.mcpHandler != nil {
+		app.All(api.route("/mcp"), adaptor.HTTPHandler(api.mcpHandler))
+	}
 
 	// Browser UI and local help.
 	app.Get(api.route("/"), api.serveWebAsset("index.html", "text/html; charset=utf-8"))
@@ -202,6 +217,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/healthz") ||
 			strings.HasPrefix(path, "/readyz") ||
 			strings.HasPrefix(path, "/socket.io") ||
+			strings.HasPrefix(path, "/mcp") ||
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||

@@ -299,6 +299,54 @@ Service Worker scope 为 `/owlmail/`。
 反斜线、编码斜线及内部空段。迁移时也可使用 `MAILDEV_BASE_PATHNAME` 别名；与其他
 兼容变量相同，显式 CLI 参数的优先级最高。
 
+## 供测试代理使用的只读 MCP
+
+MCP 默认关闭，使用官方 Go SDK 的有状态 Streamable HTTP transport。通过
+`-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 开启。根路径部署的端点为
+`/mcp`；配置 base pathname 后，端点为 `<base-pathname>/mcp`。
+
+MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，因此继承以下边界：
+
+- `-web-user` 与 `-web-password` 使用和 UI、REST API 相同的 HTTP Basic Auth
+  保护每个 MCP 请求。MCP 不属于健康检查的免认证路径。
+- `-https` 在同一个 HTTPS listener 上保护 MCP。若 TLS 在反向代理终止，代理必须
+  转发 MCP 路径并执行预期的 HTTPS 策略；不要通过不可信明文 HTTP 发送 Basic Auth。
+- `-base-pathname` 会同时移动 MCP 端点。此时无前缀 `/mcp` 保持 404，不会产生
+  根路径认证旁路。
+
+MCP 服务严格只提供五个封闭域、只读工具：
+
+| 工具 | 输出边界 |
+|---|---|
+| `list_emails` | 复用现有邮箱查询 API 的分页轻量摘要 |
+| `search_emails` | 按主题、文本和 HTML 过滤的同类摘要 |
+| `get_email` | 单封邮件的深复制快照；清洗后的 HTML 需要显式请求 |
+| `get_email_source` | RFC 5322 原始 source；默认最多 1 MiB，最大 100 MiB |
+| `list_attachments` | 名称、类型、大小、哈希和存储元数据；从不返回附件字节 |
+
+不存在删除、标记已读、转发、中继、下载附件、修改配置或重新加载邮箱的 MCP
+工具。`list_emails` 与 `search_emails` 复用 `QueryEmailPreviews`；`get_email` 和
+`list_attachments` 复用邮箱的深复制 `GetEmail` 边界，不维护第二套索引，也不
+返回内部可变指针。
+
+多个客户端可以维持相互独立的会话。未知 session ID 返回 HTTP 404；客户端
+`DELETE` 会关闭会话；空闲会话在 `-mcp-session-timeout` 后关闭（默认 `30m`）。
+进程关闭时拒绝新的 MCP 工作、清理活动会话，并最多等待
+`-mcp-shutdown-timeout`（默认 `5s`）。
+
+受保护的本地端点示例：
+
+```bash
+./owlmail \
+  -mcp-enabled \
+  -web-user agent \
+  -web-password test-only-secret \
+  -mcp-session-timeout 10m
+```
+
+将 MCP 客户端 URL 配置为 `http://localhost:1080/mcp` 并携带上述 Basic Auth。
+远程可访问时，除认证外还应使用 HTTPS 和网络访问控制。
+
 ## HTTPS 与 TLS
 
 Web HTTPS 与 SMTP TLS 是两组独立设置：

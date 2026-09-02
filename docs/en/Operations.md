@@ -350,6 +350,60 @@ slashes, and empty internal segments. `MAILDEV_BASE_PATHNAME` is accepted as a
 migration alias; as with other compatibility variables, an explicitly supplied
 CLI flag has highest priority.
 
+## Read-only MCP for test agents
+
+The MCP server is opt-in and uses the official Go SDK's stateful Streamable
+HTTP transport. Enable it with `-mcp-enabled` or
+`OWLMAIL_MCP_ENABLED=true`. The endpoint is `/mcp` for a root deployment and
+`<base-pathname>/mcp` when a base pathname is configured.
+
+MCP is mounted inside the existing Web router rather than on a second listener.
+Consequently it inherits all of these boundaries:
+
+- `-web-user` and `-web-password` protect every MCP request with the same HTTP
+  Basic Auth policy as the UI and REST API. There is no unauthenticated MCP
+  exception comparable to the health endpoints.
+- `-https` protects MCP on the same HTTPS listener. If TLS terminates at a
+  reverse proxy, that proxy must forward the MCP path and enforce the intended
+  HTTPS policy; Basic Auth credentials must not be sent over untrusted HTTP.
+- `-base-pathname` moves the endpoint. The unprefixed `/mcp` path remains 404,
+  so a subpath deployment does not gain a root-level bypass.
+
+The MCP service exposes exactly five closed-world, read-only tools:
+
+| Tool | Result boundary |
+|---|---|
+| `list_emails` | Paginated compact summaries from the existing mailbox query API |
+| `search_emails` | The same summaries filtered across subject, text, and HTML |
+| `get_email` | One detached mailbox snapshot; sanitized HTML is opt-in |
+| `get_email_source` | Raw RFC 5322 source, limited to 1 MiB by default and 100 MiB maximum |
+| `list_attachments` | Names, content types, sizes, hashes, and storage metadata; never bytes |
+
+There are no MCP tools for deleting, marking read, relaying, forwarding,
+downloading attachments, changing configuration, or reloading the mailbox.
+`list_emails` and `search_emails` reuse `QueryEmailPreviews`; `get_email` and
+`list_attachments` use the mailbox's deep-copy `GetEmail` boundary rather than
+maintaining a second index or returning internal pointers.
+
+Multiple clients may hold independent sessions. Unknown IDs return HTTP 404,
+client `DELETE` closes a session, and idle sessions close after
+`-mcp-session-timeout` (default `30m`). Process shutdown rejects new MCP work,
+closes active sessions, and waits up to `-mcp-shutdown-timeout` (default `5s`).
+
+Example for a protected local endpoint:
+
+```bash
+./owlmail \
+  -mcp-enabled \
+  -web-user agent \
+  -web-password test-only-secret \
+  -mcp-session-timeout 10m
+```
+
+Configure the MCP client URL as `http://localhost:1080/mcp` and send the Basic
+Auth credentials above. For a remotely reachable endpoint, use HTTPS and
+network access controls in addition to authentication.
+
 ## HTTPS and TLS
 
 Web HTTPS and SMTP TLS are separate settings:
