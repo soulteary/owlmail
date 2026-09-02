@@ -60,7 +60,27 @@ func TestDocumentsParseAndStayEquivalent(t *testing.T) {
 	validatePatchSemantics(t, parsedJSON)
 	validateQuerySemantics(t, parsedJSON)
 	validateRelaySemantics(t, parsedJSON)
+	validateTransportSemantics(t, parsedJSON)
 	validateLocalReferences(t, parsedJSON, parsedJSON)
+}
+
+func validateTransportSemantics(t *testing.T, document map[string]any) {
+	t.Helper()
+	paths := document["paths"].(map[string]any)
+	webSocket := paths["/ws"].(map[string]any)["get"].(map[string]any)
+	badHandshake := webSocket["responses"].(map[string]any)["400"].(map[string]any)
+	content := badHandshake["content"].(map[string]any)
+	if _, ok := content["text/plain"]; !ok {
+		t.Error("GET /ws 400 response is not documented as text/plain")
+	}
+
+	components := document["components"].(map[string]any)
+	schemas := components["schemas"].(map[string]any)
+	preview := schemas["EmailPreview"].(map[string]any)["properties"].(map[string]any)["preview"].(map[string]any)
+	description := preview["description"].(string)
+	if !strings.Contains(description, "200 UTF-8 bytes, not characters") {
+		t.Error("EmailPreview.preview does not document byte-based truncation")
+	}
 }
 
 func validateRelaySemantics(t *testing.T, document map[string]any) {

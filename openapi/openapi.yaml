@@ -892,6 +892,13 @@ paths:
       responses:
         '101':
           description: Switching Protocols. Subsequent frames follow `x-websocket-messages`.
+        '400':
+          description: Invalid RFC 6455 upgrade headers or handshake key.
+          content:
+            text/plain:
+              schema:
+                type: string
+              example: Bad Request
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1244,7 +1251,7 @@ components:
           type: boolean
         preview:
           type: string
-          description: At most 200 characters plus an optional ellipsis.
+          description: Truncated after 200 UTF-8 bytes, not characters, with `...` appended when truncated.
       additionalProperties: false
     EmailList:
       type: object

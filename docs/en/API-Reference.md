@@ -122,6 +122,9 @@ Example error:
 Export routes accept the same filters. `ids=id1,id2` takes precedence and
 exports only the listed IDs.
 
+The compact `preview` string is truncated after 200 UTF-8 bytes, rather than
+200 characters, and receives `...` when truncated.
+
 ## Versioned API
 
 ### Email collection
@@ -180,6 +183,9 @@ response.
 | `GET /api/v1/ws` | native WebSocket endpoint |
 | `GET /api/v1/openapi.json` | base-path-aware OpenAPI 3.1 JSON contract |
 | `GET /api/v1/openapi.yaml` | base-path-aware OpenAPI 3.1 YAML contract |
+
+Malformed WebSocket upgrade headers or handshake keys return a plain-text
+`400` response before a WebSocket connection is established.
 
 The liveness response is independent of remote storage. Readiness returns
 HTTP `200` only when every enabled dependency is ready and HTTP `503` while the

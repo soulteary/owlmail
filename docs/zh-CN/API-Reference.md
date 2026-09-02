@@ -115,6 +115,9 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 
 导出路由支持相同筛选条件。设置 `ids=id1,id2` 时优先按给定 ID 导出。
 
+精简预览中的 `preview` 字符串按 200 个 UTF-8 字节（而非字符）截断，发生截断时
+追加 `...`。
+
 ## 版本化 API
 
 ### 邮件集合
@@ -170,6 +173,9 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `GET /api/v1/ws` | 原生 WebSocket 端点 |
 | `GET /api/v1/openapi.json` | 支持 base path 的 OpenAPI 3.1 JSON 合约 |
 | `GET /api/v1/openapi.yaml` | 支持 base path 的 OpenAPI 3.1 YAML 合约 |
+
+WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 连接前返回
+纯文本 `400`。
 
 发布构建会返回类似以下的版本来源信息：
 
