@@ -160,3 +160,41 @@ func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 		t.Fatalf("replacement job = %#v, %t", got, ok)
 	}
 }
+
+
+func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
+	email := &types.Email{ID: "relay-capacity-mail", Subject: "Relay capacity", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	api.relayJobs.limit = 1
+	api.relayJobs.newID = func() (string, error) { return "active-job", nil }
+	if _, err := api.relayJobs.create("other-mail", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("relay capacity status = %d, body = %s", resp.StatusCode, body)
+	}
+	if resp.Header.Get("Retry-After") != "1" {
+		t.Fatalf("Retry-After = %q", resp.Header.Get("Retry-After"))
+	}
+	if !strings.Contains(string(body), "Relay status capacity reached") {
+		t.Fatalf("relay capacity response = %s", body)
+	}
+}
