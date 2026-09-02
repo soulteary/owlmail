@@ -51,7 +51,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	}
 	second := &types.Email{
 		ID: "mail-2", Subject: "Newest capture", Text: "second",
-		Time: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		Time:     time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
 		Envelope: &types.Envelope{From: "new@example.test", To: []string{"recipient@example.test"}},
 	}
 	if err := os.WriteFile(filepath.Join(mailDir, "mail-2.eml"), []byte("Subject: Newest capture\r\n\r\nsecond"), 0600); err != nil {
