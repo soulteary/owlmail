@@ -64,7 +64,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 - 修改成功通常返回 `code`、`message` 和可选的 `data`；API 处理器产生的
   错误会返回对应 HTTP 状态码，以及 `code`、`error`、`message`。Basic
   Auth 与浏览器同源中间件会在进入 API 处理器前直接返回纯文本 `401` 或
-  `403`。
+  `403`。启用后，同源检查先于 Basic Auth 执行，因此 `403` 不表示鉴权已经成功。
 
 列表响应示例：
 

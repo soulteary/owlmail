@@ -2773,7 +2773,7 @@
         }
       },
       "Forbidden": {
-        "description": "An authenticated browser request used a cross-origin Origin header. The body is plain text.",
+        "description": "When Basic Auth deployment middleware is enabled, the pre-authentication same-origin check rejected a browser request with a foreign `Origin`. A 403 does not imply successful authentication, and the body is plain text.",
         "content": {
           "text/plain": {
             "schema": {

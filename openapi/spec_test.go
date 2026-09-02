@@ -114,6 +114,12 @@ func validateSecuritySemantics(t *testing.T, document map[string]any) {
 	if !hasBasicAuth || !hasAnonymous {
 		t.Fatalf("global security = %#v, want Basic Auth and anonymous alternatives", security)
 	}
+	components := document["components"].(map[string]any)
+	responses := components["responses"].(map[string]any)
+	forbidden := responses["Forbidden"].(map[string]any)["description"].(string)
+	if !strings.Contains(forbidden, "pre-authentication same-origin check") {
+		t.Error("Forbidden response does not document the pre-authentication same-origin check")
+	}
 
 	paths := document["paths"].(map[string]any)
 	for _, path := range []string{"/health", "/ready"} {

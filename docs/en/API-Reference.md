@@ -70,7 +70,9 @@ contract so route additions and removals cannot silently drift.
 - Successful mutations usually return `code`, `message`, and optional `data`.
   Handler-level API errors return an HTTP error status plus `code`, `error`,
   and `message`. Basic Auth and browser same-origin middleware reject requests
-  with plain-text `401` or `403` responses before an API handler runs.
+  with plain-text `401` or `403` responses before an API handler runs. When
+  installed, the same-origin check runs before Basic Auth, so `403` does not
+  imply that authentication succeeded.
 
 Example collection response:
 
