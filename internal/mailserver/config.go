@@ -99,8 +99,15 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		maxRecipients = defaultSMTPMaxRecipients
 	}
 
-	// Create mail directory
-	if err := os.MkdirAll(mailDir, 0755); err != nil {
+	if options.ReadOnly {
+		info, err := os.Stat(mailDir)
+		if err != nil {
+			return nil, fmt.Errorf("open read-only mail directory: %w", err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("read-only mail path is not a directory")
+		}
+	} else if err := os.MkdirAll(mailDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create mail directory: %w", err)
 	}
 
@@ -149,10 +156,12 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 
 	common.Log("owlmail using directory %s", mailDir)
 
-	// Load existing emails from directory
-	if err := ms.LoadMailsFromDirectory(); err != nil {
-		common.Error("Failed to load emails from directory: %v", err)
-		// Continue anyway, as this is not a fatal error
+	// Read-only observers explicitly refresh through the non-mutating loader.
+	if !options.ReadOnly {
+		if err := ms.LoadMailsFromDirectory(); err != nil {
+			common.Error("Failed to load emails from directory: %v", err)
+			// Continue anyway, as this is not a fatal error
+		}
 	}
 	if ms.mailboxIndex != nil {
 		if err := ms.rebuildMailboxIndex(); err != nil {
