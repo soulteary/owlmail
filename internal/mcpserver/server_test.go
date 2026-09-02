@@ -154,6 +154,34 @@ func TestEmailSourceUsesLosslessBase64(t *testing.T) {
 	}
 }
 
+func TestEmailQueryNormalizesSortAndInclusiveDateTo(t *testing.T) {
+	query, err := makeEmailQuery(emailQueryInput{
+		SortOrder: "asc",
+		DateTo:    "2026-09-02",
+	}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if query.SortBy != "time" || query.SortOrder != "asc" {
+		t.Fatalf("sort = %q %q, want time asc", query.SortBy, query.SortOrder)
+	}
+	wantDateTo := time.Date(2026, time.September, 2, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC)
+	if query.DateTo == nil || !query.DateTo.Equal(wantDateTo) {
+		t.Fatalf("date_to = %v, want %v", query.DateTo, wantDateTo)
+	}
+
+	sameDay, err := makeEmailQuery(emailQueryInput{
+		DateFrom: "2026-09-02",
+		DateTo:   "2026-09-02",
+	}, "")
+	if err != nil {
+		t.Fatalf("same-day range was rejected: %v", err)
+	}
+	if sameDay.DateFrom == nil || sameDay.DateTo == nil || !sameDay.DateFrom.Before(*sameDay.DateTo) {
+		t.Fatalf("unexpected same-day range: %#v", sameDay)
+	}
+}
+
 func TestConcurrentSessionsUnknownIDsAndClientClose(t *testing.T) {
 	mailbox := newTestMailbox(t)
 	service := newTestService(t, mailbox, time.Minute)

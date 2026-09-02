@@ -464,7 +464,10 @@ func makeEmailQuery(input emailQueryInput, text string) (mailserver.EmailQuery, 
 		return mailserver.EmailQuery{}, fmt.Errorf("offset cannot be negative")
 	}
 	sortBy := strings.ToLower(strings.TrimSpace(input.SortBy))
-	if sortBy != "" && sortBy != "time" && sortBy != "subject" && sortBy != "from" && sortBy != "size" {
+	if sortBy == "" {
+		sortBy = "time"
+	}
+	if sortBy != "time" && sortBy != "subject" && sortBy != "from" && sortBy != "size" {
 		return mailserver.EmailQuery{}, fmt.Errorf("sort_by must be time, subject, from, or size")
 	}
 	sortOrder := strings.ToLower(strings.TrimSpace(input.SortOrder))
@@ -490,7 +493,10 @@ func makeEmailQuery(input emailQueryInput, text string) (mailserver.EmailQuery, 
 		if err != nil {
 			return mailserver.EmailQuery{}, fmt.Errorf("date_to must use YYYY-MM-DD")
 		}
-		date = date.Add(24 * time.Hour)
+		// The shared mailbox query uses an inclusive DateTo comparison. Use
+		// the last representable instant of the requested UTC date so that
+		// midnight of the following day is not included.
+		date = date.AddDate(0, 0, 1).Add(-time.Nanosecond)
 		query.DateTo = &date
 	}
 	if query.DateFrom != nil && query.DateTo != nil && !query.DateFrom.Before(*query.DateTo) {
