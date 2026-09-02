@@ -38,10 +38,11 @@ var EnvMapping = map[string]string{
 	"MAILDEV_MAIL_DIRECTORY": "OWLMAIL_MAIL_DIR",
 
 	// Web API configuration
-	"MAILDEV_WEB_PORT": "OWLMAIL_WEB_PORT",
-	"MAILDEV_WEB_IP":   "OWLMAIL_WEB_HOST",
-	"MAILDEV_WEB_USER": "OWLMAIL_WEB_USER",
-	"MAILDEV_WEB_PASS": "OWLMAIL_WEB_PASSWORD",
+	"MAILDEV_WEB_PORT":      "OWLMAIL_WEB_PORT",
+	"MAILDEV_WEB_IP":        "OWLMAIL_WEB_HOST",
+	"MAILDEV_WEB_USER":      "OWLMAIL_WEB_USER",
+	"MAILDEV_WEB_PASS":      "OWLMAIL_WEB_PASSWORD",
+	"MAILDEV_BASE_PATHNAME": "OWLMAIL_BASE_PATHNAME",
 
 	// HTTPS configuration
 	"MAILDEV_HTTPS":      "OWLMAIL_HTTPS_ENABLED",
@@ -218,6 +219,7 @@ type Config struct {
 	WebUser           string
 	WebPassword       string
 	WebExternalScheme string
+	BasePathname      string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -289,6 +291,7 @@ func DefaultConfig() *Config {
 		WebUser:                "",
 		WebPassword:            "",
 		WebExternalScheme:      "",
+		BasePathname:           "",
 		HTTPSEnabled:           false,
 		HTTPSCertFile:          "",
 		HTTPSKeyFile:           "",
@@ -342,6 +345,7 @@ type FlagRefs struct {
 	WebHost                *string
 	WebUser                *string
 	WebPassword            *string
+	BasePathname           *string
 	HTTPSEnabled           *bool
 	HTTPSCertFile          *string
 	HTTPSKeyFile           *string
@@ -397,6 +401,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		HTTPSEnabled:           fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
 		HTTPSCertFile:          fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
 		HTTPSKeyFile:           fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
@@ -455,6 +460,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebUser:           resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
 		WebPassword:       resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
 		WebExternalScheme: ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		BasePathname:      resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),

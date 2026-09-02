@@ -821,6 +821,23 @@ func TestInitializeApplication(t *testing.T) {
 	}
 }
 
+func TestInitializeApplicationNormalizesBasePathname(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.BasePathname = "owlmail/"
+	if err := initializeApplication(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.BasePathname != "/owlmail" {
+		t.Fatalf("BasePathname = %q, want /owlmail", cfg.BasePathname)
+	}
+
+	cfg = config.DefaultConfig()
+	cfg.BasePathname = "/owlmail/../admin"
+	if err := initializeApplication(cfg); err == nil {
+		t.Fatal("initializeApplication accepted path traversal")
+	}
+}
+
 // TestCreateMailServer tests the createMailServer function
 func TestCreateMailServer(t *testing.T) {
 	// Test with nil config

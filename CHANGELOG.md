@@ -16,6 +16,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Responsive HTML email preview width presets for 100%, 1440, 1024, 768,
   425, 375, and 320 px without reloading the message or replacing its secure
   iframe.
+- Configurable reverse-proxy subpath deployment with `-base-pathname`,
+  `OWLMAIL_BASE_PATHNAME`, and the compatible `MAILDEV_BASE_PATHNAME` alias.
+  The prefix covers embedded pages and assets, REST and compatibility routes,
+  attachment downloads, native WebSockets, and the Service Worker scope while
+  preserving the existing root-path default.
 - Real inbound SMTP AUTH with PLAIN and LOGIN mechanisms, constant-time
   credential checks, and protocol-level rejection of unauthenticated mail
   transactions.

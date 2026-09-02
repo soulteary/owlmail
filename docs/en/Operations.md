@@ -301,6 +301,55 @@ authenticated HTTP and WebSocket same-origin checks use the browser-visible
 scheme. Configure it explicitly instead of trusting client-supplied forwarded
 headers.
 
+### 5. Docker behind an Nginx subpath
+
+Keep OwlMail's container port private, configure the same external prefix in
+OwlMail and the proxy, and preserve WebSocket upgrade headers:
+
+```yaml
+services:
+  owlmail:
+    image: ghcr.io/soulteary/owlmail:0.6.0
+    environment:
+      OWLMAIL_BASE_PATHNAME: /owlmail
+      OWLMAIL_WEB_EXTERNAL_SCHEME: https
+    volumes:
+      - owlmail-data:/app/mail
+    expose:
+      - "1080"
+
+volumes:
+  owlmail-data:
+```
+
+```nginx
+location = /owlmail {
+    return 308 /owlmail/;
+}
+
+location /owlmail/ {
+    proxy_pass http://owlmail:1080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+Open `https://example.com/owlmail/`. Do not strip `/owlmail` in `proxy_pass`:
+OwlMail registers its UI, REST API, attachment, compatibility, and native
+WebSocket routes below that prefix. The compatibility path
+`/owlmail/socket.io` remains a native RFC 6455 WebSocket endpoint, not the
+Socket.IO protocol. Health probes move to `/owlmail/healthz` or
+`/owlmail/api/v1/health`, and the Service Worker is scoped to `/owlmail/`.
+
+`OWLMAIL_BASE_PATHNAME=owlmail`, `/owlmail`, and `/owlmail/` normalize to the
+same value. Empty or `/` retains the historical root deployment. Startup
+rejects traversal segments, queries, fragments, schemes, backslashes, encoded
+slashes, and empty internal segments. `MAILDEV_BASE_PATHNAME` is accepted as a
+migration alias; as with other compatibility variables, an explicitly supplied
+CLI flag has highest priority.
+
 ## HTTPS and TLS
 
 Web HTTPS and SMTP TLS are separate settings:

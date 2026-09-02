@@ -1,4 +1,11 @@
 self.addEventListener('notificationclick', (event) => {
+    const scopePath = (() => {
+        try {
+            return new URL(self.registration.scope).pathname.replace(/\/$/, '');
+        } catch (_) {
+            return '';
+        }
+    })();
     event.notification.close();
     const emailID = event.notification.data && event.notification.data.emailID;
     event.waitUntil((async () => {
@@ -7,7 +14,7 @@ self.addEventListener('notificationclick', (event) => {
             try {
                 const url = new URL(client.url);
                 return url.origin === self.location.origin
-                    && (url.pathname === '/' || url.pathname === '/index.html');
+                    && (url.pathname === `${scopePath}/` || url.pathname === `${scopePath}/index.html`);
             } catch (_) {
                 return false;
             }
@@ -17,7 +24,7 @@ self.addEventListener('notificationclick', (event) => {
             mailbox.postMessage({ type: 'owlmail-notification-click', emailID });
             return;
         }
-        const target = emailID ? `/?email=${encodeURIComponent(emailID)}` : '/';
+        const target = emailID ? `${scopePath}/?email=${encodeURIComponent(emailID)}` : `${scopePath}/`;
         await self.clients.openWindow(target);
     })());
 });

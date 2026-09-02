@@ -44,7 +44,7 @@ test('page exposes builder, import, output, and local-only controls', () => {
     ]) {
         assert.ok(page.includes(marker), 'webhooks.html is missing ' + marker);
     }
-    assert.ok(page.includes('href="/style.css"'));
+    assert.ok(page.includes('href="{{OWLMAIL_BASE_PATHNAME}}/style.css"'));
     assert.ok(styles.includes('.webhook-workspace'));
     assert.ok(styles.includes('body.dark-theme'));
     assert.ok(!page.includes('http://') && !page.includes('https://cdn.'), 'page must not load remote assets');

@@ -6,11 +6,12 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../../web/service-worker.js'), 'utf8');
 
-function loadWorker(windows) {
+function loadWorker(windows, scope = 'https://owlmail.test/') {
   let clickHandler;
   let opened;
   const self = {
     location: { origin: 'https://owlmail.test' },
+    registration: { scope },
     addEventListener(name, handler) {
       if (name === 'notificationclick') clickHandler = handler;
     },
@@ -50,4 +51,23 @@ test('notification clicks open a durable email deep link without an inbox client
   const worker = loadWorker([{ url: 'https://owlmail.test/webhooks', async focus() {} }]);
   await click(worker, 'mail/42');
   assert.equal(worker.opened(), '/?email=mail%2F42');
+});
+
+test('notification clicks stay inside a configured service worker scope', async () => {
+  const messages = [];
+  const inbox = {
+    url: 'https://owlmail.test/owlmail/',
+    async focus() {},
+    postMessage(message) { messages.push(message); }
+  };
+  const worker = loadWorker([
+    { url: 'https://owlmail.test/', async focus() { throw new Error('focused root app'); } },
+    inbox
+  ], 'https://owlmail.test/owlmail/');
+  await click(worker, 'mail-42');
+  assert.equal(JSON.stringify(messages), JSON.stringify([{ type: 'owlmail-notification-click', emailID: 'mail-42' }]));
+
+  const withoutInbox = loadWorker([], 'https://owlmail.test/owlmail/');
+  await click(withoutInbox, 'mail/42');
+  assert.equal(withoutInbox.opened(), '/owlmail/?email=mail%2F42');
 });

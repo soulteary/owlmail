@@ -190,12 +190,12 @@ function extractAPIRoutes() {
 
   for (const section of sections) {
     const prefixes = new Map([["app", ""]]);
-    for (const match of section.matchAll(/(\w+)\s*:=\s*(\w+)\.Group\("([^"]*)"\)/g)) {
+    for (const match of section.matchAll(/(\w+)\s*:=\s*(\w+)\.Group\((?:api\.route\()?"([^"]*)"\)?\)/g)) {
       const [, name, parent, segment] = match;
       assert.ok(prefixes.has(parent), `unknown API route group ${parent}`);
       prefixes.set(name, prefixes.get(parent) + segment);
     }
-    for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete)\("([^"]*)"/g)) {
+    for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete)\((?:api\.route\()?"([^"]*)"/g)) {
       const [, group, method, route] = match;
       assert.ok(prefixes.has(group), `unknown API route group ${group}`);
       routes.push(`${method.toUpperCase()} ${prefixes.get(group)}${route}`);

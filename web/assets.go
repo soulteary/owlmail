@@ -5,7 +5,7 @@ import "embed"
 
 // files contains every asset required by OwlMail's embedded browser pages.
 //
-//go:embed *.css *.html *.js
+//go:embed *.css *.html *.js *.svg
 var files embed.FS
 
 // ReadFile returns an embedded web asset by its base name.

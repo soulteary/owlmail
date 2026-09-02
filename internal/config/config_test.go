@@ -16,6 +16,7 @@ func TestGetMailDevKey(t *testing.T) {
 		{"OWLMAIL_SMTP_HOST", "MAILDEV_IP"},
 		{"OWLMAIL_WEB_PORT", "MAILDEV_WEB_PORT"},
 		{"OWLMAIL_WEB_USER", "MAILDEV_WEB_USER"},
+		{"OWLMAIL_BASE_PATHNAME", "MAILDEV_BASE_PATHNAME"},
 		{"OWLMAIL_HTTPS_ENABLED", "MAILDEV_HTTPS"},
 		{"OWLMAIL_TLS_ENABLED", "MAILDEV_INCOMING_SECURE"},
 		{"NONEXISTENT_KEY", ""},
@@ -28,6 +29,35 @@ func TestGetMailDevKey(t *testing.T) {
 				t.Errorf("GetMailDevKey(%q) = %q, want %q", tt.owlmailKey, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestBasePathnameConfiguration(t *testing.T) {
+	envMgr := testutil.NewEnvManager()
+	defer envMgr.Cleanup()
+
+	_ = envMgr.Set("OWLMAIL_BASE_PATHNAME", "/owlmail/")
+	fs := flag.NewFlagSet("base-pathname", flag.ContinueOnError)
+	refs := DefineFlags(fs)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveConfig(fs, refs).BasePathname; got != "/owlmail/" {
+		t.Fatalf("OWLMAIL_BASE_PATHNAME resolved to %q", got)
+	}
+
+	_ = envMgr.Set("MAILDEV_BASE_PATHNAME", "maildev")
+	if got := ResolveConfig(fs, refs).BasePathname; got != "maildev" {
+		t.Fatalf("MAILDEV_BASE_PATHNAME resolved to %q, want compatibility precedence", got)
+	}
+
+	fs = flag.NewFlagSet("base-pathname-flag", flag.ContinueOnError)
+	refs = DefineFlags(fs)
+	if err := fs.Parse([]string{"-base-pathname", "/cli/"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := ResolveConfig(fs, refs).BasePathname; got != "/cli/" {
+		t.Fatalf("-base-pathname resolved to %q, want CLI precedence", got)
 	}
 }
 
@@ -515,6 +545,7 @@ func TestEnvMapping(t *testing.T) {
 		"MAILDEV_WEB_IP":           "OWLMAIL_WEB_HOST",
 		"MAILDEV_WEB_USER":         "OWLMAIL_WEB_USER",
 		"MAILDEV_WEB_PASS":         "OWLMAIL_WEB_PASSWORD",
+		"MAILDEV_BASE_PATHNAME":    "OWLMAIL_BASE_PATHNAME",
 		"MAILDEV_HTTPS":            "OWLMAIL_HTTPS_ENABLED",
 		"MAILDEV_HTTPS_CERT":       "OWLMAIL_HTTPS_CERT",
 		"MAILDEV_HTTPS_KEY":        "OWLMAIL_HTTPS_KEY",
@@ -548,7 +579,7 @@ func TestEnvMapping(t *testing.T) {
 }
 
 func TestEnvMappingCount(t *testing.T) {
-	expectedCount := 23
+	expectedCount := 24
 	if len(EnvMapping) != expectedCount {
 		t.Errorf("len(EnvMapping) = %d, want %d", len(EnvMapping), expectedCount)
 	}
