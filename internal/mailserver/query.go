@@ -28,6 +28,11 @@ type EmailQuery struct {
 	SortOrder       string
 	Offset          int
 	Limit           int
+	// MatchStoreEmail applies an additional filter while the mailbox read lock
+	// is held. The callback must not retain or mutate the supplied store email.
+	// It lets compatibility layers filter on their own DTO fields before full
+	// messages are cloned for the selected page.
+	MatchStoreEmail func(*Email) bool
 }
 
 // EmailPreview is the detached, lightweight representation returned for a
@@ -43,6 +48,30 @@ type EmailPreview struct {
 	SizeHuman     string    `json:"sizeHuman"`
 	HasAttachment bool      `json:"hasAttachment"`
 	Preview       string    `json:"preview"`
+}
+
+// EmailSummaryAddress is a detached address used by lightweight summary
+// projections that need both the display name and address.
+type EmailSummaryAddress struct {
+	Name    string
+	Address string
+}
+
+// EmailSummary is a detached MailDev-capable summary projection. It contains
+// no HTML, headers, envelope, or attachment metadata, so summary requests do
+// not clone full messages before discarding those fields.
+type EmailSummary struct {
+	ID              string
+	Time            time.Time
+	Read            bool
+	Subject         string
+	Size            int64
+	SizeHuman       string
+	From            []EmailSummaryAddress
+	To              []EmailSummaryAddress
+	CC              []EmailSummaryAddress
+	AttachmentCount int
+	Text            string
 }
 
 // QueryEmails returns detached full-email snapshots for one page and the
@@ -79,6 +108,19 @@ func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int)
 	return previews, total
 }
 
+// QueryEmailSummaries returns lightweight detached summary projections for
+// one page. Unlike QueryEmails, it never clones complete message bodies,
+// headers, envelopes, or attachment records.
+func (ms *MailServer) QueryEmailSummaries(query EmailQuery) ([]EmailSummary, int) {
+	page, total := ms.queryEmailPage(query)
+	ms.snapshotSummaryQueryAddresses(page)
+	summaries := make([]EmailSummary, 0, len(page))
+	for _, entry := range page {
+		summaries = append(summaries, makeEmailSummary(entry))
+	}
+	return summaries, total
+}
+
 type emailQueryAddress struct {
 	name    string
 	address string
@@ -90,21 +132,22 @@ type emailQueryAddress struct {
 // are detached from the store object graph. source is an opaque internal handle
 // that is dereferenced only while storeMutex is held.
 type emailQueryEntry struct {
-	source        *types.Email
-	id            string
-	time          time.Time
-	read          bool
-	subject       string
-	from          []emailQueryAddress
-	to            []emailQueryAddress
-	cc            []emailQueryAddress
-	calculatedBCC []emailQueryAddress
-	text          string
-	html          string
-	size          int64
-	sizeHuman     string
-	hasAttachment bool
-	sortKey       string
+	source          *types.Email
+	id              string
+	time            time.Time
+	read            bool
+	subject         string
+	from            []emailQueryAddress
+	to              []emailQueryAddress
+	cc              []emailQueryAddress
+	calculatedBCC   []emailQueryAddress
+	text            string
+	html            string
+	size            int64
+	sizeHuman       string
+	hasAttachment   bool
+	attachmentCount int
+	sortKey         string
 }
 
 func (ms *MailServer) queryEmailPage(query EmailQuery) ([]emailQueryEntry, int) {
@@ -127,11 +170,15 @@ func (ms *MailServer) snapshotEmailQueryEntries(query EmailQuery) []emailQueryEn
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
 
-	needFrom := query.From != "" || query.SortBy == "from" || query.SearchAddresses
-	needTo := query.To != "" || query.SearchAddresses
+	searchAddresses := query.SearchAddresses && query.Text != ""
+	needFrom := query.From != "" || query.SortBy == "from" || searchAddresses
+	needTo := query.To != "" || searchAddresses
 	entries := make([]emailQueryEntry, 0, len(ms.storeOrder))
 	for _, id := range ms.storeOrder {
 		if email, exists := ms.storeByID[id]; exists {
+			if query.MatchStoreEmail != nil && !query.MatchStoreEmail(email) {
+				continue
+			}
 			entries = append(entries, snapshotEmailQueryEntry(email, needFrom, needTo))
 		}
 	}
@@ -140,16 +187,17 @@ func (ms *MailServer) snapshotEmailQueryEntries(query EmailQuery) []emailQueryEn
 
 func snapshotEmailQueryEntry(email *types.Email, needFrom, needTo bool) emailQueryEntry {
 	entry := emailQueryEntry{
-		source:        email,
-		id:            email.ID,
-		time:          email.Time,
-		read:          email.Read,
-		subject:       email.Subject,
-		text:          email.Text,
-		html:          email.HTML,
-		size:          email.Size,
-		sizeHuman:     email.SizeHuman,
-		hasAttachment: len(email.Attachments) > 0,
+		source:          email,
+		id:              email.ID,
+		time:            email.Time,
+		read:            email.Read,
+		subject:         email.Subject,
+		text:            email.Text,
+		html:            email.HTML,
+		size:            email.Size,
+		sizeHuman:       email.SizeHuman,
+		hasAttachment:   len(email.Attachments) > 0,
+		attachmentCount: len(email.Attachments),
 	}
 	if needFrom {
 		entry.from = snapshotQueryAddresses(email.From)
@@ -160,6 +208,16 @@ func snapshotEmailQueryEntry(email *types.Email, needFrom, needTo bool) emailQue
 		entry.calculatedBCC = snapshotQueryAddresses(email.CalculatedBCC)
 	}
 	return entry
+}
+
+func (ms *MailServer) snapshotSummaryQueryAddresses(entries []emailQueryEntry) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	for i := range entries {
+		entries[i].from = snapshotQueryAddresses(entries[i].source.From)
+		entries[i].to = snapshotQueryAddresses(entries[i].source.To)
+		entries[i].cc = snapshotQueryAddresses(entries[i].source.CC)
+	}
 }
 
 func (ms *MailServer) snapshotPreviewQueryAddresses(entries []emailQueryEntry) {
@@ -255,6 +313,8 @@ func queryAddressesContain(addresses []emailQueryAddress, needle string, include
 func sortEmailMatches(emails []emailQueryEntry, sortBy, sortOrder string) {
 	ascending := sortOrder == "asc"
 	switch sortBy {
+	case "store":
+		return
 	case "":
 		sort.Slice(emails, func(i, j int) bool {
 			return emails[i].time.After(emails[j].time)
@@ -354,4 +414,31 @@ func makeEmailPreview(email emailQueryEntry) EmailPreview {
 	}
 	preview.Preview = previewText
 	return preview
+}
+
+func makeEmailSummary(email emailQueryEntry) EmailSummary {
+	return EmailSummary{
+		ID:              email.id,
+		Time:            email.time,
+		Read:            email.read,
+		Subject:         email.subject,
+		Size:            email.size,
+		SizeHuman:       email.sizeHuman,
+		From:            makeEmailSummaryAddresses(email.from),
+		To:              makeEmailSummaryAddresses(email.to),
+		CC:              makeEmailSummaryAddresses(email.cc),
+		AttachmentCount: email.attachmentCount,
+		Text:            email.text,
+	}
+}
+
+func makeEmailSummaryAddresses(addresses []emailQueryAddress) []EmailSummaryAddress {
+	if len(addresses) == 0 {
+		return nil
+	}
+	result := make([]EmailSummaryAddress, 0, len(addresses))
+	for _, address := range addresses {
+		result = append(result, EmailSummaryAddress{Name: address.name, Address: address.address})
+	}
+	return result
 }

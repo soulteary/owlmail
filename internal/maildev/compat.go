@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -173,19 +174,11 @@ func FromEmail(email *types.Email, mailDir string) Email {
 }
 
 func ToSummary(email *types.Email) Summary {
-	preview := ""
-	if email.Text != "" {
-		preview = strings.Join(strings.Fields(email.Text), " ")
-		runes := []rune(preview)
-		if len(runes) > PreviewLength {
-			preview = string(runes[:PreviewLength])
-		}
-	}
 	result := Summary{
 		ID: email.ID, Time: email.Time, Read: email.Read, Subject: email.Subject,
 		Size: email.Size, SizeHuman: email.SizeHuman, From: addresses(email.From),
 		To: addresses(email.To), CC: addressesOrNil(email.CC),
-		AttachmentCount: len(email.Attachments), Preview: preview,
+		AttachmentCount: len(email.Attachments), Preview: summaryPreview(email.Text),
 	}
 	if result.SizeHuman == "" {
 		result.SizeHuman = formatBytes(result.Size)
@@ -193,10 +186,38 @@ func ToSummary(email *types.Email) Summary {
 	return result
 }
 
+// FromEmailSummary maps the mailbox's lightweight summary projection into the
+// MailDev DTO without requiring a complete message clone.
+func FromEmailSummary(email mailserver.EmailSummary) Summary {
+	result := Summary{
+		ID: email.ID, Time: email.Time, Read: email.Read, Subject: email.Subject,
+		Size: email.Size, SizeHuman: email.SizeHuman,
+		From: summaryAddresses(email.From), To: summaryAddresses(email.To),
+		CC: addressesOrNilFromSummary(email.CC), AttachmentCount: email.AttachmentCount,
+		Preview: summaryPreview(email.Text),
+	}
+	if result.SizeHuman == "" {
+		result.SizeHuman = formatBytes(result.Size)
+	}
+	return result
+}
+
+func summaryPreview(text string) string {
+	if text == "" {
+		return ""
+	}
+	preview := strings.Join(strings.Fields(text), " ")
+	runes := []rune(preview)
+	if len(runes) > PreviewLength {
+		preview = string(runes[:PreviewLength])
+	}
+	return preview
+}
+
 func FilterAndPage(emails []Email, filters map[string]string, skip int, limit *int, order string) []Email {
 	filtered := make([]Email, 0, len(emails))
 	for _, email := range emails {
-		if matchesFilters(email, filters) {
+		if MatchesFilters(email, filters) {
 			filtered = append(filtered, email)
 		}
 	}
@@ -262,6 +283,21 @@ func addressesOrNil(source []*mail.Address) []Address {
 		return nil
 	}
 	return addresses(source)
+}
+
+func summaryAddresses(source []mailserver.EmailSummaryAddress) []Address {
+	result := make([]Address, 0, len(source))
+	for _, address := range source {
+		result = append(result, Address{Address: address.Address, Name: address.Name})
+	}
+	return result
+}
+
+func addressesOrNilFromSummary(source []mailserver.EmailSummaryAddress) []Address {
+	if len(source) == 0 {
+		return nil
+	}
+	return summaryAddresses(source)
 }
 
 func envelopeAddresses(source []string) []EnvelopeAddress {
@@ -345,7 +381,9 @@ func formatBytes(size int64) string {
 	return fmt.Sprintf("%d B", size)
 }
 
-func matchesFilters(email Email, filters map[string]string) bool {
+// MatchesFilters applies MailDev's exact, case-sensitive query-string field
+// matching to a compatibility DTO.
+func MatchesFilters(email Email, filters map[string]string) bool {
 	for path, expected := range filters {
 		values := nestedValues(reflect.ValueOf(email), strings.Split(path, "."))
 		matched := false
@@ -373,6 +411,9 @@ func nestedValues(value reflect.Value, path []string) []interface{} {
 		return nil
 	}
 	if len(path) == 0 {
+		if !value.CanInterface() {
+			return nil
+		}
 		return []interface{}{value.Interface()}
 	}
 	if value.Kind() == reflect.Slice || value.Kind() == reflect.Array {
@@ -397,7 +438,13 @@ func nestedValues(value reflect.Value, path []string) []interface{} {
 	}
 	for i := 0; i < value.NumField(); i++ {
 		field := value.Type().Field(i)
+		if field.PkgPath != "" {
+			continue
+		}
 		name := strings.Split(field.Tag.Get("json"), ",")[0]
+		if name == "-" {
+			continue
+		}
 		if name == "" {
 			name = field.Name
 		}

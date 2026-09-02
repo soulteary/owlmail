@@ -115,6 +115,15 @@ func TestMailDevRESTFacadeContractAndReadSideEffect(t *testing.T) {
 		t.Fatalf("native attachment key leaked into facade: %#v", attachment)
 	}
 
+	// Arbitrary MailDev field filters must not traverse Go implementation
+	// details such as time.Time's unexported fields or panic the server.
+	resp = compatRequest(t, api, http.MethodGet, "/api/email?time.wall=0", nil, "")
+	var rejectedTraversal []map[string]interface{}
+	decodeCompatJSON(t, resp, &rejectedTraversal)
+	if len(rejectedTraversal) != 0 {
+		t.Fatalf("unexported field traversal unexpectedly matched: %#v", rejectedTraversal)
+	}
+
 	resp = compatRequest(t, api, http.MethodGet, "/api/email/summary?skip=0&limit=50&search=angelo&sort=desc&unread=true", nil, "")
 	var summary struct {
 		Items      []map[string]interface{} `json:"items"`
@@ -278,6 +287,40 @@ func TestMailDevRESTFacadeUsesBasePathAndBasicAuth(t *testing.T) {
 		t.Fatalf("compat health status = %d, want 200", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
+}
+
+func TestMailDevRESTListFiltersSortsAndPaginatesBeforeProjection(t *testing.T) {
+	api, server, mailDir := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	api.SetMailDevRESTCompat(true)
+
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	fixtures := []struct {
+		id   string
+		from string
+		time time.Time
+	}{
+		{id: "old-alice", from: "alice@example.test", time: base},
+		{id: "bob", from: "bob@example.test", time: base.Add(time.Hour)},
+		{id: "new-alice", from: "alice@example.test", time: base.Add(2 * time.Hour)},
+	}
+	for _, fixture := range fixtures {
+		email := &types.Email{
+			ID: fixture.id, Time: fixture.time, Subject: fixture.id,
+			From: []*mail.Address{{Address: fixture.from}},
+			To:   []*mail.Address{{Address: "recipient@example.test"}},
+		}
+		writeCompatFixture(t, server, mailDir, email, &types.Envelope{
+			From: fixture.from, To: []string{"recipient@example.test"},
+		}, nil)
+	}
+
+	resp := compatRequest(t, api, http.MethodGet, "/api/email?from.address=alice@example.test&sort=desc&skip=1&limit=1", nil, "")
+	var page []map[string]interface{}
+	decodeCompatJSON(t, resp, &page)
+	if len(page) != 1 || page[0]["id"] != "old-alice" {
+		t.Fatalf("filtered page = %#v", page)
+	}
 }
 
 func writeCompatFixture(t *testing.T, server *mailserver.MailServer, mailDir string, email *types.Email, envelope *types.Envelope, attachment []byte) {

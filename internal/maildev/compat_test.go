@@ -111,6 +111,13 @@ func TestFilterAndPageUsesMailDevQueryRules(t *testing.T) {
 	}
 }
 
+func TestMatchesFiltersRejectsUnexportedFieldTraversal(t *testing.T) {
+	email := Email{Time: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)}
+	if MatchesFilters(email, map[string]string{"time.wall": "0"}) {
+		t.Fatal("unexported time.Time field unexpectedly matched")
+	}
+}
+
 func TestEmbedAttachmentURLsUsesFacadeAndBasePath(t *testing.T) {
 	html := `<img src="cid:logo@example.test"><img src="https://example.test/pixel">`
 	result := EmbedAttachmentURLs(html, "/owlmail", "email-1", []Attachment{{

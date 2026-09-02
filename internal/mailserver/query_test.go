@@ -118,6 +118,46 @@ func TestMailboxQueryPreviewBuildsOnlySummaryFields(t *testing.T) {
 	}
 }
 
+func TestMailboxQueryBuildsLightweightMailDevSummaries(t *testing.T) {
+	server, _ := newMailboxQueryTestServer(t)
+	defer func() { _ = server.Close() }()
+
+	summaries, total := server.QueryEmailSummaries(EmailQuery{SortBy: "store", Offset: 0, Limit: 1})
+	if total != 3 || len(summaries) != 1 {
+		t.Fatalf("summary result = total %d, summaries %#v", total, summaries)
+	}
+	summary := summaries[0]
+	if summary.ID != "id-1" || summary.Subject != "Alpha" || summary.Text != "plain needle" {
+		t.Fatalf("summary identity/body projection = %#v", summary)
+	}
+	if len(summary.From) != 1 || summary.From[0].Name != "Alice Sender" || summary.From[0].Address != "alice@example.test" {
+		t.Fatalf("summary sender projection = %#v", summary.From)
+	}
+	if len(summary.To) != 1 || len(summary.CC) != 1 || summary.AttachmentCount != 1 {
+		t.Fatalf("summary recipients/attachments = %#v", summary)
+	}
+}
+
+func TestMailboxQueryAppliesStorePredicateBeforePagination(t *testing.T) {
+	server, _ := newMailboxQueryTestServer(t)
+	defer func() { _ = server.Close() }()
+
+	matched := 0
+	emails, total := server.QueryEmails(EmailQuery{
+		SortBy: "store", Offset: 1, Limit: 1,
+		MatchStoreEmail: func(email *Email) bool {
+			if strings.Contains(email.Subject, "a") {
+				matched++
+				return true
+			}
+			return false
+		},
+	})
+	if matched != 3 || total != 3 || len(emails) != 1 || emails[0].ID != "id-2" {
+		t.Fatalf("predicate/page result = matched %d, total %d, IDs %v", matched, total, emailIDs(emails))
+	}
+}
+
 func TestMailboxQueryConcurrentWrites(t *testing.T) {
 	server, _ := newMailboxQueryTestServer(t)
 	defer func() { _ = server.Close() }()

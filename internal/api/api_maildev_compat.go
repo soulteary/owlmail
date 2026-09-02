@@ -58,11 +58,6 @@ func (api *API) mailDevConfig(c fiber.Ctx) error {
 }
 
 func (api *API) mailDevEmails(c fiber.Ctx) error {
-	emails := api.mailServer.GetAllEmail()
-	compatEmails := make([]maildev.Email, 0, len(emails))
-	for _, email := range emails {
-		compatEmails = append(compatEmails, maildev.FromEmail(email, api.mailServer.GetMailDir()))
-	}
 	queries := c.Queries()
 	filters := make(map[string]string, len(queries))
 	for key, value := range queries {
@@ -78,7 +73,27 @@ func (api *API) mailDevEmails(c fiber.Ctx) error {
 	if parsed, valid := maildev.ParseNonNegativeInt(queries["limit"]); valid {
 		limit = &parsed
 	}
-	return c.JSON(maildev.FilterAndPage(compatEmails, filters, skip, limit, queries["sort"]))
+	pageLimit := int(^uint(0) >> 1)
+	if limit != nil {
+		pageLimit = *limit
+	}
+	query := mailserver.EmailQuery{SortBy: "store", Offset: skip, Limit: pageLimit}
+	if queries["sort"] == "asc" || queries["sort"] == "desc" {
+		query.SortBy = "time"
+		query.SortOrder = queries["sort"]
+	}
+	mailDir := api.mailServer.GetMailDir()
+	if len(filters) > 0 {
+		query.MatchStoreEmail = func(email *mailserver.Email) bool {
+			return maildev.MatchesFilters(maildev.FromEmail(email, mailDir), filters)
+		}
+	}
+	emails, _ := api.mailServer.QueryEmails(query)
+	compatEmails := make([]maildev.Email, 0, len(emails))
+	for _, email := range emails {
+		compatEmails = append(compatEmails, maildev.FromEmail(email, mailDir))
+	}
+	return c.JSON(compatEmails)
 }
 
 func (api *API) mailDevEmailSummary(c fiber.Ctx) error {
@@ -105,10 +120,10 @@ func (api *API) mailDevEmailSummary(c fiber.Ctx) error {
 		unread := false
 		query.Read = &unread
 	}
-	emails, total := api.mailServer.QueryEmails(query)
+	emails, total := api.mailServer.QueryEmailSummaries(query)
 	items := make([]maildev.Summary, 0, len(emails))
 	for _, email := range emails {
-		items = append(items, maildev.ToSummary(email))
+		items = append(items, maildev.FromEmailSummary(email))
 	}
 	stats := api.mailServer.GetEmailStats()
 	storeTotal, _ := stats["total"].(int)
