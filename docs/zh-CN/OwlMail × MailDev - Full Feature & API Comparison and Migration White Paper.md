@@ -25,33 +25,33 @@
 - **MailCatcher** 侧重简单 Ruby 工作流、轻量收件箱及 catchmail sendmail
   替代命令。
 
-OwlMail 不是另外两者的通用无缝替代。可选 MailDev REST facade 能覆盖当前
+OwlMail 不是另外两者的通用无缝替代。已审查 main 上的可选 MailDev REST facade 能覆盖当前
 MailDev REST 合约，但不实现 Socket.IO 或 Node API；MailCatcher 的 messages
 API 和实时协议也不同。
 
 ## 功能对比
 
-| 能力 | OwlMail 0.6.0 + 已审查 main | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
-|---|---|---|---|
-| 运行时 | Go 单二进制，内嵌 Web 资源 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra |
-| 核心优势 | 可靠存储与自动化 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 |
-| SMTP 捕获 | SMTP、STARTTLS、直接 SMTPS | SMTP 与可配置 TLS | 简单 SMTP Server |
-| 邮件大小 | 可配置，默认 100 MiB | 可配置，当前默认 50 MiB | 未记录等价控制 |
-| DATA 并发 | 进程级可配置，默认 8，0 为无限制 | 未记录等价 DATA 限流 | 未记录等价限流 |
-| 持久化 | EML 原子提交、恢复与 quarantine | 可选 EML/附件目录并在启动时恢复 | SQLite 内存数据库 |
-| 保留策略 | 按时间、数量和本地磁盘占用 | 最大邮件数量 | 最大消息数量 |
-| 附件 | 流式 staging；本地或可选 S3 | 启用持久化时保存本地附件 | 随内存消息数据库保存 |
-| REST API | 原生 /api/v1 加可选 MailDev facade | 当前接口位于 /api | messages API 位于 /messages |
-| 实时更新 | 原生 RFC 6455 WebSocket | Socket.IO | WebSocket，浏览器可退化为轮询 |
-| UI | 轻量多语言、安全 HTML 隔离、响应式宽度 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
-| MCP | 默认关闭的只读 Streamable HTTP | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
-| Webhook | 过滤、模板、HMAC、重试、本地 outbox、可选 Redis Streams | 无等价通用持久 Webhook 管道 | 无内置通用 Webhook |
-| Relay | 手动与自动出站 SMTP 中继 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
-| sendmail 替代 | owlmail sendmail | 未记录内置等价命令 | catchmail |
-| 嵌入能力 | 无稳定公共 Go SDK，internal 不是公共接口 | 公共 Node API | 主要作为独立 Ruby 命令 |
-| Base path | 支持 | 支持 | 通过 http-path 支持 |
-| 鉴权 | Web Basic Auth；真实 SMTP AUTH；可选强制 TLS | Web 与入站 SMTP 凭据 | 面向可信开发环境 |
-| 多实例共享邮箱 | 不支持 | 不支持 | 不支持 |
+| 能力 | OwlMail 0.6.0 | OwlMail 已审查 main | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
+|---|---|---|---|---|
+| 运行时 | Go 单二进制，内嵌 Web 资源 | 相同 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra |
+| 核心优势 | 可恢复本地存储与持久 Webhook | 存储、自动化及更多集成能力 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 |
+| SMTP 捕获 | SMTP、STARTTLS、直接 SMTPS | 相同 | 可配置 SMTP/TLS | 简单 SMTP Server |
+| 邮件大小 | 固定 1 MiB | 可配置，默认 100 MiB | 可配置，当前 main 默认 50 MiB | 未记录等价控制 |
+| DATA 并发 | 无进程级限制 | 进程级可配置，默认 8，0 为无限制 | 未记录等价 DATA 限流 | 未记录等价限流 |
+| 持久化 | EML 原子提交、恢复与 quarantine | 相同 | 可选 EML/附件目录并在启动时恢复 | SQLite 内存数据库 |
+| 保留策略 | 按时间、数量和本地磁盘占用 | 相同 | 最大邮件数量 | 最大消息数量 |
+| 附件 | 本地保存解码附件 | 流式 staging；本地或可选 S3 | 启用持久化时保存本地附件 | 随内存消息数据库保存 |
+| REST API | 原生版本化及历史无版本路由 | 相同，另有可选 MailDev facade | 当前接口位于 /api | messages API 位于 /messages |
+| 实时更新 | 原生 RFC 6455 WebSocket | 相同 | Socket.IO | WebSocket，浏览器可退化为轮询 |
+| UI | 轻量多语言、安全 HTML 隔离、响应式宽度 | 相同 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
+| MCP | 无内置端点 | 默认关闭的只读 Streamable HTTP | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
+| Webhook | 过滤、模板、HMAC、重试、本地 outbox、可选 Redis Streams | 相同 | 无等价通用持久 Webhook 管道 | 无内置通用 Webhook |
+| Relay | 手动与自动出站 SMTP 中继 | 相同 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
+| sendmail 替代 | 无内置命令 | owlmail sendmail | 未记录内置等价命令 | catchmail |
+| 嵌入能力 | 无稳定公共 Go SDK，internal 不是公共接口 | 相同 | 公共 Node API | 主要作为独立 Ruby 命令 |
+| Base path | 无可配置 URL 前缀 | 支持可配置 URL 前缀 | 支持 | 通过 http-path 支持 |
+| 鉴权 | Web Basic Auth；SMTP 凭据设置不强制验证 | Web Basic Auth；真实 SMTP AUTH；可选强制 TLS | Web 与入站 SMTP 凭据 | 面向可信开发环境 |
+| 多实例共享邮箱 | 不支持 | 相同 | 不支持 | 不支持 |
 
 本文不提供跨项目性能排名。运行语言、二进制大小或微基准不能代表 MIME 解析、
 磁盘压力、TLS、S3、Webhook 下游和浏览器共同作用下的端到端性能。
@@ -68,7 +68,7 @@ API 和实时协议也不同。
 | 实时事件 | Socket.IO | 原生 WebSocket，不是 Socket.IO | 项目专用 WebSocket/轮询 |
 | 嵌入 API | Node MailDev 类 | 无 | 无 |
 
-必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
+在已审查 OwlMail main 上，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
 -maildev-rest-compat 才会启用 OwlMail MailDev facade。它复用现有 Basic Auth、
 HTTPS、存储和 base path，但不会启用 Socket.IO。
 
@@ -77,7 +77,7 @@ HTTPS、存储和 base path，但不会启用 Socket.IO。
 
 ## Agent 集成
 
-OwlMail 当前已经提供默认关闭的 /mcp，只包含五个封闭只读能力：列表、搜索、
+已审查 OwlMail main 已提供默认关闭的 /mcp，只包含五个封闭只读能力：列表、搜索、
 独立详情快照、受限 base64 原始源码和附件元数据。它与 Web API 共用监听器与
 鉴权边界，并明确不提供删除、已读修改、Relay、配置修改或附件二进制。
 
@@ -101,7 +101,7 @@ MailCatcher 使用内存 SQLite。消息上限能限制活动收件箱，但它�
 
 ## 选型建议
 
-以下情况优先选择 **OwlMail**：需要单文件部署、ARM/跨平台、持久 Webhook
+以下情况优先选择已审查的 **OwlMail main**：需要单文件部署、ARM/跨平台、持久 Webhook
 自动化、磁盘异常恢复、可选 S3 附件、SMTP 资源控制或小型只读 Agent 接口。
 
 以下情况优先选择 **MailDev**：需要更完整的交互 UI、Node 嵌入、精确
@@ -114,7 +114,7 @@ Socket.IO、配置文件或更广的 MCP 工作流。
 从 MailCatcher 迁移时，应把 SMTP 捕获和 sendmail 替代视为可迁移概念，并对
 HTTP 与 WebSocket 集成逐项适配。
 
-## 本基线下 OwlMail 仍有的缺口
+## 本基线下 OwlMail main 仍有的缺口
 
 - 原生 WebSocket 不是 Socket.IO。
 - 没有稳定公共 Go 嵌入 SDK，也没有通用应用配置文件。
@@ -130,8 +130,8 @@ HTTP 与 WebSocket 集成逐项适配。
 
 - OwlMail API：[docs/zh-CN/API-Reference.md](./API-Reference.md)
 - OwlMail 运维：[docs/zh-CN/Operations.md](./Operations.md)
-- MailDev README：https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/README.md
-- MailDev REST：https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/rest.md
-- MailDev MCP：https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/mcp.md
-- MailCatcher README：https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/README.md
-- MailCatcher 版本：https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/lib/mail_catcher/version.rb
+- [MailDev README](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/README.md)
+- [MailDev REST](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/rest.md)
+- [MailDev MCP](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/mcp.md)
+- [MailCatcher README](https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/README.md)
+- [MailCatcher 版本](https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/lib/mail_catcher/version.rb)
