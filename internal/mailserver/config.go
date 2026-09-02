@@ -90,7 +90,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
-		mailboxIndex:             options.MailboxIndex,
+		mailboxIndex:            options.MailboxIndex,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
 		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
 		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
