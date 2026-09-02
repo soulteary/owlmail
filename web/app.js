@@ -222,6 +222,11 @@ const i18n = {
         emailPreviewTitle: 'Isolierte HTML-E-Mail-Vorschau',
         emailViewportPresets: 'Vorschaubreite',
         emailViewportWidth: 'Breite der E-Mail-Vorschau: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Klartext',
+        contentHeaders: 'Kopfzeilen',
+        contentSource: 'Quelltext',
+        sourceLoading: 'Quelltext wird geladen…',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'E-Mail nicht gefunden',
         'EMAIL_FILE_NOT_FOUND': 'E-Mail-Datei nicht gefunden',
@@ -297,6 +302,11 @@ const i18n = {
         emailPreviewTitle: 'Anteprima HTML email isolata',
         emailViewportPresets: 'Larghezza anteprima',
         emailViewportWidth: 'Larghezza anteprima email: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Testo semplice',
+        contentHeaders: 'Intestazioni',
+        contentSource: 'Sorgente',
+        sourceLoading: 'Caricamento sorgente…',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email non trovata',
         'EMAIL_FILE_NOT_FOUND': 'File email non trovato',
@@ -372,6 +382,11 @@ const i18n = {
         emailPreviewTitle: 'Aperçu HTML isolé de l’e-mail',
         emailViewportPresets: 'Largeur de l’aperçu',
         emailViewportWidth: 'Largeur de l’aperçu de l’e-mail : {width}',
+        contentHTML: 'HTML',
+        contentText: 'Texte brut',
+        contentHeaders: 'En-têtes',
+        contentSource: 'Source',
+        sourceLoading: 'Chargement de la source…',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email introuvable',
         'EMAIL_FILE_NOT_FOUND': 'Fichier email introuvable',
@@ -447,6 +462,11 @@ const i18n = {
         emailPreviewTitle: '격리된 이메일 HTML 미리보기',
         emailViewportPresets: '미리보기 너비',
         emailViewportWidth: '이메일 미리보기 너비: {width}',
+        contentHTML: 'HTML',
+        contentText: '일반 텍스트',
+        contentHeaders: '헤더',
+        contentSource: '원본',
+        sourceLoading: '원본을 불러오는 중…',
         // API Error Codes
         'EMAIL_NOT_FOUND': '이메일을 찾을 수 없습니다',
         'EMAIL_FILE_NOT_FOUND': '이메일 파일을 찾을 수 없습니다',
@@ -522,6 +542,11 @@ const i18n = {
         emailPreviewTitle: '隔離されたメール HTML プレビュー',
         emailViewportPresets: 'プレビュー幅',
         emailViewportWidth: 'メールプレビュー幅: {width}',
+        contentHTML: 'HTML',
+        contentText: 'プレーンテキスト',
+        contentHeaders: 'ヘッダー',
+        contentSource: 'ソース',
+        sourceLoading: 'ソースを読み込み中…',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'メールが見つかりません',
         'EMAIL_FILE_NOT_FOUND': 'メールファイルが見つかりません',
@@ -812,6 +837,7 @@ function clearEmailSelection(historyMode = 'push') {
     emailDetailRequestSequence += 1;
     remoteContentAllowedEmailID = null;
     emailSourceCache.clear();
+    emailSourceErrors.clear();
     state.currentEmail = null;
     renderEmailDetail();
     renderEmailList();
@@ -874,6 +900,7 @@ const EMAIL_VIEWPORT_PRESETS = Object.freeze([
 let emailViewportPreset = '100%';
 let emailContentTab = 'html';
 const emailSourceCache = new Map();
+const emailSourceErrors = new Map();
 
 // Remote resources are enabled only for the currently rendered message after
 // an explicit user action. The choice is intentionally not persisted.
@@ -1440,11 +1467,15 @@ function renderEmailContentTabs(email) {
         <div class="email-content-tabs" role="tablist" aria-label="${t('emailList')}">
             ${availableTabs.map((tab) => `
                 <button type="button" role="tab" class="email-content-tab"
-                    aria-selected="${emailContentTab === tab}" ${tab === 'html' && !email.html ? 'disabled' : ''}
-                    onclick="setEmailContentTab('${tab}')">${t(labels[tab])}</button>
+                    id="email-content-tab-${tab}" aria-controls="email-content-panel"
+                    aria-selected="${emailContentTab === tab}" tabindex="${emailContentTab === tab ? '0' : '-1'}"
+                    ${tab === 'html' && !email.html ? 'disabled' : ''}
+                    onclick="setEmailContentTab('${tab}')"
+                    onkeydown="handleEmailContentTabKeydown(event, '${tab}')">${t(labels[tab])}</button>
             `).join('')}
         </div>
-        <div class="email-detail-body" role="tabpanel">${renderEmailContentPanel(email)}</div>
+        <div id="email-content-panel" class="email-detail-body" role="tabpanel"
+            aria-labelledby="email-content-tab-${emailContentTab}">${renderEmailContentPanel(email)}</div>
     `;
 }
 
@@ -1456,6 +1487,10 @@ function renderEmailContentPanel(email) {
         return `<pre class="email-detail-source">${escapeHtml(JSON.stringify(email.headers || {}, null, 2))}</pre>`;
     case 'source': {
         const source = emailSourceCache.get(email.id);
+        const sourceError = emailSourceErrors.get(email.id);
+        if (sourceError !== undefined) {
+            return `<div class="error">${escapeHtml(t('loadEmailDetailError', { error: sourceError }))}</div>`;
+        }
         return source === undefined
             ? `<div class="loading">${t('sourceLoading')}</div>`
             : `<pre class="email-detail-source">${escapeHtml(source)}</pre>`;
@@ -1465,21 +1500,44 @@ function renderEmailContentPanel(email) {
     }
 }
 
-async function setEmailContentTab(tab) {
+async function setEmailContentTab(tab, restoreFocus = false) {
     const email = state.currentEmail;
     if (!email || !['html', 'text', 'headers', 'source'].includes(tab)) return;
     if (tab === 'html' && !email.html) return;
     emailContentTab = tab;
     renderEmailDetail();
+    if (restoreFocus) {
+        document.getElementById(`email-content-tab-${tab}`)?.focus?.();
+    }
     if (tab !== 'source' || emailSourceCache.has(email.id)) return;
+    emailSourceErrors.delete(email.id);
     try {
         const source = await API.getEmailSource(email.id);
         emailSourceCache.set(email.id, source);
+        emailSourceErrors.delete(email.id);
         if (state.currentEmail && state.currentEmail.id === email.id && emailContentTab === 'source') renderEmailDetail();
     } catch (error) {
         console.error('Failed to load email source:', error);
+        emailSourceErrors.set(email.id, parseAPIError(error));
+        if (state.currentEmail && state.currentEmail.id === email.id && emailContentTab === 'source') renderEmailDetail();
         alert(t('loadEmailDetailError', { error: parseAPIError(error) }));
     }
+}
+
+function handleEmailContentTabKeydown(event, tab) {
+    const email = state.currentEmail;
+    if (!email) return;
+    const tabs = ['html', 'text', 'headers', 'source'].filter((candidate) => candidate !== 'html' || email.html);
+    const current = tabs.indexOf(tab);
+    if (current < 0) return;
+    let next = current;
+    if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    void setEmailContentTab(tabs[next], true);
 }
 
 function hasRemoteEmailResources(html) {
@@ -1688,6 +1746,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
         remoteContentAllowedEmailID = null;
         emailSourceCache.clear();
+        emailSourceErrors.clear();
         emailContentTab = email.html ? 'html' : 'text';
         state.currentEmail = email;
         renderEmailDetail();
@@ -2039,4 +2098,5 @@ window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
 window.setEmailContentTab = setEmailContentTab;
+window.handleEmailContentTabKeydown = handleEmailContentTabKeydown;
 window.t = t; // Make translation function available globally
