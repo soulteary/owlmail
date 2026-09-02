@@ -608,3 +608,39 @@ test('mailbox keyboard navigation supports arrows, j/k, escape, and ignores inpu
     assert.equal(harness.run('state.currentEmail'), null);
     assert.equal(harness.window.location.search, '');
 });
+
+
+test('slower email detail responses cannot overwrite newer navigation', async () => {
+    const pending = new Map();
+    const harness = createHarness({
+        fetchImpl: (url) => new Promise((resolve) => {
+            const id = new URL(url).pathname.split('/').pop();
+            pending.set(id, () => resolve(jsonResponse({ id, subject: id, from: [], to: [], attachments: [] })));
+        })
+    });
+
+    const first = harness.run("loadEmailDetail('mail-slow')");
+    const second = harness.run("loadEmailDetail('mail-fast')");
+    pending.get('mail-fast')();
+    await second;
+    pending.get('mail-slow')();
+    await first;
+
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-fast');
+    assert.equal(new URL(harness.window.location.href).searchParams.get('email'), 'mail-fast');
+});
+
+test('reselecting the current email does not add a duplicate history entry', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+
+    await harness.run("loadEmailDetail('mail-42')");
+    await harness.run("loadEmailDetail('mail-42')");
+
+    assert.equal(harness.historyCalls.length, 1);
+    assert.equal(harness.historyCalls[0].method, 'pushState');
+});
