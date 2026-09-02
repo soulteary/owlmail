@@ -596,6 +596,12 @@ func initializeApplication(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if cfg.LogFormat == "" {
+		cfg.LogFormat = "console"
+	}
+	if err := config.ValidateLogFormat(cfg.LogFormat); err != nil {
+		return err
+	}
 	level := parseLogLevel(cfg.LogLevel)
 	common.InitLoggerWithFormat(level, cfg.LogFormat)
 	basePathname, err := config.NormalizeBasePathname(cfg.BasePathname)
