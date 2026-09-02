@@ -16,14 +16,15 @@ printf 'From: app@example.test\nSubject: Job finished\n\nDone.\n' |
   owlmail sendmail operator@example.test
 ```
 
-Or extract envelope recipients from `To`, `Cc`, and `Bcc`:
+Or extract envelope recipients from `To`, `Cc`, `Bcc`, and their `Resent-*`
+counterparts:
 
 ```bash
 owlmail sendmail -t -i < message.eml
 ```
 
 Explicit recipients and recipients found with `-t` are combined. Every `Bcc`
-field, including folded continuation lines, is removed before DATA is sent.
+and `Resent-Bcc` field, including folded continuation lines, is removed before DATA is sent.
 `-i` and `-oi` are accepted for compatibility; the SMTP client always performs
 CRLF normalization and dot-stuffing. Use `-f '<>'` for an empty envelope sender.
 RFC 2047 and UTF-8 headers remain intact, and SMTPUTF8 is negotiated when raw
@@ -68,6 +69,7 @@ Command-line options override environment variables.
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` | Use implicit TLS from connection start |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - | PLAIN AUTH username |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - | PLAIN AUTH password |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` | Whole SMTP submission deadline, including connect and DATA acceptance |
 
 `--smtp-host`, `--smtp-ip`, and `--smtp-port` are accepted aliases. STARTTLS
 and SMTPS are mutually exclusive. Credentials must be provided together;
@@ -92,7 +94,8 @@ certificate; the command intentionally has no insecure-skip-verification mode.
 
 ## Compatible arguments
 
-- `-t`: add addresses from all `To`, `Cc`, and `Bcc` fields.
+- `-t`: add addresses from all `To`, `Cc`, `Bcc`, `Resent-To`, `Resent-Cc`,
+  and `Resent-Bcc` fields.
 - `-f ADDRESS` or `-fADDRESS`: select the envelope sender. `-f '<>'` selects
   the null reverse path.
 - `-i` and `-oi`: accepted no-op compatibility forms.
@@ -116,4 +119,3 @@ The stable values follow `sysexits(3)` conventions:
 Once the server returns `250` after DATA, a later QUIT failure still returns
 success so callers do not resend an already accepted message. Diagnostics
 never include the password, message body, or full authentication exchange.
-

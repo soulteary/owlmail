@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/emersion/go-sasl"
 	smtp "github.com/emersion/go-smtp"
@@ -30,8 +31,9 @@ const (
 )
 
 const (
-	defaultHost = "127.0.0.1"
-	defaultPort = 1025
+	defaultHost    = "127.0.0.1"
+	defaultPort    = 1025
+	defaultTimeout = 30 * time.Second
 )
 
 type errorKind int
@@ -61,6 +63,7 @@ type config struct {
 	smtps      bool
 	username   string
 	password   string
+	timeout    time.Duration
 	readHeader bool
 	from       string
 	fromSet    bool
@@ -110,7 +113,7 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if len(recipients) == 0 {
 		if cfg.readHeader {
-			err = newCommandError(kindData, "message has no To, Cc, or Bcc recipients")
+			err = newCommandError(kindData, "message has no To, Cc, Bcc, or Resent recipients")
 		} else {
 			err = newCommandError(kindUsage, "no recipients; pass recipients or use -t")
 		}
@@ -225,6 +228,15 @@ func parseArgs(args []string, lookupEnv func(string) (string, bool)) (config, bo
 			if err != nil {
 				return config{}, false, err
 			}
+		case "--timeout":
+			var value string
+			value, i, err = nextValue(args, i, arg)
+			if err == nil {
+				cfg.timeout, err = parseTimeout(value, arg)
+			}
+			if err != nil {
+				return config{}, false, err
+			}
 		case "--starttls":
 			cfg.startTLS = true
 		case "--smtps":
@@ -272,7 +284,7 @@ func configFromEnvironment(lookupEnv func(string) (string, bool)) (config, error
 	if lookupEnv == nil {
 		lookupEnv = func(string) (string, bool) { return "", false }
 	}
-	cfg := config{host: defaultHost, port: defaultPort}
+	cfg := config{host: defaultHost, port: defaultPort, timeout: defaultTimeout}
 	if value, ok := lookupEnv("OWLMAIL_SENDMAIL_HOST"); ok {
 		cfg.host = value
 	}
@@ -295,6 +307,13 @@ func configFromEnvironment(lookupEnv func(string) (string, bool)) (config, error
 	}
 	if value, ok := lookupEnv("OWLMAIL_SENDMAIL_PASSWORD"); ok {
 		cfg.password = value
+	}
+	if value, ok := lookupEnv("OWLMAIL_SENDMAIL_TIMEOUT"); ok {
+		timeout, err := parseTimeout(value, "OWLMAIL_SENDMAIL_TIMEOUT")
+		if err != nil {
+			return config{}, err
+		}
+		cfg.timeout = timeout
 	}
 	return cfg, nil
 }
@@ -333,6 +352,12 @@ func applyLongOption(cfg *config, arg string) error {
 		cfg.username = value
 	case "--password":
 		cfg.password = value
+	case "--timeout":
+		timeout, err := parseTimeout(value, name)
+		if err != nil {
+			return err
+		}
+		cfg.timeout = timeout
 	case "--starttls":
 		parsed, err := strconv.ParseBool(value)
 		if err != nil {
@@ -357,6 +382,14 @@ func parsePort(value, name string) (int, error) {
 		return 0, newCommandError(kindUsage, "%s must be an integer from 1 to 65535", name)
 	}
 	return port, nil
+}
+
+func parseTimeout(value, name string) (time.Duration, error) {
+	timeout, err := time.ParseDuration(value)
+	if err != nil || timeout <= 0 {
+		return 0, newCommandError(kindUsage, "%s must be a positive duration", name)
+	}
+	return timeout, nil
 }
 
 func parseMailbox(value string, allowEmpty bool) (string, error) {
@@ -389,7 +422,7 @@ func prepareMessage(input io.Reader) (preparedMessage, error) {
 	flush := func() {
 		value := strings.TrimSpace(currentValue.String())
 		switch strings.ToLower(currentName) {
-		case "to", "cc", "bcc":
+		case "to", "cc", "bcc", "resent-to", "resent-cc", "resent-bcc":
 			if value != "" {
 				recipientValues = append(recipientValues, value)
 			}
@@ -429,7 +462,7 @@ func prepareMessage(input io.Reader) (preparedMessage, error) {
 			if currentName == "" {
 				return preparedMessage{}, newCommandError(kindData, "message contains an invalid folded header")
 			}
-			if !strings.EqualFold(currentName, "bcc") {
+			if !isBlindRecipientHeader(currentName) {
 				sanitized.WriteString(line)
 				if !isASCII(line) {
 					requiresUTF8 = true
@@ -450,7 +483,7 @@ func prepareMessage(input io.Reader) (preparedMessage, error) {
 			return preparedMessage{}, newCommandError(kindData, "message contains an invalid header field name")
 		}
 		currentValue.WriteString(strings.TrimSpace(withoutEnding[colon+1:]))
-		if !strings.EqualFold(currentName, "bcc") {
+		if !isBlindRecipientHeader(currentName) {
 			sanitized.WriteString(line)
 			if !isASCII(line) {
 				requiresUTF8 = true
@@ -460,7 +493,7 @@ func prepareMessage(input io.Reader) (preparedMessage, error) {
 
 	headerRecipients, err := parseHeaderAddresses(recipientValues)
 	if err != nil {
-		return preparedMessage{}, newCommandError(kindData, "message contains an invalid To, Cc, or Bcc address")
+		return preparedMessage{}, newCommandError(kindData, "message contains an invalid recipient header address")
 	}
 	headerSender := ""
 	if len(senderValues) > 0 {
@@ -495,8 +528,15 @@ func parseHeaderAddresses(values []string) ([]string, error) {
 	return recipients, nil
 }
 
+func isBlindRecipientHeader(name string) bool {
+	return strings.EqualFold(name, "bcc") || strings.EqualFold(name, "resent-bcc")
+}
+
 func submit(cfg config, from string, recipients []string, message preparedMessage) error {
 	address := net.JoinHostPort(cfg.host, strconv.Itoa(cfg.port))
+	if cfg.timeout <= 0 {
+		cfg.timeout = defaultTimeout
+	}
 	tlsConfig := cfg.tlsConfig
 	if tlsConfig == nil {
 		tlsConfig = &tls.Config{MinVersion: tls.VersionTLS12, ServerName: cfg.host}
@@ -507,16 +547,7 @@ func submit(cfg config, from string, recipients []string, message preparedMessag
 		}
 	}
 
-	var client *smtp.Client
-	var err error
-	switch {
-	case cfg.smtps:
-		client, err = smtp.DialTLS(address, tlsConfig)
-	case cfg.startTLS:
-		client, err = smtp.DialStartTLS(address, tlsConfig)
-	default:
-		client, err = smtp.Dial(address)
-	}
+	client, err := dialSMTP(address, cfg, tlsConfig)
 	if err != nil {
 		return fmt.Errorf("connect to SMTP server: %w", err)
 	}
@@ -560,6 +591,59 @@ func submit(cfg config, from string, recipients []string, message preparedMessag
 	// must not make PHP or cron resend an already accepted message.
 	_ = client.Quit()
 	return nil
+}
+
+type cappedDeadlineConn struct {
+	net.Conn
+	deadline time.Time
+}
+
+func (conn *cappedDeadlineConn) SetDeadline(deadline time.Time) error {
+	return conn.Conn.SetDeadline(conn.cap(deadline))
+}
+
+func (conn *cappedDeadlineConn) SetReadDeadline(deadline time.Time) error {
+	return conn.Conn.SetReadDeadline(conn.cap(deadline))
+}
+
+func (conn *cappedDeadlineConn) SetWriteDeadline(deadline time.Time) error {
+	return conn.Conn.SetWriteDeadline(conn.cap(deadline))
+}
+
+func (conn *cappedDeadlineConn) cap(deadline time.Time) time.Time {
+	if deadline.IsZero() || deadline.After(conn.deadline) {
+		return conn.deadline
+	}
+	return deadline
+}
+
+func dialSMTP(address string, cfg config, tlsConfig *tls.Config) (*smtp.Client, error) {
+	connection, err := (&net.Dialer{Timeout: cfg.timeout}).Dial("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	bounded := &cappedDeadlineConn{Conn: connection, deadline: time.Now().Add(cfg.timeout)}
+	if err := bounded.SetDeadline(bounded.deadline); err != nil {
+		_ = connection.Close()
+		return nil, err
+	}
+
+	var client *smtp.Client
+	switch {
+	case cfg.smtps:
+		client = smtp.NewClient(tls.Client(bounded, tlsConfig))
+	case cfg.startTLS:
+		client, err = smtp.NewClientStartTLS(bounded, tlsConfig)
+	default:
+		client = smtp.NewClient(bounded)
+	}
+	if err != nil {
+		_ = connection.Close()
+		return nil, err
+	}
+	client.CommandTimeout = cfg.timeout
+	client.SubmissionTimeout = cfg.timeout
+	return client, nil
 }
 
 func copyMessage(destination io.Writer, source io.Reader) error {
@@ -614,7 +698,7 @@ const usageText = `Usage: owlmail sendmail [options] [recipient ...]
 Read an RFC 5322 message from stdin and submit it to OwlMail through SMTP.
 
 Sendmail-compatible options:
-  -t                       Read To, Cc, and Bcc recipients from message headers
+  -t                       Read To/Cc/Bcc and Resent recipients from headers
   -f ADDRESS               Set the envelope sender (-fADDRESS is also accepted)
   -i, -oi                  Accepted compatibility options; dots are handled safely
   --                       End options (required for recipients beginning with '-')
@@ -626,12 +710,14 @@ SMTP options:
   --smtps                  Use implicit TLS
   --username USER          SMTP AUTH username
   --password PASSWORD      SMTP AUTH password (prefer the environment variable)
+  --timeout DURATION       Whole SMTP submission deadline (default 30s)
   -h, --help               Show this help
 
 Environment:
   OWLMAIL_SENDMAIL_HOST, OWLMAIL_SENDMAIL_PORT,
   OWLMAIL_SENDMAIL_STARTTLS, OWLMAIL_SENDMAIL_SMTPS,
-  OWLMAIL_SENDMAIL_USERNAME, OWLMAIL_SENDMAIL_PASSWORD
+  OWLMAIL_SENDMAIL_USERNAME, OWLMAIL_SENDMAIL_PASSWORD,
+  OWLMAIL_SENDMAIL_TIMEOUT
 
 Exit status: 0 success, 64 usage, 65 message data, 69 permanent SMTP,
 74 local I/O, 75 temporary SMTP or network failure.

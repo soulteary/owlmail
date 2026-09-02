@@ -8,8 +8,8 @@ DATA-Parallelitätsgrenzen werden dadurch nicht umgangen.
 owlmail sendmail -t -i < message.eml
 ```
 
-`-t` liest `To`, `Cc` und `Bcc`; explizite Empfänger werden ergänzt. Vor DATA
-werden alle Bcc-Felder einschließlich Fortsetzungszeilen entfernt. `-f ADDRESS`
+`-t` liest `To`, `Cc`, `Bcc` und die `Resent-*`-Felder; explizite Empfänger werden ergänzt. Vor DATA
+werden alle Bcc- und Resent-Bcc-Felder einschließlich Fortsetzungszeilen entfernt. `-f ADDRESS`
 und `-fADDRESS` setzen den Envelope-Absender, `-f '<>'` den leeren Reverse Path.
 `-i`, `-oi` und `--` werden unterstützt. CRLF, Dot-Stuffing sowie RFC-2047- und
 UTF-8-Header werden korrekt behandelt; bei Bedarf wird SMTPUTF8 verwendet.
@@ -36,6 +36,7 @@ environment:
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` |
 
 STARTTLS und SMTPS schließen sich aus. Kennungen müssen gemeinsam gesetzt
 werden; das Passwort sollte aus der Umgebung kommen. TLS-Zertifikate werden
@@ -47,4 +48,3 @@ Stabile Statuswerte: `0` Erfolg, `64` Argumentfehler, `65` Nachrichtendaten,
 SMTP-/Netzwerkfehler. Kennwort, Nachrichtentext und vollständiger AUTH-Dialog
 werden nicht protokolliert. Die vollständige Referenz steht auf
 [Englisch](../en/Sendmail.md) und [Chinesisch](../zh-CN/Sendmail.md).
-

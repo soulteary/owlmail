@@ -13,13 +13,14 @@ printf 'From: app@example.test\nSubject: Job finished\n\nDone.\n' |
   owlmail sendmail operator@example.test
 ```
 
-也可以从 `To`、`Cc` 和 `Bcc` 提取信封收件人：
+也可以从 `To`、`Cc`、`Bcc` 及对应的 `Resent-*` 字段提取信封收件人：
 
 ```bash
 owlmail sendmail -t -i < message.eml
 ```
 
-显式收件人与 `-t` 提取的收件人会合并。发送 DATA 前会删除所有 `Bcc` 字段及其
+显式收件人与 `-t` 提取的收件人会合并。发送 DATA 前会删除所有 `Bcc`、
+`Resent-Bcc` 字段及其
 折行续行。`-i` 和 `-oi` 作为兼容参数接受；SMTP 客户端始终正确处理 CRLF 和
 dot-stuffing。`-f '<>'` 表示空 envelope sender。RFC 2047 与 UTF-8 头保持原样；
 原始 UTF-8 头或国际化信封地址需要时会协商 SMTPUTF8。
@@ -61,6 +62,7 @@ mail('developer@example.test', 'OwlMail test', 'It works!', [
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` | 连接建立时直接使用 TLS |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - | PLAIN AUTH 用户名 |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - | PLAIN AUTH 密码 |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` | 整次 SMTP 投递时限，包括连接和 DATA 接受 |
 
 同时支持 `--smtp-host`、`--smtp-ip` 和 `--smtp-port` 别名。STARTTLS 与 SMTPS
 互斥，用户名和密码必须同时配置。建议使用 `OWLMAIL_SENDMAIL_PASSWORD`，避免
@@ -83,7 +85,8 @@ SMTPS 通常使用 465 端口，并设置 `OWLMAIL_SENDMAIL_SMTPS=true`。证书
 
 ## 兼容参数
 
-- `-t`：加入所有 `To`、`Cc`、`Bcc` 地址。
+- `-t`：加入所有 `To`、`Cc`、`Bcc`、`Resent-To`、`Resent-Cc`、
+  `Resent-Bcc` 地址。
 - `-f ADDRESS` 或 `-fADDRESS`：设置 envelope sender；`-f '<>'` 使用空反向路径。
 - `-i`、`-oi`：接受但无需额外处理的兼容形式。
 - `--`：结束参数解析，后续值一律作为收件人。
@@ -105,4 +108,3 @@ SMTPS 通常使用 465 端口，并设置 `OWLMAIL_SENDMAIL_SMTPS=true`。证书
 
 服务端在 DATA 后返回 `250` 即构成接受边界；此后的 QUIT 失败仍返回成功，避免调用方
 重复投递。诊断信息不会包含密码、邮件正文或完整认证交换。
-

@@ -277,6 +277,7 @@ test("sendmail CLI documentation covers every locale and its stable contract", (
       "OWLMAIL_SENDMAIL_SMTPS",
       "OWLMAIL_SENDMAIL_USERNAME",
       "OWLMAIL_SENDMAIL_PASSWORD",
+      "OWLMAIL_SENDMAIL_TIMEOUT",
       "`64`",
       "`65`",
       "`69`",

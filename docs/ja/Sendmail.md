@@ -8,8 +8,8 @@ SMTP リスナーへ送信します。AUTH、TLS、サイズ、受信者数、DA
 owlmail sendmail -t -i < message.eml
 ```
 
-`-t` は `To`、`Cc`、`Bcc` を抽出し、明示的な受信者に追加します。DATA の前に
-Bcc と継続行をすべて削除します。`-f ADDRESS` または `-fADDRESS` は envelope
+`-t` は `To`、`Cc`、`Bcc` と `Resent-*` フィールドを抽出し、明示的な受信者に追加します。DATA の前に
+Bcc、Resent-Bcc と継続行をすべて削除します。`-f ADDRESS` または `-fADDRESS` は envelope
 sender を指定し、`-f '<>'` は空の reverse path を指定します。`-i`、`-oi`、
 `--` に対応します。CRLF、dot-stuffing、RFC 2047/UTF-8 ヘッダーを保持し、必要時
 は SMTPUTF8 を使用します。
@@ -36,6 +36,7 @@ environment:
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` |
 
 STARTTLS と SMTPS は同時に指定できません。ユーザー名とパスワードは両方必要で、
 秘密情報は環境変数から渡すことを推奨します。TLS 証明書は OS の信頼ストアとホスト名
@@ -45,4 +46,3 @@ STARTTLS と SMTPS は同時に指定できません。ユーザー名とパス�
 SMTP エラー、`74` ローカル I/O、`75` 一時的 SMTP/ネットワークエラーです。
 パスワード、本文、AUTH の完全な交換は記録しません。完全な説明は
 [英語](../en/Sendmail.md)または[中国語](../zh-CN/Sendmail.md)を参照してください。
-

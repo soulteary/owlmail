@@ -34,7 +34,7 @@ func TestParseArgs(t *testing.T) {
 	cfg, help, err := parseArgs([]string{
 		"-t", "-oi", "-i", "-fbounce@example.com", "--host=mail.local",
 		"--port", "2525", "--starttls", "--username", "user", "--password", "secret",
-		"first@example.com", "--", "-recipient@example.com",
+		"--timeout", "45s", "first@example.com", "--", "-recipient@example.com",
 	}, lookup(nil))
 	if err != nil || help {
 		t.Fatalf("parseArgs() = %#v, %t, %v", cfg, help, err)
@@ -44,6 +44,9 @@ func TestParseArgs(t *testing.T) {
 	}
 	if cfg.from != "bounce@example.com" || !cfg.fromSet || cfg.username != "user" || cfg.password != "secret" {
 		t.Fatalf("unexpected sender or credentials: %#v", cfg)
+	}
+	if cfg.timeout != 45*time.Second {
+		t.Fatalf("timeout = %s", cfg.timeout)
 	}
 	if !reflect.DeepEqual(cfg.recipients, []string{"first@example.com", "-recipient@example.com"}) {
 		t.Fatalf("recipients = %#v", cfg.recipients)
@@ -55,12 +58,13 @@ func TestParseArgs(t *testing.T) {
 		"OWLMAIL_SENDMAIL_STARTTLS": "true",
 		"OWLMAIL_SENDMAIL_USERNAME": "env-user",
 		"OWLMAIL_SENDMAIL_PASSWORD": "env-secret",
+		"OWLMAIL_SENDMAIL_TIMEOUT":  "1m",
 	}
 	cfg, _, err = parseArgs([]string{"--host", "cli.local", "--starttls=false", "to@example.com"}, lookup(environment))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.host != "cli.local" || cfg.port != 2465 || cfg.startTLS || cfg.username != "env-user" || cfg.password != "env-secret" {
+	if cfg.host != "cli.local" || cfg.port != 2465 || cfg.startTLS || cfg.username != "env-user" || cfg.password != "env-secret" || cfg.timeout != time.Minute {
 		t.Fatalf("CLI did not override environment correctly: %#v", cfg)
 	}
 }
@@ -78,6 +82,8 @@ func TestParseArgsErrors(t *testing.T) {
 		{name: "partial auth", args: []string{"--username", "user"}},
 		{name: "bad environment boolean", env: map[string]string{"OWLMAIL_SENDMAIL_SMTPS": "sometimes"}},
 		{name: "bad environment port", env: map[string]string{"OWLMAIL_SENDMAIL_PORT": "smtp"}},
+		{name: "bad timeout", args: []string{"--timeout", "forever"}},
+		{name: "bad environment timeout", env: map[string]string{"OWLMAIL_SENDMAIL_TIMEOUT": "0s"}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -90,6 +96,33 @@ func TestParseArgsErrors(t *testing.T) {
 				t.Fatalf("parseArgs() error = %v, exit = %d", err, exitCode(err))
 			}
 		})
+	}
+}
+
+func TestPrepareMessageHandlesResentRecipients(t *testing.T) {
+	input := "From: sender@example.com\r\n" +
+		"To: original@example.com\r\n" +
+		"Resent-To: resent@example.com\r\n" +
+		"Resent-Cc: resent-copy@example.com\r\n" +
+		"Resent-Bcc: resent-hidden@example.com,\r\n\tresent-folded@example.com\r\n" +
+		"Subject: resent\r\n\r\nbody\r\n"
+	message, err := prepareMessage(strings.NewReader(input))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		"original@example.com", "resent@example.com", "resent-copy@example.com",
+		"resent-hidden@example.com", "resent-folded@example.com",
+	}
+	if !reflect.DeepEqual(message.headerRecipients, want) {
+		t.Fatalf("recipients = %#v, want %#v", message.headerRecipients, want)
+	}
+	sanitized, err := io.ReadAll(message.reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(bytes.ToLower(sanitized), []byte("resent-bcc:")) || bytes.Contains(sanitized, []byte("resent-hidden@example.com")) {
+		t.Fatalf("Resent-Bcc field was not removed: %q", sanitized)
 	}
 }
 
@@ -268,6 +301,36 @@ func TestRunUsageAndHelp(t *testing.T) {
 	stdout.Reset()
 	if exit := Run(nil, strings.NewReader("From: sender@example.com\r\n\r\nbody"), &stdout, &stderr); exit != ExitUsage {
 		t.Fatalf("missing recipient exit = %d, stderr = %q", exit, stderr.String())
+	}
+}
+
+func TestRunTimesOutWhenServerWithholdsGreeting(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		connection, _ := listener.Accept()
+		accepted <- connection
+	}()
+	host, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := time.Now()
+	exit := Run([]string{
+		"--host", host, "--port", port, "--timeout", "50ms", "to@example.com",
+	}, strings.NewReader("From: sender@example.com\r\n\r\nbody\r\n"), io.Discard, io.Discard)
+	if connection := <-accepted; connection != nil {
+		_ = connection.Close()
+	}
+	if exit != ExitTempFailure {
+		t.Fatalf("Run() exit = %d, want %d", exit, ExitTempFailure)
+	}
+	if elapsed := time.Since(started); elapsed > time.Second {
+		t.Fatalf("submission timeout took %s", elapsed)
 	}
 }
 

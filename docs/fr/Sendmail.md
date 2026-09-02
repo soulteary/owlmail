@@ -8,8 +8,8 @@ concurrence DATA restent donc appliqués.
 owlmail sendmail -t -i < message.eml
 ```
 
-`-t` extrait `To`, `Cc` et `Bcc` et les ajoute aux destinataires explicites.
-Tous les champs Bcc et leurs continuations sont retirés avant DATA. `-f ADDRESS`
+`-t` extrait `To`, `Cc`, `Bcc` et les champs `Resent-*`, puis les ajoute aux destinataires explicites.
+Tous les champs Bcc/Resent-Bcc et leurs continuations sont retirés avant DATA. `-f ADDRESS`
 ou `-fADDRESS` choisit l'expéditeur d'enveloppe; `-f '<>'` utilise un reverse
 path vide. `-i`, `-oi` et `--` sont acceptés. CRLF, dot-stuffing et les en-têtes
 RFC 2047/UTF-8 sont préservés, avec SMTPUTF8 lorsque nécessaire.
@@ -36,6 +36,7 @@ environment:
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` |
 
 STARTTLS et SMTPS sont exclusifs. L'identifiant et le mot de passe doivent être
 fournis ensemble; préférez la variable d'environnement pour le secret. Les
@@ -47,4 +48,3 @@ SMTP permanente, `74` E/S locale, `75` erreur SMTP temporaire ou réseau. Le mot
 de passe, le corps et l'échange AUTH complet ne sont jamais journalisés. Voir la
 référence complète en [anglais](../en/Sendmail.md) ou en
 [chinois](../zh-CN/Sendmail.md).
-

@@ -8,8 +8,8 @@
 owlmail sendmail -t -i < message.eml
 ```
 
-`-t`는 `To`, `Cc`, `Bcc`를 추출하여 명시적 수신자에 추가합니다. DATA 전송 전에
-Bcc 필드와 연속 줄을 모두 제거합니다. `-f ADDRESS` 또는 `-fADDRESS`는 envelope
+`-t`는 `To`, `Cc`, `Bcc` 및 `Resent-*` 필드를 추출하여 명시적 수신자에 추가합니다. DATA 전송 전에
+Bcc/Resent-Bcc 필드와 연속 줄을 모두 제거합니다. `-f ADDRESS` 또는 `-fADDRESS`는 envelope
 sender를 설정하고 `-f '<>'`는 빈 reverse path를 사용합니다. `-i`, `-oi`, `--`를
 지원합니다. CRLF, dot-stuffing, RFC 2047/UTF-8 헤더를 보존하며 필요하면 SMTPUTF8을
 사용합니다.
@@ -36,6 +36,7 @@ environment:
 | `--smtps` | `OWLMAIL_SENDMAIL_SMTPS` | `false` |
 | `--username` | `OWLMAIL_SENDMAIL_USERNAME` | - |
 | `--password` | `OWLMAIL_SENDMAIL_PASSWORD` | - |
+| `--timeout` | `OWLMAIL_SENDMAIL_TIMEOUT` | `30s` |
 
 STARTTLS와 SMTPS는 함께 사용할 수 없습니다. 사용자 이름과 암호를 함께 제공해야 하며,
 암호는 환경 변수로 전달하는 것이 좋습니다. TLS 인증서는 시스템 신뢰 저장소와 호스트
@@ -45,4 +46,3 @@ STARTTLS와 SMTPS는 함께 사용할 수 없습니다. 사용자 이름과 암�
 `74` 로컬 I/O, `75` 임시 SMTP/네트워크 오류입니다. 암호, 메시지 본문 및 전체 AUTH
 교환은 기록하지 않습니다. 전체 문서는 [영어](../en/Sendmail.md) 또는
 [중국어](../zh-CN/Sendmail.md)를 참조하세요.
-
