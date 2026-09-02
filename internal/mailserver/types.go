@@ -19,10 +19,10 @@ const (
 	defaultMailDir = "owlmail"
 
 	// DefaultMaxMessageBytes is the default SMTP DATA limit (100 MiB).
-	DefaultMaxMessageBytes int64 = 100 << 20
-	defaultSMTPReadTimeout       = 10 * time.Second
-	defaultSMTPWriteTimeout      = 10 * time.Second
-	defaultSMTPMaxRecipients     = 50
+	DefaultMaxMessageBytes   int64 = 100 << 20
+	defaultSMTPReadTimeout         = 10 * time.Second
+	defaultSMTPWriteTimeout        = 10 * time.Second
+	defaultSMTPMaxRecipients       = 50
 
 	defaultAttachmentUploadTimeout = 5 * time.Minute
 	defaultAttachmentOpenTimeout   = 5 * time.Minute
