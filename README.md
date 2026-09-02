@@ -235,7 +235,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
-| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | empty | Optional path for a rebuildable SQLite mailbox query index; EML files remain authoritative |
+| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | Optional path for a rebuildable SQLite mailbox query index; EML files remain authoritative |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | Store decoded attachments in S3-compatible object storage |
 | `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | Custom S3-compatible endpoint; empty uses AWS S3 |
 | `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 signing region |
