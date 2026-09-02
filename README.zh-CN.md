@@ -217,6 +217,9 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
+| `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
+| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲 MCP 会话 |
+| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 会话的期限 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
@@ -279,6 +282,20 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 `docker logs owlmail`），需要稳定凭据时应同时配置用户名和密码；如果无法将
 自动生成的密码写入 stderr，OwlMail 会启动失败。Basic Auth 只应在 localhost
 或 HTTPS 上使用。
+
+### 只读 MCP
+
+MCP 默认关闭。使用 `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 启用官方
+Streamable HTTP 端点，然后连接 `http://localhost:1080/mcp`。若设置
+`-base-pathname /owlmail`，端点随之变为 `/owlmail/mcp`。MCP 与 Web 共用监听器、
+HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请求也必须携带
+同一组 Basic Auth 凭据。
+
+服务只提供 `list_emails`、`search_emails`、`get_email`、
+`get_email_source` 和 `list_attachments`。列表和搜索仅返回摘要；`get_email`
+默认省略 HTML；原始 source 使用无损 base64 返回，默认最多读取 1 MiB 原始
+字节；没有任何工具返回附件内容。
+完整安全及会话生命周期说明见[运维文档](./docs/zh-CN/Operations.md#供测试代理使用的只读-mcp)。
 
 ### 环境变量兼容性
 

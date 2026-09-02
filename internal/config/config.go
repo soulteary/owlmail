@@ -29,6 +29,11 @@ const DefaultWebhookMaxConcurrency = 8
 const DefaultWebhookRedisPrefix = "owlmail:webhooks"
 const DefaultWebhookShutdownTimeout = "15s"
 
+// MCP is opt-in. Idle sessions and process shutdown are bounded so abandoned
+// test-agent connections do not live forever.
+const DefaultMCPSessionTimeout = "30m"
+const DefaultMCPShutdownTimeout = "5s"
+
 // EnvMapping defines the mapping from MailDev environment variables to OwlMail environment variables.
 // This maintains backward compatibility with MailDev deployments.
 var EnvMapping = map[string]string{
@@ -214,12 +219,15 @@ type Config struct {
 	MailCleanupInterval string
 
 	// Web API configuration
-	WebPort           int
-	WebHost           string
-	WebUser           string
-	WebPassword       string
-	WebExternalScheme string
-	BasePathname      string
+	WebPort            int
+	WebHost            string
+	WebUser            string
+	WebPassword        string
+	WebExternalScheme  string
+	BasePathname       string
+	MCPEnabled         bool
+	MCPSessionTimeout  string
+	MCPShutdownTimeout string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -292,6 +300,9 @@ func DefaultConfig() *Config {
 		WebPassword:            "",
 		WebExternalScheme:      "",
 		BasePathname:           "",
+		MCPEnabled:             false,
+		MCPSessionTimeout:      DefaultMCPSessionTimeout,
+		MCPShutdownTimeout:     DefaultMCPShutdownTimeout,
 		HTTPSEnabled:           false,
 		HTTPSCertFile:          "",
 		HTTPSKeyFile:           "",
@@ -346,6 +357,9 @@ type FlagRefs struct {
 	WebUser                *string
 	WebPassword            *string
 	BasePathname           *string
+	MCPEnabled             *bool
+	MCPSessionTimeout      *string
+	MCPShutdownTimeout     *string
 	HTTPSEnabled           *bool
 	HTTPSCertFile          *string
 	HTTPSKeyFile           *string
@@ -402,6 +416,9 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
 		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
+		MCPEnabled:             fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
+		MCPSessionTimeout:      fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
+		MCPShutdownTimeout:     fs.String("mcp-shutdown-timeout", cfg.MCPShutdownTimeout, "Maximum time to close MCP sessions during shutdown"),
 		HTTPSEnabled:           fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
 		HTTPSCertFile:          fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
 		HTTPSKeyFile:           fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
@@ -455,12 +472,15 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MailMaxDiskMB:       resolveIntWithFlag(fs, "mail-max-disk-mb", "OWLMAIL_MAIL_MAX_DISK_MB", *refs.MailMaxDiskMB),
 		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
 
-		WebPort:           resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
-		WebHost:           resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
-		WebUser:           resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
-		WebPassword:       resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
-		WebExternalScheme: ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
-		BasePathname:      resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
+		WebPort:            resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
+		WebHost:            resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
+		WebUser:            resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
+		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
+		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
+		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
+		MCPSessionTimeout:  resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
+		MCPShutdownTimeout: resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),
