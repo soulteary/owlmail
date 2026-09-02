@@ -211,7 +211,7 @@ docker buildx build \
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
-| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | empty | 再構築可能な SQLite メールボックス索引の任意パス。EML ファイルが引き続き正本 |
+| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 再構築可能な SQLite メールボックス索引の任意パス。EML ファイルが引き続き正本 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | デコード済み添付ファイルを S3 互換ストレージに保存 |
 | `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | カスタム S3 エンドポイント。空の場合は AWS S3 |
 | `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 リージョン |
