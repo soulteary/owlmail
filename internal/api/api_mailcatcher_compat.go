@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/emersion/go-message/mail"
 	"github.com/gofiber/fiber/v3"
@@ -29,13 +30,10 @@ func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 }
 
 func (api *API) mailCatcherMessages(c fiber.Ctx) error {
-	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "time", SortOrder: "asc", Limit: 1000})
+	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "store", SortOrder: "desc", Limit: int(^uint(0) >> 1)})
 	result := make([]fiber.Map, 0, len(summaries))
 	for _, summary := range summaries {
-		email, err := api.mailServer.GetEmail(summary.ID)
-		if err == nil {
-			result = append(result, mailCatcherMessageDTO(email, false))
-		}
+		result = append(result, mailCatcherSummaryDTO(summary))
 	}
 	return c.JSON(result)
 }
@@ -45,10 +43,28 @@ func (api *API) mailCatcherMessage(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusNotFound).SendString("Message does not exist")
 	}
-	return c.JSON(mailCatcherMessageDTO(email, true))
+	receivedAt, _ := api.mailServer.GetEmailReceivedAt(email.ID)
+	return c.JSON(mailCatcherMessageDTO(email, receivedAt, true))
 }
 
-func mailCatcherMessageDTO(email *types.Email, detail bool) fiber.Map {
+func mailCatcherSummaryDTO(email mailserver.EmailSummary) fiber.Map {
+	sender := email.EnvelopeFrom
+	recipients := append([]string(nil), email.EnvelopeTo...)
+	if sender == "" && len(email.From) > 0 {
+		sender = email.From[0].Address
+	}
+	if len(recipients) == 0 {
+		for _, address := range append(append([]mailserver.EmailSummaryAddress{}, email.To...), email.CC...) {
+			recipients = append(recipients, address.Address)
+		}
+	}
+	for i := range recipients {
+		recipients[i] = angleAddress(recipients[i])
+	}
+	return fiber.Map{"id": email.ID, "sender": angleAddress(sender), "recipients": recipients, "subject": email.Subject, "size": email.Size, "created_at": email.ReceivedAt}
+}
+
+func mailCatcherMessageDTO(email *types.Email, createdAt time.Time, detail bool) fiber.Map {
 	sender := ""
 	recipients := make([]string, 0)
 	if email.Envelope != nil {
@@ -66,7 +82,7 @@ func mailCatcherMessageDTO(email *types.Email, detail bool) fiber.Map {
 			}
 		}
 	}
-	result := fiber.Map{"id": email.ID, "sender": sender, "recipients": recipients, "subject": email.Subject, "size": email.Size, "created_at": email.Time}
+	result := fiber.Map{"id": email.ID, "sender": sender, "recipients": recipients, "subject": email.Subject, "size": email.Size, "created_at": createdAt}
 	if !detail {
 		return result
 	}
@@ -175,8 +191,11 @@ func (api *API) mailCatcherPart(c fiber.Ctx) error {
 }
 
 func (api *API) mailCatcherDelete(c fiber.Ctx) error {
-	if err := api.mailServer.DeleteEmail(c.Params("id")); err != nil {
+	if _, err := api.mailServer.GetEmail(c.Params("id")); err != nil {
 		return c.Status(http.StatusNotFound).SendString("Message does not exist")
+	}
+	if err := api.mailServer.DeleteEmail(c.Params("id")); err != nil {
+		return c.Status(http.StatusInternalServerError).SendString("Message deletion failed")
 	}
 	return c.SendStatus(http.StatusNoContent)
 }
