@@ -27,39 +27,13 @@ type EmailPreview = mailserver.EmailPreview
 
 // getAllEmails handles GET /api/v1/emails
 func (api *API) getAllEmails(c fiber.Ctx) error {
-	limitStr := c.Query("limit", "50")
-	offsetStr := c.Query("offset", "0")
-	query := c.Query("q")
-	from := c.Query("from")
-	to := c.Query("to")
-	dateFrom := c.Query("dateFrom")
-	dateTo := c.Query("dateTo")
-	read := c.Query("read")
-	sortBy := c.Query("sortBy", "")
-	sortOrder := c.Query("sortOrder", "desc")
-
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 50
-	}
-	if limit > 1000 {
-		limit = 1000
-	}
-
-	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
-		offset = 0
-	}
-
-	emails, total := api.mailServer.QueryEmails(mailserver.EmailQuery{
-		Query: query, From: from, To: to, DateFrom: dateFrom, DateTo: dateTo,
-		Read: read, SortBy: sortBy, SortOrder: sortOrder, Offset: offset, Limit: limit,
-	})
+	query := parseEmailQuery(c)
+	emails, total := api.mailServer.QueryEmails(query)
 
 	return c.JSON(fiber.Map{
 		"total":  total,
-		"limit":  limit,
-		"offset": offset,
+		"limit":  query.Limit,
+		"offset": query.Offset,
 		"emails": emails,
 	})
 }
@@ -190,17 +164,20 @@ func (api *API) reloadMailsFromDirectory(c fiber.Ctx) error {
 
 // getEmailPreviews handles GET /api/v1/emails/preview
 func (api *API) getEmailPreviews(c fiber.Ctx) error {
+	query := parseEmailQuery(c)
+	previews, total := api.mailServer.QueryEmailPreviews(query)
+
+	return c.JSON(fiber.Map{
+		"total":    total,
+		"limit":    query.Limit,
+		"offset":   query.Offset,
+		"previews": previews,
+	})
+}
+
+func parseEmailQuery(c fiber.Ctx) mailserver.EmailQuery {
 	limitStr := c.Query("limit", "50")
 	offsetStr := c.Query("offset", "0")
-	query := c.Query("q")
-	from := c.Query("from")
-	to := c.Query("to")
-	dateFrom := c.Query("dateFrom")
-	dateTo := c.Query("dateTo")
-	read := c.Query("read")
-	sortBy := c.Query("sortBy", "")
-	sortOrder := c.Query("sortOrder", "desc")
-
 	limit, err := strconv.Atoi(limitStr)
 	if err != nil || limit < 1 {
 		limit = 50
@@ -214,17 +191,27 @@ func (api *API) getEmailPreviews(c fiber.Ctx) error {
 		offset = 0
 	}
 
-	previews, total := api.mailServer.QueryEmailPreviews(mailserver.EmailQuery{
-		Query: query, From: from, To: to, DateFrom: dateFrom, DateTo: dateTo,
-		Read: read, SortBy: sortBy, SortOrder: sortOrder, Offset: offset, Limit: limit,
-	})
-
-	return c.JSON(fiber.Map{
-		"total":    total,
-		"limit":    limit,
-		"offset":   offset,
-		"previews": previews,
-	})
+	query := mailserver.EmailQuery{
+		Text:      c.Query("q"),
+		From:      c.Query("from"),
+		To:        c.Query("to"),
+		SortBy:    c.Query("sortBy", ""),
+		SortOrder: c.Query("sortOrder", "desc"),
+		Offset:    offset,
+		Limit:     limit,
+	}
+	if dateFrom, err := time.Parse("2006-01-02", c.Query("dateFrom")); err == nil {
+		query.DateFrom = &dateFrom
+	}
+	if dateTo, err := time.Parse("2006-01-02", c.Query("dateTo")); err == nil {
+		dateTo = dateTo.Add(24 * time.Hour)
+		query.DateTo = &dateTo
+	}
+	if read := c.Query("read"); read != "" {
+		readValue := read == "true"
+		query.Read = &readValue
+	}
+	return query
 }
 
 // batchDeleteEmails handles DELETE /api/v1/emails/batch
