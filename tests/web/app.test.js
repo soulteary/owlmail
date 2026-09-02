@@ -353,6 +353,16 @@ test('HTML previews expose every responsive viewport preset', () => {
     assert.match(preview, /referrerpolicy="no-referrer"/);
 });
 
+test('manual relay controls render only when outgoing mail is enabled', () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body' }; relayEnabled = false; renderEmailDetail();`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to original recipients'), false);
+
+    harness.run(`relayEnabled = true; renderEmailDetail();`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to original recipients'), true);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to…'), true);
+});
+
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
     const harness = createHarness();
     const preview = harness.run(`renderHTML('<p>Keep me</p>', 'mail-42', [])`);
