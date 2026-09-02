@@ -4,6 +4,7 @@ package mcpserver
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"sort"
@@ -216,9 +217,10 @@ type statusWriter struct {
 }
 
 func (writer *statusWriter) WriteHeader(status int) {
-	if writer.status == 0 {
-		writer.status = status
+	if writer.status != 0 {
+		return
 	}
+	writer.status = status
 	writer.ResponseWriter.WriteHeader(status)
 }
 
@@ -327,10 +329,12 @@ type getSourceInput struct {
 }
 
 type getSourceOutput struct {
-	ID        string `json:"id"`
-	Source    string `json:"source"`
-	Size      int64  `json:"size"`
-	Truncated bool   `json:"truncated"`
+	ID            string `json:"id"`
+	Encoding      string `json:"encoding"`
+	SourceBase64  string `json:"source_base64"`
+	ReturnedBytes int    `json:"returned_bytes"`
+	Size          int64  `json:"size"`
+	Truncated     bool   `json:"truncated"`
 }
 
 type attachment struct {
@@ -395,7 +399,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_email_source",
-		Description: "Read the original RFC 5322 source with an explicit output limit. Attachment payloads may exist inside the raw source.",
+		Description: "Read the original RFC 5322 source as lossless base64. max_bytes limits decoded source bytes; attachment payloads may exist inside the raw source.",
 		Annotations: annotations,
 	}, func(_ context.Context, _ *mcp.CallToolRequest, input getSourceInput) (*mcp.CallToolResult, getSourceOutput, error) {
 		if strings.TrimSpace(input.ID) == "" {
@@ -412,7 +416,14 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer) {
 		if err != nil {
 			return nil, getSourceOutput{}, fmt.Errorf("email source was not found")
 		}
-		return nil, getSourceOutput{ID: input.ID, Source: string(content), Size: size, Truncated: truncated}, nil
+		return nil, getSourceOutput{
+			ID:            input.ID,
+			Encoding:      "base64",
+			SourceBase64:  base64.StdEncoding.EncodeToString(content),
+			ReturnedBytes: len(content),
+			Size:          size,
+			Truncated:     truncated,
+		}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "list_attachments",

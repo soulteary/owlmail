@@ -321,7 +321,7 @@ MCP 服务严格只提供五个封闭域、只读工具：
 | `list_emails` | 复用现有邮箱查询 API 的分页轻量摘要 |
 | `search_emails` | 按主题、文本和 HTML 过滤的同类摘要 |
 | `get_email` | 单封邮件的深复制快照；清洗后的 HTML 需要显式请求 |
-| `get_email_source` | RFC 5322 原始 source；默认最多 1 MiB，最大 100 MiB |
+| `get_email_source` | 使用无损 base64 返回 RFC 5322 原始 source；原始字节默认最多 1 MiB，最大 100 MiB |
 | `list_attachments` | 名称、类型、大小、哈希和存储元数据；从不返回附件字节 |
 
 不存在删除、标记已读、转发、中继、下载附件、修改配置或重新加载邮箱的 MCP
@@ -333,6 +333,11 @@ MCP 服务严格只提供五个封闭域、只读工具：
 `DELETE` 会关闭会话；空闲会话在 `-mcp-session-timeout` 后关闭（默认 `30m`）。
 进程关闭时拒绝新的 MCP 工作、清理活动会话，并最多等待
 `-mcp-shutdown-timeout`（默认 `5s`）。
+
+`get_email_source` 返回 `encoding: "base64"`、`source_base64`、解码后的
+`returned_bytes` 数量、完整 source 的 `size` 和 `truncated` 状态。
+`max_bytes` 约束的是 base64 解码后的原始 source 字节，因此 JSON 表示会更大；
+该格式能够无损保留任意 8-bit MIME 数据以及截断后的不完整 UTF-8 序列。
 
 受保护的本地端点示例：
 

@@ -303,7 +303,8 @@ credentials for every MCP request.
 The server exposes only `list_emails`, `search_emails`, `get_email`,
 `get_email_source`, and `list_attachments`. List/search results are compact,
 `get_email` omits HTML unless explicitly requested, source reads default to a
-1 MiB output cap, and attachment content is never exposed as a tool. See the
+1 MiB decoded-byte cap and return lossless base64, and attachment content is
+never exposed as a tool. See the
 [operations guide](./docs/en/Operations.md#read-only-mcp-for-test-agents) for
 the complete security and lifecycle contract.
 

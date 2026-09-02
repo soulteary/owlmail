@@ -1,7 +1,9 @@
 package mcpserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -89,7 +91,12 @@ func TestReadOnlyToolsUseMailboxSnapshots(t *testing.T) {
 
 	var source getSourceOutput
 	callTool(t, session, "get_email_source", map[string]any{"id": "second", "max_bytes": 16}, &source)
-	if !source.Truncated || len(source.Source) != 16 || source.Size <= int64(len(source.Source)) {
+	decodedSource, err := base64.StdEncoding.DecodeString(source.SourceBase64)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.Encoding != "base64" || !source.Truncated || source.ReturnedBytes != 16 ||
+		len(decodedSource) != source.ReturnedBytes || source.Size <= int64(source.ReturnedBytes) {
 		t.Fatalf("source limit was not enforced: %#v", source)
 	}
 
@@ -99,6 +106,51 @@ func TestReadOnlyToolsUseMailboxSnapshots(t *testing.T) {
 	}
 	if stored.Read || stored.Subject != "Needle result" || len(mailbox.GetAllEmail()) != 2 {
 		t.Fatalf("MCP calls mutated the mailbox: %#v", stored)
+	}
+}
+
+func TestEmailSourceUsesLosslessBase64(t *testing.T) {
+	mailbox := newTestMailbox(t)
+	prefix := []byte("From: raw@example.test\r\nTo: inbox@example.test\r\nSubject: Raw bytes\r\n\r\n")
+	rawSource := append(append(append([]byte{}, prefix...), []byte("valid UTF-8: \xe2\x82\xac; 8-bit: ")...), 0xff, 0xfe)
+	if err := os.WriteFile(filepath.Join(mailbox.GetMailDir(), "raw.eml"), rawSource, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := mailbox.SaveEmailToStore("raw", false,
+		&mailserver.Envelope{From: "raw@example.test", To: []string{"inbox@example.test"}},
+		&mailserver.Email{Subject: "Raw bytes"}); err != nil {
+		t.Fatal(err)
+	}
+
+	service := newTestService(t, mailbox, time.Minute)
+	httpServer := httptest.NewServer(service)
+	t.Cleanup(httpServer.Close)
+	session := connectTestClient(t, httpServer.URL)
+	t.Cleanup(func() { _ = session.Close() })
+
+	tests := []struct {
+		name     string
+		maxBytes int
+	}{
+		{name: "truncated in UTF-8 sequence", maxBytes: len(prefix) + len("valid UTF-8: ") + 2},
+		{name: "complete source with invalid UTF-8", maxBytes: len(rawSource)},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output getSourceOutput
+			callTool(t, session, "get_email_source", map[string]any{"id": "raw", "max_bytes": test.maxBytes}, &output)
+			decoded, err := base64.StdEncoding.DecodeString(output.SourceBase64)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if output.Encoding != "base64" || output.ReturnedBytes != test.maxBytes ||
+				!bytes.Equal(decoded, rawSource[:test.maxBytes]) {
+				t.Fatalf("source bytes changed: output=%#v decoded=%x want=%x", output, decoded, rawSource[:test.maxBytes])
+			}
+			if output.Size != int64(len(rawSource)) || output.Truncated != (test.maxBytes < len(rawSource)) {
+				t.Fatalf("unexpected source metadata: %#v", output)
+			}
+		})
 	}
 }
 

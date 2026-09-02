@@ -376,7 +376,7 @@ The MCP service exposes exactly five closed-world, read-only tools:
 | `list_emails` | Paginated compact summaries from the existing mailbox query API |
 | `search_emails` | The same summaries filtered across subject, text, and HTML |
 | `get_email` | One detached mailbox snapshot; sanitized HTML is opt-in |
-| `get_email_source` | Raw RFC 5322 source, limited to 1 MiB by default and 100 MiB maximum |
+| `get_email_source` | Raw RFC 5322 source as lossless base64; decoded bytes are limited to 1 MiB by default and 100 MiB maximum |
 | `list_attachments` | Names, content types, sizes, hashes, and storage metadata; never bytes |
 
 There are no MCP tools for deleting, marking read, relaying, forwarding,
@@ -389,6 +389,12 @@ Multiple clients may hold independent sessions. Unknown IDs return HTTP 404,
 client `DELETE` closes a session, and idle sessions close after
 `-mcp-session-timeout` (default `30m`). Process shutdown rejects new MCP work,
 closes active sessions, and waits up to `-mcp-shutdown-timeout` (default `5s`).
+
+`get_email_source` reports `encoding: "base64"`, `source_base64`, the number of
+decoded `returned_bytes`, the full source `size`, and whether the read was
+`truncated`. `max_bytes` applies to decoded source bytes, so the base64 JSON
+representation is larger. This preserves arbitrary 8-bit MIME data and partial
+UTF-8 sequences without JSON replacement.
 
 Example for a protected local endpoint:
 

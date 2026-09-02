@@ -293,7 +293,8 @@ HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请
 
 服务只提供 `list_emails`、`search_emails`、`get_email`、
 `get_email_source` 和 `list_attachments`。列表和搜索仅返回摘要；`get_email`
-默认省略 HTML；原始 source 默认最多返回 1 MiB；没有任何工具返回附件内容。
+默认省略 HTML；原始 source 使用无损 base64 返回，默认最多读取 1 MiB 原始
+字节；没有任何工具返回附件内容。
 完整安全及会话生命周期说明见[运维文档](./docs/zh-CN/Operations.md#供测试代理使用的只读-mcp)。
 
 ### 环境变量兼容性
