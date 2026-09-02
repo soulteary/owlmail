@@ -949,7 +949,7 @@
           "Relay"
         ],
         "summary": "Request email relay",
-        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. If all 1000 status slots are active, the request returns 503 with Retry-After instead of evicting an active job.",
+        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes. If all 1000 status slots contain active or newly completed protected jobs, the request returns 503 with Retry-After instead of evicting them.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -958,6 +958,7 @@
           {
             "name": "relayTo",
             "in": "query",
+            "description": "Optional explicit recipient, limited to 1024 UTF-8 bytes.",
             "schema": {
               "type": "string"
             },
@@ -1016,7 +1017,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "503": {
-            "description": "Relay status store is full of active jobs; retry later.",
+            "description": "Relay status store is full of active or newly completed protected jobs; retry later.",
             "headers": {
               "Retry-After": {
                 "description": "Suggested delay before retrying, in seconds.",
@@ -1047,7 +1048,7 @@
           "Relay"
         ],
         "summary": "Request email relay to an explicit recipient",
-        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. If all 1000 status slots are active, the request returns 503 with Retry-After instead of evicting an active job.",
+        "description": "Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes. If all 1000 status slots contain active or newly completed protected jobs, the request returns 503 with Retry-After instead of evicting them.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
@@ -1096,7 +1097,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "503": {
-            "description": "Relay status store is full of active jobs; retry later.",
+            "description": "Relay status store is full of active or newly completed protected jobs; retry later.",
             "headers": {
               "Retry-After": {
                 "description": "Suggested delay before retrying, in seconds.",
@@ -1501,7 +1502,7 @@
           "Relay"
         ],
         "summary": "Get asynchronous relay status",
-        "description": "Returns the current state of one process-local relay job. Completed jobs are retained for 24 hours; the store keeps at most 1000 jobs and never evicts an active job.",
+        "description": "Returns the current state of one process-local relay job. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
         "operationId": "getRelayJob",
         "parameters": [
           {
@@ -1579,7 +1580,7 @@
         "name": "relayTo",
         "in": "path",
         "required": true,
-        "description": "Explicit downstream recipient. The value is passed to asynchronous relay handling without API-layer syntax validation.",
+        "description": "Explicit downstream recipient. The value is passed to asynchronous relay handling without API-layer syntax validation and is limited to 1024 UTF-8 bytes.",
         "schema": {
           "type": "string",
           "minLength": 1
@@ -2179,7 +2180,7 @@
         "properties": {
           "relayTo": {
             "type": "string",
-            "description": "Optional explicit recipient. Query `relayTo` takes precedence over this field."
+            "description": "Optional explicit recipient, limited to 1024 UTF-8 bytes. Query `relayTo` takes precedence over this field."
           }
         },
         "additionalProperties": true

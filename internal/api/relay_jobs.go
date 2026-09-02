@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	errRelayJobCapacity       = errors.New("relay job status capacity reached")
+	errRelayJobCapacity      = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong = errors.New("relay recipient exceeds size limit")
 )
 
