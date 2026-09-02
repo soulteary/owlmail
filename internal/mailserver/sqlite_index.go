@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,8 @@ CREATE TABLE IF NOT EXISTS mailbox_index (
 	text_search TEXT NOT NULL,
 	html_search TEXT NOT NULL,
 	from_search TEXT NOT NULL,
-	recipients_search TEXT NOT NULL,
+	visible_recipients_search TEXT NOT NULL,
+	bcc_addresses_search TEXT NOT NULL,
 	first_from TEXT NOT NULL,
 	size INTEGER NOT NULL,
 	store_position INTEGER NOT NULL
@@ -33,13 +35,16 @@ CREATE INDEX IF NOT EXISTS mailbox_index_store ON mailbox_index(store_position);
 const sqliteMailboxUpsert = `
 INSERT INTO mailbox_index (
 	id, message_time, received_at, is_read, subject_search, text_search,
-	html_search, from_search, recipients_search, first_from, size, store_position
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	html_search, from_search, visible_recipients_search, bcc_addresses_search,
+	first_from, size, store_position
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
 	message_time=excluded.message_time, received_at=excluded.received_at,
 	is_read=excluded.is_read, subject_search=excluded.subject_search,
 	text_search=excluded.text_search, html_search=excluded.html_search,
-	from_search=excluded.from_search, recipients_search=excluded.recipients_search,
+	from_search=excluded.from_search,
+	visible_recipients_search=excluded.visible_recipients_search,
+	bcc_addresses_search=excluded.bcc_addresses_search,
 	first_from=excluded.first_from, size=excluded.size, store_position=excluded.store_position
 `
 
@@ -59,6 +64,17 @@ func NewSQLiteMailboxIndex(path string) (*SQLiteMailboxIndex, error) {
 	if err := os.MkdirAll(filepath.Dir(absolute), 0750); err != nil {
 		return nil, fmt.Errorf("create SQLite mailbox index directory: %w", err)
 	}
+	file, err := os.OpenFile(absolute, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("create SQLite mailbox index: %w", err)
+	}
+	if err := file.Chmod(0600); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("secure SQLite mailbox index: %w", err)
+	}
+	if err := file.Close(); err != nil {
+		return nil, fmt.Errorf("close SQLite mailbox index: %w", err)
+	}
 	db, err := sql.Open("sqlite", absolute)
 	if err != nil {
 		return nil, fmt.Errorf("open SQLite mailbox index: %w", err)
@@ -76,9 +92,9 @@ func NewSQLiteMailboxIndex(path string) (*SQLiteMailboxIndex, error) {
 			return nil, fmt.Errorf("initialize SQLite mailbox index: %w", err)
 		}
 	}
-	if err := os.Chmod(absolute, 0600); err != nil {
+	if err := secureSQLiteMailboxArtifacts(absolute); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("secure SQLite mailbox index: %w", err)
+		return nil, err
 	}
 	return index, nil
 }
@@ -90,7 +106,30 @@ func (index *SQLiteMailboxIndex) OwnsPath(path string) bool {
 	if err != nil {
 		return false
 	}
-	return absolute == index.path || absolute == index.path+"-wal" || absolute == index.path+"-shm"
+	for _, owned := range []string{index.path, index.path + "-wal", index.path + "-shm"} {
+		if absolute == owned {
+			return true
+		}
+		relative, err := filepath.Rel(absolute, owned)
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			if info, statErr := os.Stat(absolute); statErr == nil && info.IsDir() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func secureSQLiteMailboxArtifacts(path string) error {
+	for _, artifact := range []string{path, path + "-wal", path + "-shm"} {
+		if err := os.Chmod(artifact, 0600); err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
+			}
+			return fmt.Errorf("secure SQLite mailbox index artifact: %w", err)
+		}
+	}
+	return nil
 }
 
 func (index *SQLiteMailboxIndex) Close() error { return index.db.Close() }
@@ -100,7 +139,7 @@ func (index *SQLiteMailboxIndex) Rebuild(records []IndexedEmail) error {
 	if err != nil {
 		return err
 	}
-	defer transaction.Rollback()
+	defer func() { _ = transaction.Rollback() }()
 	if _, err := transaction.Exec("DELETE FROM mailbox_index"); err != nil {
 		return err
 	}
@@ -108,7 +147,7 @@ func (index *SQLiteMailboxIndex) Rebuild(records []IndexedEmail) error {
 	if err != nil {
 		return err
 	}
-	defer statement.Close()
+	defer func() { _ = statement.Close() }()
 	for _, record := range records {
 		if err := execSQLiteMailboxUpsert(statement, record); err != nil {
 			return err
@@ -135,7 +174,8 @@ func sqliteMailboxValues(record IndexedEmail) []interface{} {
 	return []interface{}{
 		record.ID, record.MessageTime.UnixNano(), record.ReceivedAt.UnixNano(), read,
 		record.SubjectSearch, record.TextSearch, record.HTMLSearch, record.FromSearch,
-		record.RecipientsSearch, record.FirstFrom, record.Size, record.StorePosition,
+		record.VisibleRecipientsSearch, record.BCCAddressesSearch, record.FirstFrom,
+		record.Size, record.StorePosition,
 	}
 }
 
@@ -164,7 +204,7 @@ func (index *SQLiteMailboxIndex) Query(query EmailQuery) ([]IndexedEmailResult, 
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	results := make([]IndexedEmailResult, 0, query.Limit)
 	for rows.Next() {
 		var result IndexedEmailResult
@@ -189,7 +229,7 @@ func sqliteMailboxWhere(query EmailQuery) (string, []interface{}) {
 			args = append(args, text)
 		}
 		if query.SearchAddresses {
-			parts = append(parts, "instr(from_search, ?) > 0", "instr(recipients_search, ?) > 0")
+			parts = append(parts, "instr(from_search, ?) > 0", "instr(visible_recipients_search, ?) > 0")
 			args = append(args, text, text)
 		}
 		clauses = append(clauses, "("+strings.Join(parts, " OR ")+")")
@@ -199,8 +239,8 @@ func sqliteMailboxWhere(query EmailQuery) (string, []interface{}) {
 		args = append(args, value)
 	}
 	if value := strings.ToLower(query.To); value != "" {
-		clauses = append(clauses, "instr(recipients_search, ?) > 0")
-		args = append(args, value)
+		clauses = append(clauses, "(instr(visible_recipients_search, ?) > 0 OR instr(bcc_addresses_search, ?) > 0)")
+		args = append(args, value, value)
 	}
 	if query.DateFrom != nil {
 		clauses = append(clauses, "message_time >= ?")
