@@ -1033,7 +1033,7 @@
                 },
                 "example": {
                   "code": "RELAY_FAILED",
-                  "message": "Relay status capacity reached; retry later"
+                  "message": "Relay status capacity reached; retry later."
                 }
               }
             }
@@ -1113,7 +1113,7 @@
                 },
                 "example": {
                   "code": "RELAY_FAILED",
-                  "message": "Relay status capacity reached; retry later"
+                  "message": "Relay status capacity reached; retry later."
                 }
               }
             }
