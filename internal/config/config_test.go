@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"strings"
 	"testing"
 
 	"github.com/soulteary/cli-kit/testutil"
@@ -286,6 +287,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.SMTPMaxMessageMB != DefaultSMTPMaxMessageMB {
 		t.Errorf("DefaultConfig().SMTPMaxMessageMB = %d, want %d", cfg.SMTPMaxMessageMB, DefaultSMTPMaxMessageMB)
 	}
+	if cfg.SMTPMaxConcurrency != DefaultSMTPMaxConcurrency {
+		t.Errorf("DefaultConfig().SMTPMaxConcurrency = %d, want %d", cfg.SMTPMaxConcurrency, DefaultSMTPMaxConcurrency)
+	}
 	if cfg.WebPort != 1080 {
 		t.Errorf("DefaultConfig().WebPort = %d, want %d", cfg.WebPort, 1080)
 	}
@@ -325,6 +329,73 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WebhookRedisURL != "" || cfg.WebhookRedisPrefix != "owlmail:webhooks" || cfg.WebhookShutdownTimeout != "15s" {
 		t.Errorf("unexpected default webhook queue config: %#v", cfg)
 	}
+}
+
+func TestSMTPMaxConcurrencyResolution(t *testing.T) {
+	t.Run("environment", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTP_MAX_CONCURRENCY", "3")
+		fs := flag.NewFlagSet("smtp-concurrency-env", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		cfg := ResolveConfig(fs, refs)
+		if cfg.SMTPMaxConcurrency != 3 {
+			t.Fatalf("SMTPMaxConcurrency = %d, want 3", cfg.SMTPMaxConcurrency)
+		}
+	})
+
+	t.Run("zero is unlimited", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTP_MAX_CONCURRENCY", "0")
+		fs := flag.NewFlagSet("smtp-concurrency-zero", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		cfg := ResolveConfig(fs, refs)
+		if cfg.SMTPMaxConcurrency != 0 {
+			t.Fatalf("SMTPMaxConcurrency = %d, want 0", cfg.SMTPMaxConcurrency)
+		}
+		if err := ValidateConfig(cfg); err != nil {
+			t.Fatalf("unlimited config failed validation: %v", err)
+		}
+	})
+
+	t.Run("CLI overrides invalid environment", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTP_MAX_CONCURRENCY", "not-a-number")
+		fs := flag.NewFlagSet("smtp-concurrency-cli", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-smtp-max-concurrency", "5"}); err != nil {
+			t.Fatal(err)
+		}
+		cfg := ResolveConfig(fs, refs)
+		if cfg.SMTPMaxConcurrency != 5 {
+			t.Fatalf("SMTPMaxConcurrency = %d, want 5", cfg.SMTPMaxConcurrency)
+		}
+	})
+
+	for _, value := range []string{"-1", "invalid", "8.5"} {
+		t.Run("reject "+value, func(t *testing.T) {
+			t.Setenv("OWLMAIL_SMTP_MAX_CONCURRENCY", value)
+			fs := flag.NewFlagSet("smtp-concurrency-invalid", flag.ContinueOnError)
+			refs := DefineFlags(fs)
+			if err := fs.Parse(nil); err != nil {
+				t.Fatal(err)
+			}
+			cfg := ResolveConfig(fs, refs)
+			if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "non-negative integer") {
+				t.Fatalf("ValidateConfig() error = %v", err)
+			}
+		})
+	}
+
+	t.Run("invalid CLI string", func(t *testing.T) {
+		fs := flag.NewFlagSet("smtp-concurrency-invalid-cli", flag.ContinueOnError)
+		_ = DefineFlags(fs)
+		if err := fs.Parse([]string{"-smtp-max-concurrency", "invalid"}); err == nil {
+			t.Fatal("invalid CLI integer was accepted")
+		}
+	})
 }
 
 func TestSMTPAuthRequireTLSResolution(t *testing.T) {

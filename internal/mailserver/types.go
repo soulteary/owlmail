@@ -50,16 +50,18 @@ type TLSConfig struct {
 }
 
 // ServerOptions contains optional runtime integrations and SMTP behavior.
-// Zero MaxMessageBytes selects DefaultMaxMessageBytes.
+// Zero MaxMessageBytes selects DefaultMaxMessageBytes. Zero
+// MaxDataConcurrency leaves SMTP DATA concurrency unlimited.
 type ServerOptions struct {
-	OutgoingConfig   *outgoing.OutgoingConfig
-	AuthConfig       *SMTPAuthConfig
-	AuthRequireTLS   bool
-	TLSConfig        *TLSConfig
-	UseUUIDForID     bool
-	MaxMessageBytes  int64
-	AttachmentStore  attachmentstore.Store
-	AttachmentHealth attachmentstore.ReadinessProvider
+	OutgoingConfig     *outgoing.OutgoingConfig
+	AuthConfig         *SMTPAuthConfig
+	AuthRequireTLS     bool
+	TLSConfig          *TLSConfig
+	UseUUIDForID       bool
+	MaxMessageBytes    int64
+	MaxDataConcurrency int
+	AttachmentStore    attachmentstore.Store
+	AttachmentHealth   attachmentstore.ReadinessProvider
 }
 
 // AttachmentReader describes an attachment opened for HTTP streaming.
@@ -86,6 +88,8 @@ type MailServer struct {
 	port                    int
 	host                    string
 	maxMessageBytes         int64
+	maxDataConcurrency      int
+	dataLimiter             *dataLimiter
 	attachmentStore         attachmentstore.Store
 	attachmentHealth        attachmentstore.ReadinessProvider
 	attachmentUploadTimeout time.Duration
@@ -125,6 +129,11 @@ type MailServer struct {
 	beforeEmailRollback        func(string) error
 	beforeEmailDelete          func(string) error
 	syncAcceptedFenceDirectory func(string) error
+
+	// DATA hooks are nil in production and provide deterministic synchronization
+	// for concurrency and shutdown tests.
+	afterDataAcquire  func()
+	beforeDataRelease func()
 }
 
 // GetHost returns the SMTP server host
@@ -140,6 +149,12 @@ func (ms *MailServer) GetPort() int {
 // GetMaxMessageBytes returns the configured inbound SMTP message-size limit.
 func (ms *MailServer) GetMaxMessageBytes() int64 {
 	return ms.maxMessageBytes
+}
+
+// GetMaxDataConcurrency returns the per-process SMTP DATA transaction limit.
+// Zero means unlimited.
+func (ms *MailServer) GetMaxDataConcurrency() int {
+	return ms.maxDataConcurrency
 }
 
 // GetMailDir returns the mail directory path

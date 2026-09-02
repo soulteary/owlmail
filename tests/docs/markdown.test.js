@@ -299,6 +299,8 @@ test("security-sensitive SMTP authentication modes remain explicit", () => {
     "smtp-max-message-mb",
     "50 recipients",
     "50 个收件人",
+    "OWLMAIL_SMTP_MAX_CONCURRENCY",
+    "451 4.3.2",
   ]) {
     assert.ok(help.includes(marker), `web/help.html is missing SMTP ingress marker ${marker}`);
   }

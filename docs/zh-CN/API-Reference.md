@@ -173,6 +173,11 @@ SMTPS 连接上执行，并要求启用 SMTP TLS；NO AUTH 模式下的匿名投
 启动策略不能通过设置 API 修改。详见
 [运维与排障](./Operations.md#smtp-入口限制与鉴权模式)。
 
+入站 DATA 处理默认限制为每进程 8 个并发事务，普通 SMTP、STARTTLS 与 SMTPS
+共用上限。可通过 `OWLMAIL_SMTP_MAX_CONCURRENCY` 或 `-smtp-max-concurrency`
+设置；`0` 表示不限制。达到上限时 SMTP 客户端收到可重试的 `451 4.3.2`，而不是
+HTTP API 错误。该进程级启动配置不会由设置 API 返回或修改。
+
 ```bash
 curl -u admin:secret \
   -H 'Content-Type: application/json' \

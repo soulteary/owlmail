@@ -455,6 +455,22 @@ The SMTP and SMTPS servers accept at most 100 MiB per message by default. Set
 to change the limit. The recipient limit remains 50 and read/write timeouts
 remain 10 seconds.
 
+OwlMail also allows eight concurrent SMTP message-body transactions per process
+by default. Configure the limit with `-smtp-max-concurrency` or
+`OWLMAIL_SMTP_MAX_CONCURRENCY`; `0` explicitly restores unlimited concurrency.
+One limiter is owned by the mail server and shared by ordinary SMTP, STARTTLS,
+and direct SMTPS. Each replica applies its own limit; this is not a cluster-wide
+or distributed quota.
+
+A slot is acquired non-blockingly when the SMTP library enters its DATA handler
+and is held through raw EML staging, MIME and body processing, attachment
+streaming and digest calculation, S3 upload, and atomic commit or rollback. It
+does not limit connections, sessions, AUTH, MAIL FROM, or RCPT TO. When all
+slots are occupied, OwlMail drains the submitted message body without storing
+it and returns `451 4.3.2 temporary resource limit reached; try again later`.
+That temporary status tells compliant SMTP clients to retry; rejected messages
+leave no EML, attachment, index, or S3 object behind.
+
 Omitting both `-smtp-user` and `-smtp-password` selects NO AUTH mode. It accepts
 mail without authentication and accepts arbitrary PLAIN/LOGIN credentials so
 test clients that require credential fields can connect without OwlMail-side

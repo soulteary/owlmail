@@ -867,6 +867,9 @@ func TestCreateMailServer(t *testing.T) {
 	if got, want := server.GetMaxMessageBytes(), int64(64<<20); got != want {
 		t.Fatalf("MaxMessageBytes = %d, want %d", got, want)
 	}
+	if got := server.GetMaxDataConcurrency(); got != 0 {
+		t.Fatalf("MaxDataConcurrency = %d, want unlimited", got)
+	}
 	defer func() {
 		if server != nil {
 			if err := server.Close(); err != nil {
@@ -1067,6 +1070,15 @@ func TestCreateMailServerRejectsNegativeMessageLimit(t *testing.T) {
 	cfg.SMTPMaxMessageMB = -1
 	if _, err := createMailServer(cfg); err == nil || !strings.Contains(err.Error(), "greater than zero") {
 		t.Fatalf("createMailServer() error = %v, want invalid message-size error", err)
+	}
+}
+
+func TestCreateMailServerRejectsNegativeDataConcurrency(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = t.TempDir()
+	cfg.SMTPMaxConcurrency = -1
+	if _, err := createMailServer(cfg); err == nil || !strings.Contains(err.Error(), "non-negative integer") {
+		t.Fatalf("createMailServer() error = %v", err)
 	}
 }
 

@@ -73,6 +73,20 @@ func TestNewMailServerWithCustomMessageLimit(t *testing.T) {
 	}
 }
 
+func TestNewMailServerWithDataConcurrencyLimit(t *testing.T) {
+	server, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{MaxDataConcurrency: 4})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if got := server.GetMaxDataConcurrency(); got != 4 {
+		t.Fatalf("GetMaxDataConcurrency() = %d, want 4", got)
+	}
+	if _, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{MaxDataConcurrency: -1}); err == nil {
+		t.Fatal("negative DATA concurrency was accepted")
+	}
+}
+
 func TestNewMailServerRejectsAuthRequireTLSWithoutTLS(t *testing.T) {
 	for _, tlsConfig := range []*TLSConfig{nil, {Enabled: false}} {
 		_, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{

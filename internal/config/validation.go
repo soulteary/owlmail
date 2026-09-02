@@ -38,6 +38,9 @@ func ValidateConfig(cfg *Config) error {
 	if int64(cfg.SMTPMaxMessageMB) > maxMessageMB {
 		return fmt.Errorf("SMTP max message size is too large")
 	}
+	if cfg.SMTPMaxConcurrency < 0 {
+		return fmt.Errorf("SMTP max concurrency must be a non-negative integer")
+	}
 	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
 		return fmt.Errorf("SMTP username and password must be configured together")
 	}

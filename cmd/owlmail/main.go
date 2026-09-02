@@ -538,6 +538,9 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config is nil")
 	}
+	if cfg.SMTPMaxConcurrency < 0 {
+		return nil, fmt.Errorf("SMTP max concurrency must be a non-negative integer")
+	}
 
 	// Validate and compile webhook configuration before starting server resources.
 	webhookDispatcher, err := setupWebhookDispatcher(cfg)
@@ -594,14 +597,15 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
-		OutgoingConfig:   outgoingConfig,
-		AuthConfig:       authConfig,
-		AuthRequireTLS:   cfg.SMTPAuthRequireTLS,
-		TLSConfig:        tlsConfig,
-		UseUUIDForID:     cfg.UseUUIDForEmailID,
-		MaxMessageBytes:  int64(maxMessageMB) << 20,
-		AttachmentStore:  attachmentStore,
-		AttachmentHealth: healthProvider,
+		OutgoingConfig:     outgoingConfig,
+		AuthConfig:         authConfig,
+		AuthRequireTLS:     cfg.SMTPAuthRequireTLS,
+		TLSConfig:          tlsConfig,
+		UseUUIDForID:       cfg.UseUUIDForEmailID,
+		MaxMessageBytes:    int64(maxMessageMB) << 20,
+		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
+		AttachmentStore:    attachmentStore,
+		AttachmentHealth:   healthProvider,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)

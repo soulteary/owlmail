@@ -137,6 +137,14 @@ func TestValidateConfig(t *testing.T) {
 		}
 	})
 
+	t.Run("invalid SMTP max concurrency", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.SMTPMaxConcurrency = -1
+		if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "non-negative integer") {
+			t.Fatalf("ValidateConfig() error = %v", err)
+		}
+	})
+
 	t.Run("invalid Web port", func(t *testing.T) {
 		cfg := DefaultConfig()
 		cfg.WebPort = 70000

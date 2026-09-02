@@ -205,6 +205,12 @@ enabled; it does not change anonymous delivery in NO AUTH mode. This startup
 policy is not writable through the settings API. See
 [Operations](./Operations.md#smtp-ingress-limits-and-authentication-modes).
 
+Inbound DATA processing is limited to eight concurrent transactions per process
+by default across SMTP, STARTTLS, and SMTPS. Set `OWLMAIL_SMTP_MAX_CONCURRENCY`
+or `-smtp-max-concurrency`; `0` means unlimited. At capacity the SMTP client
+receives retryable `451 4.3.2`, not an HTTP API error. This process-level startup
+setting is not exposed or modified by the settings API.
+
 ```bash
 curl -u admin:secret \
   -H 'Content-Type: application/json' \
