@@ -1,4 +1,4 @@
-# OwlMail × MailDev: 전체 기능 및 API 비교 및 마이그레이션 화이트페이퍼
+# OwlMail × MailDev × MailCatcher: 전체 기능 및 API 비교 및 마이그레이션 화이트페이퍼
 
 > **소스 코드 수준의 심층 비교 + 사용자 및 개발자를 위한 마이그레이션 가이드**
 
@@ -14,12 +14,12 @@
 
 ## 📋 실행 요약
 
-OwlMail과 MailDev는 기본 개발 워크플로를 공유하지만 **프로토콜이 동일하지
+OwlMail, MailDev 및 MailCatcher는 기본 개발 워크플로를 공유하지만 **프로토콜이 동일하지
 않으며 검증 없이 교체할 수 없습니다**. API 접두사, 응답 형식, 읽음 상태 및
 실시간 프로토콜이 다릅니다. 현재 범위는
 [API 참조](../en/API-Reference.md)를 확인하세요.
 
-기본적으로 비활성화된 `-maildev-rest-compat` 옵션은 현재 MailDev REST 경로를
+OwlMail은 검토된 main 브랜치에서만(v0.6.0에는 포함되지 않음) 기본적으로 비활성화된 읽기 전용 MCP 엔드포인트를 제공합니다. MailDev 3의 MCP 범위는 더 넓고 MailCatcher에는 내장 MCP가 없습니다. 기본적으로 비활성화된 `-maildev-rest-compat` 옵션은 현재 MailDev REST 경로를
 `/api` 아래에 제공합니다. Socket.IO 호환성은 제공하지 않습니다.
 
 > **참고**: 번역이 완료되면 전체 내용을 사용할 수 있습니다. 그동안 전체 세부사항은 영어 버전을 참조하세요.

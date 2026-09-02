@@ -1,192 +1,140 @@
-# OwlMail × MailDev：功能、API 与迁移指南
+# OwlMail × MailDev × MailCatcher：功能、API 与迁移指南
 
-> 面向选型与迁移的源码级对比，而不是未经验证的兼容性承诺。
+> 面向开发邮件服务器选型的源码级比较。本文记录已验证行为，不承诺无缝兼容。
 
-**审查基线：** 2026-08-29。本文对照当前 OwlMail 源码与
-[MailDev 官方 REST 文档](https://github.com/maildev/maildev/blob/main/docs/rest.md)。
-两个项目都可能继续变化，部署前仍应核对实际版本。
+**审查基线：2026-09-02。**
+
+- OwlMail：正式版 0.6.0；已审查 main 为
+  279571b62a5e4891f0a204837d8553b131b89b20。
+- MailDev：候选版 maildev@3.0.0-rc.3；main 为
+  9d4141f42b0acedfa544a306f96a5373ded8c8a3。最新稳定 2.x 为 2.2.1，
+  与 3.x 主线架构存在明显差异。
+- MailCatcher：GitHub 最新 Release 为 v0.10.0；main 已声明 0.11.0，
+  审查提交为 43e488e2a5692532c131a87d5bd16a973ee8db56。
+
+三个项目都会继续变化。开发和 CI 应固定版本，迁移前应按实际构建重新验证。
 
 ## 执行摘要
 
-OwlMail 与 MailDev 的核心目标一致：接收 SMTP 邮件、保存以供检查、通过浏览器
-展示，并按需中继。因此，只使用 SMTP 接收功能的环境通常迁移较简单。
+三者都能接收开发环境 SMTP 邮件并提供检查界面，但优化方向不同：
 
-OwlMail 还提供单一 Go 二进制、版本化 `/api/v1`、原生 SMTPS、浏览器通知、
-通用 Webhook 转发和内嵌本地帮助。这些是 OwlMail 的自身能力，不代表协议等价。
+- **OwlMail** 侧重 Go 单二进制、可恢复的持久化、本地或 S3 附件、通用持久
+  Webhook、版本化 API，以及默认关闭的只读 MCP。
+- **MailDev 3** 侧重 React 邮件检查体验、Node 嵌入、真正的 Socket.IO、
+  更完整的 MCP 工作流和 TypeScript 应用配置。
+- **MailCatcher** 侧重简单 Ruby 工作流、轻量收件箱及 catchmail sendmail
+  替代命令。
 
-OwlMail **不是当前 MailDev 的精确无缝替代品**。现在可以显式开启默认关闭的
-MailDev `/api` REST facade 来兼容当前路由与载荷，但浏览器 UI、Socket.IO 实时
-协议、配置覆盖范围和 MCP 工具合约仍不相同。REST 迁移可使用 facade，非 REST
-集成仍必须逐项验证。
+OwlMail 不是另外两者的通用无缝替代。已审查 main 上的可选 MailDev REST facade 能覆盖当前
+MailDev REST 合约，但不实现 Socket.IO 或 Node API；MailCatcher 的 messages
+API 和实时协议也不同。
 
-## 功能比较
+## 功能对比
 
-| 能力 | MailDev | OwlMail | 迁移说明 |
+| 能力 | OwlMail 0.6.0 | OwlMail 已审查 main | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
+|---|---|---|---|---|
+| 运行时 | Go 单二进制，内嵌 Web 资源 | 相同 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra |
+| 核心优势 | 可恢复本地存储与持久 Webhook | 存储、自动化及更多集成能力 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 |
+| SMTP 捕获 | SMTP、STARTTLS、直接 SMTPS | 相同 | 可配置 SMTP/TLS | 简单 SMTP Server |
+| 邮件大小 | 固定 1 MiB | 可配置，默认 100 MiB | 可配置，当前 main 默认 50 MiB | 未记录等价控制 |
+| DATA 并发 | 无进程级限制 | 进程级可配置，默认 8，0 为无限制 | 未记录等价 DATA 限流 | 未记录等价限流 |
+| 持久化 | EML 原子提交、恢复与 quarantine | 相同 | 可选 EML/附件目录并在启动时恢复 | SQLite 内存数据库 |
+| 保留策略 | 按时间、数量和本地磁盘占用 | 相同 | 最大邮件数量 | 最大消息数量 |
+| 附件 | 本地保存解码附件 | 流式 staging；本地或可选 S3 | 启用持久化时保存本地附件 | 随内存消息数据库保存 |
+| REST API | 原生版本化及历史无版本路由 | 相同，另有可选 MailDev facade | 当前接口位于 /api | messages API 位于 /messages |
+| 实时更新 | 原生 RFC 6455 WebSocket | 相同 | Socket.IO | WebSocket，浏览器可退化为轮询 |
+| UI | 轻量多语言收件箱 | 相同，并增加安全 HTML 隔离和响应式宽度 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
+| MCP | 无内置端点 | 默认关闭的 Streamable HTTP，含七个只读工具、资源和 Prompts | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
+| Webhook | 过滤、模板、HMAC、重试、本地 outbox、可选 Redis Streams | 相同 | 无等价通用持久 Webhook 管道 | 无内置通用 Webhook |
+| Relay | 手动与自动出站 SMTP 中继 | 相同 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
+| sendmail 替代 | 无内置命令 | owlmail sendmail | 未记录内置等价命令 | catchmail |
+| 嵌入能力 | 无稳定公共 Go SDK，internal 不是公共接口 | 相同 | 公共 Node API | 主要作为独立 Ruby 命令 |
+| Base path | 无可配置 URL 前缀 | 支持可配置 URL 前缀 | 支持 | 通过 http-path 支持 |
+| 鉴权 | Web Basic Auth；SMTP 凭据设置不强制验证 | Web Basic Auth；真实 SMTP AUTH；可选强制 TLS | Web 与入站 SMTP 凭据 | 面向可信开发环境 |
+| 多实例共享邮箱 | 不支持 | 相同 | 不支持 | 不支持 |
+
+本文不提供跨项目性能排名。运行语言、二进制大小或微基准不能代表 MIME 解析、
+磁盘压力、TLS、S3、Webhook 下游和浏览器共同作用下的端到端性能。
+
+## API 与实时兼容边界
+
+| 工作流 | MailDev | OwlMail | MailCatcher |
 |---|---|---|---|
-| SMTP 捕获 | 支持 | 支持，默认 1025 | 通常只需修改主机名 |
-| 浏览器收件箱 | 支持 | 支持，默认 1080 | UI 定制不能直接移植 |
-| EML 目录 | 支持 | 支持 | 切换前先用归档副本验证 |
-| 单封中继 | 支持 | 支持 | 需要出站 SMTP 设置 |
-| 自动中继 | 支持 | 支持 | OwlMail 支持 allow/deny JSON 规则 |
-| 入站 SMTP 鉴权 | 支持 | PLAIN/LOGIN；两项凭据同时配置时强制，否则为 NO AUTH | 迁移鉴权边界时同时配置用户名和密码 |
-| Web Basic Auth | 支持 | 支持 | OwlMail 健康检查仍公开 |
-| SMTP TLS / STARTTLS | 支持 | 支持 | 证书路径必须可读 |
-| 直接 SMTPS | 随版本而异 | 开启 SMTP TLS 时监听 465 | OwlMail 特有行为 |
-| REST API | 支持 | 支持，并提供可选 MailDev `/api` facade | OwlMail 原生路由仍不同 |
-| 实时更新 | Socket.IO | 原生 WebSocket | 客户端代码需要修改 |
-| 通用出站 Webhook | 随版本而异 | 支持 | OwlMail 提供模板、HMAC、重试和过滤 |
-| 浏览器通知 | 随 UI/版本而异 | 浏览器内按需开启 | 需要权限和安全上下文 |
-| MCP 服务 | 当前 MailDev 提供 | 不提供 | 依赖时需保留 MailDev 或另行集成 |
-| 通用 JS/JSON 配置文件 | 当前 MailDev 提供 | 无通用配置文件 | OwlMail 使用参数和环境变量；Webhook 目标使用 JSON |
-| 可配置基础路径 | 支持 | 支持 | OwlMail 会统一前缀 UI、API、原生 WebSocket、兼容路由与 Service Worker |
+| 列表 | GET /api/email | 仅开启 facade 后同路径；原生为 GET /api/v1/emails | GET /messages |
+| 精简列表 | GET /api/email/summary | 仅 facade 保持同路径和形状 | 未记录等价 summary 合约 |
+| 详情 | GET /api/email/:id，并标记已读 | facade 保留副作用；原生详情不标记 | GET /messages/:id.json |
+| HTML/文本/源码 | MailDev 专用 /api 路径 | facade 与原生版本化路径 | /messages/:id.html、.plain、.source |
+| 附件 | MailDev attachment 路径 | facade 与原生附件路径 | /messages/:id/parts/:cid |
+| 实时事件 | Socket.IO | 原生 WebSocket，不是 Socket.IO | 项目专用 WebSocket/轮询 |
+| 嵌入 API | Node MailDev 类 | 无 | 无 |
 
-本文不提供性能星级，因为仓库中没有可复现的跨项目基准。编译后的 Go 二进制
-可以简化部署，但吞吐和内存应按实际邮件、存储、TLS 与 Webhook 下游测量。
+在已审查 OwlMail main 上，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
+-maildev-rest-compat 才会启用 OwlMail MailDev facade。它复用现有 Basic Auth、
+HTTPS、存储和 base path，但不会启用 Socket.IO。
 
-## API 兼容边界
+不要把 MailCatcher HTTP 客户端直接指向 OwlMail。仅使用 SMTP 的应用迁移更简单，
+因为三者都接受普通 SMTP 投递。
 
-### 当前 MailDev 接口
+## Agent 集成
 
-当前 MailDev 把路由放在 `/api` 下，包括 `/api/email`、
-`/api/email/summary`、`/api/email/delete` 和 `/api/config`。调用
-`GET /api/email/:id` 会把邮件标记为已读；实时事件使用 Socket.IO，事件名为
-`newMail` 和 `deleteMail`。
+已审查 OwlMail main 已提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base
+pathname 后使用 `<base-pathname>/mcp`。它包含七个封闭只读工具：列表、搜索、
+独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得最新邮件，以及
+事件驱动且有界的投递等待。它还提供有界的收件箱、统计与单邮件资源，以及注册验证、
+密码重置和投递等待 Prompts；生成的 Web 链接会保留 base path。它与 Web API 共用
+监听器和鉴权边界，并明确不提供删除、已读修改、Relay、配置修改或附件二进制。
 
-### OwlMail 接口
+MailDev 3 的 MCP 范围更广，同时支持 HTTP 和 stdio。两者的工具名称和载荷不能
+直接互换，已有 MailDev MCP 客户端仍需显式兼容验证。
 
-OwlMail 提供三个 HTTP 接口面：
+MailCatcher 没有内置 MCP；Agent 只能通过单独的工具或适配器使用其 HTTP API。
 
-- `/api/v1/*`：推荐的新集成接口。
-- 无版本的 `/email`、`/config`、`/healthz` 和 `/socket.io`：保留给已有
-  OwlMail 客户端及常见 MailDev 风格工作流。
-- 可选 `/api/*` MailDev REST 路由，仅在 `-maildev-rest-compat` 或
-  `OWLMAIL_MAILDEV_REST_COMPAT=true` 时启用。
+## 存储与可靠性边界
 
-设置 `-base-pathname /owlmail`（或 `OWLMAIL_BASE_PATHNAME=/owlmail`）后，
-本节所有路径都应加上 `/owlmail` 前缀；同时接受兼容变量
-`MAILDEV_BASE_PATHNAME`。该设置只改变路由位置，不改变协议：
-`/owlmail/socket.io` 仍是原生 RFC 6455 WebSocket。
+OwlMail 在最终 EML 标记前提交附件，只在完整存储事务成功后将邮件暴露给 API，
+并在启动恢复时隔离不完整或不可解析的文件。可选 S3 模式只远程保存解码附件；
+EML、元数据、事务状态和 Webhook outbox 仍保留在本地。
 
-REST facade 复用 OwlMail 的存储、认证、HTTPS 与 base path。只有 facade 的详情
-路由会将邮件标记已读，其 DTO 保留 MailDev 的数组、summary、信封、附件、修改与
-错误形状。OwlMail 的 `/socket.io` 仍是原生 RFC 6455 WebSocket；路径名称并不
-意味着兼容 Socket.IO，REST 开关也绝不会启用 Socket.IO。
+MailDev 可保存并恢复 EML 和附件，但其存储模型与 OwlMail 的事务和 quarantine
+保证并不相同。
 
-| 工作流 | 当前 MailDev | OwlMail |
-|---|---|---|
-| 邮件列表 | `GET /api/email` | 启用 facade 后路径与数组载荷相同；否则原生路由不同 |
-| 精简列表 | `GET /api/email/summary` | 启用 facade 后路径与 summary 信封相同 |
-| 获取详情 | `GET /api/email/:id`，同时标记已读 | 仅 facade 行为相同；原生详情无已读副作用 |
-| 标记单封已读 | 获取详情时隐式完成 | `PATCH /email/:id/read` 或 `PATCH /api/v1/emails/:id/read` |
-| 批量删除 | `POST /api/email/delete` | 启用 facade 后请求和结果形状相同 |
-| 重载目录 | `GET /api/reloadMailsFromDirectory` | 启用 facade 后路径相同 |
-| 配置信息 | `GET /api/config` | 启用 facade 后提供相同精简形状 |
-| 健康检查 | `GET /api/healthz` | 启用 facade 后提供相同公开 JSON 布尔值 |
-| 实时事件 | Socket.IO `newMail`、`deleteMail` | 原生 WS `{type:"new"}`、`{type:"delete"}` |
+MailCatcher 使用内存 SQLite。消息上限能限制活动收件箱，但它不是持久归档。
 
-原生集合响应仍不同：`/api/v1` 返回分页信封，例如
-`{ "total": 3, "limit": 50, "offset": 0, "emails": [...] }`。可选 facade
-则返回 MailDev 的数组和 summary 信封形状。
+三者都不应被描述为支持水平扩展、共享数据库的生产邮箱系统。
 
-完整路由、载荷、状态行为、鉴权和 WebSocket 协议见
-[OwlMail API 参考](./API-Reference.md)。
+## 选型建议
 
-## 配置兼容边界
+以下情况优先选择已审查的 **OwlMail main**：需要单文件部署、ARM/跨平台、持久 Webhook
+自动化、磁盘异常恢复、可选 S3 附件、SMTP 资源控制或小型只读 Agent 接口。
 
-OwlMail 接受文档中列出的部分 `MAILDEV_*` 环境变量，显式 CLI 参数优先级更高；
-OwlMail 特有设置还提供 `OWLMAIL_*` 名称。这是迁移便利层，并非支持当前
-MailDev 的每个选项。
+以下情况优先选择 **MailDev**：需要更完整的交互 UI、Node 嵌入、精确
+Socket.IO、配置文件或更广的 MCP 工作流。
 
-常见直接映射：
+以下情况优先选择 **MailCatcher**：熟悉 Ruby，且 catchmail 与最小部署流程
+比持久化、Relay、Webhook 或 Agent 集成更重要。
 
-| 用途 | OwlMail 接受的 MailDev 风格变量 | OwlMail 变量 |
-|---|---|---|
-| SMTP 端口 | `MAILDEV_SMTP_PORT` | `OWLMAIL_SMTP_PORT` |
-| Web 端口 | `MAILDEV_WEB_PORT` | `OWLMAIL_WEB_PORT` |
-| 邮件目录 | `MAILDEV_MAIL_DIRECTORY` | `OWLMAIL_MAIL_DIR` |
-| Web 用户名 | `MAILDEV_WEB_USER` | `OWLMAIL_WEB_USER` |
-| Web 密码 | `MAILDEV_WEB_PASS` | `OWLMAIL_WEB_PASSWORD` |
-| 基础路径 | `MAILDEV_BASE_PATHNAME` | `OWLMAIL_BASE_PATHNAME` |
-| 出站主机 | `MAILDEV_OUTGOING_HOST` | `OWLMAIL_OUTGOING_HOST` |
-| 入站用户名 | `MAILDEV_INCOMING_USER` | `OWLMAIL_SMTP_USER` |
+从 MailDev 迁移时，应先盘点 REST 和实时客户端，再决定是否开启 facade。
+从 MailCatcher 迁移时，应把 SMTP 捕获和 sendmail 替代视为可迁移概念，并对
+HTTP 与 WebSocket 集成逐项适配。
 
-完整支持范围以根 README 配置表为准。MCP、通用配置文件等 MailDev 能力，不会
-因为 OwlMail 接受其他 `MAILDEV_*` 变量而自动可用。
+## 本基线下 OwlMail main 仍有的缺口
 
-## 需要规划的运行差异
+- 原生 WebSocket 不是 Socket.IO。
+- 没有稳定公共 Go 嵌入 SDK，也没有通用应用配置文件。
+- SMTP 读写超时和收件人数仍使用固定默认值。
+- 原生 Relay 只表示异步入队，不提供持久化投递状态。
+- Web 收件箱尚未提供完整浏览器历史与键盘导航语义。
+- 即使 EML 已持久化，邮箱索引仍主要位于内存。
+- 没有 Prometheus 指标端点。
 
-### Web 凭据
+以上是 OwlMail 路线观察，并不表示 MailDev 或 MailCatcher 一定实现同等能力。
 
-- 用户名和密码都不设置：关闭 Basic Auth。
-- 只设置用户名：生成 32 字符密码，只在 stderr 输出一次；重启后变化。
-- 只设置密码：默认用户名为 `admin`。
-- 两项都设置：使用明确配置的凭据。
+## 主要源码
 
-自动化场景应同时配置两项。凭据离开 localhost 时应启用 HTTPS。
-
-### Webhook 投递压力
-
-OwlMail 对 Webhook 投递使用进程级并发上限，建议默认值为 8。只有在明确需要
-无限并发且已验证下游容量时，才设置 `-webhook-max-concurrency 0`。有限上限在
-所有槽位繁忙时对新邮件处理施加背压，避免慢下游造成无限等待 goroutine。
-
-详见 [Webhook 消息转发](./Webhook-Forwarding.md)和
-[场景示例](../../examples/webhooks/README.zh-CN.md)。
-
-### 浏览器通知
-
-通知默认关闭，由每个浏览器在收件箱内独立开启。只有实时到达的新消息才通知。
-需要 HTTPS 或可信 localhost 来源，浏览器也可以独立撤销权限。
-
-## 迁移手册
-
-### 仅使用 SMTP 的应用
-
-1. 在未占用的主机/端口启动 OwlMail。
-2. 将预发布应用的 SMTP 主机指向 OwlMail 1025 端口。
-3. 发送纯文本、HTML、多段、BCC 与附件邮件。
-4. 使用持久化时核对信封收件人与 EML 文件。
-5. 所有检查通过后再切换开发环境。
-
-### REST 客户端
-
-1. 盘点每个方法、路径、查询参数和预期响应结构。
-2. 优先选择 `/api/v1`，不要新增对无版本别名的依赖。
-3. 修改基础路径并解析 OwlMail 分页信封。
-4. 将“读取详情即已读”改为显式 `PATCH`。
-5. 验证未找到、参数错误、中继失败和鉴权响应。
-6. 在 CI 或容器部署中固定 OwlMail 版本。
-
-### 实时事件客户端
-
-1. 用原生 WebSocket 客户端替换 Socket.IO 库。
-2. 连接 `/api/v1/ws`。
-3. 处理 `connected`、`new` 和 `delete` 类型。
-4. 在客户端实现重连与退避。
-5. 浏览器启用 Basic Auth 时，从 OwlMail 同源提供客户端；否则使用不携带
-   `Origin` 的服务端桥接。
-
-### EML 归档
-
-1. 备份 MailDev 目录。
-2. 让 OwlMail 先读取副本，绝不直接使用唯一归档。
-3. 抽样核对数量、HTML、源码和附件。
-4. 在不再需要回滚前保留原目录。
-
-## 验收清单
-
-- 纯文本、HTML、Unicode、BCC 与附件展示正确。
-- API 客户端能解析集合信封和明确错误码。
-- 只有客户端显式请求时才修改已读状态。
-- 删除、批量、导出、中继和重载符合预期。
-- WebSocket 重连和事件处理已经测试。
-- 明确 Basic Auth、HTTPS、健康检查和同源行为。
-- 对 Webhook 过滤、签名、重试、超时与并发做负载验证。
-- 回滚方案保留原 EML 归档和旧配置。
-
-## 结论
-
-当 Go 部署模型、版本化 API、原生 WebSocket、Webhook、浏览器通知或内置帮助
-符合需求时，可以选择 OwlMail；如果依赖当前 MailDev 的精确 REST、Socket.IO、
-MCP、基础路径或配置行为，应继续使用 MailDev。混合环境中，反向代理或小型适配
-层比依赖未文档化的“等价性”更安全。
+- OwlMail API：[docs/zh-CN/API-Reference.md](./API-Reference.md)
+- OwlMail 运维：[docs/zh-CN/Operations.md](./Operations.md)
+- [MailDev README](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/README.md)
+- [MailDev REST](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/rest.md)
+- [MailDev MCP](https://github.com/maildev/maildev/blob/9d4141f42b0acedfa544a306f96a5373ded8c8a3/docs/mcp.md)
+- [MailCatcher README](https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/README.md)
+- [MailCatcher 版本](https://github.com/sj26/mailcatcher/blob/43e488e2a5692532c131a87d5bd16a973ee8db56/lib/mail_catcher/version.rb)
