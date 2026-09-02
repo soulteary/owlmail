@@ -116,6 +116,7 @@ type MailServer struct {
 	// provide deterministic fault injection for transaction boundary tests.
 	beforeStoreCommit          func(*types.Email) error
 	beforeAttachmentWrite      func(string) error
+	wrapAttachmentWriter       func(io.Writer) io.Writer
 	beforeQuarantineMove       func(string) error
 	beforeEmailRollback        func(string) error
 	beforeEmailDelete          func(string) error

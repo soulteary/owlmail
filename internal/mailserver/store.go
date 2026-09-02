@@ -1,7 +1,9 @@
 package mailserver
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -18,6 +20,8 @@ import (
 )
 
 const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
+
+const attachmentCopyBufferSize = 32 * 1024
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
@@ -147,13 +151,14 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 // saveAttachment saves an attachment to disk
 func (ms *MailServer) saveAttachment(id string, attachment *Attachment, data []byte) error {
 	attachmentDir := filepath.Join(ms.mailDir, id)
-	return ms.saveAttachmentInDirectory(attachmentDir, attachment, data)
+	return ms.saveAttachmentReaderInDirectory(attachmentDir, attachment, bytes.NewReader(data))
 }
 
-// saveAttachmentInDirectory writes an attachment atomically inside dir. The
-// caller may pass a staging directory so a complete message can be committed
-// by rename only after every attachment is durable.
-func (ms *MailServer) saveAttachmentInDirectory(attachmentDir string, attachment *Attachment, data []byte) error {
+// saveAttachmentReaderInDirectory streams an attachment into an atomic file
+// inside dir while calculating its decoded size and SHA-256 digest. SMTP
+// transactions pass their private staging directory here; the directory is
+// promoted only after every attachment is durable.
+func (ms *MailServer) saveAttachmentReaderInDirectory(attachmentDir string, attachment *Attachment, data io.Reader) error {
 	if err := os.MkdirAll(attachmentDir, 0755); err != nil {
 		return fmt.Errorf("failed to create attachment directory: %w", err)
 	}
@@ -182,7 +187,13 @@ func (ms *MailServer) saveAttachmentInDirectory(attachmentDir string, attachment
 	if err := tmp.Chmod(0644); err != nil {
 		return fmt.Errorf("failed to set attachment permissions: %w", err)
 	}
-	if _, err := tmp.Write(data); err != nil {
+	destination := io.Writer(tmp)
+	if ms.wrapAttachmentWriter != nil {
+		destination = ms.wrapAttachmentWriter(destination)
+	}
+	digest := sha256.New()
+	written, err := io.CopyBuffer(io.MultiWriter(destination, digest), data, make([]byte, attachmentCopyBufferSize))
+	if err != nil {
 		return fmt.Errorf("failed to save attachment: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
@@ -199,7 +210,19 @@ func (ms *MailServer) saveAttachmentInDirectory(attachmentDir string, attachment
 		return fmt.Errorf("failed to sync attachment directory: %w", err)
 	}
 
-	attachment.Size = int64(len(data))
+	attachment.Size = written
+	attachment.ContentSHA256 = hex.EncodeToString(digest.Sum(nil))
+	return nil
+}
+
+func measureAttachment(attachment *Attachment, data io.Reader) error {
+	digest := sha256.New()
+	size, err := io.CopyBuffer(digest, data, make([]byte, attachmentCopyBufferSize))
+	if err != nil {
+		return err
+	}
+	attachment.Size = size
+	attachment.ContentSHA256 = hex.EncodeToString(digest.Sum(nil))
 	return nil
 }
 
@@ -546,8 +569,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 					break
 				}
 				if err != nil {
-					common.Verbose("Error reading multipart: %v", err)
-					continue
+					return nil, nil, fmt.Errorf("failed to read multipart: %w", err)
 				}
 
 				partMediaType, _, _ := p.Header.ContentType()
@@ -558,11 +580,17 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 				disposition, params, _ := p.Header.ContentDisposition()
 				contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
 
-				body, _ := io.ReadAll(p.Body)
-
 				if partMediaType == "text/plain" && disposition != "attachment" {
+					body, err := io.ReadAll(p.Body)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read text body: %w", err)
+					}
 					email.Text = strings.TrimSpace(string(body))
 				} else if partMediaType == "text/html" && disposition != "attachment" {
+					body, err := io.ReadAll(p.Body)
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read HTML body: %w", err)
+					}
 					email.HTML = strings.TrimSpace(string(body))
 				} else if disposition == "attachment" || contentID != "" {
 					// Handle attachment
@@ -572,26 +600,31 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 					}
 
 					attachment := &Attachment{
-						ContentType:   partMediaType,
-						FileName:      filename,
-						ContentID:     contentID,
-						Size:          int64(len(body)),
-						ContentSHA256: fmt.Sprintf("%x", sha256.Sum256(body)),
+						ContentType: partMediaType,
+						FileName:    filename,
+						ContentID:   contentID,
 					}
 
 					if saveAttachments {
-						err = ms.saveAttachmentInDirectory(attachmentDir, attachment, body)
-						if err != nil {
-							return nil, nil, fmt.Errorf("failed to save attachment: %w", err)
-						}
+						err = ms.saveAttachmentReaderInDirectory(attachmentDir, attachment, p.Body)
+					} else {
+						err = measureAttachment(attachment, p.Body)
+					}
+					if err != nil {
+						return nil, nil, fmt.Errorf("failed to read attachment: %w", err)
 					}
 					email.Attachments = append(email.Attachments, attachment)
+				} else if _, err := io.Copy(io.Discard, p.Body); err != nil {
+					return nil, nil, fmt.Errorf("failed to discard MIME part: %w", err)
 				}
 			}
 		}
 	} else {
 		// Simple message
-		body, _ := io.ReadAll(msg.Body)
+		body, err := io.ReadAll(msg.Body)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to read message body: %w", err)
+		}
 		if strings.HasPrefix(mediaType, "text/html") {
 			email.HTML = strings.TrimSpace(string(body))
 		} else {

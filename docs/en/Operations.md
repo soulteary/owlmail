@@ -67,6 +67,27 @@ orphan attachment directories, and unparseable `.eml` files into
 data. Operators may remove reviewed entries; do not move them directly back
 into the live mail directory while troubleshooting.
 
+During MIME parsing, each decoded attachment streams through a fixed 32 KiB
+copy buffer into an attachment temporary file inside the message's private
+transaction staging directory. The same pass calculates the decoded byte size
+and SHA-256 digest. OwlMail syncs and renames the temporary file only after the
+complete part has been read; a read, write, sync, or close error removes the
+partial file. The staging directory is not reachable through the attachment API.
+For local storage it is atomically promoted before the `.eml` commit marker; in
+S3 mode the completed staging files are streamed to object storage. The email
+is added to the in-memory index, and therefore becomes API-visible, only after
+the raw message, attachments, and metadata have completed their transaction.
+
+Plain-text and HTML bodies remain in-memory strings so the existing API can
+return them without another storage lookup. They are never silently truncated:
+any MIME body read error rejects the transaction. For SMTP delivery their
+maximum allocation is bounded by the configured whole-message limit
+(`OWLMAIL_SMTP_MAX_MESSAGE_MB`, 100 MiB by default), not by a separate body
+limit. Existing `.eml` files loaded at startup are kept compatible and are not
+subjected to that SMTP limit; operators should therefore restore only trusted,
+appropriately bounded files. Streaming body persistence is a separate future
+optimization.
+
 ### Optional S3-compatible attachment storage
 
 Decoded attachments can be stored in AWS S3 or an S3-compatible service while
@@ -92,9 +113,9 @@ AWS SDK default credential chain is used, including environment credentials,
 shared configuration, and workload roles. Use path-style addressing only when
 the selected S3-compatible service requires it.
 
-OwlMail stages attachments locally, writes a durable rollback marker, uploads
-every object under `<prefix>/<email-id>/`, and only then commits the `.eml`
-marker. A failed upload rejects the SMTP transaction and triggers prefix
+OwlMail streams attachments into local staging files, writes a durable rollback
+marker, uploads every object under `<prefix>/<email-id>/`, and only then commits
+the `.eml` marker. A failed upload rejects the SMTP transaction and triggers prefix
 cleanup; startup recovery retries cleanup after an interrupted transaction.
 Each attachment upload and remote download stream has a five-minute deadline,
 so an unresponsive endpoint cannot hold a storage transaction or request
