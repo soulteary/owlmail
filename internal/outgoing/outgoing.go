@@ -246,7 +246,7 @@ func (om *OutgoingMail) matchesRule(address, rule string) bool {
 
 // RelayMail queues an email for relay
 func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
-	om.enqueueRelay(nil, email, emailPath, relayTo, isAutoRelay, callback)
+	om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, isAutoRelay, callback)
 }
 
 // RelayMailContext queues an email relay that is canceled if the caller's
@@ -255,10 +255,10 @@ func (om *OutgoingMail) RelayMailContext(ctx context.Context, email *types.Email
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	om.enqueueRelay(ctx, email, emailPath, relayTo, isAutoRelay, callback)
+	om.enqueueRelay(ctx, true, email, emailPath, relayTo, isAutoRelay, callback)
 }
 
-func (om *OutgoingMail) enqueueRelay(ctx context.Context, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
+func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
 	if !om.enabled {
 		if callback != nil {
 			callback(fmt.Errorf("outgoing mail not configured"))
@@ -272,9 +272,9 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, email *types.Email, em
 		RelayTo:     relayTo,
 		IsAutoRelay: isAutoRelay,
 		Callback:    callback,
-		Context:     ctx,
 	}
-	if ctx != nil {
+	if contextAware {
+		task.Context = ctx
 		if err := ctx.Err(); err != nil {
 			if callback != nil {
 				callback(err)
@@ -286,7 +286,7 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, email *types.Email, em
 	timer := time.NewTimer(5 * time.Second)
 	defer timer.Stop()
 	var canceled <-chan struct{}
-	if ctx != nil {
+	if contextAware {
 		canceled = ctx.Done()
 	}
 	select {
