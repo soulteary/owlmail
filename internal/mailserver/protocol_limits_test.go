@@ -14,7 +14,11 @@ func TestSMTPProtocolLimitsApplyToServer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 
 	if server.GetReadTimeout() != 2*time.Second || server.smtpServer.ReadTimeout != 2*time.Second {
 		t.Fatalf("SMTP read timeout was not applied: %v", server.smtpServer.ReadTimeout)
@@ -32,7 +36,11 @@ func TestSMTPProtocolLimitDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 
 	if server.smtpServer.ReadTimeout != defaultSMTPReadTimeout ||
 		server.smtpServer.WriteTimeout != defaultSMTPWriteTimeout ||
