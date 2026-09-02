@@ -207,7 +207,7 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	}
 	job, err := api.relayJobs.create(id, relayTo)
 	if errors.Is(err, errRelayJobCapacity) {
-		c.Set(fiber.HeaderRetryAfter, "1")
+		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))
 	}
 	if err != nil {
