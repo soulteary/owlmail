@@ -32,9 +32,9 @@ func TestSMTPProtocolLimitsResolveFlagsAndEnvironment(t *testing.T) {
 
 func TestSMTPProtocolLimitsRejectInvalidValues(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
-		"read timeout": func(cfg *Config) { cfg.SMTPReadTimeout = "never" },
+		"read timeout":  func(cfg *Config) { cfg.SMTPReadTimeout = "never" },
 		"write timeout": func(cfg *Config) { cfg.SMTPWriteTimeout = "0s" },
-		"recipients": func(cfg *Config) { cfg.SMTPMaxRecipients = 0 },
+		"recipients":    func(cfg *Config) { cfg.SMTPMaxRecipients = 0 },
 	} {
 		t.Run(name, func(t *testing.T) {
 			cfg := DefaultConfig()
