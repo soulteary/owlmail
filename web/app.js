@@ -53,6 +53,8 @@ const i18n = {
         remoteContentBlocked: '为保护隐私，远程图片、字体和样式默认已阻止。',
         loadRemoteContent: '加载远程内容',
         emailPreviewTitle: '隔离的邮件 HTML 预览',
+        emailViewportPresets: '预览宽度',
+        emailViewportWidth: '邮件预览宽度：{width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': '邮件未找到',
         'EMAIL_FILE_NOT_FOUND': '邮件文件未找到',
@@ -132,6 +134,8 @@ const i18n = {
         remoteContentBlocked: 'Remote images, fonts, and styles are blocked by default for privacy.',
         loadRemoteContent: 'Load remote content',
         emailPreviewTitle: 'Isolated email HTML preview',
+        emailViewportPresets: 'Preview width',
+        emailViewportWidth: 'Email preview width: {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email not found',
         'EMAIL_FILE_NOT_FOUND': 'Email file not found',
@@ -205,6 +209,8 @@ const i18n = {
         remoteContentBlocked: 'Externe Bilder, Schriftarten und Stile sind aus Datenschutzgründen blockiert.',
         loadRemoteContent: 'Externe Inhalte laden',
         emailPreviewTitle: 'Isolierte HTML-E-Mail-Vorschau',
+        emailViewportPresets: 'Vorschaubreite',
+        emailViewportWidth: 'Breite der E-Mail-Vorschau: {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'E-Mail nicht gefunden',
         'EMAIL_FILE_NOT_FOUND': 'E-Mail-Datei nicht gefunden',
@@ -278,6 +284,8 @@ const i18n = {
         remoteContentBlocked: 'Immagini, font e stili remoti sono bloccati per impostazione predefinita.',
         loadRemoteContent: 'Carica contenuti remoti',
         emailPreviewTitle: 'Anteprima HTML email isolata',
+        emailViewportPresets: 'Larghezza anteprima',
+        emailViewportWidth: 'Larghezza anteprima email: {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email non trovata',
         'EMAIL_FILE_NOT_FOUND': 'File email non trovato',
@@ -351,6 +359,8 @@ const i18n = {
         remoteContentBlocked: 'Les images, polices et styles distants sont bloqués par défaut.',
         loadRemoteContent: 'Charger le contenu distant',
         emailPreviewTitle: 'Aperçu HTML isolé de l’e-mail',
+        emailViewportPresets: 'Largeur de l’aperçu',
+        emailViewportWidth: 'Largeur de l’aperçu de l’e-mail : {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email introuvable',
         'EMAIL_FILE_NOT_FOUND': 'Fichier email introuvable',
@@ -424,6 +434,8 @@ const i18n = {
         remoteContentBlocked: '개인정보 보호를 위해 원격 이미지, 글꼴 및 스타일이 기본적으로 차단됩니다.',
         loadRemoteContent: '원격 콘텐츠 불러오기',
         emailPreviewTitle: '격리된 이메일 HTML 미리보기',
+        emailViewportPresets: '미리보기 너비',
+        emailViewportWidth: '이메일 미리보기 너비: {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': '이메일을 찾을 수 없습니다',
         'EMAIL_FILE_NOT_FOUND': '이메일 파일을 찾을 수 없습니다',
@@ -497,6 +509,8 @@ const i18n = {
         remoteContentBlocked: 'プライバシー保護のため、外部の画像、フォント、スタイルは既定でブロックされます。',
         loadRemoteContent: '外部コンテンツを読み込む',
         emailPreviewTitle: '隔離されたメール HTML プレビュー',
+        emailViewportPresets: 'プレビュー幅',
+        emailViewportWidth: 'メールプレビュー幅: {width}',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'メールが見つかりません',
         'EMAIL_FILE_NOT_FOUND': 'メールファイルが見つかりません',
@@ -755,6 +769,17 @@ let state = {
     searchQuery: '',
     ws: null
 };
+
+const EMAIL_VIEWPORT_PRESETS = Object.freeze([
+    { key: '100%', label: '100%', width: '100%' },
+    { key: '1440', label: '1440 px', width: '1440px' },
+    { key: '1024', label: '1024 px', width: '1024px' },
+    { key: '768', label: '768 px', width: '768px' },
+    { key: '425', label: '425 px', width: '425px' },
+    { key: '375', label: '375 px', width: '375px' },
+    { key: '320', label: '320 px', width: '320px' }
+]);
+let emailViewportPreset = '100%';
 
 // Remote resources are enabled only for the currently rendered message after
 // an explicit user action. The choice is intentionally not persisted.
@@ -1376,6 +1401,49 @@ function injectPreviewSecurityHead(html, allowRemote) {
     return `<head>${securityHead}</head>${html}`;
 }
 
+function renderEmailViewportPresets() {
+    return `
+        <div class="email-viewport-toolbar" role="group" aria-label="${t('emailViewportPresets')}">
+            <span class="email-viewport-label">${t('emailViewportPresets')}</span>
+            <div class="email-viewport-presets">
+                ${EMAIL_VIEWPORT_PRESETS.map((preset) => `
+                    <button type="button"
+                        class="email-viewport-preset"
+                        data-viewport-width="${preset.key}"
+                        aria-pressed="${emailViewportPreset === preset.key}"
+                        title="${t('emailViewportWidth', { width: preset.label })}"
+                        onclick="setEmailViewport('${preset.key}')">${preset.label}</button>
+                `).join('')}
+            </div>
+        </div>
+    `;
+}
+
+function setEmailViewport(presetKey) {
+    const preset = EMAIL_VIEWPORT_PRESETS.find((candidate) => candidate.key === presetKey);
+    if (!preset) return;
+
+    emailViewportPreset = preset.key;
+    const viewportFrame = document.getElementById('emailViewportFrame');
+    if (!viewportFrame) return;
+
+    const viewportStage = document.getElementById('emailViewportStage');
+    const scrollLeft = viewportStage ? viewportStage.scrollLeft : 0;
+    const scrollTop = viewportStage ? viewportStage.scrollTop : 0;
+
+    // Resize the existing frame instead of rendering the message again. The
+    // iframe node, srcdoc, sandbox, and its own scroll position stay intact.
+    viewportFrame.style.width = preset.width;
+    document.querySelectorAll('.email-viewport-preset').forEach((button) => {
+        button.setAttribute('aria-pressed', button.dataset.viewportWidth === preset.key ? 'true' : 'false');
+    });
+
+    if (viewportStage) {
+        viewportStage.scrollLeft = scrollLeft;
+        viewportStage.scrollTop = scrollTop;
+    }
+}
+
 function renderHTML(html, emailId, attachments) {
     const allowRemote = remoteContentAllowedEmailID === emailId;
     const remoteContentPresent = hasRemoteEmailResources(html);
@@ -1390,7 +1458,12 @@ function renderHTML(html, emailId, attachments) {
                     <button type="button" class="btn btn-secondary" onclick="loadRemoteContent('${emailId}')">${t('loadRemoteContent')}</button>
                 </div>
             ` : ''}
-            <iframe id="${iframeId}" title="${t('emailPreviewTitle')}" sandbox="" referrerpolicy="no-referrer" srcdoc="${escapeHtmlAttribute(previewDocument)}"></iframe>
+            ${renderEmailViewportPresets()}
+            <div id="emailViewportStage" class="email-viewport-stage">
+                <div id="emailViewportFrame" class="email-viewport-frame" style="width: ${EMAIL_VIEWPORT_PRESETS.find((preset) => preset.key === emailViewportPreset).width};">
+                    <iframe id="${iframeId}" title="${t('emailPreviewTitle')}" sandbox="" referrerpolicy="no-referrer" srcdoc="${escapeHtmlAttribute(previewDocument)}"></iframe>
+                </div>
+            </div>
         </div>
     `;
 }

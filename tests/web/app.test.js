@@ -5,6 +5,7 @@ const { test } = require('bun:test');
 const vm = require('node:vm');
 
 const appSource = fs.readFileSync(path.join(__dirname, '../../web/app.js'), 'utf8');
+const styleSource = fs.readFileSync(path.join(__dirname, '../../web/style.css'), 'utf8');
 
 function createClassList() {
     const values = new Set();
@@ -17,7 +18,7 @@ function createClassList() {
     };
 }
 
-function createElement() {
+function createElement({ dataset = {} } = {}) {
     const listeners = new Map();
     const attributes = new Map();
     let innerHTML = '';
@@ -26,6 +27,10 @@ function createElement() {
         listeners,
         attributes,
         classList: createClassList(),
+        dataset,
+        style: {},
+        scrollLeft: 0,
+        scrollTop: 0,
         hidden: true,
         disabled: false,
         title: '',
@@ -71,11 +76,17 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const notificationStatus = createElement();
     const emailDetail = createElement();
     const emailList = createElement();
+    const emailViewportFrame = createElement();
+    const emailViewportStage = createElement();
+    const emailViewportButtons = ['100%', '1440', '1024', '768', '425', '375', '320']
+        .map((width) => createElement({ dataset: { viewportWidth: width } }));
     const elements = new Map([
         ['notificationToggle', notificationToggle],
         ['notificationStatus', notificationStatus],
         ['emailDetail', emailDetail],
-        ['emailList', emailList]
+        ['emailList', emailList],
+        ['emailViewportFrame', emailViewportFrame],
+        ['emailViewportStage', emailViewportStage]
     ]);
     const notifications = [];
     const fetchRequests = [];
@@ -108,7 +119,9 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         addEventListener(name, handler) { documentListeners.set(name, handler); },
         getElementById(id) { return elements.get(id) || null; },
         querySelector() { return null; },
-        querySelectorAll() { return []; },
+        querySelectorAll(selector) {
+            return selector === '.email-viewport-preset' ? emailViewportButtons : [];
+        },
         createElement() { return createElement(); }
     };
     const navigator = { language: 'en-US' };
@@ -155,6 +168,9 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         documentListeners,
         emailDetail,
         emailList,
+        emailViewportButtons,
+        emailViewportFrame,
+        emailViewportStage,
         fetchRequests,
         notificationStatus,
         notificationToggle,
@@ -256,6 +272,51 @@ test('HTML previews survive attribute parsing with a zero-permission sandbox', a
     assert.match(csp, /script-src 'none'/);
     assert.match(csp, /form-action 'none'/);
     assert.match(csp, /frame-src 'none'/);
+});
+
+test('HTML previews expose every responsive viewport preset', () => {
+    const harness = createHarness();
+    const preview = harness.run(`renderHTML('<p>Responsive message</p>', 'mail-42', [])`);
+
+    assert.match(preview, /role="group" aria-label="Preview width"/);
+    for (const width of ['100%', '1440', '1024', '768', '425', '375', '320']) {
+        assert.equal(preview.includes(`data-viewport-width="${width}"`), true);
+    }
+    assert.match(preview, /style="width: 100%;"/);
+    assert.match(preview, /sandbox=""/);
+    assert.match(preview, /referrerpolicy="no-referrer"/);
+});
+
+test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
+    const harness = createHarness();
+    const preview = harness.run(`renderHTML('<p>Keep me</p>', 'mail-42', [])`);
+    harness.emailDetail.innerHTML = preview;
+    harness.emailViewportFrame.style.width = '100%';
+    harness.emailViewportStage.scrollLeft = 47;
+    harness.emailViewportStage.scrollTop = 91;
+
+    harness.run("setEmailViewport('375')");
+
+    assert.equal(harness.emailViewportFrame.style.width, '375px');
+    assert.equal(harness.emailViewportStage.scrollLeft, 47);
+    assert.equal(harness.emailViewportStage.scrollTop, 91);
+    assert.equal(harness.emailDetail.innerHTML, preview);
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.equal(harness.emailViewportButtons[5].attributes.get('aria-pressed'), 'true');
+    assert.equal(harness.emailViewportButtons[0].attributes.get('aria-pressed'), 'false');
+    assert.match(harness.emailDetail.innerHTML, /sandbox=""/);
+    assert.match(harness.emailDetail.innerHTML, /referrerpolicy="no-referrer"/);
+
+    harness.run("setEmailViewport('not-a-preset')");
+    assert.equal(harness.emailViewportFrame.style.width, '375px');
+});
+
+test('viewport controls wrap into touch-sized rows on narrow screens', () => {
+    const mobileStyles = styleSource.match(/@media \(max-width: 768px\)[\s\S]*?\/\* Scrollbar \*\//)?.[0] || '';
+
+    assert.match(mobileStyles, /\.email-viewport-toolbar\s*\{[\s\S]*?flex-direction:\s*column/);
+    assert.match(mobileStyles, /\.email-viewport-presets\s*\{[\s\S]*?width:\s*100%/);
+    assert.match(mobileStyles, /\.email-viewport-preset\s*\{[\s\S]*?min-height:\s*38px/);
 });
 
 test('remote tracking resources are blocked until the user explicitly loads them', () => {
@@ -404,6 +465,15 @@ test('English translations use singular forms', () => {
     assert.equal(harness.run("t('attachments', { count: 1 })"), '1 attachment');
     assert.equal(harness.run("t('minutesAgo', { minutes: 1 })"), '1 minute ago');
     assert.equal(harness.run("t('emailCount', { count: 2 })"), '2 emails');
+});
+
+test('every supported language translates the viewport controls', () => {
+    const harness = createHarness();
+
+    assert.equal(harness.run(`Object.values(i18n).every((translations) =>
+        Object.hasOwn(translations, 'emailViewportPresets')
+        && Object.hasOwn(translations, 'emailViewportWidth')
+    )`), true);
 });
 
 test('Traditional Chinese locales do not silently select Simplified Chinese', () => {
