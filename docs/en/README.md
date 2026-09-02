@@ -28,6 +28,7 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
     native WebSocket events, curl examples, and the current MailDev migration boundary.
+  - **Machine-readable contract**: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
   - **Other languages**: [简体中文](../zh-CN/API-Reference.md)
 
 - **[Operations and Troubleshooting](./Operations.md)**

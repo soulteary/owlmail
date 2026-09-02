@@ -20,6 +20,7 @@ OwlMail 문서에 오신 것을 환영합니다. 문서는 언어별 디렉터�
 
 - **[API 참조](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - 경로, 인증, 응답 형식, WebSocket 이벤트 및 MailDev와의 차이점.
+  - 기계 판독 가능: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
 - **[운영 및 문제 해결](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - 배포, 영속성, 보안, TLS, 용량 및 장애 진단.
 - **[Webhook 전달](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))

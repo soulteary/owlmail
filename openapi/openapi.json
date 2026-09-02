@@ -1,0 +1,2775 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OwlMail HTTP API",
+    "version": "0.6.0",
+    "summary": "Versioned OwlMail mailbox, relay, settings, and operational API",
+    "description": "The contract for OwlMail's native `/api/v1` interface. Unversioned MailDev-style compatibility routes are intentionally excluded because their protocol behavior is not an exact MailDev contract. Configure `-base-pathname` (or `OWLMAIL_BASE_PATHNAME`) to place the server and this contract below a reverse-proxy prefix. The served documents rewrite the relative server URL to include that prefix. HTTP Basic authentication is optional at deployment time; when enabled it protects every operation except liveness and readiness. The unversioned `/healthz` and `/readyz` probes are also public but remain outside this versioned contract."
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "Root deployment; the served contract includes the configured base pathname"
+    }
+  ],
+  "security": [
+    {
+      "basicAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Emails",
+      "description": "Mailbox queries and mutations"
+    },
+    {
+      "name": "Relay",
+      "description": "Asynchronous outgoing SMTP queue acceptance"
+    },
+    {
+      "name": "Settings",
+      "description": "Runtime settings; secrets are never returned"
+    },
+    {
+      "name": "Operations",
+      "description": "Liveness, readiness, and build provenance"
+    },
+    {
+      "name": "Contract",
+      "description": "Read-only OpenAPI documents"
+    },
+    {
+      "name": "WebSocket",
+      "description": "Native RFC 6455 WebSocket upgrade"
+    }
+  ],
+  "paths": {
+    "/openapi.json": {
+      "get": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Get the OpenAPI contract as JSON",
+        "operationId": "getOpenAPIJSON",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 JSON document with the effective base path in `servers`.",
+            "content": {
+              "application/vnd.oai.openapi+json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "The embedded contract could not be rendered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.yaml": {
+      "get": {
+        "tags": [
+          "Contract"
+        ],
+        "summary": "Get the OpenAPI contract as YAML",
+        "operationId": "getOpenAPIYAML",
+        "responses": {
+          "200": {
+            "description": "OpenAPI 3.1 YAML document with the effective base path in `servers`.",
+            "content": {
+              "application/vnd.oai.openapi": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "The embedded contract could not be rendered.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "List full emails",
+        "operationId": "listEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/DateFrom"
+          },
+          {
+            "$ref": "#/components/parameters/DateTo"
+          },
+          {
+            "$ref": "#/components/parameters/Read"
+          },
+          {
+            "$ref": "#/components/parameters/SortBy"
+          },
+          {
+            "$ref": "#/components/parameters/SortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailList"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 20,
+                  "offset": 0,
+                  "emails": [
+                    {
+                      "id": "aB3dEfGh",
+                      "time": "2026-09-02T12:00:00Z",
+                      "read": false,
+                      "subject": "Welcome",
+                      "from": [
+                        {
+                          "Name": "Sender",
+                          "Address": "sender@example.com"
+                        }
+                      ],
+                      "to": [
+                        {
+                          "Name": "",
+                          "Address": "recipient@example.com"
+                        }
+                      ],
+                      "cc": [],
+                      "bcc": [],
+                      "calculatedBcc": [],
+                      "text": "Hello",
+                      "html": "<p>Hello</p>",
+                      "attachments": [],
+                      "envelope": {
+                        "from": "sender@example.com",
+                        "to": [
+                          "recipient@example.com"
+                        ],
+                        "cc": [],
+                        "bcc": [],
+                        "calculatedBcc": [],
+                        "host": "localhost",
+                        "remoteAddress": "127.0.0.1:2525"
+                      },
+                      "source": "",
+                      "size": 128,
+                      "sizeHuman": "128 B",
+                      "headers": {}
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Delete all emails",
+        "operationId": "deleteAllEmails",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "ALL_EMAILS_DELETED",
+                  "message": "All emails deleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "Mailbox deletion failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails/stats": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Get mailbox statistics",
+        "operationId": "getEmailStats",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailStats"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/emails/preview": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "List lightweight email previews",
+        "operationId": "listEmailPreviews",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Limit"
+          },
+          {
+            "$ref": "#/components/parameters/Offset"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/DateFrom"
+          },
+          {
+            "$ref": "#/components/parameters/DateTo"
+          },
+          {
+            "$ref": "#/components/parameters/Read"
+          },
+          {
+            "$ref": "#/components/parameters/SortBy"
+          },
+          {
+            "$ref": "#/components/parameters/SortOrder"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmailPreviewList"
+                },
+                "example": {
+                  "total": 1,
+                  "limit": 50,
+                  "offset": 0,
+                  "previews": [
+                    {
+                      "id": "aB3dEfGh",
+                      "time": "2026-09-02T12:00:00Z",
+                      "read": false,
+                      "subject": "Welcome",
+                      "from": "Sender <sender@example.com>",
+                      "to": [
+                        "recipient@example.com"
+                      ],
+                      "size": 128,
+                      "sizeHuman": "128 B",
+                      "hasAttachment": false,
+                      "preview": "Hello"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/emails/export": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Export matching EML files as ZIP",
+        "description": "Exports at most 1000 readable messages and 256 MiB of raw source.",
+        "operationId": "exportEmails",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ExportIDs"
+          },
+          {
+            "$ref": "#/components/parameters/Search"
+          },
+          {
+            "$ref": "#/components/parameters/From"
+          },
+          {
+            "$ref": "#/components/parameters/To"
+          },
+          {
+            "$ref": "#/components/parameters/DateFrom"
+          },
+          {
+            "$ref": "#/components/parameters/DateTo"
+          },
+          {
+            "$ref": "#/components/parameters/Read"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ZIP archive of EML files.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/zip": {
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "description": "The export exceeds the message or byte limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails/read": {
+      "patch": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Mark all emails as read",
+        "operationId": "readAllEmails",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "ALL_EMAILS_MARKED_READ",
+                  "message": "All emails marked as read",
+                  "data": {
+                    "count": 2
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "The mailbox update failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails/batch": {
+      "delete": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Delete a batch of emails",
+        "operationId": "batchDeleteEmails",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRequest"
+              },
+              "example": {
+                "ids": [
+                  "aB3dEfGh",
+                  "missing"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                },
+                "example": {
+                  "code": "BATCH_DELETE_COMPLETED",
+                  "message": "Batch delete completed",
+                  "success": 1,
+                  "failed": 1,
+                  "failedIDs": [
+                    "missing"
+                  ],
+                  "total": 2
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/emails/batch/read": {
+      "patch": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Mark a batch of emails as read",
+        "operationId": "batchReadEmails",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchRequest"
+              },
+              "example": {
+                "ids": [
+                  "aB3dEfGh"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchResult"
+                },
+                "example": {
+                  "code": "BATCH_READ_COMPLETED",
+                  "message": "Batch read completed",
+                  "success": 1,
+                  "failed": 0,
+                  "failedIDs": [],
+                  "total": 1
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/emails/reload": {
+      "post": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Reload EML files from disk",
+        "operationId": "reloadEmails",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "MAILS_RELOADED",
+                  "message": "Mails reloaded from directory successfully"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "500": {
+            "description": "The mail directory could not be reloaded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/emails/{id}": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Get one full email",
+        "description": "Fetching details does not mark the email as read.",
+        "operationId": "getEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Email"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Delete one email",
+        "operationId": "deleteEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "EMAIL_DELETED",
+                  "message": "Email deleted"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/read": {
+      "patch": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Mark one email as read",
+        "operationId": "readEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "EMAIL_MARKED_READ",
+                  "message": "Email marked as read",
+                  "data": {
+                    "id": "aB3dEfGh"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/html": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Get the sanitized HTML body",
+        "operationId": "getEmailHTML",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sanitized HTML body with Content-Type `text/html; charset=utf-8`.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "<p>Hello</p>"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/source": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Get the raw RFC 822 source",
+        "operationId": "getEmailSource",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Raw message source without a download disposition, using Content-Type `text/plain; charset=utf-8`.",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "From: sender@example.com\\r\\nTo: recipient@example.com\\r\\n\\r\\nHello"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/raw": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Download the raw EML file",
+        "operationId": "downloadEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Downloadable RFC 822 message with Content-Type `message/rfc822`.",
+            "headers": {
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                },
+                "example": "attachment; filename=\"aB3dEfGh-Welcome.eml\""
+              }
+            },
+            "content": {
+              "message/rfc822": {
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "binary"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/attachments/{filename}": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Download one decoded attachment",
+        "operationId": "getAttachment",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          },
+          {
+            "$ref": "#/components/parameters/AttachmentFilename"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Attachment bytes. Content-Type is taken from the stored attachment metadata.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "contentEncoding": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/actions/relay": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "summary": "Queue an email for relay",
+        "description": "`200` means the in-process outgoing queue accepted the task. Delivery to the downstream SMTP server happens asynchronously; a later failure is logged and is not reflected in this HTTP response. Query `relayTo` takes precedence over the JSON body. When neither is supplied, the original message recipients are used.",
+        "operationId": "relayEmail",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          },
+          {
+            "name": "relayTo",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "example": "relay@example.com"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelayRequest"
+              },
+              "example": {
+                "relayTo": "relay@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "EMAIL_RELAYED",
+                  "message": "Email relayed successfully",
+                  "data": {
+                    "relayTo": "relay@example.com"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/emails/{id}/actions/relay/{relayTo}": {
+      "post": {
+        "tags": [
+          "Relay"
+        ],
+        "summary": "Queue an email for relay to an explicit recipient",
+        "description": "`200` confirms queue acceptance only, not downstream SMTP delivery. Recipient syntax is not validated before queueing.",
+        "operationId": "relayEmailTo",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/EmailID"
+          },
+          {
+            "$ref": "#/components/parameters/RelayTo"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIResponse"
+                },
+                "example": {
+                  "code": "EMAIL_RELAYED",
+                  "message": "Email relayed successfully",
+                  "data": {
+                    "relayTo": "relay@example.com"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/settings": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get runtime settings",
+        "description": "SMTP, web, outgoing, SMTP AUTH, and TLS settings are returned without passwords or secret material.",
+        "operationId": "getSettings",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Settings"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/settings/outgoing": {
+      "get": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Get outgoing SMTP settings",
+        "description": "The password is never returned.",
+        "operationId": "getOutgoingSettings",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OutgoingSettings"
+                },
+                "example": {
+                  "enabled": false,
+                  "message": "Outgoing mail not configured"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Replace outgoing SMTP settings",
+        "description": "Changes are in memory and do not rewrite flags or environment variables.",
+        "operationId": "putOutgoingSettings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutgoingSettingsInput"
+              },
+              "example": {
+                "host": "smtp.example.com",
+                "port": 587,
+                "user": "relay-user",
+                "password": "relay-password",
+                "secure": true,
+                "autoRelay": false,
+                "autoRelayAddr": "",
+                "allowRules": [],
+                "denyRules": []
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Settings"
+        ],
+        "summary": "Update selected outgoing SMTP settings",
+        "description": "Only recognized, correctly typed fields are applied. Changes are in memory.",
+        "operationId": "patchOutgoingSettings",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OutgoingSettingsPatch"
+              },
+              "example": {
+                "port": 465,
+                "secure": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigUpdateResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Check process liveness",
+        "operationId": "getHealth",
+        "security": [],
+        "x-owlmail-public": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Liveness"
+                },
+                "example": {
+                  "status": "ok",
+                  "service": "owlmail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Check cached dependency readiness",
+        "description": "Reads the cached attachment-store health and never performs a synchronous S3 request. Responses expose only safe categories.",
+        "operationId": "getReadiness",
+        "security": [],
+        "x-owlmail-public": true,
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                },
+                "example": {
+                  "status": "ready",
+                  "checks": {
+                    "attachment_store": {
+                      "status": "disabled"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "An enabled dependency is checking or unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                },
+                "example": {
+                  "status": "unready",
+                  "checks": {
+                    "attachment_store": {
+                      "status": "unready",
+                      "error_category": "permission",
+                      "checked_at": "2026-09-02T12:00:00Z"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/version": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Get build provenance",
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Version"
+                },
+                "example": {
+                  "version": "0.6.0",
+                  "commit": "0123456789abcdef",
+                  "build_date": "2026-09-02T12:00:00Z",
+                  "branch": "v0.6.0",
+                  "go_version": "go1.27.0",
+                  "platform": "linux/amd64",
+                  "compiler": "gc"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/ws": {
+      "get": {
+        "tags": [
+          "WebSocket"
+        ],
+        "summary": "Upgrade to the native WebSocket protocol",
+        "description": "Send an RFC 6455 upgrade request. This is not Socket.IO. After upgrade the server first emits `connected`; clients may send `ping` and receive `pong`; mailbox events are `new` and `delete`. When Basic Auth is enabled, browser upgrades must also use OwlMail's own Origin.",
+        "operationId": "connectWebSocket",
+        "parameters": [
+          {
+            "name": "Upgrade",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "websocket"
+            }
+          },
+          {
+            "name": "Connection",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "Upgrade"
+          },
+          {
+            "name": "Sec-WebSocket-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Sec-WebSocket-Version",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "const": "13"
+            }
+          }
+        ],
+        "x-websocket-messages": {
+          "client": [
+            {
+              "$ref": "#/components/schemas/WebSocketPing"
+            }
+          ],
+          "server": [
+            {
+              "$ref": "#/components/schemas/WebSocketConnected"
+            },
+            {
+              "$ref": "#/components/schemas/WebSocketPong"
+            },
+            {
+              "$ref": "#/components/schemas/WebSocketNew"
+            },
+            {
+              "$ref": "#/components/schemas/WebSocketDelete"
+            }
+          ]
+        },
+        "responses": {
+          "101": {
+            "description": "Switching Protocols. Subsequent frames follow `x-websocket-messages`."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "basicAuth": {
+        "type": "http",
+        "scheme": "basic",
+        "description": "Optional deployment-wide HTTP Basic Auth. A 401 response is plain text and includes `WWW-Authenticate: Basic realm=\"OwlMail\"` when credentials are omitted."
+      }
+    },
+    "parameters": {
+      "EmailID": {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "Eight-character OwlMail ID or UUID, depending on server configuration.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": "aB3dEfGh"
+      },
+      "AttachmentFilename": {
+        "name": "filename",
+        "in": "path",
+        "required": true,
+        "description": "The attachment's generated filename from the email metadata.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": "invoice.pdf"
+      },
+      "RelayTo": {
+        "name": "relayTo",
+        "in": "path",
+        "required": true,
+        "description": "Explicit downstream recipient. The value is queued without API-layer syntax validation.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        },
+        "example": "relay@example.com"
+      },
+      "Limit": {
+        "name": "limit",
+        "in": "query",
+        "description": "Page size. Invalid values and values below 1 fall back to 50; values above 1000 are capped.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 50
+        },
+        "example": 20
+      },
+      "Offset": {
+        "name": "offset",
+        "in": "query",
+        "description": "Zero-based number of matching records to skip. Invalid or negative values fall back to 0.",
+        "schema": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "example": 0
+      },
+      "Search": {
+        "name": "q",
+        "in": "query",
+        "description": "Case-insensitive substring search in subject, text, and HTML.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "welcome"
+      },
+      "From": {
+        "name": "from",
+        "in": "query",
+        "description": "Case-insensitive substring match against sender name or address.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "sender@example.com"
+      },
+      "To": {
+        "name": "to",
+        "in": "query",
+        "description": "Case-insensitive substring match against To, CC, and calculated BCC recipients.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "recipient@example.com"
+      },
+      "DateFrom": {
+        "name": "dateFrom",
+        "in": "query",
+        "description": "Inclusive UTC-naive calendar date lower boundary. Invalid values are ignored.",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
+        "example": "2026-09-01"
+      },
+      "DateTo": {
+        "name": "dateTo",
+        "in": "query",
+        "description": "Inclusive UTC-naive calendar date upper boundary. Invalid values are ignored.",
+        "schema": {
+          "type": "string",
+          "format": "date"
+        },
+        "example": "2026-09-02"
+      },
+      "Read": {
+        "name": "read",
+        "in": "query",
+        "description": "Read-state filter. Present values other than `true` are treated as false.",
+        "schema": {
+          "type": "boolean"
+        },
+        "example": false
+      },
+      "SortBy": {
+        "name": "sortBy",
+        "in": "query",
+        "description": "Sort key. When omitted or unsupported, mailbox order is preserved.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "time",
+            "subject",
+            "from",
+            "size"
+          ]
+        },
+        "example": "time"
+      },
+      "SortOrder": {
+        "name": "sortOrder",
+        "in": "query",
+        "description": "Ascending or descending order for a supported sort key.",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "desc"
+        },
+        "example": "desc"
+      },
+      "ExportIDs": {
+        "name": "ids",
+        "in": "query",
+        "description": "Comma-separated IDs. When non-empty, takes precedence over filters.",
+        "schema": {
+          "type": "string"
+        },
+        "example": "aB3dEfGh,550e8400-e29b-41d4-a716-446655440000"
+      }
+    },
+    "schemas": {
+      "Address": {
+        "type": "object",
+        "description": "Address fields retain the capitalization produced by Go's mail.Address JSON encoding.",
+        "required": [
+          "Name",
+          "Address"
+        ],
+        "properties": {
+          "Name": {
+            "type": "string",
+            "examples": [
+              "Sender"
+            ]
+          },
+          "Address": {
+            "type": "string",
+            "examples": [
+              "sender@example.com"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Attachment": {
+        "type": "object",
+        "required": [
+          "contentType",
+          "fileName",
+          "generatedFileName",
+          "contentId",
+          "size"
+        ],
+        "properties": {
+          "contentType": {
+            "type": "string",
+            "examples": [
+              "application/pdf"
+            ]
+          },
+          "fileName": {
+            "type": "string",
+            "examples": [
+              "invoice.pdf"
+            ]
+          },
+          "generatedFileName": {
+            "type": "string",
+            "examples": [
+              "invoice.pdf"
+            ]
+          },
+          "contentId": {
+            "type": "string",
+            "examples": [
+              "logo@example.com"
+            ]
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0,
+            "examples": [
+              1280
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "Envelope": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "required": [
+          "from",
+          "to",
+          "cc",
+          "bcc",
+          "calculatedBcc",
+          "host",
+          "remoteAddress"
+        ],
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "cc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "bcc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "calculatedBcc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "host": {
+            "type": "string"
+          },
+          "remoteAddress": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Email": {
+        "type": "object",
+        "required": [
+          "id",
+          "time",
+          "read",
+          "subject",
+          "from",
+          "to",
+          "cc",
+          "bcc",
+          "calculatedBcc",
+          "text",
+          "html",
+          "attachments",
+          "envelope",
+          "source",
+          "size",
+          "sizeHuman",
+          "headers"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "examples": [
+              "aB3dEfGh"
+            ]
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "from": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "to": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "cc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "bcc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "calculatedBcc": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
+          "text": {
+            "type": "string"
+          },
+          "html": {
+            "type": "string",
+            "description": "Sanitized HTML body."
+          },
+          "attachments": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/Attachment"
+            }
+          },
+          "envelope": {
+            "$ref": "#/components/schemas/Envelope"
+          },
+          "source": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sizeHuman": {
+            "type": "string"
+          },
+          "headers": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailPreview": {
+        "type": "object",
+        "required": [
+          "id",
+          "time",
+          "read",
+          "subject",
+          "from",
+          "to",
+          "size",
+          "sizeHuman",
+          "hasAttachment",
+          "preview"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "read": {
+            "type": "boolean"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "sizeHuman": {
+            "type": "string"
+          },
+          "hasAttachment": {
+            "type": "boolean"
+          },
+          "preview": {
+            "type": "string",
+            "description": "At most 200 characters plus an optional ellipsis."
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailList": {
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "emails"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "emails": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Email"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailPreviewList": {
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "previews"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "previews": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EmailPreview"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchRequest": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "BatchResult": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "success",
+          "failed",
+          "failedIDs",
+          "total"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "BATCH_DELETE_COMPLETED",
+              "BATCH_READ_COMPLETED"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "success": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failedIDs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "APIResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {}
+        },
+        "additionalProperties": false
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "error",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RelayRequest": {
+        "type": "object",
+        "properties": {
+          "relayTo": {
+            "type": "string",
+            "description": "Optional explicit recipient. Query `relayTo` takes precedence over this field."
+          }
+        },
+        "additionalProperties": true
+      },
+      "OutgoingSettingsInput": {
+        "type": "object",
+        "required": [
+          "host",
+          "port"
+        ],
+        "properties": {
+          "host": {
+            "type": "string",
+            "minLength": 1
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "user": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "secure": {
+            "type": "boolean"
+          },
+          "autoRelay": {
+            "type": "boolean"
+          },
+          "autoRelayAddr": {
+            "type": "string"
+          },
+          "allowRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "denyRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutgoingSettingsPatch": {
+        "type": "object",
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "secure": {
+            "type": "boolean"
+          },
+          "autoRelay": {
+            "type": "boolean"
+          },
+          "autoRelayAddr": {
+            "type": "string"
+          },
+          "allowRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "denyRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": true
+      },
+      "OutgoingSettings": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "string"
+          },
+          "secure": {
+            "type": "boolean"
+          },
+          "autoRelay": {
+            "type": "boolean"
+          },
+          "autoRelayAddr": {
+            "type": "string"
+          },
+          "allowRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "denyRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "OutgoingConfig": {
+        "type": "object",
+        "required": [
+          "host",
+          "port",
+          "user",
+          "secure",
+          "autoRelay",
+          "autoRelayAddr",
+          "allowRules",
+          "denyRules"
+        ],
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "user": {
+            "type": "string"
+          },
+          "secure": {
+            "type": "boolean"
+          },
+          "autoRelay": {
+            "type": "boolean"
+          },
+          "autoRelayAddr": {
+            "type": "string"
+          },
+          "allowRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "denyRules": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "Settings": {
+        "type": "object",
+        "required": [
+          "version",
+          "smtp",
+          "web",
+          "mailDir",
+          "outgoing",
+          "smtpAuth",
+          "tls"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "smtp": {
+            "type": "object",
+            "required": [
+              "host",
+              "port"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              }
+            },
+            "additionalProperties": false
+          },
+          "web": {
+            "type": "object",
+            "required": [
+              "host",
+              "port",
+              "basePathname"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "basePathname": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "mailDir": {
+            "type": "string"
+          },
+          "outgoing": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OutgoingConfig"
+              }
+            ]
+          },
+          "smtpAuth": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "enabled",
+                  "username"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "username": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          },
+          "tls": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "enabled",
+                  "certFile",
+                  "keyFile"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "certFile": {
+                    "type": "string"
+                  },
+                  "keyFile": {
+                    "type": "string"
+                  }
+                },
+                "additionalProperties": false
+              }
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "ConfigUpdateResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "config"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "const": "CONFIG_UPDATED"
+          },
+          "message": {
+            "type": "string"
+          },
+          "config": {
+            "type": "object",
+            "required": [
+              "host",
+              "port",
+              "user",
+              "secure",
+              "autoRelay",
+              "autoRelayAddr",
+              "allowRules",
+              "denyRules"
+            ],
+            "properties": {
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "user": {
+                "type": "string"
+              },
+              "secure": {
+                "type": "boolean"
+              },
+              "autoRelay": {
+                "type": "boolean"
+              },
+              "autoRelayAddr": {
+                "type": "string"
+              },
+              "allowRules": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              },
+              "denyRules": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "StorageStats": {
+        "type": "object",
+        "required": [
+          "diskBytes",
+          "maxAgeSeconds",
+          "maxMessages",
+          "maxDiskBytes",
+          "cleanupRuns",
+          "deletedMessages",
+          "reclaimedBytes",
+          "lastCleanupAt",
+          "lastCleanupError"
+        ],
+        "properties": {
+          "diskBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxAgeSeconds": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "maxMessages": {
+            "type": "integer"
+          },
+          "maxDiskBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "cleanupRuns": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "deletedMessages": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "reclaimedBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "lastCleanupAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastCleanupError": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "EmailStats": {
+        "type": "object",
+        "required": [
+          "total",
+          "unread",
+          "read",
+          "byDate",
+          "storage"
+        ],
+        "properties": {
+          "total": {
+            "type": "integer"
+          },
+          "unread": {
+            "type": "integer"
+          },
+          "read": {
+            "type": "integer"
+          },
+          "byDate": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer"
+            }
+          },
+          "storage": {
+            "$ref": "#/components/schemas/StorageStats"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Liveness": {
+        "type": "object",
+        "required": [
+          "status",
+          "service"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "service": {
+            "type": "string",
+            "const": "owlmail"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReadinessCheck": {
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "checking",
+              "ready",
+              "unready",
+              "closed"
+            ]
+          },
+          "error_category": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "credentials",
+              "permission",
+              "not_found",
+              "timeout",
+              "unavailable",
+              "unknown",
+              "closed"
+            ]
+          },
+          "checked_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Readiness": {
+        "type": "object",
+        "required": [
+          "status",
+          "checks"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unready"
+            ]
+          },
+          "checks": {
+            "type": "object",
+            "required": [
+              "attachment_store"
+            ],
+            "properties": {
+              "attachment_store": {
+                "$ref": "#/components/schemas/ReadinessCheck"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "Version": {
+        "type": "object",
+        "required": [
+          "version",
+          "go_version",
+          "platform",
+          "compiler"
+        ],
+        "properties": {
+          "version": {
+            "type": "string"
+          },
+          "commit": {
+            "type": "string"
+          },
+          "build_date": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "go_version": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "compiler": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "WebSocketConnected": {
+        "type": "object",
+        "required": [
+          "type",
+          "message"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "connected"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebSocketPing": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "ping"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebSocketPong": {
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "pong"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebSocketNew": {
+        "type": "object",
+        "required": [
+          "type",
+          "email"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "new"
+          },
+          "email": {
+            "$ref": "#/components/schemas/Email"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebSocketDelete": {
+        "type": "object",
+        "required": [
+          "type",
+          "id"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "delete"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "The request was rejected.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "INVALID_REQUEST",
+              "error": "INVALID_REQUEST",
+              "message": "Invalid request"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "The email or file was not found.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            },
+            "example": {
+              "code": "EMAIL_NOT_FOUND",
+              "error": "EMAIL_NOT_FOUND",
+              "message": "Email not found"
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Basic Auth is enabled and credentials are missing or invalid. The body is plain text, not the JSON API error structure.",
+        "headers": {
+          "WWW-Authenticate": {
+            "schema": {
+              "type": "string"
+            },
+            "description": "Present as `Basic realm=\"OwlMail\"` when the Authorization header is missing."
+          }
+        },
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            },
+            "example": "Unauthorized"
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "An authenticated browser request used a cross-origin Origin header. The body is plain text.",
+        "content": {
+          "text/plain": {
+            "schema": {
+              "type": "string"
+            },
+            "example": "Forbidden"
+          }
+        }
+      }
+    }
+  }
+}

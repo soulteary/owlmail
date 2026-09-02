@@ -30,6 +30,27 @@ WebSocket 升级必须来自 OwlMail 自身源；不携带 `Origin` 的服务端
 curl -u admin:secret http://localhost:1080/api/v1/emails
 ```
 
+## OpenAPI 3.1 合约
+
+版本控制中的规范合约提供
+[JSON](../../openapi/openapi.json) 与 [YAML](../../openapi/openapi.yaml)
+两种格式。运行中的服务也通过只读端点返回相同合约：
+
+```bash
+curl -u admin:secret http://localhost:1080/api/v1/openapi.json
+curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
+```
+
+这两个合约端点遵循普通 Basic Auth 与浏览器同源策略。版本化 API 中只有
+`/api/v1/health` 和 `/api/v1/ready` 公开。配置
+`-base-pathname=/owlmail` 后，应访问
+`/owlmail/api/v1/openapi.json`，返回值中的 `servers[0].url` 也会变为
+`/owlmail/api/v1`。
+
+合约只描述 OwlMail 原生 `/api/v1` 行为，明确排除无版本的 MailDev 风格兼容
+路由。CI 会解析两种格式、验证二者语义一致、解析全部本地 `$ref`，并逐项
+比较已注册的版本化方法/路径与合约，因此新增或删除 API 时会检测到合约漂移。
+
 ## 通用约定
 
 - 默认邮件 ID 是八字符随机字符串；启用 `-use-uuid-for-email-id` 后，新邮件
@@ -39,8 +60,10 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 - 列表和预览端点默认 `limit=50`、`offset=0`，最大 `limit` 为 1000；非法值
   会回退到默认值。
 - 时间由 Go `time.Time` 编码为 RFC 3339 格式。
-- 修改成功通常返回 `code`、`message` 和可选的 `data`；错误会返回对应 HTTP
-  状态码，以及 `code`、`error`、`message`。
+- 修改成功通常返回 `code`、`message` 和可选的 `data`；API 处理器产生的
+  错误会返回对应 HTTP 状态码，以及 `code`、`error`、`message`。Basic
+  Auth 与浏览器同源中间件会在进入 API 处理器前直接返回纯文本 `401` 或
+  `403`。
 
 列表响应示例：
 
@@ -55,8 +78,8 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
       "time": "2026-08-29T12:00:00Z",
       "read": false,
       "subject": "Welcome",
-      "from": [{ "address": "sender@example.com", "name": "Sender" }],
-      "to": [{ "address": "recipient@example.com", "name": "" }]
+      "from": [{ "Address": "sender@example.com", "Name": "Sender" }],
+      "to": [{ "Address": "recipient@example.com", "Name": "" }]
     }
   ]
 }
@@ -120,10 +143,10 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 | `GET /api/v1/emails/:id` | 完整邮件 JSON |
 | `DELETE /api/v1/emails/:id` | 删除单封邮件 |
 | `PATCH /api/v1/emails/:id/read` | 标记单封邮件已读 |
-| `GET /api/v1/emails/:id/html` | 清理后的 HTML，`text/html` |
-| `GET /api/v1/emails/:id/source` | RFC 822 原始源码，`text/plain` |
-| `GET /api/v1/emails/:id/raw` | 下载 EML 文件 |
-| `GET /api/v1/emails/:id/attachments/:filename` | 下载一个已解码附件 |
+| `GET /api/v1/emails/:id/html` | 清理后的 HTML，`text/html; charset=utf-8` |
+| `GET /api/v1/emails/:id/source` | RFC 822 原始源码，`text/plain; charset=utf-8` |
+| `GET /api/v1/emails/:id/raw` | 下载 EML，`message/rfc822` |
+| `GET /api/v1/emails/:id/attachments/:filename` | 使用附件元数据 Content-Type 返回解码字节 |
 | `POST /api/v1/emails/:id/actions/relay` | 按邮件原收件人中继 |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | 中继到一个明确地址 |
 
@@ -143,6 +166,8 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 | `GET /api/v1/ready` | 无需鉴权、读取缓存的依赖 readiness 检查 |
 | `GET /api/v1/version` | 构建/版本信息 |
 | `GET /api/v1/ws` | 原生 WebSocket 端点 |
+| `GET /api/v1/openapi.json` | 支持 base path 的 OpenAPI 3.1 JSON 合约 |
+| `GET /api/v1/openapi.yaml` | 支持 base path 的 OpenAPI 3.1 YAML 合约 |
 
 发布构建会返回类似以下的版本来源信息：
 

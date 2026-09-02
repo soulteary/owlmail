@@ -308,6 +308,8 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
+Basic Auth 및 브라우저 same-origin 미들웨어 오류는 API 핸들러보다 먼저
+발생하므로 일반 텍스트 `401` 또는 `403` 응답입니다.
 
 ### Email ID Format
 
@@ -411,10 +413,16 @@ OwlMail provides a more standardized RESTful API design:
 - `PUT /api/v1/settings/outgoing` - Update outgoing configuration
 - `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
 - `GET /api/v1/health` - Health check
+- `GET /api/v1/ready` - 캐시된 종속성 readiness 확인
+- `GET /api/v1/version` - 버전 정보
 - `GET /api/v1/ws` - WebSocket connection
+- `GET /api/v1/openapi.json` - OpenAPI 3.1 계약 (JSON)
+- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 계약 (YAML)
 
 하위 리소스, 인증, 응답 및 WebSocket 이벤트를 포함한 현재 계약은
-[API 참조](./docs/en/API-Reference.md)를 확인하세요.
+[API 참조](./docs/en/API-Reference.md) 또는
+[OpenAPI 계약](./openapi/openapi.yaml)을 확인하세요. 제공되는 계약에는 설정된
+기본 경로가 자동으로 포함됩니다.
 
 ## 🔧 Usage Examples
 

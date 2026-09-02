@@ -22,6 +22,7 @@ langue dans des répertoires distincts.
 - **[Référence API](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - Routes, authentification, formats de réponse, événements WebSocket et
     différences documentées avec MailDev.
+  - Lisible par machine : [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
 - **[Exploitation et dépannage](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - Déploiement, persistance, sécurité, TLS, capacité et diagnostic.
 - **[Transmission Webhook](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))

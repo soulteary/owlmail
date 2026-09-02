@@ -8,6 +8,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- A complete OpenAPI 3.1 contract for the native `/api/v1` API in JSON and
+  YAML, including request/response examples, authentication and public probe
+  boundaries, base-path-aware read-only specification endpoints, asynchronous
+  relay semantics, WebSocket upgrade documentation, and CI route-drift checks.
 - A configurable per-process SMTP DATA concurrency limit shared by ordinary
   SMTP, STARTTLS, and SMTPS. The default of eight protects MIME parsing,
   transactional staging, attachment hashing, and S3 uploads; `0` preserves an

@@ -34,6 +34,29 @@ outside a trusted local development machine.
 curl -u admin:secret http://localhost:1080/api/v1/emails
 ```
 
+## OpenAPI 3.1 contract
+
+The canonical, version-controlled contract is available as
+[JSON](../../openapi/openapi.json) and [YAML](../../openapi/openapi.yaml).
+The running server exposes the same read-only documents:
+
+```bash
+curl -u admin:secret http://localhost:1080/api/v1/openapi.json
+curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
+```
+
+These contract endpoints follow the normal Basic Auth and browser same-origin
+policy. Only `/api/v1/health` and `/api/v1/ready` are public within the
+versioned API. With `-base-pathname=/owlmail`, use
+`/owlmail/api/v1/openapi.json`; the returned `servers[0].url` is likewise
+`/owlmail/api/v1`.
+
+The contract covers only OwlMail's native `/api/v1` behavior. The unversioned
+MailDev-style compatibility routes are intentionally excluded. CI parses both
+serializations, checks that they are semantically equivalent, resolves every
+local `$ref`, and compares every registered versioned method/path with the
+contract so route additions and removals cannot silently drift.
+
 ## Common conventions
 
 - Email IDs are eight-character random strings by default. New messages use
@@ -44,7 +67,9 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
   maximum limit is 1000; invalid values fall back to their defaults.
 - Timestamps are JSON-encoded Go `time.Time` values in RFC 3339 form.
 - Successful mutations usually return `code`, `message`, and optional `data`.
-  Errors return an HTTP error status plus `code`, `error`, and `message`.
+  Handler-level API errors return an HTTP error status plus `code`, `error`,
+  and `message`. Basic Auth and browser same-origin middleware reject requests
+  with plain-text `401` or `403` responses before an API handler runs.
 
 Example collection response:
 
@@ -59,8 +84,8 @@ Example collection response:
       "time": "2026-08-29T12:00:00Z",
       "read": false,
       "subject": "Welcome",
-      "from": [{ "address": "sender@example.com", "name": "Sender" }],
-      "to": [{ "address": "recipient@example.com", "name": "" }]
+      "from": [{ "Address": "sender@example.com", "Name": "Sender" }],
+      "to": [{ "Address": "recipient@example.com", "Name": "" }]
     }
   ]
 }
@@ -125,10 +150,10 @@ Both batch routes accept:
 | `GET /api/v1/emails/:id` | full email JSON |
 | `DELETE /api/v1/emails/:id` | delete one email |
 | `PATCH /api/v1/emails/:id/read` | mark one email as read |
-| `GET /api/v1/emails/:id/html` | sanitized HTML, `text/html` |
-| `GET /api/v1/emails/:id/source` | raw RFC 822 source, `text/plain` |
-| `GET /api/v1/emails/:id/raw` | downloadable EML file |
-| `GET /api/v1/emails/:id/attachments/:filename` | one decoded attachment |
+| `GET /api/v1/emails/:id/html` | sanitized HTML, `text/html; charset=utf-8` |
+| `GET /api/v1/emails/:id/source` | raw RFC 822 source, `text/plain; charset=utf-8` |
+| `GET /api/v1/emails/:id/raw` | downloadable EML, `message/rfc822` |
+| `GET /api/v1/emails/:id/attachments/:filename` | decoded bytes using the attachment metadata Content-Type |
 | `POST /api/v1/emails/:id/actions/relay` | relay using the message recipients |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
 
@@ -150,6 +175,8 @@ reported in process logs after the HTTP response.
 | `GET /api/v1/ready` | unauthenticated cached dependency readiness check |
 | `GET /api/v1/version` | build/version information |
 | `GET /api/v1/ws` | native WebSocket endpoint |
+| `GET /api/v1/openapi.json` | base-path-aware OpenAPI 3.1 JSON contract |
+| `GET /api/v1/openapi.yaml` | base-path-aware OpenAPI 3.1 YAML contract |
 
 The liveness response is independent of remote storage. Readiness returns
 HTTP `200` only when every enabled dependency is ready and HTTP `503` while the
