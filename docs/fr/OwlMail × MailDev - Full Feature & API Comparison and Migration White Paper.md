@@ -19,7 +19,7 @@ mais ils ne sont **ni identiques au niveau du protocole, ni interchangeables san
 validation**. Les préfixes API, les réponses, l'état de lecture et le protocole
 temps réel diffèrent. Consultez la [référence API](../en/API-Reference.md).
 
-OwlMail fournit désormais un point de terminaison MCP en lecture seule, désactivé par défaut. MailDev 3 propose un workflow MCP plus large ; MailCatcher n'intègre pas MCP. L'option `-maildev-rest-compat`, désactivée par défaut, expose les routes REST
+OwlMail fournit, uniquement sur la branche main examinée (pas dans la v0.6.0), un point de terminaison MCP en lecture seule, désactivé par défaut. MailDev 3 propose un workflow MCP plus large ; MailCatcher n'intègre pas MCP. L'option `-maildev-rest-compat`, désactivée par défaut, expose les routes REST
 MailDev actuelles sous `/api`. Elle n'ajoute aucune compatibilité Socket.IO.
 
 > **Note** : Le contenu complet sera disponible une fois la traduction terminée. En attendant, veuillez vous référer à la version anglaise pour les détails complets.

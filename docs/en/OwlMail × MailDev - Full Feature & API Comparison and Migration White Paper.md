@@ -84,8 +84,9 @@ delivery.
 
 ## Agent integration
 
-The reviewed OwlMail main branch provides a default-off MCP endpoint at /mcp
-with seven closed-world, read-only tools: list, search, detached detail,
+The reviewed OwlMail main branch provides a default-off MCP endpoint at `/mcp`
+for a root deployment and `<base-pathname>/mcp` when a base pathname is
+configured, with seven closed-world, read-only tools: list, search, detached detail,
 bounded base64 source, attachment metadata, latest-email lookup ordered by
 receipt, and an event-driven bounded delivery wait. It also exposes bounded
 inbox, statistics, and email resources plus registration-verification,

@@ -77,7 +77,8 @@ HTTPS、存储和 base path，但不会启用 Socket.IO。
 
 ## Agent 集成
 
-已审查 OwlMail main 已提供默认关闭的 /mcp，包含七个封闭只读工具：列表、搜索、
+已审查 OwlMail main 已提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base
+pathname 后使用 `<base-pathname>/mcp`。它包含七个封闭只读工具：列表、搜索、
 独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得最新邮件，以及
 事件驱动且有界的投递等待。它还提供有界的收件箱、统计与单邮件资源，以及注册验证、
 密码重置和投递等待 Prompts；生成的 Web 链接会保留 base path。它与 Web API 共用

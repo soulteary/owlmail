@@ -409,6 +409,16 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
     assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
     assert.ok(!markdown.includes("with five closed-world"));
     assert.ok(!markdown.includes("只包含五个封闭只读能力"));
+    assert.ok(markdown.includes("<base-pathname>/mcp"));
+  }
+
+  for (const locale of ["de", "fr", "it", "ja", "ko"]) {
+    const stub = fs.readFileSync(
+      path.join(root, `docs/${locale}/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md`),
+      "utf8",
+    );
+    assert.ok(stub.includes("main"), `${locale} comparison does not qualify the MCP branch`);
+    assert.ok(stub.includes("v0.6.0"), `${locale} comparison does not qualify the stable release`);
   }
 });
 
