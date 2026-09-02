@@ -5,7 +5,7 @@
 
 **Review baseline:** 2026-09-02.
 
-- OwlMail: release 0.6.0; main at 03bbad9a8223d61a2d841f341b1d953bf5af1d05.
+- OwlMail: release 0.6.0; reviewed main at 279571b62a5e4891f0a204837d8553b131b89b20.
 - MailDev: release candidate maildev@3.0.0-rc.3; main at
   9d4141f42b0acedfa544a306f96a5373ded8c8a3. The latest stable 2.x release is
   2.2.1 and differs materially from the 3.x codebase.
@@ -48,8 +48,8 @@ and live-update contract.
 | Attachments | Local decoded attachments | Streaming staging; local or optional S3 | Local attachment files when persistence is enabled | Stored with the in-memory message database |
 | REST API | Native versioned and historical unversioned routes | Same, plus an optional MailDev REST facade | Current API below /api | Messages API below /messages |
 | Live updates | Native RFC 6455 WebSocket | Same | Socket.IO | WebSocket with polling fallback |
-| UI | Lightweight multilingual UI, secure HTML isolation, responsive widths | Same | Rich React UI, source/header views and responsive preview | Simple HTML/plain/source UI with keyboard navigation |
-| MCP | No built-in endpoint | Optional, default-off, read-only Streamable HTTP endpoint | HTTP and stdio MCP with broader tools, resources and prompts | No built-in MCP |
+| UI | Lightweight multilingual inbox | Same, plus secure HTML isolation and responsive widths | Rich React UI, source/header views and responsive preview | Simple HTML/plain/source UI with keyboard navigation |
+| MCP | No built-in endpoint | Optional, default-off Streamable HTTP with seven read-only tools, resources and prompts | HTTP and stdio MCP with broader tools, resources and prompts | No built-in MCP |
 | Webhooks | Generic filters, templates, HMAC, retry, local outbox and optional Redis Streams | Same | No equivalent generic durable webhook pipeline | No built-in generic webhook pipeline |
 | Relay | Manual and automatic outgoing SMTP relay | Same | Manual and automatic outgoing SMTP relay | No comparable outgoing relay workflow |
 | sendmail analogue | No bundled command | owlmail sendmail | No bundled equivalent documented | catchmail |
@@ -84,10 +84,14 @@ delivery.
 
 ## Agent integration
 
-The reviewed OwlMail main branch provides a default-off MCP endpoint at /mcp with five closed-world,
-read-only tools: list, search, detached detail, bounded base64 source, and
-attachment metadata. It shares the Web listener and authentication boundary.
-It deliberately excludes deletion, read-state mutation, relay, configuration
+The reviewed OwlMail main branch provides a default-off MCP endpoint at /mcp
+with seven closed-world, read-only tools: list, search, detached detail,
+bounded base64 source, attachment metadata, latest-email lookup ordered by
+receipt, and an event-driven bounded delivery wait. It also exposes bounded
+inbox, statistics, and email resources plus registration-verification,
+password-reset, and delivery prompts. It shares the Web listener and
+authentication boundary and generates base-path-aware Web links. It
+deliberately excludes deletion, read-state mutation, relay, configuration
 changes, and attachment bytes.
 
 MailDev 3 exposes a broader MCP server and supports both HTTP and stdio

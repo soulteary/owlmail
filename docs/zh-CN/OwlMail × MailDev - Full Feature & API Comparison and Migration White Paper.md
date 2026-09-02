@@ -4,8 +4,8 @@
 
 **审查基线：2026-09-02。**
 
-- OwlMail：正式版 0.6.0；main 为
-  03bbad9a8223d61a2d841f341b1d953bf5af1d05。
+- OwlMail：正式版 0.6.0；已审查 main 为
+  279571b62a5e4891f0a204837d8553b131b89b20。
 - MailDev：候选版 maildev@3.0.0-rc.3；main 为
   9d4141f42b0acedfa544a306f96a5373ded8c8a3。最新稳定 2.x 为 2.2.1，
   与 3.x 主线架构存在明显差异。
@@ -43,8 +43,8 @@ API 和实时协议也不同。
 | 附件 | 本地保存解码附件 | 流式 staging；本地或可选 S3 | 启用持久化时保存本地附件 | 随内存消息数据库保存 |
 | REST API | 原生版本化及历史无版本路由 | 相同，另有可选 MailDev facade | 当前接口位于 /api | messages API 位于 /messages |
 | 实时更新 | 原生 RFC 6455 WebSocket | 相同 | Socket.IO | WebSocket，浏览器可退化为轮询 |
-| UI | 轻量多语言、安全 HTML 隔离、响应式宽度 | 相同 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
-| MCP | 无内置端点 | 默认关闭的只读 Streamable HTTP | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
+| UI | 轻量多语言收件箱 | 相同，并增加安全 HTML 隔离和响应式宽度 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
+| MCP | 无内置端点 | 默认关闭的 Streamable HTTP，含七个只读工具、资源和 Prompts | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
 | Webhook | 过滤、模板、HMAC、重试、本地 outbox、可选 Redis Streams | 相同 | 无等价通用持久 Webhook 管道 | 无内置通用 Webhook |
 | Relay | 手动与自动出站 SMTP 中继 | 相同 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
 | sendmail 替代 | 无内置命令 | owlmail sendmail | 未记录内置等价命令 | catchmail |
@@ -77,9 +77,11 @@ HTTPS、存储和 base path，但不会启用 Socket.IO。
 
 ## Agent 集成
 
-已审查 OwlMail main 已提供默认关闭的 /mcp，只包含五个封闭只读能力：列表、搜索、
-独立详情快照、受限 base64 原始源码和附件元数据。它与 Web API 共用监听器与
-鉴权边界，并明确不提供删除、已读修改、Relay、配置修改或附件二进制。
+已审查 OwlMail main 已提供默认关闭的 /mcp，包含七个封闭只读工具：列表、搜索、
+独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得最新邮件，以及
+事件驱动且有界的投递等待。它还提供有界的收件箱、统计与单邮件资源，以及注册验证、
+密码重置和投递等待 Prompts；生成的 Web 链接会保留 base path。它与 Web API 共用
+监听器和鉴权边界，并明确不提供删除、已读修改、Relay、配置修改或附件二进制。
 
 MailDev 3 的 MCP 范围更广，同时支持 HTTP 和 stdio。两者的工具名称和载荷不能
 直接互换，已有 MailDev MCP 客户端仍需显式兼容验证。
