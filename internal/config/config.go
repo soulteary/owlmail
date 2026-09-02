@@ -599,7 +599,7 @@ func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 	}
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return 0
+		return -1
 	}
 	return value
 }
