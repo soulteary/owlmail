@@ -94,6 +94,13 @@ func TestToSummaryTruncatesOnUnicodeBoundaries(t *testing.T) {
 	}
 }
 
+func TestSummaryPreviewCapsLargeBodiesWhileNormalizingWhitespace(t *testing.T) {
+	preview := summaryPreview(strings.Repeat("word\t", 1<<20))
+	if preview != strings.Repeat("word ", PreviewLength/5) {
+		t.Fatalf("unexpected bounded preview: %q", preview)
+	}
+}
+
 func TestFilterAndPageUsesMailDevQueryRules(t *testing.T) {
 	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
 	emails := []Email{

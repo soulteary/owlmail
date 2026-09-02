@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
@@ -206,12 +207,26 @@ func summaryPreview(text string) string {
 	if text == "" {
 		return ""
 	}
-	preview := strings.Join(strings.Fields(text), " ")
-	runes := []rune(preview)
-	if len(runes) > PreviewLength {
-		preview = string(runes[:PreviewLength])
+	preview := make([]rune, 0, PreviewLength)
+	pendingSpace := false
+	for _, char := range text {
+		if unicode.IsSpace(char) {
+			pendingSpace = len(preview) > 0
+			continue
+		}
+		if pendingSpace {
+			preview = append(preview, ' ')
+			pendingSpace = false
+			if len(preview) == PreviewLength {
+				break
+			}
+		}
+		preview = append(preview, char)
+		if len(preview) == PreviewLength {
+			break
+		}
 	}
-	return preview
+	return string(preview)
 }
 
 func FilterAndPage(emails []Email, filters map[string]string, skip int, limit *int, order string) []Email {
