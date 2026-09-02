@@ -3,6 +3,7 @@ package outgoing
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -327,6 +328,43 @@ func (om *OutgoingMail) Close() {
 	om.wg.Wait()
 }
 
+type smtpHelloTracker struct {
+	net.Conn
+
+	mu       sync.Mutex
+	pending  string
+	tracking bool
+	usedHELO bool
+}
+
+func (conn *smtpHelloTracker) Write(data []byte) (int, error) {
+	conn.mu.Lock()
+	if conn.tracking {
+		conn.pending += string(data)
+		for {
+			newline := strings.IndexByte(conn.pending, '\n')
+			if newline < 0 {
+				break
+			}
+			line := strings.TrimSuffix(conn.pending[:newline], "\r")
+			conn.pending = conn.pending[newline+1:]
+			if strings.HasPrefix(line, "HELO ") {
+				conn.usedHELO = true
+			}
+		}
+	}
+	conn.mu.Unlock()
+	return conn.Conn.Write(data)
+}
+
+func (conn *smtpHelloTracker) stop() bool {
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+	conn.tracking = false
+	conn.pending = ""
+	return conn.usedHELO
+}
+
 // sendMailContext performs an SMTP transaction on a connection that is
 // closed when ctx is canceled. Message data is copied through the writer from
 // smtp.Client.Data so net/smtp retains responsibility for CRLF normalization
@@ -367,7 +405,13 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}
 
-	client, err := smtp.NewClient(conn, host)
+	smtpConn := net.Conn(conn)
+	var helloTracker *smtpHelloTracker
+	if auth != nil && authOnlyWhenAdvertised {
+		helloTracker = &smtpHelloTracker{Conn: conn, tracking: true}
+		smtpConn = helloTracker
+	}
+	client, err := smtp.NewClient(smtpConn, host)
 	if err != nil {
 		_ = conn.Close()
 		return relayContextError(ctx, err)
@@ -386,11 +430,18 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}
 	if auth != nil {
-		authAdvertised, _ := client.Extension("AUTH")
-		if !authOnlyWhenAdvertised || authAdvertised {
-			if err := client.Auth(auth); err != nil {
+		if authOnlyWhenAdvertised {
+			authAdvertised, _ := client.Extension("AUTH")
+			usedHELOFallback := helloTracker.stop()
+			if !authAdvertised {
+				if !usedHELOFallback {
+					return errors.New("smtp: server doesn't support AUTH")
+				}
+			} else if err := client.Auth(auth); err != nil {
 				return relayContextError(ctx, err)
 			}
+		} else if err := client.Auth(auth); err != nil {
+			return relayContextError(ctx, err)
 		}
 	}
 	if err := client.Mail(from); err != nil {
