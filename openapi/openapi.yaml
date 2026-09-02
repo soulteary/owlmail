@@ -639,9 +639,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: '#/components/schemas/Error'
               example:
                 code: RELAY_FAILED
+                error: RELAY_FAILED
                 message: Relay status capacity reached; retry later.
   /emails/{id}/actions/relay/{relayTo}:
     post:
@@ -691,9 +692,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/APIResponse'
+                $ref: '#/components/schemas/Error'
               example:
                 code: RELAY_FAILED
+                error: RELAY_FAILED
                 message: Relay status capacity reached; retry later.
   /relay-jobs/{jobID}:
     get:
