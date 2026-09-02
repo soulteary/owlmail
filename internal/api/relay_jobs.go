@@ -2,6 +2,7 @@ package api
 
 import (
 	"crypto/rand"
+	"errors"
 	"encoding/hex"
 	"fmt"
 	"net/http"
@@ -12,6 +13,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
 )
+
+var errRelayJobCapacity = errors.New("relay job status capacity reached")
 
 const (
 	relayJobQueued    = "queued"
@@ -68,9 +71,11 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.pruneLocked(now)
+	if !store.makeRoomLocked() {
+		return relayJob{}, errRelayJobCapacity
+	}
 	store.jobs[id] = job
 	store.order = append(store.order, id)
-	store.enforceLimitLocked()
 	return job, nil
 }
 
@@ -127,19 +132,23 @@ func (store *relayJobStore) pruneLocked(now time.Time) {
 	store.order = kept
 }
 
-func (store *relayJobStore) enforceLimitLocked() {
-	for len(store.order) > store.limit {
-		removeIndex := 0
+func (store *relayJobStore) makeRoomLocked() bool {
+	for store.limit > 0 && len(store.order) >= store.limit {
+		removeIndex := -1
 		for index, id := range store.order {
 			if store.jobs[id].CompletedAt != nil {
 				removeIndex = index
 				break
 			}
 		}
+		if removeIndex < 0 {
+			return false
+		}
 		id := store.order[removeIndex]
 		delete(store.jobs, id)
 		store.order = append(store.order[:removeIndex], store.order[removeIndex+1:]...)
 	}
+	return store.limit > 0
 }
 
 func relayFailureCategory(err error) string {
@@ -197,6 +206,10 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
 	job, err := api.relayJobs.create(id, relayTo)
+	if errors.Is(err, errRelayJobCapacity) {
+		c.Set(fiber.HeaderRetryAfter, "1")
+		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))
+	}
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
