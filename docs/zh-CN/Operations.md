@@ -388,7 +388,9 @@ fragment 和 path 的 HTTP(S) origin。代理子路径继续通过 `-base-pathna
 ```
 
 协议消息写入 stdout，OwlMail 日志写入 stderr。stdio 命令会忽略从环境继承的中继、
-Webhook 与保留策略配置，使 MCP 工具和该进程保持只读。
+Webhook 与保留策略配置，使 MCP 工具和该进程保持只读。邮件目录必须已经存在。
+bridge 每 500 ms 使用只读加载器扫描已提交的 EML 文件；不会执行存储恢复、元数据
+迁移或隔离，新捕获邮件会进入查询结果与 `wait_for_email`。
 
 ## HTTPS 与 TLS
 
