@@ -806,6 +806,10 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 	}
 
 	for _, file := range files {
+		emlPath := filepath.Join(ms.mailDir, file.Name())
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(emlPath) {
+			continue
+		}
 		if file.IsDir() {
 			continue
 		}
@@ -820,8 +824,6 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		if _, fenced := fencedIDs[id]; fenced {
 			continue
 		}
-		emlPath := filepath.Join(ms.mailDir, file.Name())
-
 		// Check if email already loaded
 		ms.storeMutex.RLock()
 		_, alreadyLoaded := ms.storeByID[id]

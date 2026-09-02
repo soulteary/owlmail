@@ -230,6 +230,32 @@ func TestStartupPreservesSQLiteIndexInsideGeneratedIDDirectory(t *testing.T) {
 	}
 }
 
+func TestStartupPreservesSQLiteIndexWithEMLSuffix(t *testing.T) {
+	directory := t.TempDir()
+	indexPath := filepath.Join(directory, "mailbox-index.eml")
+	index, err := NewSQLiteMailboxIndex(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = index.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("startup parsed or moved the SQLite index as EML: %v", err)
+	}
+	if got := len(server.GetAllEmail()); got != 0 {
+		t.Fatalf("SQLite index was published as email: %d", got)
+	}
+	status := server.GetEmailStats()["index"].(map[string]interface{})
+	if status["ready"] != true {
+		t.Fatalf("configured index was not ready after startup: %#v", status)
+	}
+}
+
 func TestDeleteAllPreservesNestedSQLiteIndex(t *testing.T) {
 	directory := t.TempDir()
 	indexPath := filepath.Join(directory, ".index", "mailbox.db")
