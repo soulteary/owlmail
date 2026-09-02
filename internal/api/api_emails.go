@@ -69,7 +69,7 @@ func (api *API) getAttachment(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 	}
 
-	c.Set("Content-Type", attachment.ContentType)
+	setAttachmentResponseHeaders(c, attachment.ContentType, filename)
 	maxInt := int64(^uint(0) >> 1)
 	if attachment.Size >= 0 && attachment.Size <= maxInt {
 		return c.SendStream(attachment.Body, int(attachment.Size))
