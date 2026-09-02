@@ -353,7 +353,6 @@ func (api *API) setupEventListeners() {
 	})
 
 	api.mailServer.On("delete", func(email *types.Email) {
-		api.metrics.deleted.Add(1)
 		api.broadcastMessage(fiber.Map{
 			"type": "delete",
 			"id":   email.ID,

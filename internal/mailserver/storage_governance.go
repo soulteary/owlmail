@@ -42,10 +42,11 @@ type StorageMetrics struct {
 
 // MailboxMetrics is a disk-I/O-free snapshot for runtime monitoring.
 type MailboxMetrics struct {
-	Total   int
-	Read    int
-	Unread  int
-	Storage StorageMetrics
+	Total           int
+	Read            int
+	Unread          int
+	DeletedMessages uint64
+	Storage         StorageMetrics
 }
 
 // GetMailboxMetrics returns current mailbox counts and retention counters
@@ -66,10 +67,11 @@ func (ms *MailServer) GetMailboxMetrics() MailboxMetrics {
 	ms.storageMetricsMutex.RUnlock()
 
 	return MailboxMetrics{
-		Total:   total,
-		Read:    total - unread,
-		Unread:  unread,
-		Storage: storage,
+		Total:           total,
+		Read:            total - unread,
+		Unread:          unread,
+		DeletedMessages: ms.deletedMessages.Load(),
+		Storage:         storage,
 	}
 }
 

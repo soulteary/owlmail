@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/types"
@@ -120,11 +119,7 @@ func TestPrometheusMetricsCountDeleteAll(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	deadline := time.Now().Add(time.Second)
-	for api.metrics.deleted.Load() != 2 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if got := api.metrics.deleted.Load(); got != 2 {
+	if got := server.GetMailboxMetrics().DeletedMessages; got != 2 {
 		t.Fatalf("deleted metric after delete-all = %d, want 2", got)
 	}
 }

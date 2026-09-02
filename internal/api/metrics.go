@@ -13,7 +13,6 @@ import (
 type prometheusMetrics struct {
 	startedAt time.Time
 	received  atomic.Uint64
-	deleted   atomic.Uint64
 }
 
 func newPrometheusMetrics() *prometheusMetrics {
@@ -37,7 +36,7 @@ func (api *API) prometheusMetrics(c fiber.Ctx) error {
 	fmt.Fprintf(&output, "owlmail_emails_received_total %d\n", api.metrics.received.Load())
 	output.WriteString("# HELP owlmail_emails_deleted_total Messages deleted since this process started.\n")
 	output.WriteString("# TYPE owlmail_emails_deleted_total counter\n")
-	fmt.Fprintf(&output, "owlmail_emails_deleted_total %d\n", api.metrics.deleted.Load())
+	fmt.Fprintf(&output, "owlmail_emails_deleted_total %d\n", stats.DeletedMessages)
 	output.WriteString("# HELP owlmail_websocket_connections Current WebSocket clients.\n")
 	output.WriteString("# TYPE owlmail_websocket_connections gauge\n")
 	fmt.Fprintf(&output, "owlmail_websocket_connections %d\n", websocketClients)

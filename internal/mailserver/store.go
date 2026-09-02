@@ -287,6 +287,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	}
 
 	ms.removeEmailFromMemory(id)
+	ms.deletedMessages.Add(1)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
@@ -310,7 +311,6 @@ func (ms *MailServer) DeleteAllEmail() error {
 	}
 	var deletionErrors []error
 	for _, id := range ids {
-		email, _ := ms.GetEmail(id)
 		if err := ms.ensureDeletionFence(id); err != nil {
 			deletionErrors = append(deletionErrors, fmt.Errorf("fence deletion for %s: %w", id, err))
 			continue
@@ -320,11 +320,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 			continue
 		}
 		ms.removeEmailFromMemory(id)
-		if email != nil {
-			if err := ms.emit("delete", email); err != nil {
-				common.Error("Failed to emit delete event: %v", err)
-			}
-		}
+		ms.deletedMessages.Add(1)
 	}
 	if err := errors.Join(deletionErrors...); err != nil {
 		return err
