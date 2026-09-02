@@ -11,6 +11,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Cached S3 readiness checks using bounded, prefix-scoped read-only probes,
   separate unauthenticated liveness and readiness endpoints, automatic recovery,
   safe error categories, and an opt-in strict startup check.
+- Responsive HTML email preview width presets for 100%, 1440, 1024, 768,
+  425, 375, and 320 px without reloading the message or replacing its secure
+  iframe.
 - Real inbound SMTP AUTH with PLAIN and LOGIN mechanisms, constant-time
   credential checks, and protocol-level rejection of unauthenticated mail
   transactions.

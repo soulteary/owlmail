@@ -352,7 +352,75 @@ body {
     flex: 0 0 auto;
 }
 
+.email-viewport-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.email-viewport-label {
+    flex: 0 0 auto;
+    color: #51606f;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.email-viewport-presets {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 4px;
+    min-width: 0;
+}
+
+.email-viewport-preset {
+    min-height: 34px;
+    padding: 6px 9px;
+    border: 1px solid #cbd3da;
+    border-radius: 4px;
+    background: #fff;
+    color: #34495e;
+    cursor: pointer;
+    font: inherit;
+    font-size: 12px;
+    line-height: 1;
+}
+
+.email-viewport-preset:hover {
+    border-color: #3498db;
+}
+
+.email-viewport-preset:focus-visible {
+    outline: 2px solid #3498db;
+    outline-offset: 2px;
+}
+
+.email-viewport-preset[aria-pressed="true"] {
+    border-color: #2980b9;
+    background: #2980b9;
+    color: #fff;
+}
+
+.email-viewport-stage {
+    max-width: 100%;
+    overflow: auto;
+    padding: 12px;
+    border: 1px solid #dfe4e8;
+    border-radius: 4px;
+    background: #edf1f4;
+    overscroll-behavior: contain;
+}
+
+.email-viewport-frame {
+    margin-inline: auto;
+    background: #fff;
+    box-shadow: 0 1px 4px rgba(35, 47, 62, 0.12);
+}
+
 .email-detail-html iframe {
+    display: block;
     width: 100%;
     border: none;
     min-height: 400px;
@@ -518,6 +586,29 @@ body {
         flex-wrap: wrap;
         justify-content: flex-start;
     }
+
+    .email-detail-html {
+        padding: 12px;
+    }
+
+    .email-viewport-toolbar {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .email-viewport-presets {
+        justify-content: flex-start;
+        width: 100%;
+    }
+
+    .email-viewport-preset {
+        min-height: 38px;
+    }
+
+    .email-viewport-stage {
+        padding: 8px;
+    }
 }
 
 /* Scrollbar */
@@ -667,6 +758,32 @@ body.dark-theme .email-remote-content-notice {
     background: #3d3520;
     border-color: #806c35;
     color: #f0d98a;
+}
+
+body.dark-theme .email-viewport-label {
+    color: #b8c2cc;
+}
+
+body.dark-theme .email-viewport-preset {
+    border-color: #59636d;
+    background: #2d2d2d;
+    color: #e0e0e0;
+}
+
+body.dark-theme .email-viewport-preset[aria-pressed="true"] {
+    border-color: #3498db;
+    background: #2980b9;
+    color: #fff;
+}
+
+body.dark-theme .email-viewport-stage {
+    border-color: #444;
+    background: #111;
+}
+
+body.dark-theme .email-viewport-frame {
+    background: #fff;
+    box-shadow: none;
 }
 
 body.dark-theme .email-detail-attachments {
