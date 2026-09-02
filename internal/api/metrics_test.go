@@ -100,7 +100,6 @@ func TestPrometheusMetricsUseBasePathAndBasicAuth(t *testing.T) {
 	}
 }
 
-
 func TestPrometheusMetricsCountDeleteAll(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {
