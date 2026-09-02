@@ -69,7 +69,7 @@ func makeIndexedEmail(email *Email, receivedAt time.Time, position int) IndexedE
 		SubjectSearch: strings.ToLower(email.Subject), TextSearch: strings.ToLower(email.Text),
 		HTMLSearch: strings.ToLower(email.HTML), FromSearch: indexedAddressText(email.From, true),
 		VisibleRecipientsSearch: indexedAddressText(visibleRecipients, true),
-		BCCAddressesSearch: indexedAddressText(email.CalculatedBCC, false), FirstFrom: firstFrom,
+		BCCAddressesSearch:      indexedAddressText(email.CalculatedBCC, false), FirstFrom: firstFrom,
 		Size: email.Size, StorePosition: position,
 	}
 }
@@ -166,4 +166,3 @@ func (ms *MailServer) mailboxIndexStatus() map[string]interface{} {
 		"enabled": true, "ready": ms.mailboxIndexReady.Load(), "backend": ms.mailboxIndex.Backend(),
 	}
 }
-
