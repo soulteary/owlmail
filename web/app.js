@@ -50,6 +50,9 @@ const i18n = {
         webhooks: 'Webhook 配置',
         toggleTheme: '切换主题',
         switchLanguage: '切换语言',
+        remoteContentBlocked: '为保护隐私，远程图片、字体和样式默认已阻止。',
+        loadRemoteContent: '加载远程内容',
+        emailPreviewTitle: '隔离的邮件 HTML 预览',
         // API Error Codes
         'EMAIL_NOT_FOUND': '邮件未找到',
         'EMAIL_FILE_NOT_FOUND': '邮件文件未找到',
@@ -126,6 +129,9 @@ const i18n = {
         webhooks: 'Webhooks',
         toggleTheme: 'Toggle Theme',
         switchLanguage: 'Switch Language',
+        remoteContentBlocked: 'Remote images, fonts, and styles are blocked by default for privacy.',
+        loadRemoteContent: 'Load remote content',
+        emailPreviewTitle: 'Isolated email HTML preview',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email not found',
         'EMAIL_FILE_NOT_FOUND': 'Email file not found',
@@ -196,6 +202,9 @@ const i18n = {
         webhooks: 'Webhooks',
         toggleTheme: 'Design umschalten',
         switchLanguage: 'Sprache wechseln',
+        remoteContentBlocked: 'Externe Bilder, Schriftarten und Stile sind aus Datenschutzgründen blockiert.',
+        loadRemoteContent: 'Externe Inhalte laden',
+        emailPreviewTitle: 'Isolierte HTML-E-Mail-Vorschau',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'E-Mail nicht gefunden',
         'EMAIL_FILE_NOT_FOUND': 'E-Mail-Datei nicht gefunden',
@@ -266,6 +275,9 @@ const i18n = {
         webhooks: 'Webhook',
         toggleTheme: 'Cambia Tema',
         switchLanguage: 'Cambia Lingua',
+        remoteContentBlocked: 'Immagini, font e stili remoti sono bloccati per impostazione predefinita.',
+        loadRemoteContent: 'Carica contenuti remoti',
+        emailPreviewTitle: 'Anteprima HTML email isolata',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email non trovata',
         'EMAIL_FILE_NOT_FOUND': 'File email non trovato',
@@ -336,6 +348,9 @@ const i18n = {
         webhooks: 'Webhooks',
         toggleTheme: 'Changer le Thème',
         switchLanguage: 'Changer la Langue',
+        remoteContentBlocked: 'Les images, polices et styles distants sont bloqués par défaut.',
+        loadRemoteContent: 'Charger le contenu distant',
+        emailPreviewTitle: 'Aperçu HTML isolé de l’e-mail',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email introuvable',
         'EMAIL_FILE_NOT_FOUND': 'Fichier email introuvable',
@@ -406,6 +421,9 @@ const i18n = {
         webhooks: '웹훅',
         toggleTheme: '테마 전환',
         switchLanguage: '언어 전환',
+        remoteContentBlocked: '개인정보 보호를 위해 원격 이미지, 글꼴 및 스타일이 기본적으로 차단됩니다.',
+        loadRemoteContent: '원격 콘텐츠 불러오기',
+        emailPreviewTitle: '격리된 이메일 HTML 미리보기',
         // API Error Codes
         'EMAIL_NOT_FOUND': '이메일을 찾을 수 없습니다',
         'EMAIL_FILE_NOT_FOUND': '이메일 파일을 찾을 수 없습니다',
@@ -476,6 +494,9 @@ const i18n = {
         webhooks: 'Webhook',
         toggleTheme: 'テーマを切り替え',
         switchLanguage: '言語を切り替え',
+        remoteContentBlocked: 'プライバシー保護のため、外部の画像、フォント、スタイルは既定でブロックされます。',
+        loadRemoteContent: '外部コンテンツを読み込む',
+        emailPreviewTitle: '隔離されたメール HTML プレビュー',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'メールが見つかりません',
         'EMAIL_FILE_NOT_FOUND': 'メールファイルが見つかりません',
@@ -734,6 +755,10 @@ let state = {
     searchQuery: '',
     ws: null
 };
+
+// Remote resources are enabled only for the currently rendered message after
+// an explicit user action. The choice is intentionally not persisted.
+let remoteContentAllowedEmailID = null;
 
 const BROWSER_NOTIFICATION_STORAGE_KEY = 'owlmail.browserNotifications.enabled';
 let browserNotificationsEnabled = false;
@@ -1273,20 +1298,107 @@ function renderEmailDetail() {
             </div>
         </div>
         <div class="email-detail-body">
-            ${email.html ? renderHTML(email.html) : renderText(email.text || '')}
+            ${email.html ? renderHTML(email.html, email.id, email.attachments || []) : renderText(email.text || '')}
         </div>
         ${attachments}
     `;
 }
 
-function renderHTML(html) {
-    // Create a safe iframe for HTML content
+function hasRemoteEmailResources(html) {
+    const isRemoteURL = (value) => {
+        for (const match of value.matchAll(/(?:https?:)?\/\/[^\s,'")]+/gi)) {
+            try {
+                if (new URL(match[0], window.location.origin).origin !== window.location.origin) return true;
+            } catch (error) {
+                // The server sanitizer removes unparseable resource URLs. If
+                // legacy stored content reaches this layer, treat it as remote.
+                return true;
+            }
+        }
+        return false;
+    };
+
+    for (const tag of html.matchAll(/<(?:img|source|video|audio|link)\b[^>]*>/gi)) {
+        for (const attribute of tag[0].matchAll(/(?:src|srcset|href|poster)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))/gi)) {
+            if (isRemoteURL(attribute[1] || attribute[2] || attribute[3] || '')) return true;
+        }
+    }
+    for (const cssURL of html.matchAll(/url\(\s*["']?\s*([^"')\s]+)/gi)) {
+        if (isRemoteURL(cssURL[1])) return true;
+    }
+    return false;
+}
+
+function resolveCIDReferences(html, emailId, attachments) {
+    const cidURLs = new Map();
+    attachments.forEach((attachment) => {
+        if (!attachment || !attachment.contentId || !attachment.generatedFileName) return;
+        const cid = String(attachment.contentId).replace(/^<|>$/g, '').toLowerCase();
+        cidURLs.set(cid, `${API_BASE}/emails/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachment.generatedFileName)}`);
+    });
+
+    return html.replace(/cid:([^"'\s)>]+)/gi, (reference, cid) => cidURLs.get(cid.toLowerCase()) || reference);
+}
+
+function previewContentSecurityPolicy(allowRemote) {
+    const localOrigin = window.location.origin;
+    const resourceSources = allowRemote
+        ? `http: https: data: blob: ${localOrigin}`
+        : `data: blob: ${localOrigin}`;
+    const fontSources = allowRemote
+        ? `http: https: data: ${localOrigin}`
+        : `data: ${localOrigin}`;
+
+    return [
+        "default-src 'none'",
+        "base-uri 'none'",
+        "object-src 'none'",
+        "frame-src 'none'",
+        "form-action 'none'",
+        "script-src 'none'",
+        `img-src ${resourceSources}`,
+        `media-src ${resourceSources}`,
+        `font-src ${fontSources}`,
+        `style-src 'unsafe-inline' ${localOrigin}${allowRemote ? ' http: https:' : ''}`,
+        "connect-src 'none'"
+    ].join('; ');
+}
+
+function injectPreviewSecurityHead(html, allowRemote) {
+    const securityHead = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(previewContentSecurityPolicy(allowRemote))}">`
+        + '<meta name="referrer" content="no-referrer">';
+    if (/<head(?:\s[^>]*)?>/i.test(html)) {
+        return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${securityHead}`);
+    }
+    if (/<html(?:\s[^>]*)?>/i.test(html)) {
+        return html.replace(/<html(?:\s[^>]*)?>/i, (root) => `${root}<head>${securityHead}</head>`);
+    }
+    return `<head>${securityHead}</head>${html}`;
+}
+
+function renderHTML(html, emailId, attachments) {
+    const allowRemote = remoteContentAllowedEmailID === emailId;
+    const remoteContentPresent = hasRemoteEmailResources(html);
+    const cidResolvedHTML = resolveCIDReferences(html, emailId, attachments);
+    const previewDocument = injectPreviewSecurityHead(cidResolvedHTML, allowRemote);
     const iframeId = 'email-html-' + Date.now();
     return `
         <div class="email-detail-html">
-            <iframe id="${iframeId}" srcdoc="${escapeHtml(html)}"></iframe>
+            ${remoteContentPresent && !allowRemote ? `
+                <div class="email-remote-content-notice" role="status">
+                    <span>${t('remoteContentBlocked')}</span>
+                    <button type="button" class="btn btn-secondary" onclick="loadRemoteContent('${emailId}')">${t('loadRemoteContent')}</button>
+                </div>
+            ` : ''}
+            <iframe id="${iframeId}" title="${t('emailPreviewTitle')}" sandbox="" referrerpolicy="no-referrer" srcdoc="${escapeHtml(previewDocument)}"></iframe>
         </div>
     `;
+}
+
+function loadRemoteContent(emailId) {
+    if (!state.currentEmail || state.currentEmail.id !== emailId) return;
+    remoteContentAllowedEmailID = emailId;
+    renderEmailDetail();
 }
 
 function renderText(text) {
@@ -1341,6 +1453,7 @@ async function loadEmailDetail(id) {
     try {
         showLoading();
         const email = await API.getEmail(id);
+        remoteContentAllowedEmailID = null;
         state.currentEmail = email;
         renderEmailDetail();
         renderEmailList(); // Update selected state

