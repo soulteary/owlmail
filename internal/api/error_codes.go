@@ -17,6 +17,7 @@ const (
 	ErrorCodeHostRequired        = "HOST_REQUIRED"
 	ErrorCodePortOutOfRange      = "PORT_OUT_OF_RANGE"
 	ErrorCodeInvalidPort         = "INVALID_PORT"
+	ErrorCodeConfigUpdateFailed  = "CONFIG_UPDATE_FAILED"
 
 	// Relay errors
 	ErrorCodeRelayFailed = "RELAY_FAILED"

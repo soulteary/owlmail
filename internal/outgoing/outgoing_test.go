@@ -30,9 +30,12 @@ func TestRelayMailContextDoesNotQueueCanceledTask(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	called := make(chan error, 1)
-	om.RelayMailContext(ctx, &types.Email{}, "/missing", "", false, func(err error) {
+	err := om.RelayMailContext(ctx, &types.Email{}, "/missing", "", false, func(err error) {
 		called <- err
 	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RelayMailContext() error = %v, want context cancellation", err)
+	}
 	if len(om.queue) != 0 {
 		t.Fatal("canceled relay task was queued")
 	}
@@ -211,17 +214,21 @@ func TestOutgoingMailIsAutoRelayEnabled(t *testing.T) {
 	}
 
 	// Test with AutoRelay disabled
-	om.UpdateConfig(&OutgoingConfig{
+	if err := om.UpdateConfig(&OutgoingConfig{
 		Host:      "smtp.example.com",
 		Port:      587,
 		AutoRelay: false,
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	if om.IsAutoRelayEnabled() {
 		t.Error("IsAutoRelayEnabled should return false when AutoRelay is disabled")
 	}
 
 	// Test with no host
-	om.UpdateConfig(&OutgoingConfig{})
+	if err := om.UpdateConfig(&OutgoingConfig{}); err != nil {
+		t.Fatal(err)
+	}
 	if om.IsAutoRelayEnabled() {
 		t.Error("IsAutoRelayEnabled should return false when host is empty")
 	}
@@ -243,7 +250,9 @@ func TestOutgoingMailUpdateConfig(t *testing.T) {
 		DenyRules:     []string{"*@test.com"},
 	}
 
-	om.UpdateConfig(newConfig)
+	if err := om.UpdateConfig(newConfig); err != nil {
+		t.Fatal(err)
+	}
 	config := om.GetConfig()
 	cfg, ok := config.(*OutgoingConfig)
 	if !ok {
@@ -495,13 +504,15 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 	}
 
 	callbackCalled := make(chan bool, 1)
-	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
+	if err := om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
 		callbackCalled <- true
 		// Should fail because file doesn't exist
 		if err == nil {
 			t.Error("Expected error when file doesn't exist")
 		}
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Wait for callback
 	select {
@@ -520,13 +531,15 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 		},
 	}
 	callbackCalled2 := make(chan bool, 1)
-	om.RelayMail(emailNoRecipients, "/path/to/email.eml", "", false, func(err error) {
+	if err := om.RelayMail(emailNoRecipients, "/path/to/email.eml", "", false, func(err error) {
 		callbackCalled2 <- true
 		// Should fail because no recipients
 		if err == nil {
 			t.Error("Expected error when no recipients")
 		}
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	select {
 	case <-callbackCalled2:
 		// Callback was called
@@ -537,18 +550,20 @@ func TestOutgoingMailRelayMail(t *testing.T) {
 	// Test queue full scenario
 	// Fill the queue
 	for i := 0; i < 110; i++ {
-		om.RelayMail(email, "/path/to/email.eml", "", false, nil)
+		_ = om.RelayMail(email, "/path/to/email.eml", "", false, nil)
 	}
 	time.Sleep(200 * time.Millisecond)
 
 	// Test with callback on queue full
 	callbackCalled3 := make(chan bool, 1)
-	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
+	if err := om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
 		callbackCalled3 <- true
 		if err == nil {
 			t.Error("Expected error when queue is full")
 		}
-	})
+	}); err != nil && !errors.Is(err, ErrQueueFull) {
+		t.Fatal(err)
+	}
 	select {
 	case <-callbackCalled3:
 		// Callback was called
@@ -719,12 +734,15 @@ func TestOutgoingMailRelayMailDisabled(t *testing.T) {
 	}
 
 	callbackCalled := make(chan bool, 1)
-	om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
+	err := om.RelayMail(email, "/path/to/email.eml", "", false, func(err error) {
 		callbackCalled <- true
 		if err == nil {
 			t.Error("Expected error when outgoing mail is disabled")
 		}
 	})
+	if !errors.Is(err, ErrNotConfigured) {
+		t.Fatalf("RelayMail() error = %v, want %v", err, ErrNotConfigured)
+	}
 
 	// Wait for callback
 	select {
@@ -792,7 +810,9 @@ func TestUpdateConfigWithInvalidType(t *testing.T) {
 	originalConfig := om.GetConfig().(*OutgoingConfig)
 
 	// Try to update with wrong type
-	om.UpdateConfig("not a config")
+	if err := om.UpdateConfig("not a config"); err == nil {
+		t.Fatal("UpdateConfig() accepted an invalid type")
+	}
 
 	// Config should remain unchanged
 	currentConfig := om.GetConfig().(*OutgoingConfig)
@@ -1078,7 +1098,9 @@ func TestRelayMailWithNilCallback(t *testing.T) {
 	}
 
 	// Test with nil callback - should not panic
-	om.RelayMail(email, "/path/to/email.eml", "", false, nil)
+	if err := om.RelayMail(email, "/path/to/email.eml", "", false, nil); err != nil {
+		t.Fatal(err)
+	}
 	time.Sleep(100 * time.Millisecond) // Give worker time to process
 }
 
@@ -1315,3 +1337,4 @@ func TestMatchesRuleWithWildcardInMiddle(t *testing.T) {
 		t.Error("Pattern with wildcard in middle should not match different prefix")
 	}
 }
+
