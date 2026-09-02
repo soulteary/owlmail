@@ -17,6 +17,8 @@ func TestInitLogger(t *testing.T) {
 	InitLogger(LogLevelSilent)
 	InitLogger(LogLevelNormal)
 	InitLogger(LogLevelVerbose)
+	InitLoggerWithFormat(LogLevelNormal, "json")
+	InitLoggerWithFormat(LogLevelNormal, "console")
 }
 
 func TestLog(t *testing.T) {

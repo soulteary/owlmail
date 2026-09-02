@@ -13,6 +13,9 @@ import (
 // ValidLogLevels defines the allowed log level values
 var ValidLogLevels = []string{"silent", "normal", "verbose"}
 
+// ValidLogFormats defines the supported output encodings.
+var ValidLogFormats = []string{"console", "json"}
+
 // ValidateConfig validates all configuration values and returns an error if any are invalid.
 func ValidateConfig(cfg *Config) error {
 	if cfg == nil {
@@ -127,6 +130,9 @@ func ValidateConfig(cfg *Config) error {
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {
 		return err
+	}
+	if err := validator.ValidateEnum(cfg.LogFormat, ValidLogFormats, false); err != nil {
+		return fmt.Errorf("invalid log format: %w", err)
 	}
 
 	// Validate TLS configuration

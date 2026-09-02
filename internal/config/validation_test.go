@@ -60,6 +60,18 @@ func TestValidateLogLevel(t *testing.T) {
 	}
 }
 
+func TestValidateConfigLogFormat(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.LogFormat = "json"
+	if err := ValidateConfig(cfg); err != nil {
+		t.Fatalf("json log format rejected: %v", err)
+	}
+	cfg.LogFormat = "xml"
+	if err := ValidateConfig(cfg); err == nil {
+		t.Fatal("unsupported log format was accepted")
+	}
+}
+
 func TestValidatePath(t *testing.T) {
 	tests := []struct {
 		name      string

@@ -597,7 +597,7 @@ func initializeApplication(cfg *config.Config) error {
 		return fmt.Errorf("config is nil")
 	}
 	level := parseLogLevel(cfg.LogLevel)
-	common.InitLogger(level)
+	common.InitLoggerWithFormat(level, cfg.LogFormat)
 	basePathname, err := config.NormalizeBasePathname(cfg.BasePathname)
 	if err != nil {
 		return err
