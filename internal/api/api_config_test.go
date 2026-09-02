@@ -97,7 +97,9 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 		AllowRules:    []string{"allow@example.com"},
 		DenyRules:     []string{"deny@example.com"},
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings/outgoing", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
@@ -225,7 +227,9 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 		Port:     587,
 		Password: "top-secret",
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	req, _ := http.NewRequest("GET", "/api/v1/settings", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})

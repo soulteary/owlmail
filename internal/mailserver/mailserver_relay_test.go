@@ -32,7 +32,9 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 		Password: "pass",
 	}
 
-	server.SetOutgoingConfig(config)
+	if err := server.SetOutgoingConfig(config); err != nil {
+		t.Fatal(err)
+	}
 
 	// Get config
 	retrieved := server.GetOutgoingConfig()
@@ -87,7 +89,9 @@ func TestRelayMail(t *testing.T) {
 		Host: "smtp.example.com",
 		Port: 587,
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	// RelayMail will queue the task, but actual relay will fail in test
 	// We can test that it doesn't panic
@@ -141,7 +145,9 @@ func TestRelayMailTo(t *testing.T) {
 		Host: "smtp.example.com",
 		Port: 587,
 	}
-	server.SetOutgoingConfig(outgoingConfig)
+	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
+		t.Fatal(err)
+	}
 
 	// RelayMailTo will queue the task, but actual relay will fail in test
 	// We can test that it doesn't panic
@@ -196,7 +202,9 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		User:     "user1",
 		Password: "pass1",
 	}
-	server.SetOutgoingConfig(config1)
+	if err := server.SetOutgoingConfig(config1); err != nil {
+		t.Fatal(err)
+	}
 
 	// Update config (test the else branch in SetOutgoingConfig)
 	config2 := &outgoing.OutgoingConfig{
@@ -205,7 +213,9 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		User:     "user2",
 		Password: "pass2",
 	}
-	server.SetOutgoingConfig(config2)
+	if err := server.SetOutgoingConfig(config2); err != nil {
+		t.Fatal(err)
+	}
 
 	// Verify config was updated
 	retrieved := server.GetOutgoingConfig()
