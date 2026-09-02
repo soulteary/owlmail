@@ -337,7 +337,15 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	config := cloneConfig(om.config)
 	om.enqueueWG.Add(1)
 	om.mu.Unlock()
-	defer om.enqueueWG.Done()
+	finishEnqueue := func(err error) error {
+		// Release the lifecycle slot before invoking callbacks. A callback is
+		// allowed to close the relay, and Close waits for these slots to drain.
+		om.enqueueWG.Done()
+		if err != nil {
+			return relayRejected(callback, err)
+		}
+		return nil
+	}
 
 	task := &RelayTask{
 		Email:       email,
@@ -350,7 +358,7 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	if contextAware {
 		task.Context = ctx
 		if err := ctx.Err(); err != nil {
-			return relayRejected(callback, err)
+			return finishEnqueue(err)
 		}
 	}
 
@@ -362,13 +370,13 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	}
 	select {
 	case om.queue <- task:
-		return nil
+		return finishEnqueue(nil)
 	case <-timer.C:
-		return relayRejected(callback, ErrQueueFull)
+		return finishEnqueue(ErrQueueFull)
 	case <-om.closing:
-		return relayRejected(callback, ErrClosed)
+		return finishEnqueue(ErrClosed)
 	case <-canceled:
-		return relayRejected(callback, ctx.Err())
+		return finishEnqueue(ctx.Err())
 	}
 }
 

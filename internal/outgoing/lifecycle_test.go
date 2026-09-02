@@ -1,6 +1,7 @@
 package outgoing
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -190,4 +191,27 @@ func TestOutgoingMailConcurrentUpdateEnqueueAndClose(t *testing.T) {
 	if callbackErr := <-callback; !errors.Is(callbackErr, ErrClosed) {
 		t.Fatalf("callback after Close error = %v, want %v", callbackErr, ErrClosed)
 	}
+}
+
+func TestRejectedRelayCallbackCanClose(t *testing.T) {
+	om := NewOutgoingMail(&OutgoingConfig{Host: "smtp.example.test", Port: 25})
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	done := make(chan error, 1)
+
+	go func() {
+		done <- om.RelayMailContext(ctx, &types.Email{}, "/missing", "to@example.test", false, func(error) {
+			om.Close()
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("RelayMailContext() error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("rejection callback deadlocked while closing relay")
+	}
+	om.Close()
 }
