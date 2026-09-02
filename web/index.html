@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="owlmail-base-pathname" content="{{OWLMAIL_BASE_PATHNAME}}">
     <title>OwlMail - Email Development Testing Tool</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="icon" href="{{OWLMAIL_BASE_PATHNAME}}/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="{{OWLMAIL_BASE_PATHNAME}}/style.css">
 </head>
 <body class="light-theme">
     <div class="container">
@@ -14,8 +16,8 @@
                 <h1>🦉 OwlMail</h1>
                 <div class="header-actions">
                     <select id="langSelect" class="lang-select" title="Switch Language"></select>
-                    <a id="webhookBtn" class="btn btn-secondary btn-link" href="/webhooks">Webhooks</a>
-                    <a id="helpBtn" class="btn btn-secondary btn-link" href="/help" target="_blank" rel="noopener">Help</a>
+                    <a id="webhookBtn" class="btn btn-secondary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/webhooks">Webhooks</a>
+                    <a id="helpBtn" class="btn btn-secondary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/help" target="_blank" rel="noopener">Help</a>
                     <button id="themeToggle" class="btn btn-secondary" title="Toggle Theme">🌙</button>
                     <button id="notificationToggle" class="btn btn-secondary notification-toggle" type="button" aria-pressed="false" title="Enable browser notifications">🔕 Notifications off</button>
                     <button id="refreshBtn" class="btn btn-primary">Refresh</button>
@@ -78,6 +80,6 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="{{OWLMAIL_BASE_PATHNAME}}/app.js"></script>
 </body>
 </html>

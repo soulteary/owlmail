@@ -67,7 +67,7 @@ function jsonResponse(data) {
     };
 }
 
-function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl = null } = {}) {
+function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl = null, basePathname = '' } = {}) {
     const storage = new Map();
     if (savedPreference !== null) {
         storage.set('owlmail.browserNotifications.enabled', savedPreference);
@@ -93,6 +93,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const windowListeners = new Map();
     const documentListeners = new Map();
     const serviceNotifications = [];
+    const serviceWorkerRegistrations = [];
+    const webSocketURLs = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -118,7 +120,9 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         body: { classList: createClassList() },
         addEventListener(name, handler) { documentListeners.set(name, handler); },
         getElementById(id) { return elements.get(id) || null; },
-        querySelector() { return null; },
+        querySelector(selector) {
+            return selector === 'meta[name="owlmail-base-pathname"]' ? { content: basePathname } : null;
+        },
         querySelectorAll(selector) {
             return selector === '.email-viewport-preset' ? emailViewportButtons : [];
         },
@@ -133,7 +137,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
 		};
         navigator.serviceWorker = {
             addEventListener() {},
-            async register() {
+			async register(url, options) {
+				serviceWorkerRegistrations.push({ url, options });
 				return { installing: {} };
 			},
 			ready: Promise.resolve(activeRegistration)
@@ -155,7 +160,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
             if (!fetchImpl) throw new Error('unexpected fetch');
             return fetchImpl(url, options);
         },
-        WebSocket: function WebSocket() {},
+        WebSocket: function WebSocket(url) { webSocketURLs.push(url); },
         URL,
         URLSearchParams,
         Blob,
@@ -176,12 +181,40 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         notificationToggle,
         notifications,
         serviceNotifications,
+        serviceWorkerRegistrations,
         storage,
         window,
         windowListeners,
+        webSocketURLs,
         run(source) { return vm.runInContext(source, sandbox); }
     };
 }
+
+test('browser routes use the configured base pathname', async () => {
+    const harness = createHarness({
+        basePathname: '/owlmail',
+        serviceWorker: true,
+        fetchImpl: async () => jsonResponse({ total: 0, limit: 50, offset: 0, previews: [] })
+    });
+
+    await harness.run('API.getEmailPreviews()');
+    harness.run('connectWebSocket()');
+    await harness.run('getNotificationServiceWorker()');
+
+    assert.equal(new URL(harness.fetchRequests[0].url).pathname, '/owlmail/api/v1/emails/preview');
+    assert.equal(harness.webSocketURLs[0], 'ws://owlmail.test/owlmail/api/v1/ws');
+    assert.deepEqual(JSON.parse(JSON.stringify(harness.serviceWorkerRegistrations[0])), {
+        url: '/owlmail/service-worker.js',
+        options: { scope: '/owlmail/' }
+    });
+});
+
+test('browser routes remain root-relative by default', () => {
+    const harness = createHarness();
+    harness.run('connectWebSocket()');
+    assert.equal(harness.run('API_BASE'), 'http://owlmail.test/api/v1');
+    assert.equal(harness.webSocketURLs[0], 'ws://owlmail.test/api/v1/ws');
+});
 
 test('mailbox lists use the preview endpoint and consume preview results', async () => {
     const harness = createHarness({

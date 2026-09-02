@@ -4,15 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Build, import, validate, and download OwlMail webhook forwarding configuration.">
+    <meta name="owlmail-base-pathname" content="{{OWLMAIL_BASE_PATHNAME}}">
     <title>OwlMail Webhook Configurator</title>
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/webhooks.css">
+    <link rel="icon" href="{{OWLMAIL_BASE_PATHNAME}}/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="{{OWLMAIL_BASE_PATHNAME}}/style.css">
+    <link rel="stylesheet" href="{{OWLMAIL_BASE_PATHNAME}}/webhooks.css">
 </head>
 <body class="light-theme">
     <div class="container webhook-page">
         <header class="header webhook-header">
             <div class="header-content">
-                <a class="webhook-brand" href="/" aria-label="OwlMail inbox">🦉 <span>OwlMail</span></a>
+                <a class="webhook-brand" href="{{OWLMAIL_BASE_PATHNAME}}/" aria-label="OwlMail inbox">🦉 <span>OwlMail</span></a>
                 <nav class="header-actions" aria-label="Page controls">
                     <label class="visually-hidden" for="webhookLanguage" data-i18n="language">Language</label>
                     <select id="webhookLanguage" class="lang-select" aria-label="Language">
@@ -20,8 +22,8 @@
                         <option value="zh-CN">简体中文</option>
                     </select>
                     <button id="webhookTheme" class="btn btn-secondary icon-button" type="button" data-i18n-title="toggleTheme" aria-label="Toggle theme">🌙</button>
-                    <a class="btn btn-secondary btn-link" href="/help" data-i18n="help">Help</a>
-                    <a class="btn btn-primary btn-link" href="/" data-i18n="backToInbox">Back to inbox</a>
+                    <a class="btn btn-secondary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/help" data-i18n="help">Help</a>
+                    <a class="btn btn-primary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/" data-i18n="backToInbox">Back to inbox</a>
                 </nav>
             </div>
         </header>
@@ -189,6 +191,6 @@
         </div>
     </template>
 
-    <script src="/webhooks.js"></script>
+    <script src="{{OWLMAIL_BASE_PATHNAME}}/webhooks.js"></script>
 </body>
 </html>

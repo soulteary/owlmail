@@ -360,6 +360,46 @@ func TestValidateConfig(t *testing.T) {
 	})
 }
 
+func TestNormalizeBasePathname(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+		valid bool
+	}{
+		{input: "", want: "", valid: true},
+		{input: "/", want: "", valid: true},
+		{input: "owlmail", want: "/owlmail", valid: true},
+		{input: "/owlmail/", want: "/owlmail", valid: true},
+		{input: " /teams/owlmail/ ", want: "/teams/owlmail", valid: true},
+		{input: "/../owlmail", valid: false},
+		{input: "/%2e%2e/owlmail", valid: false},
+		{input: "/owlmail%2fadmin", valid: false},
+		{input: "/owlmail?debug=1", valid: false},
+		{input: "/owlmail#inbox", valid: false},
+		{input: "https://example.com/owlmail", valid: false},
+		{input: "/owlmail\\admin", valid: false},
+		{input: "/owlmail//admin", valid: false},
+		{input: "/:tenant", valid: false},
+		{input: "/*", valid: false},
+		{input: "/tenant+", valid: false},
+		{input: "/tenant<id>", valid: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			got, err := NormalizeBasePathname(tt.input)
+			if tt.valid && err != nil {
+				t.Fatalf("NormalizeBasePathname(%q) error = %v", tt.input, err)
+			}
+			if !tt.valid && err == nil {
+				t.Fatalf("NormalizeBasePathname(%q) = %q, want error", tt.input, got)
+			}
+			if tt.valid && got != tt.want {
+				t.Fatalf("NormalizeBasePathname(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateFileExists(t *testing.T) {
 	// Create a temporary file
 	tmpDir := t.TempDir()

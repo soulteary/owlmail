@@ -370,6 +370,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
+		return nil, err
+	}
 	if err := apiServer.SetExternalScheme(cfg.WebExternalScheme); err != nil {
 		return nil, err
 	}
@@ -424,6 +427,11 @@ func initializeApplication(cfg *config.Config) error {
 	}
 	level := parseLogLevel(cfg.LogLevel)
 	common.InitLogger(level)
+	basePathname, err := config.NormalizeBasePathname(cfg.BasePathname)
+	if err != nil {
+		return err
+	}
+	cfg.BasePathname = basePathname
 	completion, err := completeWebAuthConfig(cfg, rand.Reader)
 	if err != nil {
 		return err

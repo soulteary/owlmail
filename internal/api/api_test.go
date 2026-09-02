@@ -304,6 +304,106 @@ func TestEmbeddedWebAssets(t *testing.T) {
 	}
 }
 
+func TestBasePathRouting(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		prefix string
+	}{
+		{name: "root", input: "/", prefix: ""},
+		{name: "subpath", input: "/owlmail/", prefix: "/owlmail"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			api, server, _ := setupTestAPI(t)
+			defer func() { _ = server.Close() }()
+			if err := api.SetBasePathname(tt.input); err != nil {
+				t.Fatal(err)
+			}
+			if tt.prefix != "" {
+				req, _ := http.NewRequest(http.MethodGet, tt.prefix, nil)
+				resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = resp.Body.Close()
+				if resp.StatusCode != http.StatusPermanentRedirect || resp.Header.Get("Location") != tt.prefix+"/" {
+					t.Errorf("GET %s redirect = (%d, %q), want (308, %q)", tt.prefix, resp.StatusCode, resp.Header.Get("Location"), tt.prefix+"/")
+				}
+			}
+
+			for _, route := range []string{
+				"/", "/help", "/webhooks", "/style.css", "/app.js",
+				"/favicon.svg", "/api/v1/health", "/healthz", "/config",
+			} {
+				req, _ := http.NewRequest(http.MethodGet, tt.prefix+route, nil)
+				resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+				if err != nil {
+					t.Fatalf("GET %s: %v", tt.prefix+route, err)
+				}
+				_ = resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("GET %s status = %d, want 200", tt.prefix+route, resp.StatusCode)
+				}
+			}
+
+			req, _ := http.NewRequest(http.MethodGet, tt.prefix+"/", nil)
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			for _, asset := range []string{"/style.css", "/app.js", "/favicon.svg", "/help", "/webhooks"} {
+				if !strings.Contains(string(body), tt.prefix+asset) {
+					t.Errorf("index for %q does not reference %q", tt.prefix, tt.prefix+asset)
+				}
+			}
+
+			req, _ = http.NewRequest(http.MethodGet, tt.prefix+"/service-worker.js", nil)
+			resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatal(err)
+			}
+			_ = resp.Body.Close()
+			if got := resp.Header.Get("Service-Worker-Allowed"); got != tt.prefix+"/" {
+				t.Errorf("Service-Worker-Allowed = %q, want %q", got, tt.prefix+"/")
+			}
+
+			for _, route := range []string{"/api/v1/ws", "/socket.io", "/api/v1/emails/missing/attachments/file.txt"} {
+				req, _ = http.NewRequest(http.MethodGet, tt.prefix+route, nil)
+				resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+				if err != nil {
+					t.Fatal(err)
+				}
+				body, _ = io.ReadAll(resp.Body)
+				_ = resp.Body.Close()
+				if resp.StatusCode == http.StatusNotFound && (route == "/api/v1/ws" || route == "/socket.io") {
+					t.Errorf("WebSocket route %s was not registered", tt.prefix+route)
+				}
+				if strings.Contains(string(body), "Email Development Testing Tool") {
+					t.Errorf("GET %s unexpectedly fell through to the browser UI", tt.prefix+route)
+				}
+			}
+
+			if tt.prefix != "" {
+				for _, route := range []string{"/", "/api/v1/health", "/style.css"} {
+					req, _ = http.NewRequest(http.MethodGet, route, nil)
+					resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+					if err != nil {
+						t.Fatal(err)
+					}
+					_ = resp.Body.Close()
+					if resp.StatusCode != http.StatusNotFound {
+						t.Errorf("out-of-scope GET %s status = %d, want 404", route, resp.StatusCode)
+					}
+				}
+			}
+		})
+	}
+}
+
 func TestAPIStart(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)

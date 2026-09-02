@@ -284,7 +284,7 @@ drop-in replacement.
 
 | Area | Current MailDev | OwlMail |
 |---|---|---|
-| API prefix | `/api` (plus optional base pathname) | unversioned `/email` routes and `/api/v1`; no configurable base pathname |
+| API prefix | `/api` (plus optional base pathname) | unversioned `/email` routes and `/api/v1`, optionally below `-base-pathname` |
 | list shape | MailDev-defined email list/summary shapes | `{ total, limit, offset, emails }` or `{ ..., previews }` |
 | detail read state | detail fetch marks read | explicit `PATCH` only |
 | batch delete | `POST /api/email/delete` | `POST /email/batch/delete` or `DELETE /api/v1/emails/batch` |
@@ -293,7 +293,7 @@ drop-in replacement.
 
 Before migrating an automated client:
 
-1. Update or proxy the API prefix.
+1. Update or proxy the API prefix; `MAILDEV_BASE_PATHNAME` can be reused as an OwlMail compatibility alias.
 2. Adapt collection response parsing.
 3. Replace Socket.IO code with a native WebSocket client.
 4. Mark messages read explicitly when required.

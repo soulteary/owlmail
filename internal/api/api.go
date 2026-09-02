@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"html"
 	"net/http"
 	"strings"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/health-kit/v2"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
+	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 	webassets "github.com/soulteary/owlmail/web"
@@ -35,6 +37,7 @@ type API struct {
 	httpsCertFile  string
 	httpsKeyFile   string
 	externalScheme string
+	basePathname   string
 }
 
 // NewAPI creates a new API server instance
@@ -91,6 +94,22 @@ func (api *API) SetExternalScheme(scheme string) error {
 	return nil
 }
 
+// SetBasePathname configures the browser-visible URL prefix and rebuilds the
+// router before the server starts. Root is represented by an empty string.
+func (api *API) SetBasePathname(basePathname string) error {
+	normalized, err := config.NormalizeBasePathname(basePathname)
+	if err != nil {
+		return err
+	}
+	api.basePathname = normalized
+	api.setupRoutes()
+	return nil
+}
+
+func (api *API) route(path string) string {
+	return api.basePathname + path
+}
+
 // setupRoutes configures all API routes
 // This function sets up both MailDev-compatible routes (for backward compatibility)
 // and new improved RESTful API routes
@@ -116,21 +135,30 @@ func (api *API) setupRoutes() {
 
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/readyz", "/api/v1/health", "/api/v1/ready"))
+		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, api.route("/healthz"), api.route("/readyz"), api.route("/api/v1/health"), api.route("/api/v1/ready")))
 	}
 
 	// Static files are embedded in the executable so the UI and help page work
 	// regardless of the process working directory.
-	app.Get("/style.css", serveWebAsset("style.css", "text/css; charset=utf-8"))
-	app.Get("/app.js", serveWebAsset("app.js", "text/javascript; charset=utf-8"))
-	app.Get("/service-worker.js", func(c fiber.Ctx) error {
-		c.Set("Service-Worker-Allowed", "/")
-		return serveWebAsset("service-worker.js", "text/javascript; charset=utf-8")(c)
+	app.Get(api.route("/style.css"), api.serveWebAsset("style.css", "text/css; charset=utf-8"))
+	app.Get(api.route("/app.js"), api.serveWebAsset("app.js", "text/javascript; charset=utf-8"))
+	app.Get(api.route("/favicon.svg"), api.serveWebAsset("favicon.svg", "image/svg+xml"))
+	app.Get(api.route("/service-worker.js"), func(c fiber.Ctx) error {
+		c.Set("Service-Worker-Allowed", api.route("/"))
+		return api.serveWebAsset("service-worker.js", "text/javascript; charset=utf-8")(c)
 	})
-	app.Get("/help.css", serveWebAsset("help.css", "text/css; charset=utf-8"))
-	app.Get("/help.js", serveWebAsset("help.js", "text/javascript; charset=utf-8"))
-	app.Get("/webhooks.css", serveWebAsset("webhooks.css", "text/css; charset=utf-8"))
-	app.Get("/webhooks.js", serveWebAsset("webhooks.js", "text/javascript; charset=utf-8"))
+	app.Get(api.route("/help.css"), api.serveWebAsset("help.css", "text/css; charset=utf-8"))
+	app.Get(api.route("/help.js"), api.serveWebAsset("help.js", "text/javascript; charset=utf-8"))
+	app.Get(api.route("/webhooks.css"), api.serveWebAsset("webhooks.css", "text/css; charset=utf-8"))
+	app.Get(api.route("/webhooks.js"), api.serveWebAsset("webhooks.js", "text/javascript; charset=utf-8"))
+	if api.basePathname != "" {
+		app.Use(func(c fiber.Ctx) error {
+			if c.Method() == http.MethodGet && c.Path() == api.basePathname {
+				return c.Redirect().Status(http.StatusPermanentRedirect).To(api.route("/"))
+			}
+			return c.Next()
+		})
+	}
 
 	// ============================================================================
 	// MailDev-compatible API routes (maintains backward compatibility)
@@ -143,15 +171,19 @@ func (api *API) setupRoutes() {
 	api.setupImprovedAPIRoutes(app)
 
 	// Browser UI and local help.
-	app.Get("/", serveWebAsset("index.html", "text/html; charset=utf-8"))
-	app.Get("/help", serveWebAsset("help.html", "text/html; charset=utf-8"))
-	app.Get("/help/", serveWebAsset("help.html", "text/html; charset=utf-8"))
-	app.Get("/webhooks", serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
-	app.Get("/webhooks/", serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
+	app.Get(api.route("/"), api.serveWebAsset("index.html", "text/html; charset=utf-8"))
+	app.Get(api.route("/help"), api.serveWebAsset("help.html", "text/html; charset=utf-8"))
+	app.Get(api.route("/help/"), api.serveWebAsset("help.html", "text/html; charset=utf-8"))
+	app.Get(api.route("/webhooks"), api.serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
+	app.Get(api.route("/webhooks/"), api.serveWebAsset("webhooks.html", "text/html; charset=utf-8"))
 
 	// Serve index.html for all non-API routes (NoRoute equivalent)
-	app.All("*", func(c fiber.Ctx) error {
-		path := c.Path()
+	fallbackRoute := "*"
+	if api.basePathname != "" {
+		fallbackRoute = api.route("/*")
+	}
+	app.All(fallbackRoute, func(c fiber.Ctx) error {
+		path := strings.TrimPrefix(c.Path(), api.basePathname)
 		if strings.HasPrefix(path, "/email") ||
 			strings.HasPrefix(path, "/config") ||
 			strings.HasPrefix(path, "/healthz") ||
@@ -161,24 +193,30 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
 			strings.HasPrefix(path, "/service-worker.js") ||
+			strings.HasPrefix(path, "/favicon.svg") ||
 			strings.HasPrefix(path, "/help.css") ||
 			strings.HasPrefix(path, "/help.js") ||
 			strings.HasPrefix(path, "/webhooks") {
 			return c.Next()
 		}
-		return serveWebAsset("index.html", "text/html; charset=utf-8")(c)
+		return api.serveWebAsset("index.html", "text/html; charset=utf-8")(c)
 	})
 
 	api.app = app
 }
 
 // serveWebAsset returns a handler for a build-time embedded browser asset.
-func serveWebAsset(name, contentType string) fiber.Handler {
+func (api *API) serveWebAsset(name, contentType string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		content, err := webassets.ReadFile(name)
 		if err != nil {
 			return c.Status(http.StatusInternalServerError).SendString("embedded web asset unavailable")
 		}
+		basePathname := api.basePathname
+		if strings.HasSuffix(name, ".html") {
+			basePathname = html.EscapeString(basePathname)
+		}
+		content = []byte(strings.ReplaceAll(string(content), "{{OWLMAIL_BASE_PATHNAME}}", basePathname))
 		c.Set(fiber.HeaderContentType, contentType)
 		return c.Send(content)
 	}
@@ -186,7 +224,7 @@ func serveWebAsset(name, contentType string) fiber.Handler {
 
 // setupImprovedAPIRoutes sets up improved RESTful API routes
 func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
-	v1 := app.Group("/api/v1")
+	v1 := app.Group(api.route("/api/v1"))
 
 	// Emails resource
 	emailsGroup := v1.Group("/emails")
@@ -263,7 +301,7 @@ func (api *API) setupEventListeners() {
 // setupMailDevCompatibleRoutes sets up MailDev-compatible API routes
 func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 	// Email routes (MailDev compatible)
-	emailGroup := app.Group("/email")
+	emailGroup := app.Group(api.route("/email"))
 	emailGroup.Get("", api.getAllEmails)
 	emailGroup.Get("/:id", api.getEmailByID)
 	emailGroup.Get("/:id/html", api.getEmailHTML)
@@ -283,21 +321,21 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 	emailGroup.Get("/export", api.exportEmails)
 
 	// WebSocket route (MailDev compatible)
-	app.Get("/socket.io", adaptor.HTTPHandlerFunc(api.handleWebSocketHTTP))
+	app.Get(api.route("/socket.io"), adaptor.HTTPHandlerFunc(api.handleWebSocketHTTP))
 
 	// Config routes (MailDev compatible)
-	configGroup := app.Group("/config")
+	configGroup := app.Group(api.route("/config"))
 	configGroup.Get("", api.getConfig)
 	configGroup.Get("/outgoing", api.getOutgoingConfig)
 	configGroup.Put("/outgoing", api.updateOutgoingConfig)
 	configGroup.Patch("/outgoing", api.patchOutgoingConfig)
 
 	// Health check route (MailDev compatible)
-	app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
-	app.Get("/readyz", api.readiness)
+	app.Get(api.route("/healthz"), adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	app.Get(api.route("/readyz"), api.readiness)
 
 	// Reload mails from directory route (MailDev compatible)
-	app.Get("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
+	app.Get(api.route("/reloadMailsFromDirectory"), api.reloadMailsFromDirectory)
 }
 
 type readinessCheck struct {

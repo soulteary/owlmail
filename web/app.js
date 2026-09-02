@@ -1,6 +1,7 @@
 // OwlMail Web Application
 // API Base URL - 使用新的 API v1 端点
-const API_BASE = `${window.location.origin}/api/v1`;
+const BASE_PATHNAME = document.querySelector('meta[name="owlmail-base-pathname"]')?.content || '';
+const API_BASE = `${window.location.origin}${BASE_PATHNAME}/api/v1`;
 
 // Internationalization (i18n)
 const i18n = {
@@ -801,7 +802,7 @@ function getNotificationServiceWorker() {
     if (!notificationServiceWorkerSupported()) return Promise.resolve(null);
 	if (!notificationServiceWorkerPromise) {
 		notificationServiceWorkerPromise = navigator.serviceWorker
-			.register('/service-worker.js', { scope: '/' })
+			.register(`${BASE_PATHNAME}/service-worker.js`, { scope: `${BASE_PATHNAME}/` })
 			.then((registration) => navigator.serviceWorker.ready || registration)
 			.catch((error) => {
                 console.warn('Unable to register notification service worker:', error);
@@ -1104,7 +1105,7 @@ function connectWebSocket() {
     try {
         // Use ws:// or wss:// based on current protocol
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/api/v1/ws`;
+        const wsUrl = `${protocol}//${window.location.host}${BASE_PATHNAME}/api/v1/ws`;
         const ws = new WebSocket(wsUrl);
         
         ws.onopen = () => {

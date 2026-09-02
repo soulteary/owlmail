@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"net/url"
+	"path"
 	"strings"
 	"time"
 
@@ -45,6 +46,9 @@ func ValidateConfig(cfg *Config) error {
 	}
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
+	}
+	if _, err := NormalizeBasePathname(cfg.BasePathname); err != nil {
+		return err
 	}
 	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
 		return fmt.Errorf("mail retention limits cannot be negative")
@@ -129,6 +133,46 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// NormalizeBasePathname converts a browser-visible URL prefix to the canonical
+// form used by both the HTTP router and embedded browser assets. Root is stored
+// as an empty string; non-root values have one leading slash and no trailing
+// slash.
+func NormalizeBasePathname(value string) (string, error) {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "/" {
+		return "", nil
+	}
+	if strings.ContainsAny(value, "?#\\") || strings.Contains(value, "://") {
+		return "", fmt.Errorf("base pathname must be a URL path without query, fragment, backslash, or scheme")
+	}
+	if strings.ContainsAny(value, ":*+<>()") {
+		return "", fmt.Errorf("base pathname cannot contain router metacharacters")
+	}
+	if !strings.HasPrefix(value, "/") {
+		value = "/" + value
+	}
+
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return "", fmt.Errorf("base pathname must be a valid URL path without query or fragment")
+	}
+	for _, segment := range strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/") {
+		decoded, decodeErr := url.PathUnescape(segment)
+		if decodeErr != nil || decoded == "." || decoded == ".." || strings.ContainsAny(decoded, "/\\") {
+			return "", fmt.Errorf("base pathname contains an unsafe path segment")
+		}
+	}
+
+	normalized := path.Clean(parsed.Path)
+	if normalized == "." || normalized == "/" {
+		return "", nil
+	}
+	if normalized != parsed.Path && strings.Contains(parsed.Path, "//") {
+		return "", fmt.Errorf("base pathname cannot contain empty path segments")
+	}
+	return strings.TrimSuffix(normalized, "/"), nil
 }
 
 // ValidatePort validates that a port number is within the valid range (1-65535).

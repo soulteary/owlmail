@@ -38,7 +38,7 @@ MailDev 的 MCP 接口。迁移应被视为一次小型集成改造并配套测�
 | 浏览器通知 | 随 UI/版本而异 | 浏览器内按需开启 | 需要权限和安全上下文 |
 | MCP 服务 | 当前 MailDev 提供 | 不提供 | 依赖时需保留 MailDev 或另行集成 |
 | 通用 JS/JSON 配置文件 | 当前 MailDev 提供 | 无通用配置文件 | OwlMail 使用参数和环境变量；Webhook 目标使用 JSON |
-| 可配置基础路径 | 支持 | 不支持 | 需要路径前缀时使用反向代理 |
+| 可配置基础路径 | 支持 | 支持 | OwlMail 会统一前缀 UI、API、原生 WebSocket、兼容路由与 Service Worker |
 
 本文不提供性能星级，因为仓库中没有可复现的跨项目基准。编译后的 Go 二进制
 可以简化部署，但吞吐和内存应按实际邮件、存储、TLS 与 Webhook 下游测量。
@@ -59,6 +59,11 @@ OwlMail 提供两个接口面：
 - `/api/v1/*`：推荐的新集成接口。
 - 无版本的 `/email`、`/config`、`/healthz` 和 `/socket.io`：保留给已有
   OwlMail 客户端及常见 MailDev 风格工作流。
+
+设置 `-base-pathname /owlmail`（或 `OWLMAIL_BASE_PATHNAME=/owlmail`）后，
+本节所有路径都应加上 `/owlmail` 前缀；同时接受兼容变量
+`MAILDEV_BASE_PATHNAME`。该设置只改变路由位置，不改变协议：
+`/owlmail/socket.io` 仍是原生 RFC 6455 WebSocket。
 
 OwlMail 的 `/socket.io` 是原生 RFC 6455 WebSocket。路径名称并不意味着兼容
 Socket.IO。
@@ -97,11 +102,12 @@ MailDev 的每个选项。
 | 邮件目录 | `MAILDEV_MAIL_DIRECTORY` | `OWLMAIL_MAIL_DIR` |
 | Web 用户名 | `MAILDEV_WEB_USER` | `OWLMAIL_WEB_USER` |
 | Web 密码 | `MAILDEV_WEB_PASS` | `OWLMAIL_WEB_PASSWORD` |
+| 基础路径 | `MAILDEV_BASE_PATHNAME` | `OWLMAIL_BASE_PATHNAME` |
 | 出站主机 | `MAILDEV_OUTGOING_HOST` | `OWLMAIL_OUTGOING_HOST` |
 | 入站用户名 | `MAILDEV_INCOMING_USER` | `OWLMAIL_SMTP_USER` |
 
-完整支持范围以根 README 配置表为准。基础路径、MCP、通用配置文件等 MailDev
-能力，不会因为 OwlMail 接受其他 `MAILDEV_*` 变量而自动可用。
+完整支持范围以根 README 配置表为准。MCP、通用配置文件等 MailDev 能力，不会
+因为 OwlMail 接受其他 `MAILDEV_*` 变量而自动可用。
 
 ## 需要规划的运行差异
 

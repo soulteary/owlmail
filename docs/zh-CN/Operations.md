@@ -200,6 +200,52 @@ HTTPS 或可信反向代理。
 HTTP 与 WebSocket 同源检查使用浏览器可见协议。应显式配置该值，不要信任客户端
 可以伪造的转发请求头。
 
+### 5. 在 Nginx 子路径后部署 Docker
+
+容器端口保持在内部网络，OwlMail 与代理使用相同的外部前缀，并保留 WebSocket
+升级请求头：
+
+```yaml
+services:
+  owlmail:
+    image: ghcr.io/soulteary/owlmail:0.6.0
+    environment:
+      OWLMAIL_BASE_PATHNAME: /owlmail
+      OWLMAIL_WEB_EXTERNAL_SCHEME: https
+    volumes:
+      - owlmail-data:/app/mail
+    expose:
+      - "1080"
+
+volumes:
+  owlmail-data:
+```
+
+```nginx
+location = /owlmail {
+    return 308 /owlmail/;
+}
+
+location /owlmail/ {
+    proxy_pass http://owlmail:1080;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}
+```
+
+访问 `https://example.com/owlmail/`。不要在 `proxy_pass` 中剥离 `/owlmail`：
+OwlMail 会把 UI、REST API、附件、兼容路由和原生 WebSocket 都注册到此前缀下。
+兼容路径 `/owlmail/socket.io` 仍是原生 RFC 6455 WebSocket，不是 Socket.IO
+协议。健康探针相应改为 `/owlmail/healthz` 或 `/owlmail/api/v1/health`，
+Service Worker scope 为 `/owlmail/`。
+
+`OWLMAIL_BASE_PATHNAME=owlmail`、`/owlmail` 与 `/owlmail/` 会规范为同一值；
+留空或 `/` 保持历史根路径行为。启动时会拒绝路径穿越段、query、fragment、scheme、
+反斜线、编码斜线及内部空段。迁移时也可使用 `MAILDEV_BASE_PATHNAME` 别名；与其他
+兼容变量相同，显式 CLI 参数的优先级最高。
+
 ## HTTPS 与 TLS
 
 Web HTTPS 与 SMTP TLS 是两组独立设置：

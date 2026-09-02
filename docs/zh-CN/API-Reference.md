@@ -250,7 +250,7 @@ Socket.IO 帧、事件协商或降级传输。
 
 | 范围 | 当前 MailDev | OwlMail |
 |---|---|---|
-| API 前缀 | `/api`，还可配置基础路径 | 无版本 `/email` 路由及 `/api/v1`；不能配置基础路径 |
+| API 前缀 | `/api`，还可配置基础路径 | 无版本 `/email` 路由及 `/api/v1`，可统一挂载到 `-base-pathname` 下 |
 | 列表结构 | MailDev 定义的邮件列表/摘要结构 | `{ total, limit, offset, emails }` 或 `{ ..., previews }` |
 | 详情读取状态 | 获取详情即标记已读 | 只通过显式 `PATCH` 修改 |
 | 批量删除 | `POST /api/email/delete` | `POST /email/batch/delete` 或 `DELETE /api/v1/emails/batch` |
@@ -259,7 +259,7 @@ Socket.IO 帧、事件协商或降级传输。
 
 迁移自动化客户端前：
 
-1. 修改或代理 API 前缀。
+1. 修改或代理 API 前缀；迁移时可继续使用 `MAILDEV_BASE_PATHNAME` 兼容别名。
 2. 适配列表响应结构。
 3. 将 Socket.IO 客户端替换为原生 WebSocket 客户端。
 4. 需要时显式标记已读。

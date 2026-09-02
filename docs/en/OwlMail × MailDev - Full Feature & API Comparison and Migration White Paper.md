@@ -41,7 +41,7 @@ by tests, not as a binary swap with a compatibility guarantee.
 | Browser notifications | UI/version-dependent | Opt-in per browser | Requires permission and a secure context |
 | MCP server | Current MailDev provides one | No | Keep MailDev or add another integration if required |
 | General JS/JSON config file | Current MailDev provides one | No general config file | OwlMail uses flags and environment variables; webhook targets use JSON |
-| Configurable base pathname | Yes | No | Use a reverse proxy if a path prefix is required |
+| Configurable base pathname | Yes | Yes | OwlMail prefixes every UI, API, native WebSocket, compatibility, and Service Worker route |
 
 No performance rating is included here because the repository does not contain
 a reproducible cross-project benchmark. A compiled Go binary can simplify
@@ -64,6 +64,11 @@ OwlMail exposes two surfaces:
 - `/api/v1/*`: the preferred, versioned OwlMail API.
 - Unversioned `/email`, `/config`, `/healthz`, and `/socket.io` paths retained
   for existing OwlMail clients and common MailDev-style workflows.
+
+When `-base-pathname /owlmail` (or `OWLMAIL_BASE_PATHNAME=/owlmail`) is set,
+prepend `/owlmail` to every path in this section. The compatible
+`MAILDEV_BASE_PATHNAME` variable is also accepted. This changes route location,
+not protocol: `/owlmail/socket.io` is still native RFC 6455 WebSocket.
 
 The `/socket.io` OwlMail path is a native RFC 6455 WebSocket endpoint. Its name
 does not make it Socket.IO compatible.
@@ -103,13 +108,13 @@ Common direct mappings include:
 | Mail directory | `MAILDEV_MAIL_DIRECTORY` | `OWLMAIL_MAIL_DIR` |
 | Web user | `MAILDEV_WEB_USER` | `OWLMAIL_WEB_USER` |
 | Web password | `MAILDEV_WEB_PASS` | `OWLMAIL_WEB_PASSWORD` |
+| Base pathname | `MAILDEV_BASE_PATHNAME` | `OWLMAIL_BASE_PATHNAME` |
 | Outgoing host | `MAILDEV_OUTGOING_HOST` | `OWLMAIL_OUTGOING_HOST` |
 | Incoming user | `MAILDEV_INCOMING_USER` | `OWLMAIL_SMTP_USER` |
 
 Review the root README configuration table for the complete OwlMail-supported
-set. MailDev features such as a base pathname, MCP, or a general configuration
-file do not become available merely because other `MAILDEV_*` names are
-recognized.
+set. MailDev features such as MCP or a general configuration file do not become
+available merely because other `MAILDEV_*` names are recognized.
 
 ## Operational differences to plan for
 

@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OwlMail">
+  <rect width="64" height="64" rx="14" fill="#172033"/>
+  <circle cx="22" cy="28" r="13" fill="#f4c95d"/>
+  <circle cx="42" cy="28" r="13" fill="#f4c95d"/>
+  <circle cx="22" cy="28" r="5" fill="#172033"/>
+  <circle cx="42" cy="28" r="5" fill="#172033"/>
+  <path d="M27 37h10l-5 7z" fill="#e06c75"/>
+  <path d="M16 45c10 7 22 7 32 0" fill="none" stroke="#f4c95d" stroke-width="5" stroke-linecap="round"/>
+</svg>
