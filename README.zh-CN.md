@@ -55,6 +55,7 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 - 🆕 **改进的 RESTful API** - 更规范的 API 设计（`/api/v1/*`）
 - 🆕 **内置帮助** - 可从收件箱或 `/help` 打开本地中英文指南
 - 🆕 **Webhook 配置器** - 在 `/webhooks` 使用内置本地编辑器生成、导入、校验、复制和下载转发规则
+- 🆕 **Sendmail 兼容 CLI** - [`owlmail sendmail`](./docs/zh-CN/Sendmail.md) 让 PHP、Cron 和传统程序通过正常 SMTP 安全与容量边界投递
 
 ### 兼容性
 
@@ -379,6 +380,8 @@ OwlMail 使用标准化的 API 响应格式：
 ```
 
 `code` 字段包含标准化的错误/成功代码，可用于国际化。`message` 字段提供英文文本以保持向后兼容。
+Basic Auth 与浏览器同源中间件错误发生在进入 API 处理器之前，因此会返回纯文本
+`401` 或 `403`。
 
 ### 邮件 ID 格式
 
@@ -485,9 +488,13 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/ready` - 缓存的依赖 readiness 检查
 - `GET /api/v1/version` - 版本信息
 - `GET /api/v1/ws` - WebSocket 连接
+- `GET /api/v1/openapi.json` - OpenAPI 3.1 合约（JSON）
+- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 合约（YAML）
 
 完整的子资源、鉴权、响应结构和 WebSocket 事件见
-[API 参考](./docs/zh-CN/API-Reference.md)。
+[API 参考](./docs/zh-CN/API-Reference.md)或版本控制中的
+[OpenAPI 合约](./openapi/openapi.yaml)。服务端返回的合约会自动包含配置的
+base pathname。
 
 ## 🔧 使用示例
 

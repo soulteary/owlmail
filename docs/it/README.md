@@ -22,8 +22,11 @@ lingua in directory separate.
 - **[Riferimento API](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - Route, autenticazione, formati di risposta, eventi WebSocket e differenze
     documentate rispetto a MailDev.
+  - Leggibile da strumenti: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
 - **[Operazioni e risoluzione problemi](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - Distribuzione, persistenza, sicurezza, TLS, capacità e diagnostica.
+- **[CLI compatibile con sendmail](./Sendmail.md)**
+  - PHP `sendmail_path`, Cron, SMTP/TLS/AUTH e codici di uscita stabili.
 - **[Inoltro Webhook](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))
   - Filtri, payload personalizzati, firme HMAC, nuovi tentativi e integrazione
     con `soulteary/webhook`.

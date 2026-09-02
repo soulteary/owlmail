@@ -262,6 +262,38 @@ test("root README configuration tables match flags, defaults, and environment al
   }
 });
 
+test("sendmail CLI documentation covers every locale and its stable contract", () => {
+  const localeDocs = ["en", "zh-CN", "de", "fr", "it", "ja", "ko"].map(
+    (locale) => `docs/${locale}/Sendmail.md`,
+  );
+  for (const document of localeDocs) {
+    const markdown = fs.readFileSync(path.join(root, document), "utf8");
+    for (const marker of [
+      "owlmail sendmail -t -i",
+      "sendmail_path",
+      "OWLMAIL_SENDMAIL_HOST",
+      "OWLMAIL_SENDMAIL_PORT",
+      "OWLMAIL_SENDMAIL_STARTTLS",
+      "OWLMAIL_SENDMAIL_SMTPS",
+      "OWLMAIL_SENDMAIL_USERNAME",
+      "OWLMAIL_SENDMAIL_PASSWORD",
+      "OWLMAIL_SENDMAIL_TIMEOUT",
+      "`64`",
+      "`65`",
+      "`69`",
+      "`74`",
+      "`75`",
+    ]) {
+      assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
+    }
+  }
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("Sendmail.md"), `${readme} does not link the sendmail guide`);
+  }
+});
+
 test("security-sensitive SMTP authentication modes remain explicit", () => {
   const smtpWarnings = new Map([
     ["README.md", "NO AUTH"],
@@ -325,6 +357,28 @@ test("English and Chinese API references cover every registered API route", () =
     const markdown = fs.readFileSync(path.join(root, reference), "utf8");
     const missing = routes.filter((route) => !markdown.includes(`\`${route}\``));
     assert.deepEqual(missing, [], `${reference} is missing API routes`);
+  }
+});
+
+test("OpenAPI contract is linked from every translated README", () => {
+  const document = JSON.parse(fs.readFileSync(path.join(root, "openapi/openapi.json"), "utf8"));
+  assert.equal(document.openapi, "3.1.0");
+  assert.equal(document.jsonSchemaDialect, "https://json-schema.org/draft/2020-12/schema");
+
+  const yaml = fs.readFileSync(path.join(root, "openapi/openapi.yaml"), "utf8");
+  assert.ok(yaml.startsWith("openapi: 3.1.0\n"));
+  assert.ok(yaml.includes("/emails/{id}/actions/relay:"));
+  assert.ok(yaml.includes("/ws:"));
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    for (const marker of [
+      "/api/v1/openapi.json",
+      "/api/v1/openapi.yaml",
+      "openapi/openapi.yaml",
+    ]) {
+      assert.ok(markdown.includes(marker), `${readme} is missing OpenAPI marker ${marker}`);
+    }
   }
 });
 

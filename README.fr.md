@@ -55,6 +55,7 @@ client API ou Socket.IO.
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **Aide intégrée** - Guide local bilingue depuis la boîte de réception ou `/help`
 - 🆕 **Configurateur Webhook** - Éditeur local intégré sous `/webhooks` pour créer, importer, valider, copier et télécharger les règles de transfert
+- 🆕 **CLI compatible sendmail** - [`owlmail sendmail`](./docs/fr/Sendmail.md) soumet les messages PHP, Cron et historiques via la frontière SMTP normale
 
 ### Compatibility
 
@@ -311,6 +312,8 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
+Les échecs de Basic Auth et de la vérification same-origin du navigateur sont
+des réponses texte `401` ou `403`, car ils précèdent les handlers API.
 
 ### Email ID Format
 
@@ -414,10 +417,16 @@ OwlMail provides a more standardized RESTful API design:
 - `PUT /api/v1/settings/outgoing` - Update outgoing configuration
 - `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
 - `GET /api/v1/health` - Health check
+- `GET /api/v1/ready` - Cached dependency readiness check
+- `GET /api/v1/version` - Version information
 - `GET /api/v1/ws` - WebSocket connection
+- `GET /api/v1/openapi.json` - Contrat OpenAPI 3.1 (JSON)
+- `GET /api/v1/openapi.yaml` - Contrat OpenAPI 3.1 (YAML)
 
 Le contrat actuel, avec sous-ressources, authentification, réponses et événements
-WebSocket, se trouve dans la [référence API](./docs/en/API-Reference.md).
+WebSocket, se trouve dans la [référence API](./docs/en/API-Reference.md) ou dans
+le [contrat OpenAPI](./openapi/openapi.yaml). Le contrat servi inclut
+automatiquement le chemin de base configuré.
 
 ## 🔧 Usage Examples
 

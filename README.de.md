@@ -54,6 +54,7 @@ Sie vor der Migration von API- oder Socket.IO-Clients die dokumentierten Untersc
 - 🆕 **Verbesserte RESTful API** - Standardisierteres API-Design (`/api/v1/*`)
 - 🆕 **Integrierte Hilfe** - Lokaler zweisprachiger Leitfaden im Posteingang oder unter `/help`
 - 🆕 **Webhook-Konfigurator** - Eingebetteter lokaler Editor unter `/webhooks` zum Erstellen, Importieren, Prüfen, Kopieren und Herunterladen von Weiterleitungsregeln
+- 🆕 **Sendmail-kompatible CLI** - [`owlmail sendmail`](./docs/de/Sendmail.md) übergibt PHP-, Cron- und Altprogramm-Nachrichten über die normale SMTP-Grenze
 
 ### Kompatibilität
 
@@ -310,6 +311,8 @@ OwlMail verwendet ein standardisiertes API-Antwortformat:
 ```
 
 Das Feld `code` enthält standardisierte Fehler-/Erfolgscodes, die für die Internationalisierung verwendet werden können. Das Feld `message` bietet englischen Text für Rückwärtskompatibilität.
+Fehler der Basic-Auth- und Browser-Same-Origin-Middleware sind einfache
+Textantworten mit `401` beziehungsweise `403`, da sie vor dem API-Handler auftreten.
 
 ### E-Mail-ID-Format
 
@@ -413,11 +416,17 @@ OwlMail bietet ein standardisierteres RESTful API-Design:
 - `PUT /api/v1/settings/outgoing` - Ausgehende Konfiguration aktualisieren
 - `PATCH /api/v1/settings/outgoing` - Ausgehende Konfiguration teilweise aktualisieren
 - `GET /api/v1/health` - Gesundheitsprüfung
+- `GET /api/v1/ready` - Zwischengespeicherte Readiness-Prüfung
+- `GET /api/v1/version` - Versionsinformationen
 - `GET /api/v1/ws` - WebSocket-Verbindung
+- `GET /api/v1/openapi.json` - OpenAPI-3.1-Vertrag (JSON)
+- `GET /api/v1/openapi.yaml` - OpenAPI-3.1-Vertrag (YAML)
 
 Die aktuelle Schnittstelle einschließlich Unterressourcen, Authentifizierung,
 Antwortformen und WebSocket-Ereignissen beschreibt die
-[API-Referenz](./docs/en/API-Reference.md).
+[API-Referenz](./docs/en/API-Reference.md) beziehungsweise der
+[OpenAPI-Vertrag](./openapi/openapi.yaml). Der ausgelieferte Vertrag enthält
+automatisch den konfigurierten Basispfad.
 
 ## 🔧 Verwendungsbeispiele
 

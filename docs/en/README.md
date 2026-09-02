@@ -28,12 +28,18 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
     native WebSocket events, curl examples, and the current MailDev migration boundary.
+  - **Machine-readable contract**: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
   - **Other languages**: [简体中文](../zh-CN/API-Reference.md)
 
 - **[Operations and Troubleshooting](./Operations.md)**
   - Local and Docker profiles, persistence, security defaults, TLS, readiness,
     webhook capacity, backup/upgrade, shutdown boundaries, and failure diagnosis.
   - **Other languages**: [简体中文](../zh-CN/Operations.md)
+
+- **[Sendmail-compatible CLI](./Sendmail.md)**
+  - PHP `sendmail_path`, cron and legacy-program usage, SMTP/TLS/AUTH options,
+    envelope handling, stable exit statuses, and safety boundaries.
+  - **Other languages**: [简体中文](../zh-CN/Sendmail.md) | [Deutsch](../de/Sendmail.md) | [Français](../fr/Sendmail.md) | [Italiano](../it/Sendmail.md) | [日本語](../ja/Sendmail.md) | [한국어](../ko/Sendmail.md)
 
 - **[Webhook Forwarding](./Webhook-Forwarding.md)**
   - Use the embedded `/webhooks` configurator, or configure filtering, custom
