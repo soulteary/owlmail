@@ -783,6 +783,7 @@ function currentEmailIDFromLocation() {
 
 function updateEmailLocation(emailID, mode = 'push') {
     if (!window.history || typeof window.history.pushState !== 'function') return;
+    if (currentEmailIDFromLocation() === (emailID || '')) return;
     try {
         const fallback = `${window.location.origin || ''}${window.location.pathname || '/'}${window.location.search || ''}`;
         const url = new URL(window.location.href || fallback, window.location.origin || undefined);
@@ -795,7 +796,10 @@ function updateEmailLocation(emailID, mode = 'push') {
     }
 }
 
+let emailDetailRequestSequence = 0;
+
 function clearEmailSelection(historyMode = 'push') {
+    emailDetailRequestSequence += 1;
     remoteContentAllowedEmailID = null;
     state.currentEmail = null;
     renderEmailDetail();
@@ -1608,9 +1612,12 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         clearEmailSelection(historyMode);
         return;
     }
+    const requestSequence = ++emailDetailRequestSequence;
     try {
         showLoading();
         const email = await API.getEmail(id);
+        if (requestSequence !== emailDetailRequestSequence) return;
+        if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
         remoteContentAllowedEmailID = null;
         state.currentEmail = email;
         renderEmailDetail();
@@ -1622,6 +1629,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
             selected.scrollIntoView({ block: 'nearest' });
         }
     } catch (error) {
+        if (requestSequence !== emailDetailRequestSequence) return;
         console.error('Failed to load email detail:', error);
         const errorMsg = parseAPIError(error);
         alert(t('loadEmailDetailError', { error: errorMsg }));
