@@ -8,11 +8,15 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 var errRelaySource = errors.New("relay source failed")
@@ -118,7 +122,7 @@ func TestSendMailContextStreamsThroughSMTPData(t *testing.T) {
 	source := &trackingRelayReadCloser{Reader: strings.NewReader("Subject: stream\n\n.leading dot\nbody")}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := sendMailContext(ctx, addr, nil, "", []string{"one@example.test", "two@example.test"}, source, false); err != nil {
+	if err := sendMailContext(ctx, addr, nil, "", []string{"one@example.test", "two@example.test"}, source, false, false); err != nil {
 		t.Fatalf("sendMailContext() error = %v", err)
 	}
 	serverResult := <-result
@@ -146,7 +150,7 @@ func TestSendMailContextStreamsLargeMessage(t *testing.T) {
 	message := strings.Repeat(line, 8*1024)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, io.NopCloser(strings.NewReader(message)), false); err != nil {
+	if err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, io.NopCloser(strings.NewReader(message)), false, false); err != nil {
 		t.Fatalf("sendMailContext() error = %v", err)
 	}
 	serverResult := <-result
@@ -158,12 +162,54 @@ func TestSendMailContextStreamsLargeMessage(t *testing.T) {
 	}
 }
 
+func TestRelayEmailPreservesHELOOnlyAuthBehavior(t *testing.T) {
+	addr, result := startHELOOnlyRelaySMTPServer(t)
+	host, portText, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messagePath := t.TempDir() + "/message.eml"
+	if err := os.WriteFile(messagePath, []byte("Subject: HELO only\r\n\r\nbody"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	om := &OutgoingMail{
+		config:  &OutgoingConfig{Host: host, Port: port, User: "configured", Password: "secret"},
+		enabled: true,
+	}
+	err = om.relayEmail(&RelayTask{
+		Email: &types.Email{
+			Subject:  "HELO only",
+			Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
+		},
+		EmailPath: messagePath,
+	})
+	if err != nil {
+		t.Fatalf("relayEmail() error = %v", err)
+	}
+	serverResult := <-result
+	if serverResult.err != nil {
+		t.Fatalf("SMTP server error = %v", serverResult.err)
+	}
+	for _, command := range serverResult.commands {
+		if strings.HasPrefix(command, "AUTH ") {
+			t.Fatalf("HELO-only SMTP commands unexpectedly contain %q", command)
+		}
+	}
+	if !serverResult.accepted {
+		t.Fatal("HELO-only server did not accept the message")
+	}
+}
+
 func TestSendMailContextSourceFailureAbortsData(t *testing.T) {
 	addr, result := startRelaySMTPServer(t, readRelaySMTPData)
 	source := &failingRelayReadCloser{data: []byte("Subject: partial\r\n\r\nbody")}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false)
+	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false, false)
 	if !errors.Is(err, errRelaySource) {
 		t.Fatalf("sendMailContext() error = %v, want source failure", err)
 	}
@@ -184,7 +230,7 @@ func TestSendMailContextServerClosesDuringData(t *testing.T) {
 	message := strings.Repeat("message data\r\n", 64*1024)
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, io.NopCloser(strings.NewReader(message)), false)
+	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, io.NopCloser(strings.NewReader(message)), false, false)
 	if err == nil {
 		t.Fatal("sendMailContext() error = nil, want DATA write failure")
 	}
@@ -197,7 +243,7 @@ func TestSendMailContextCancellationInterruptsSourceRead(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() {
-		done <- sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false)
+		done <- sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false, false)
 	}()
 	select {
 	case <-source.started:
@@ -225,7 +271,7 @@ func TestSendMailContextDeadlineInterruptsSourceRead(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false)
+	err := sendMailContext(ctx, addr, nil, "sender@example.test", []string{"recipient@example.test"}, source, false, false)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("sendMailContext() error = %v, want deadline exceeded", err)
 	}
@@ -244,7 +290,7 @@ func TestCopyRelayMessageWriteFailure(t *testing.T) {
 
 func TestSendMailContextClosesSourceWhenDialFails(t *testing.T) {
 	source := &trackingRelayReadCloser{Reader: strings.NewReader("message")}
-	err := sendMailContext(context.Background(), "invalid:address", nil, "", nil, source, false)
+	err := sendMailContext(context.Background(), "invalid:address", nil, "", nil, source, false, false)
 	if err == nil {
 		t.Fatal("sendMailContext() error = nil, want address error")
 	}
@@ -275,6 +321,65 @@ func assertRelayCommand(t *testing.T, commands []string, want string) {
 		}
 	}
 	t.Fatalf("SMTP commands = %v, missing %q", commands, want)
+}
+
+func startHELOOnlyRelaySMTPServer(t *testing.T) (string, <-chan relaySMTPResult) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	result := make(chan relaySMTPResult, 1)
+	go func() {
+		serverResult := relaySMTPResult{}
+		defer func() { result <- serverResult }()
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			serverResult.err = acceptErr
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		if _, serverResult.err = fmt.Fprint(conn, "220 localhost SMTP\r\n"); serverResult.err != nil {
+			return
+		}
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				serverResult.err = readErr
+				return
+			}
+			command := strings.TrimSpace(line)
+			serverResult.commands = append(serverResult.commands, command)
+			switch {
+			case strings.HasPrefix(command, "EHLO "):
+				_, serverResult.err = fmt.Fprint(conn, "502 EHLO unsupported\r\n")
+			case strings.HasPrefix(command, "HELO "), strings.HasPrefix(command, "MAIL FROM:"), strings.HasPrefix(command, "RCPT TO:"):
+				_, serverResult.err = fmt.Fprint(conn, "250 ok\r\n")
+			case strings.HasPrefix(command, "AUTH "):
+				_, serverResult.err = fmt.Fprint(conn, "504 AUTH unsupported\r\n")
+			case command == "DATA":
+				if _, serverResult.err = fmt.Fprint(conn, "354 continue\r\n"); serverResult.err != nil {
+					return
+				}
+				serverResult.data, serverResult.bytes, serverResult.accepted, serverResult.err = readRelaySMTPData(conn, reader)
+				if serverResult.err != nil {
+					return
+				}
+				_, serverResult.err = fmt.Fprint(conn, "250 queued\r\n")
+			case command == "QUIT":
+				_, serverResult.err = fmt.Fprint(conn, "221 bye\r\n")
+				return
+			default:
+				_, serverResult.err = fmt.Fprint(conn, "500 unexpected command\r\n")
+			}
+			if serverResult.err != nil {
+				return
+			}
+		}
+	}()
+	return listener.Addr().String(), result
 }
 
 type trackingRelayReadCloser struct {

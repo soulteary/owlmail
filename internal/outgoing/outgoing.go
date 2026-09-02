@@ -130,13 +130,14 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	// Send email using net/smtp
 	addr := fmt.Sprintf("%s:%d", om.config.Host, om.config.Port)
 	useSTARTTLS := om.config.Secure
+	authOnlyWhenAdvertised := task.Context == nil && !om.config.Secure
 	if task.Context == nil {
 		// smtp.SendMail, which handled the ordinary asynchronous path before
 		// relay streaming, opportunistically upgraded whenever STARTTLS was
 		// advertised. Preserve that behavior in this performance-only change.
 		useSTARTTLS = true
 	}
-	err = sendMailContext(ctx, addr, auth, sender, recipients, emailFile, useSTARTTLS)
+	err = sendMailContext(ctx, addr, auth, sender, recipients, emailFile, useSTARTTLS, authOnlyWhenAdvertised)
 
 	if err != nil {
 		return fmt.Errorf("failed to send email: %w", err)
@@ -330,7 +331,7 @@ func (om *OutgoingMail) Close() {
 // closed when ctx is canceled. Message data is copied through the writer from
 // smtp.Client.Data so net/smtp retains responsibility for CRLF normalization
 // and dot-stuffing. The source is always closed by this function.
-func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, secure bool) error {
+func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, secure, authOnlyWhenAdvertised bool) error {
 	if source == nil {
 		return fmt.Errorf("email source is nil")
 	}
@@ -385,8 +386,11 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}
 	if auth != nil {
-		if err := client.Auth(auth); err != nil {
-			return relayContextError(ctx, err)
+		authAdvertised, _ := client.Extension("AUTH")
+		if !authOnlyWhenAdvertised || authAdvertised {
+			if err := client.Auth(auth); err != nil {
+				return relayContextError(ctx, err)
+			}
 		}
 	}
 	if err := client.Mail(from); err != nil {
