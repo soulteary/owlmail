@@ -49,11 +49,22 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	if err := server.SaveEmailToStore(email.ID, false, email.Envelope, email); err != nil {
 		t.Fatal(err)
 	}
+	second := &types.Email{
+		ID: "mail-2", Subject: "Newest capture", Text: "second",
+		Time: time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		Envelope: &types.Envelope{From: "new@example.test", To: []string{"recipient@example.test"}},
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-2.eml"), []byte("Subject: Newest capture\r\n\r\nsecond"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(second.ID, false, second.Envelope, second); err != nil {
+		t.Fatal(err)
+	}
 
 	resp := mailCatcherRequest(t, api, http.MethodGet, "/messages")
 	var list []map[string]interface{}
 	decodeMailCatcherJSON(t, resp, &list)
-	if len(list) != 1 || list[0]["sender"] != "<sender@example.test>" {
+	if len(list) != 2 || list[0]["id"] != "mail-2" || list[1]["sender"] != "<sender@example.test>" {
 		t.Fatalf("unexpected list: %#v", list)
 	}
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.json")
@@ -61,6 +72,9 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	decodeMailCatcherJSON(t, resp, &detail)
 	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 1 {
 		t.Fatalf("unexpected detail: %#v", detail)
+	}
+	if detail["created_at"] == email.Time.Format(time.RFC3339) {
+		t.Fatalf("created_at used sender-controlled Date header: %#v", detail)
 	}
 
 	for _, path := range []string{"/messages/mail-1.html", "/messages/mail-1.plain", "/messages/mail-1.source", "/messages/mail-1.eml", "/messages/mail-1/parts/logo@example.test"} {
@@ -73,6 +87,11 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	resp = mailCatcherRequest(t, api, http.MethodDelete, "/messages/mail-1")
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE returned %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+	resp = mailCatcherRequest(t, api, http.MethodDelete, "/messages/missing")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing DELETE returned %d", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
 }
