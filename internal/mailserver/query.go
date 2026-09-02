@@ -6,23 +6,27 @@ import (
 	"time"
 
 	"github.com/emersion/go-message/mail"
+	"github.com/soulteary/owlmail/internal/types"
 )
 
-// EmailQuery describes a mailbox snapshot query.
+// EmailQuery describes a mailbox snapshot query. DateTo is the inclusive
+// upper boundary used by the existing HTTP API, and Limit is applied after
+// filtering and sorting.
 type EmailQuery struct {
-	Query     string
+	Text      string
 	From      string
 	To        string
-	DateFrom  string
-	DateTo    string
-	Read      string
+	DateFrom  *time.Time
+	DateTo    *time.Time
+	Read      *bool
 	SortBy    string
 	SortOrder string
 	Offset    int
 	Limit     int
 }
 
-// EmailPreview is a lightweight, detached mailbox-list value.
+// EmailPreview is the detached, lightweight representation returned for a
+// mailbox preview query.
 type EmailPreview struct {
 	ID            string    `json:"id"`
 	Time          time.Time `json:"time"`
@@ -36,177 +40,191 @@ type EmailPreview struct {
 	Preview       string    `json:"preview"`
 }
 
-type queryAddress struct {
+// QueryEmails returns detached full-email snapshots for one page and the
+// total number of matches before pagination. The store lock is released while
+// filtering and sorting potentially large bodies, then reacquired only to
+// deep-clone the selected page.
+func (ms *MailServer) QueryEmails(query EmailQuery) ([]*Email, int) {
+	page, total := ms.queryEmailPage(query)
+
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	emails := make([]*Email, 0, len(page))
+	for _, entry := range page {
+		// source is an internal identity handle captured under storeMutex. It is
+		// never dereferenced without the lock and never leaves this package.
+		email := cloneEmail(entry.source)
+		// Keep the response consistent with the read state used by filtering if
+		// a concurrent mark-as-read completed between the two lock sections.
+		email.Read = entry.read
+		emails = append(emails, email)
+	}
+	return emails, total
+}
+
+// QueryEmailPreviews returns detached summaries for one page and the total
+// number of matches before pagination. No full Email snapshot is created.
+func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int) {
+	page, total := ms.queryEmailPage(query)
+	ms.snapshotPreviewQueryAddresses(page)
+	previews := make([]EmailPreview, 0, len(page))
+	for _, entry := range page {
+		previews = append(previews, makeEmailPreview(entry))
+	}
+	return previews, total
+}
+
+type emailQueryAddress struct {
 	name    string
 	address string
 }
 
-type emailQueryRecord struct {
-	source        *Email
+// emailQueryEntry carries a lightweight, detached view of the fields needed by
+// mailbox filtering, sorting, and previews. Strings are immutable, so copying
+// their headers avoids copying message bodies while address values and slices
+// are detached from the store object graph. source is an opaque internal handle
+// that is dereferenced only while storeMutex is held.
+type emailQueryEntry struct {
+	source        *types.Email
 	id            string
 	time          time.Time
 	read          bool
 	subject       string
-	from          []queryAddress
-	to            []queryAddress
-	cc            []queryAddress
-	calculatedBCC []queryAddress
+	from          []emailQueryAddress
+	to            []emailQueryAddress
+	cc            []emailQueryAddress
+	calculatedBCC []emailQueryAddress
 	text          string
 	html          string
 	size          int64
 	sizeHuman     string
 	hasAttachment bool
+	sortKey       string
 }
 
-// QueryEmails returns deep copies of only the selected page. The lightweight
-// query snapshot is captured under the store lock; body scans and sorting do
-// not block mailbox writers.
-func (ms *MailServer) QueryEmails(query EmailQuery) ([]*Email, int) {
-	page, total := paginateEmailRecords(ms.queryEmailSnapshot(), query)
-
-	ms.storeMutex.RLock()
-	defer ms.storeMutex.RUnlock()
-	result := make([]*Email, 0, len(page))
-	for _, record := range page {
-		email := cloneEmail(record.source)
-		// Read state can change between the lightweight snapshot and cloning.
-		// Preserve the state that was used to select this page.
-		email.Read = record.read
-		result = append(result, email)
+func (ms *MailServer) queryEmailPage(query EmailQuery) ([]emailQueryEntry, int) {
+	entries := ms.snapshotEmailQueryEntries(query)
+	compiled := compileEmailQuery(query)
+	matches := entries[:0]
+	for _, entry := range entries {
+		if compiled.matches(entry) {
+			matches = append(matches, entry)
+		}
 	}
-	return result, total
+
+	sortEmailMatches(matches, query.SortBy, query.SortOrder)
+	total := len(matches)
+	start, end := pageBounds(total, query.Offset, query.Limit)
+	return matches[start:end], total
 }
 
-// QueryEmailPreviews returns detached summaries without cloning message bodies,
-// headers or attachment structures.
-func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int) {
-	page, total := paginateEmailRecords(ms.queryEmailSnapshot(), query)
-	result := make([]EmailPreview, 0, len(page))
-	for _, record := range page {
-		preview := EmailPreview{
-			ID:            record.id,
-			Time:          record.time,
-			Read:          record.read,
-			Subject:       record.subject,
-			Size:          record.size,
-			SizeHuman:     record.sizeHuman,
-			HasAttachment: record.hasAttachment,
-			To:            make([]string, 0, len(record.to)),
-			Preview:       emailPreviewText(record.text, record.html),
-		}
-		if len(record.from) > 0 {
-			preview.From = record.from[0].address
-		}
-		for _, address := range record.to {
-			preview.To = append(preview.To, address.address)
-		}
-		result = append(result, preview)
-	}
-	return result, total
-}
-
-func (ms *MailServer) queryEmailSnapshot() []emailQueryRecord {
+func (ms *MailServer) snapshotEmailQueryEntries(query EmailQuery) []emailQueryEntry {
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
 
-	records := make([]emailQueryRecord, 0, len(ms.storeOrder))
+	needFrom := query.From != "" || query.SortBy == "from"
+	needTo := query.To != ""
+	entries := make([]emailQueryEntry, 0, len(ms.storeOrder))
 	for _, id := range ms.storeOrder {
-		email, exists := ms.storeByID[id]
-		if !exists {
-			continue
+		if email, exists := ms.storeByID[id]; exists {
+			entries = append(entries, snapshotEmailQueryEntry(email, needFrom, needTo))
 		}
-		records = append(records, emailQueryRecord{
-			source:        email,
-			id:            email.ID,
-			time:          email.Time,
-			read:          email.Read,
-			subject:       email.Subject,
-			from:          snapshotAddresses(email.From),
-			to:            snapshotAddresses(email.To),
-			cc:            snapshotAddresses(email.CC),
-			calculatedBCC: snapshotAddresses(email.CalculatedBCC),
-			text:          email.Text,
-			html:          email.HTML,
-			size:          email.Size,
-			sizeHuman:     email.SizeHuman,
-			hasAttachment: len(email.Attachments) > 0,
-		})
 	}
-	return records
+	return entries
 }
 
-func snapshotAddresses(addresses []*mail.Address) []queryAddress {
-	result := make([]queryAddress, 0, len(addresses))
+func snapshotEmailQueryEntry(email *types.Email, needFrom, needTo bool) emailQueryEntry {
+	entry := emailQueryEntry{
+		source:        email,
+		id:            email.ID,
+		time:          email.Time,
+		read:          email.Read,
+		subject:       email.Subject,
+		text:          email.Text,
+		html:          email.HTML,
+		size:          email.Size,
+		sizeHuman:     email.SizeHuman,
+		hasAttachment: len(email.Attachments) > 0,
+	}
+	if needFrom {
+		entry.from = snapshotQueryAddresses(email.From)
+	}
+	if needTo {
+		entry.to = snapshotQueryAddresses(email.To)
+		entry.cc = snapshotQueryAddresses(email.CC)
+		entry.calculatedBCC = snapshotQueryAddresses(email.CalculatedBCC)
+	}
+	return entry
+}
+
+func (ms *MailServer) snapshotPreviewQueryAddresses(entries []emailQueryEntry) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	for i := range entries {
+		entries[i].from = snapshotQueryAddresses(entries[i].source.From)
+		entries[i].to = snapshotQueryAddresses(entries[i].source.To)
+	}
+}
+
+func snapshotQueryAddresses(addresses []*mail.Address) []emailQueryAddress {
+	if len(addresses) == 0 {
+		return nil
+	}
+	snapshot := make([]emailQueryAddress, 0, len(addresses))
 	for _, address := range addresses {
 		if address != nil {
-			result = append(result, queryAddress{name: address.Name, address: address.Address})
+			snapshot = append(snapshot, emailQueryAddress{name: address.Name, address: address.Address})
 		}
 	}
-	return result
+	return snapshot
 }
 
-func paginateEmailRecords(records []emailQueryRecord, query EmailQuery) ([]emailQueryRecord, int) {
-	matched := records[:0]
-	for _, record := range records {
-		if emailMatchesQuery(record, query) {
-			matched = append(matched, record)
-		}
-	}
-	sortEmailQueryResults(matched, query.SortBy, query.SortOrder)
-	total := len(matched)
-	start := query.Offset
-	if start < 0 {
-		start = 0
-	}
-	if start > total {
-		start = total
-	}
-	limit := query.Limit
-	if limit < 0 {
-		limit = 0
-	}
-	end := start + limit
-	if end > total {
-		end = total
-	}
-	return matched[start:end], total
+type compiledEmailQuery struct {
+	text     string
+	from     string
+	to       string
+	dateFrom *time.Time
+	dateTo   *time.Time
+	read     *bool
 }
 
-func emailMatchesQuery(email emailQueryRecord, query EmailQuery) bool {
-	if query.Query != "" {
-		needle := strings.ToLower(query.Query)
-		if !strings.Contains(strings.ToLower(email.subject), needle) &&
-			!strings.Contains(strings.ToLower(email.text), needle) &&
-			!strings.Contains(strings.ToLower(email.html), needle) {
-			return false
-		}
+func compileEmailQuery(query EmailQuery) compiledEmailQuery {
+	return compiledEmailQuery{
+		text:     strings.ToLower(query.Text),
+		from:     strings.ToLower(query.From),
+		to:       strings.ToLower(query.To),
+		dateFrom: query.DateFrom,
+		dateTo:   query.DateTo,
+		read:     query.Read,
 	}
-	if query.From != "" && !addressListContains(email.from, query.From, true) {
-		return false
-	}
-	if query.To != "" && !addressListContains(email.to, query.To, true) &&
-		!addressListContains(email.cc, query.To, true) &&
-		!addressListContains(email.calculatedBCC, query.To, false) {
-		return false
-	}
-	if query.DateFrom != "" {
-		if from, err := time.Parse("2006-01-02", query.DateFrom); err == nil && email.time.Before(from) {
-			return false
-		}
-	}
-	if query.DateTo != "" {
-		if to, err := time.Parse("2006-01-02", query.DateTo); err == nil && email.time.After(to.Add(24*time.Hour)) {
-			return false
-		}
-	}
-	if query.Read != "" && email.read != (query.Read == "true") {
-		return false
-	}
-	return true
 }
 
-func addressListContains(addresses []queryAddress, value string, includeName bool) bool {
-	needle := strings.ToLower(value)
+func (query compiledEmailQuery) matches(email emailQueryEntry) bool {
+	if query.text != "" &&
+		!strings.Contains(strings.ToLower(email.subject), query.text) &&
+		!strings.Contains(strings.ToLower(email.text), query.text) &&
+		!strings.Contains(strings.ToLower(email.html), query.text) {
+		return false
+	}
+	if query.from != "" && !queryAddressesContain(email.from, query.from, true) {
+		return false
+	}
+	if query.to != "" &&
+		!queryAddressesContain(email.to, query.to, true) &&
+		!queryAddressesContain(email.cc, query.to, true) &&
+		!queryAddressesContain(email.calculatedBCC, query.to, false) {
+		return false
+	}
+	if query.dateFrom != nil && email.time.Before(*query.dateFrom) {
+		return false
+	}
+	if query.dateTo != nil && email.time.After(*query.dateTo) {
+		return false
+	}
+	return query.read == nil || email.read == *query.read
+}
+
+func queryAddressesContain(addresses []emailQueryAddress, needle string, includeName bool) bool {
 	for _, address := range addresses {
 		if strings.Contains(strings.ToLower(address.address), needle) ||
 			(includeName && strings.Contains(strings.ToLower(address.name), needle)) {
@@ -216,65 +234,106 @@ func addressListContains(addresses []queryAddress, value string, includeName boo
 	return false
 }
 
-func sortEmailQueryResults(emails []emailQueryRecord, sortBy, sortOrder string) {
+func sortEmailMatches(emails []emailQueryEntry, sortBy, sortOrder string) {
 	ascending := sortOrder == "asc"
-	var less func(i, j int) bool
 	switch sortBy {
 	case "":
-		less = func(i, j int) bool { return emails[i].time.After(emails[j].time) }
+		sort.Slice(emails, func(i, j int) bool {
+			return emails[i].time.After(emails[j].time)
+		})
 	case "time":
-		less = func(i, j int) bool {
+		sort.Slice(emails, func(i, j int) bool {
 			if ascending {
 				return emails[i].time.Before(emails[j].time)
 			}
 			return emails[i].time.After(emails[j].time)
-		}
+		})
 	case "subject":
-		less = func(i, j int) bool {
-			a := strings.ToLower(emails[i].subject)
-			b := strings.ToLower(emails[j].subject)
-			if ascending {
-				return a < b
-			}
-			return a > b
+		for i := range emails {
+			emails[i].sortKey = strings.ToLower(emails[i].subject)
 		}
+		sort.Slice(emails, func(i, j int) bool {
+			if ascending {
+				return emails[i].sortKey < emails[j].sortKey
+			}
+			return emails[i].sortKey > emails[j].sortKey
+		})
 	case "from":
-		less = func(i, j int) bool {
-			a, b := "", ""
-			if len(emails[i].from) > 0 {
-				a = strings.ToLower(emails[i].from[0].address)
-			}
-			if len(emails[j].from) > 0 {
-				b = strings.ToLower(emails[j].from[0].address)
-			}
-			if ascending {
-				return a < b
-			}
-			return a > b
+		for i := range emails {
+			emails[i].sortKey = firstQueryAddress(emails[i].from)
 		}
+		sort.Slice(emails, func(i, j int) bool {
+			if ascending {
+				return emails[i].sortKey < emails[j].sortKey
+			}
+			return emails[i].sortKey > emails[j].sortKey
+		})
 	case "size":
-		less = func(i, j int) bool {
+		sort.Slice(emails, func(i, j int) bool {
 			if ascending {
 				return emails[i].size < emails[j].size
 			}
 			return emails[i].size > emails[j].size
-		}
-	}
-	if less != nil {
-		sort.Slice(emails, less)
+		})
 	}
 }
 
-func emailPreviewText(text, html string) string {
-	if text == "" {
-		text = strings.NewReplacer("<", " <", ">", "> ", "\n", " ", "\r", " ").Replace(html)
-		for strings.Contains(text, "  ") {
-			text = strings.ReplaceAll(text, "  ", " ")
+func firstQueryAddress(addresses []emailQueryAddress) string {
+	if len(addresses) == 0 {
+		return ""
+	}
+	return strings.ToLower(addresses[0].address)
+}
+
+func pageBounds(total, offset, limit int) (int, int) {
+	if offset < 0 {
+		offset = 0
+	}
+	if offset > total {
+		offset = total
+	}
+	if limit <= 0 {
+		return offset, offset
+	}
+	if limit > total-offset {
+		return offset, total
+	}
+	return offset, offset + limit
+}
+
+func makeEmailPreview(email emailQueryEntry) EmailPreview {
+	preview := EmailPreview{
+		ID:            email.id,
+		Time:          email.time,
+		Read:          email.read,
+		Subject:       email.subject,
+		To:            make([]string, 0, len(email.to)),
+		Size:          email.size,
+		SizeHuman:     email.sizeHuman,
+		HasAttachment: email.hasAttachment,
+	}
+	if len(email.from) > 0 {
+		preview.From = email.from[0].address
+	}
+	for _, address := range email.to {
+		preview.To = append(preview.To, address.address)
+	}
+
+	previewText := email.text
+	if previewText == "" {
+		previewText = email.html
+		previewText = strings.ReplaceAll(previewText, "<", " <")
+		previewText = strings.ReplaceAll(previewText, ">", "> ")
+		previewText = strings.ReplaceAll(previewText, "\n", " ")
+		previewText = strings.ReplaceAll(previewText, "\r", " ")
+		for strings.Contains(previewText, "  ") {
+			previewText = strings.ReplaceAll(previewText, "  ", " ")
 		}
-		text = strings.TrimSpace(text)
+		previewText = strings.TrimSpace(previewText)
 	}
-	if len(text) > 200 {
-		text = text[:200] + "..."
+	if len(previewText) > 200 {
+		previewText = previewText[:200] + "..."
 	}
-	return text
+	preview.Preview = previewText
+	return preview
 }
