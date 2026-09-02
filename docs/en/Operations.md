@@ -599,9 +599,12 @@ Without Redis, only the handoff before the in-memory queue is durable; a job is
 not restart-safe after it leaves the local outbox. Redis delivery is durable but
 at least once, so duplicates remain possible around crashes.
 
-Outgoing relay is also asynchronous. An API success response acknowledges the
-in-process request, not delivery by the downstream SMTP server; inspect logs and
-the destination system when delivery confirmation matters.
+Outgoing relay is also asynchronous. With a persistent mail directory, native
+relay jobs are committed under `.owlmail-meta/relay-jobs` before enqueueing and
+unfinished jobs are resubmitted at startup. Poll the returned status URL for a
+terminal result. Connection and timeout failures receive up to three attempts
+with exponential backoff and bounded jitter. Recovery is at least once, so a crash between downstream SMTP
+acceptance and the status commit can produce a duplicate attempt.
 
 All outgoing relay entry points use the same streaming SMTP transaction. OwlMail
 opens the stored EML only when a worker begins delivery and copies it through a

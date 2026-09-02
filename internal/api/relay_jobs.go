@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math/big"
 	"net/http"
 	"strings"
 	"sync"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 var (
@@ -28,6 +30,8 @@ const (
 	defaultRelayJobLimit            = 1000
 	defaultRelayJobMinimumRetention = time.Minute
 	defaultRelayRecipientMaxBytes   = 1024
+	defaultRelayMaxAttempts         = 3
+	defaultRelayRetryBaseDelay      = 250 * time.Millisecond
 )
 
 type relayJob struct {
@@ -39,6 +43,8 @@ type relayJob struct {
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	CompletedAt   *time.Time `json:"completedAt,omitempty"`
+	Attempts      int        `json:"attempts"`
+	NextAttemptAt *time.Time `json:"nextAttemptAt,omitempty"`
 	retainUntil   time.Time
 }
 
@@ -51,6 +57,7 @@ type relayJobStore struct {
 	ttl              time.Duration
 	limit            int
 	minimumRetention time.Duration
+	directory        string
 }
 
 func newRelayJobStore() *relayJobStore {
@@ -90,6 +97,11 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	}
 	store.jobs[id] = job
 	store.order = append(store.order, id)
+	if err := store.persistLocked(job); err != nil {
+		delete(store.jobs, id)
+		store.order = store.order[:len(store.order)-1]
+		return relayJob{}, err
+	}
 	return job, nil
 }
 
@@ -102,6 +114,7 @@ func (store *relayJobStore) complete(id string, relayErr error) {
 	}
 	now := store.now().UTC()
 	job.UpdatedAt, job.CompletedAt = now, &now
+	job.NextAttemptAt = nil
 	job.retainUntil = now.Add(store.minimumRetention)
 	if relayErr == nil {
 		job.Status, job.ErrorCategory = relayJobSucceeded, ""
@@ -109,12 +122,54 @@ func (store *relayJobStore) complete(id string, relayErr error) {
 		job.Status, job.ErrorCategory = relayJobFailed, relayFailureCategory(relayErr)
 	}
 	store.jobs[id] = job
+	if err := store.persistLocked(job); err != nil {
+		common.Error("Persist relay job %s completion: %v", id, err)
+	}
+}
+
+func (store *relayJobStore) beginAttempt(id string) (relayJob, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	job, ok := store.jobs[id]
+	if !ok || job.CompletedAt != nil {
+		return relayJob{}, fmt.Errorf("relay job is not queued")
+	}
+	job.Attempts++
+	job.UpdatedAt = store.now().UTC()
+	job.NextAttemptAt = nil
+	if err := store.persistLocked(job); err != nil {
+		return relayJob{}, err
+	}
+	store.jobs[id] = job
+	return job, nil
+}
+
+func (store *relayJobStore) queueRetry(id string, relayErr error, delay time.Duration) (relayJob, bool) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	job, ok := store.jobs[id]
+	if !ok || job.CompletedAt != nil || job.Attempts >= defaultRelayMaxAttempts {
+		return relayJob{}, false
+	}
+	now := store.now().UTC()
+	next := now.Add(delay)
+	job.Status = relayJobQueued
+	job.ErrorCategory = relayFailureCategory(relayErr)
+	job.UpdatedAt = now
+	job.NextAttemptAt = &next
+	if err := store.persistLocked(job); err != nil {
+		common.Error("Persist relay job %s retry: %v", id, err)
+		return relayJob{}, false
+	}
+	store.jobs[id] = job
+	return job, true
 }
 
 func (store *relayJobStore) remove(id string) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	delete(store.jobs, id)
+	store.removePersistedLocked(id)
 	for index, item := range store.order {
 		if item == id {
 			store.order = append(store.order[:index], store.order[index+1:]...)
@@ -140,6 +195,7 @@ func (store *relayJobStore) pruneLocked(now time.Time) {
 		}
 		if job.CompletedAt != nil && now.Sub(*job.CompletedAt) > store.ttl {
 			delete(store.jobs, id)
+			store.removePersistedLocked(id)
 			continue
 		}
 		kept = append(kept, id)
@@ -162,6 +218,7 @@ func (store *relayJobStore) makeRoomLocked(now time.Time) bool {
 		}
 		id := store.order[removeIndex]
 		delete(store.jobs, id)
+		store.removePersistedLocked(id)
 		store.order = append(store.order[:removeIndex], store.order[removeIndex+1:]...)
 	}
 	return store.limit > 0
@@ -216,6 +273,9 @@ func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
 }
 
 func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
+	if api.relayJobsPersistenceErr != nil {
+		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is unavailable"))
+	}
 	id := c.Params("id")
 	email, err := api.mailServer.GetEmail(id)
 	if err != nil {
@@ -232,17 +292,7 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
-	callback := func(relayErr error) {
-		api.relayJobs.complete(job.ID, relayErr)
-		if relayErr != nil {
-			common.Error("Relay job %s failed for email %s (category: %s)", job.ID, id, relayFailureCategory(relayErr))
-		}
-	}
-	if relayTo != "" {
-		err = api.mailServer.RelayMailTo(email, relayTo, callback)
-	} else {
-		err = api.mailServer.RelayMail(email, false, callback)
-	}
+	err = api.submitRelayJob(job, email)
 	if err != nil {
 		api.relayJobs.remove(job.ID)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
@@ -253,6 +303,100 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	return c.Status(http.StatusAccepted).JSON(SuccessResponse("RELAY_QUEUED", "Relay request accepted", fiber.Map{
 		"job": current, "statusUrl": statusURL,
 	}))
+}
+
+func (api *API) submitRelayJob(job relayJob, message *types.Email) error {
+	if message == nil {
+		return fmt.Errorf("email is unavailable")
+	}
+	job, err := api.relayJobs.beginAttempt(job.ID)
+	if err != nil {
+		return fmt.Errorf("persist relay attempt: %w", err)
+	}
+	callback := func(relayErr error) {
+		api.finishRelayAttempt(job.ID, relayErr)
+	}
+	if job.RelayTo != "" {
+		return api.mailServer.RelayMailTo(message, job.RelayTo, callback)
+	}
+	return api.mailServer.RelayMail(message, false, callback)
+}
+
+func (api *API) finishRelayAttempt(jobID string, relayErr error) {
+	if relayErr == nil {
+		api.relayJobs.complete(jobID, nil)
+		return
+	}
+	job, ok := api.relayJobs.get(jobID)
+	if ok && relayFailureIsRetryable(relayErr) && job.Attempts < defaultRelayMaxAttempts {
+		delay := relayRetryDelay(job.Attempts)
+		if _, queued := api.relayJobs.queueRetry(jobID, relayErr, delay); queued {
+			time.AfterFunc(delay, func() { api.retryRelayJob(jobID) })
+			return
+		}
+	}
+	api.relayJobs.complete(jobID, relayErr)
+	if ok {
+		common.Error("Relay job %s failed for email %s after %d attempt(s) (category: %s)", job.ID, job.EmailID, job.Attempts, relayFailureCategory(relayErr))
+	}
+}
+
+func relayFailureIsRetryable(err error) bool {
+	switch relayFailureCategory(err) {
+	case "connection", "timeout", "queue_full":
+		return true
+	default:
+		return false
+	}
+}
+
+func relayRetryDelay(attempts int) time.Duration {
+	if attempts < 1 {
+		attempts = 1
+	}
+	delay := defaultRelayRetryBaseDelay << (attempts - 1)
+	spread := delay / 5
+	if spread <= 0 {
+		return delay
+	}
+	random, err := rand.Int(rand.Reader, big.NewInt(int64(spread*2+1)))
+	if err != nil {
+		return delay
+	}
+	return delay - spread + time.Duration(random.Int64())
+}
+
+func (api *API) retryRelayJob(jobID string) {
+	job, ok := api.relayJobs.get(jobID)
+	if !ok || job.CompletedAt != nil {
+		return
+	}
+	email, err := api.mailServer.GetEmail(job.EmailID)
+	if err == nil {
+		err = api.submitRelayJob(job, email)
+	}
+	if err != nil {
+		api.finishRelayAttempt(jobID, err)
+	}
+}
+
+func (api *API) recoverRelayJobs() {
+	for _, job := range api.relayJobs.queued() {
+		if job.NextAttemptAt != nil {
+			delay := time.Until(*job.NextAttemptAt)
+			if delay > 0 {
+				time.AfterFunc(delay, func() { api.retryRelayJob(job.ID) })
+				continue
+			}
+		}
+		email, err := api.mailServer.GetEmail(job.EmailID)
+		if err == nil {
+			err = api.submitRelayJob(job, email)
+		}
+		if err != nil {
+			api.finishRelayAttempt(job.ID, err)
+		}
+	}
 }
 
 func (api *API) getRelayJob(c fiber.Ctx) error {

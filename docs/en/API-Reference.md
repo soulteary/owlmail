@@ -169,13 +169,22 @@ Both batch routes accept:
 Native v1 relay routes require outgoing SMTP configuration and return `202`
 with an opaque job ID, a base-path-aware `statusUrl`, and the current state.
 Poll that URL until the state is `succeeded` or `failed`. Failed jobs expose a
-bounded `errorCategory`, never the raw downstream error. Jobs are process-local
-and completed records expire after 24 hours. The status store keeps at most
+bounded `errorCategory`, never the raw downstream error. When a persistent
+mail directory is configured, job records are atomically stored under
+`.owlmail-meta/relay-jobs` before enqueueing; queued jobs are resubmitted after
+restart. Connection and timeout failures retry up to three total attempts with
+exponential backoff and bounded jitter; authentication and other classified
+permanent failures become terminal immediately. The response exposes the
+attempt count and next scheduled attempt without raw downstream errors.
+Completed records expire after 24 hours. The status store keeps at most
 1000 jobs; completed records have a one-minute post-completion protection
 window and may be evicted under capacity pressure after that window. Active
 jobs are never evicted. If all slots are active or protected, a new request
 returns `503` with `Retry-After: 1`. Explicit `relayTo` values are limited to
-1024 UTF-8 bytes before a status record is created.
+1024 UTF-8 bytes before a status record is created. Persistence failures make
+new relay requests return `503` rather than silently accepting volatile jobs.
+Recovery is at least once: a crash after downstream acceptance but before the
+terminal status commit can cause one duplicate attempt.
 Historical `/email` aliases keep their existing response behavior; the opt-in
 MailDev facade continues to wait for its relay attempt.
 
