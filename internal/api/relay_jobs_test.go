@@ -126,7 +126,6 @@ func TestRelayJobNotFound(t *testing.T) {
 	}
 }
 
-
 func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 	store := newRelayJobStore()
 	store.limit = 1
