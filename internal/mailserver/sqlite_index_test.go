@@ -344,6 +344,12 @@ func TestValidateMailboxIndexPathRejectsManagedNamespaces(t *testing.T) {
 		"quarantine":     filepath.Join(directory, quarantineDirName, "mailbox.db"),
 		"webhook outbox": filepath.Join(directory, webhookOutboxDirectoryName, "mailbox.db"),
 		"mail directory": directory,
+		"metadata case alias": filepath.Join(
+			directory, strings.ToUpper(metadataDirectoryName), "mailbox.db",
+		),
+		"temporary case alias": filepath.Join(
+			directory, strings.ToUpper(storageTempPrefix)+"index", "mailbox.db",
+		),
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := ValidateMailboxIndexPath(directory, path); err == nil {
@@ -361,6 +367,39 @@ func TestValidateMailboxIndexPathRejectsManagedNamespaces(t *testing.T) {
 				t.Fatalf("ValidateMailboxIndexPath(%q) rejected safe storage: %v", path, err)
 			}
 		})
+	}
+}
+
+func TestValidateMailboxIndexPathResolvesFilesystemAliases(t *testing.T) {
+	directory := t.TempDir()
+	metadataRoot := filepath.Join(directory, metadataDirectoryName)
+	if err := os.MkdirAll(metadataRoot, 0755); err != nil {
+		t.Fatal(err)
+	}
+	managedAlias := filepath.Join(directory, "metadata-link")
+	if err := os.Symlink(metadataRoot, managedAlias); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	if path := filepath.Join(managedAlias, "mailbox.db"); ValidateMailboxIndexPath(directory, path) == nil {
+		t.Fatalf("ValidateMailboxIndexPath(%q) accepted a symlink into managed storage", path)
+	}
+
+	externalRoot := t.TempDir()
+	outwardDirectory := t.TempDir()
+	outwardMetadata := filepath.Join(outwardDirectory, metadataDirectoryName)
+	if err := os.Symlink(externalRoot, outwardMetadata); err != nil {
+		t.Fatal(err)
+	}
+	if path := filepath.Join(outwardMetadata, "mailbox.db"); ValidateMailboxIndexPath(outwardDirectory, path) == nil {
+		t.Fatalf("ValidateMailboxIndexPath(%q) accepted a managed namespace symlinked outside the mail directory", path)
+	}
+
+	externalAlias := filepath.Join(directory, "external-link")
+	if err := os.Symlink(externalRoot, externalAlias); err != nil {
+		t.Fatal(err)
+	}
+	if path := filepath.Join(externalAlias, "mailbox.db"); ValidateMailboxIndexPath(directory, path) != nil {
+		t.Fatalf("ValidateMailboxIndexPath(%q) rejected a symlink to external storage", path)
 	}
 }
 

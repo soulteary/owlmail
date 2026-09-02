@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -50,7 +51,8 @@ func ValidateMailboxIndexPath(mailDir, indexPath string) error {
 	if strings.TrimSpace(indexPath) == "" {
 		return nil
 	}
-	mailRoot, err := filepath.Abs(ResolveMailDirectory(mailDir))
+	mailPath := ResolveMailDirectory(mailDir)
+	mailRoot, err := filepath.Abs(mailPath)
 	if err != nil {
 		return fmt.Errorf("resolve mail directory: %w", err)
 	}
@@ -58,29 +60,88 @@ func ValidateMailboxIndexPath(mailDir, indexPath string) error {
 	if err != nil {
 		return fmt.Errorf("resolve mailbox index path: %w", err)
 	}
-	relative, err := filepath.Rel(mailRoot, absoluteIndex)
+	if err := rejectManagedMailboxIndexPath(mailRoot, absoluteIndex); err != nil {
+		return err
+	}
+
+	resolvedMailRoot, err := resolveExistingPathIdentity(mailPath)
+	if err != nil {
+		return fmt.Errorf("resolve mail directory identity: %w", err)
+	}
+	resolvedIndex, err := resolveExistingPathIdentity(indexPath)
+	if err != nil {
+		return fmt.Errorf("resolve mailbox index path identity: %w", err)
+	}
+	return rejectManagedMailboxIndexPath(resolvedMailRoot, resolvedIndex)
+}
+
+func rejectManagedMailboxIndexPath(mailRoot, indexPath string) error {
+	relative, err := filepath.Rel(mailRoot, indexPath)
 	if err != nil {
 		return fmt.Errorf("compare mailbox index and mail paths: %w", err)
 	}
-	if relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-		return nil
+	if pathIsOutsideRoot(relative) {
+		// filepath.Rel follows the host OS rules, but case sensitivity can also
+		// depend on the mounted filesystem. A folded second comparison reserves
+		// case aliases safely on insensitive filesystems (and conservatively on
+		// sensitive filesystems).
+		foldedRelative, foldedErr := filepath.Rel(strings.ToLower(mailRoot), strings.ToLower(indexPath))
+		if foldedErr != nil || pathIsOutsideRoot(foldedRelative) {
+			return nil
+		}
+		relative = foldedRelative
 	}
 	if relative == "." {
 		return fmt.Errorf("mailbox index path must not replace the mail directory")
 	}
 	firstComponent := strings.Split(relative, string(filepath.Separator))[0]
-	switch firstComponent {
-	case metadataDirectoryName:
+	switch {
+	case strings.EqualFold(firstComponent, metadataDirectoryName):
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail metadata directory")
-	case quarantineDirName:
+	case strings.EqualFold(firstComponent, quarantineDirName):
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail quarantine directory")
-	case webhookOutboxDirectoryName:
+	case strings.EqualFold(firstComponent, webhookOutboxDirectoryName):
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail webhook outbox directory")
-	}
-	if strings.HasPrefix(firstComponent, storageTempPrefix) {
+	case strings.HasPrefix(strings.ToLower(firstComponent), strings.ToLower(storageTempPrefix)):
 		return fmt.Errorf("mailbox index path must not use the OwlMail transaction artifact namespace")
 	}
 	return nil
+}
+
+func pathIsOutsideRoot(relative string) bool {
+	return relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator))
+}
+
+// resolveExistingPathIdentity follows symlinks through the deepest existing
+// prefix, then rejoins any not-yet-created suffix. This covers a new SQLite
+// file below an existing directory alias without requiring the file to exist.
+func resolveExistingPathIdentity(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	current := absolute
+	missing := make([]string, 0)
+	for {
+		if _, err := os.Lstat(current); err == nil {
+			resolved, err := filepath.EvalSymlinks(current)
+			if err != nil {
+				return "", err
+			}
+			for index := len(missing) - 1; index >= 0; index-- {
+				resolved = filepath.Join(resolved, missing[index])
+			}
+			return filepath.Clean(resolved), nil
+		} else if !os.IsNotExist(err) {
+			return "", err
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", fmt.Errorf("no existing path prefix for %q", absolute)
+		}
+		missing = append(missing, filepath.Base(current))
+		current = parent
+	}
 }
 
 func indexedAddressText(addresses []*mail.Address, includeName bool) string {
