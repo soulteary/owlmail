@@ -130,7 +130,7 @@ func TestRelayJobNotFound(t *testing.T) {
 func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 	store := newRelayJobStore()
 	store.limit = 1
-	ids := []string{"job-active", "job-replacement"}
+	ids := []string{"job-active", "job-rejected", "job-replacement"}
 	store.newID = func() (string, error) {
 		id := ids[0]
 		ids = ids[1:]
