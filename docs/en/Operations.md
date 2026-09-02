@@ -232,6 +232,8 @@ remote content verify exactly. The EML, mailbox index, read state, and sequence
 are never rewritten. Dry runs perform read-only size and SHA-256 verification
 for attachments already recorded in S3 and for remote-only recovery candidates;
 missing or corrupted remote objects make the dry run fail without writing data.
+The preflight EML scan and local-file hashing honor command cancellation, so an
+operator can safely interrupt a long read-only validation before uploads begin.
 
 Each object upload is streamed, reopened from S3, and checked for exact size
 and SHA-256 before the sidecar is atomically updated. Only then may

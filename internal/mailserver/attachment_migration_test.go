@@ -108,6 +108,41 @@ func migrationMetadata(t *testing.T, directory, id string) emailMetadata {
 	return metadata
 }
 
+func TestAttachmentMigrationPreflightHonorsCancellation(t *testing.T) {
+	directory := t.TempDir()
+	_, path := createLocalMigrationMessage(t, directory, "preflight-canceled", multipartMessage())
+	store := newMigrationFakeStore()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	summary, err := MigrateLocalAttachments(ctx, directory, store, migrationTestOptions())
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("migration error = %v, want context cancellation", err)
+	}
+	if summary != (AttachmentMigrationSummary{}) {
+		t.Fatalf("summary = %#v, want zero value", summary)
+	}
+	if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+		t.Fatalf("canceled preflight used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("canceled preflight changed local source: %v", err)
+	}
+}
+
+func TestAttachmentMigrationContextReaderStopsBetweenReads(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	reader := contextReader{ctx: ctx, reader: strings.NewReader("attachment")}
+	buffer := make([]byte, 1)
+	if count, err := reader.Read(buffer); count != 1 || err != nil {
+		t.Fatalf("first read = %d, %v", count, err)
+	}
+	cancel()
+	if count, err := reader.Read(buffer); count != 0 || !errors.Is(err, context.Canceled) {
+		t.Fatalf("canceled read = %d, %v", count, err)
+	}
+}
+
 func TestAttachmentMigrationPartialSuccessAndResume(t *testing.T) {
 	directory := t.TempDir()
 	firstFilename, firstPath := createLocalMigrationMessage(t, directory, "a-first", multipartMessage())

@@ -103,7 +103,7 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 		return summary, fmt.Errorf("migration retry delay cannot be negative")
 	}
 
-	plans, err := preflightAttachmentMigration(mailDir)
+	plans, err := preflightAttachmentMigration(ctx, mailDir)
 	if err != nil {
 		return summary, err
 	}
@@ -224,7 +224,10 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 	return summary, errors.Join(migrationErrors...)
 }
 
-func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, error) {
+func preflightAttachmentMigration(ctx context.Context, mailDir string) ([]attachmentMigrationPlan, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	stat, err := os.Stat(mailDir)
 	if err != nil {
 		return nil, fmt.Errorf("inspect mail directory: %w", err)
@@ -236,10 +239,19 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 	if err != nil {
 		return nil, fmt.Errorf("read mail directory: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	reader := &MailServer{mailDir: mailDir}
 	plans := make([]attachmentMigrationPlan, 0)
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".eml") {
 			continue
 		}
@@ -256,7 +268,7 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 		if err != nil {
 			return nil, fmt.Errorf("open email %s: %w", id, err)
 		}
-		email, _, parseErr := reader.parseEmailMessage(id, eml, nil, false, "")
+		email, _, parseErr := reader.parseEmailMessage(id, contextReader{ctx: ctx, reader: eml}, nil, false, "")
 		closeErr := eml.Close()
 		if parseErr != nil || closeErr != nil {
 			return nil, fmt.Errorf("parse email %s: %w", id, errors.Join(parseErr, closeErr))
@@ -269,7 +281,7 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 			return nil, fmt.Errorf("load attachment metadata for %s: %w", id, metadataErr)
 		}
 		if len(metadata.Attachments) == 0 && metadata.Version < currentMetadataVersion {
-			if err := reader.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); err != nil {
+			if err := reader.restoreLegacyLocalAttachmentMetadataContext(ctx, id, email.Attachments); err != nil {
 				return nil, fmt.Errorf("ambiguous legacy attachment mapping for %s: %w", id, err)
 			}
 			metadata.Attachments = make([]attachmentMetadata, 0, len(email.Attachments))
@@ -290,6 +302,9 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 		seenFilenames := make(map[string]struct{}, len(metadata.Attachments))
 		referencedFiles := make(map[string]struct{}, len(metadata.Attachments))
 		for index, saved := range metadata.Attachments {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
 			parsed := email.Attachments[index]
 			if parsed == nil {
 				return nil, fmt.Errorf("ambiguous attachment mapping for %s: MIME attachment %d is missing", id, index)
@@ -313,7 +328,7 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 			if err := validatePath(mailDir, localPath); err != nil {
 				return nil, fmt.Errorf("validate attachment path for %s/%s: %w", id, saved.GeneratedFileName, err)
 			}
-			localExists, err := verifyLocalMigrationSource(localPath, saved.Size, expectedSHA256)
+			localExists, err := verifyLocalMigrationSource(ctx, localPath, saved.Size, expectedSHA256)
 			if err != nil {
 				return nil, fmt.Errorf("verify local attachment %s/%s: %w", id, saved.GeneratedFileName, err)
 			}
@@ -339,7 +354,10 @@ func migrationFenceExists(mailDir, id string) bool {
 	return false
 }
 
-func verifyLocalMigrationSource(path string, expectedSize int64, expectedSHA256 string) (bool, error) {
+func verifyLocalMigrationSource(ctx context.Context, path string, expectedSize int64, expectedSHA256 string) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	stat, err := os.Lstat(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, nil
@@ -353,7 +371,7 @@ func verifyLocalMigrationSource(path string, expectedSize int64, expectedSHA256 
 	if stat.Size() != expectedSize {
 		return false, fmt.Errorf("size mismatch: metadata=%d local=%d", expectedSize, stat.Size())
 	}
-	digest, err := attachmentFileSHA256(path)
+	digest, err := attachmentFileSHA256Context(ctx, path)
 	if err != nil {
 		return false, err
 	}
