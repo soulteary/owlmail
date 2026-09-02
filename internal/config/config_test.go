@@ -274,6 +274,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.TLSEnabled != false {
 		t.Errorf("DefaultConfig().TLSEnabled = %v, want %v", cfg.TLSEnabled, false)
 	}
+	if cfg.SMTPAuthRequireTLS {
+		t.Error("DefaultConfig().SMTPAuthRequireTLS = true, want false")
+	}
 	if cfg.UseUUIDForEmailID != false {
 		t.Errorf("DefaultConfig().UseUUIDForEmailID = %v, want %v", cfg.UseUUIDForEmailID, false)
 	}
@@ -292,6 +295,31 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WebhookRedisURL != "" || cfg.WebhookRedisPrefix != "owlmail:webhooks" || cfg.WebhookShutdownTimeout != "15s" {
 		t.Errorf("unexpected default webhook queue config: %#v", cfg)
 	}
+}
+
+func TestSMTPAuthRequireTLSResolution(t *testing.T) {
+	t.Run("CLI flag", func(t *testing.T) {
+		fs := flag.NewFlagSet("smtp-auth-require-tls", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-smtp-auth-require-tls"}); err != nil {
+			t.Fatal(err)
+		}
+		if cfg := ResolveConfig(fs, refs); !cfg.SMTPAuthRequireTLS {
+			t.Fatal("CLI flag did not enable SMTP AUTH TLS requirement")
+		}
+	})
+
+	t.Run("environment variable", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTP_AUTH_REQUIRE_TLS", "true")
+		fs := flag.NewFlagSet("smtp-auth-require-tls-env", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		if cfg := ResolveConfig(fs, refs); !cfg.SMTPAuthRequireTLS {
+			t.Fatal("OWLMAIL_SMTP_AUTH_REQUIRE_TLS did not enable SMTP AUTH TLS requirement")
+		}
+	})
 }
 
 func TestSMTPAndS3ConfigResolution(t *testing.T) {

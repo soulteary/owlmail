@@ -167,7 +167,10 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 NO AUTH 模式下，设置端点返回的 `smtpAuth` 为 `null`；启用强制认证后，该对象只
 返回配置的用户名，不会返回密码。同时设置 `OWLMAIL_SMTP_USER` 与
 `OWLMAIL_SMTP_PASSWORD` 后会强制执行 PLAIN/LOGIN 认证；只设置其中一项会启动
-失败。详见[运维与排障](./Operations.md#smtp-入口限制与鉴权模式)。
+失败。设置 `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true` 后，AUTH 只能在 STARTTLS 后或
+SMTPS 连接上执行，并要求启用 SMTP TLS；NO AUTH 模式下的匿名投递不受影响。该
+启动策略不能通过设置 API 修改。详见
+[运维与排障](./Operations.md#smtp-入口限制与鉴权模式)。
 
 ```bash
 curl -u admin:secret \

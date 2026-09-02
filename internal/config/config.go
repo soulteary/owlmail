@@ -233,8 +233,9 @@ type Config struct {
 	AutoRelayRules string
 
 	// SMTP authentication
-	SMTPUser     string
-	SMTPPassword string
+	SMTPUser           string
+	SMTPPassword       string
+	SMTPAuthRequireTLS bool
 
 	// TLS configuration for SMTP
 	TLSEnabled  bool
@@ -296,6 +297,7 @@ func DefaultConfig() *Config {
 		AutoRelayRules:         "",
 		SMTPUser:               "",
 		SMTPPassword:           "",
+		SMTPAuthRequireTLS:     false,
 		TLSEnabled:             false,
 		TLSCertFile:            "",
 		TLSKeyFile:             "",
@@ -345,6 +347,7 @@ type FlagRefs struct {
 	AutoRelayRules         *string
 	SMTPUser               *string
 	SMTPPassword           *string
+	SMTPAuthRequireTLS     *bool
 	TLSEnabled             *bool
 	TLSCertFile            *string
 	TLSKeyFile             *string
@@ -396,6 +399,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		AutoRelayRules:         fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
 		SMTPUser:               fs.String("smtp-user", cfg.SMTPUser, "SMTP username; set with smtp-password to require authentication"),
 		SMTPPassword:           fs.String("smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
+		SMTPAuthRequireTLS:     fs.Bool("smtp-auth-require-tls", cfg.SMTPAuthRequireTLS, "Require TLS before accepting SMTP AUTH"),
 		TLSEnabled:             fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
 		TLSCertFile:            fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
 		TLSKeyFile:             fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
@@ -451,8 +455,9 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		AutoRelayAddr:  resolveStringWithFlag(fs, "auto-relay-addr", "OWLMAIL_AUTO_RELAY_ADDR", *refs.AutoRelayAddr),
 		AutoRelayRules: resolveStringWithFlag(fs, "auto-relay-rules", "OWLMAIL_AUTO_RELAY_RULES", *refs.AutoRelayRules),
 
-		SMTPUser:     resolveStringWithFlag(fs, "smtp-user", "OWLMAIL_SMTP_USER", *refs.SMTPUser),
-		SMTPPassword: resolveStringWithFlag(fs, "smtp-password", "OWLMAIL_SMTP_PASSWORD", *refs.SMTPPassword),
+		SMTPUser:           resolveStringWithFlag(fs, "smtp-user", "OWLMAIL_SMTP_USER", *refs.SMTPUser),
+		SMTPPassword:       resolveStringWithFlag(fs, "smtp-password", "OWLMAIL_SMTP_PASSWORD", *refs.SMTPPassword),
+		SMTPAuthRequireTLS: resolveBoolWithFlag(fs, "smtp-auth-require-tls", "OWLMAIL_SMTP_AUTH_REQUIRE_TLS", *refs.SMTPAuthRequireTLS),
 
 		TLSEnabled:  resolveBoolWithFlag(fs, "tls", "OWLMAIL_TLS_ENABLED", *refs.TLSEnabled),
 		TLSCertFile: resolveStringWithFlag(fs, "tls-cert", "OWLMAIL_TLS_CERT", *refs.TLSCertFile),

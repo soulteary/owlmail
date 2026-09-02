@@ -204,6 +204,11 @@ SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-messag
 同时设置两项后强制 SMTP AUTH；未认证事务返回 `530 5.7.0`，错误凭据返回
 `535 5.7.8`。只设置其中一项会启动失败。
 
+如果部署环境不允许认证载荷经过明文连接，请设置 `-smtp-auth-require-tls` 或
+`OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`，并启用 SMTP TLS。此时明文监听器会拒绝
+PLAIN/LOGIN，STARTTLS 会话和直接 SMTPS 连接仍可正常 AUTH；NO AUTH 模式仍允许
+匿名投递。开启策略但未启用 TLS 配置时，服务会在打开监听器前启动失败。
+
 > [!WARNING]
 > NO AUTH 有意保持开放。为兼容开发环境，OwlMail 也允许在非 TLS 连接上使用
 > PLAIN/LOGIN。请将监听器限制在可信接口，并在使用真实凭据前启用 TLS。

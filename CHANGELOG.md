@@ -11,6 +11,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Real inbound SMTP AUTH with PLAIN and LOGIN mechanisms, constant-time
   credential checks, and protocol-level rejection of unauthenticated mail
   transactions.
+- Optional `-smtp-auth-require-tls` /
+  `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` policy that rejects PLAIN/LOGIN on cleartext
+  connections while preserving STARTTLS, SMTPS, and anonymous NO AUTH delivery.
 - Optional S3-compatible object storage for decoded attachments, including
   bounded transactional uploads and rollback, restart-safe metadata, bounded
   streaming downloads, recoverable deletion and quarantine cleanup,

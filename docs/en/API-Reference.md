@@ -177,7 +177,10 @@ The `smtpAuth` object returned by the settings endpoint is `null` in NO AUTH
 mode and reflects the configured username (never the password) when required
 authentication is enabled. With both `OWLMAIL_SMTP_USER` and
 `OWLMAIL_SMTP_PASSWORD` set, PLAIN/LOGIN authentication is enforced. Supplying
-only one credential fails startup. See
+only one credential fails startup. `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true` makes
+AUTH available only after STARTTLS or over SMTPS and requires SMTP TLS to be
+enabled; it does not change anonymous delivery in NO AUTH mode. This startup
+policy is not writable through the settings API. See
 [Operations](./Operations.md#smtp-ingress-limits-and-authentication-modes).
 
 ```bash

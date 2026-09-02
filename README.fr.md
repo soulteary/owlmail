@@ -234,6 +234,7 @@ docker buildx build \
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Nom d’utilisateur SMTP entrant ; avec le mot de passe, rend AUTH obligatoire |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Mot de passe SMTP entrant ; avec le nom d’utilisateur, rend AUTH obligatoire |
+| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | Refuser PLAIN/LOGIN avant TLS ; nécessite l’activation de SMTP TLS |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -473,6 +474,13 @@ remise sans authentification est autorisée et PLAIN/LOGIN acceptent aussi des
 identifiants arbitraires pour les applications qui imposent des paramètres
 SMTP. Avec les deux valeurs, SMTP AUTH devient obligatoire. Une seule valeur
 empêche le démarrage au lieu de revenir silencieusement à NO AUTH.
+
+Activez `-smtp-auth-require-tls` (ou
+`OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`) avec SMTP TLS pour éviter de transmettre
+les identifiants en clair. SMTP non chiffré n’annonce ni n’accepte alors
+PLAIN/LOGIN ; AUTH reste disponible après STARTTLS et via SMTPS. La remise
+anonyme du mode NO AUTH reste inchangée. Sans configuration SMTP TLS activée et
+utilisable, cette option empêche le démarrage.
 
 > [!WARNING]
 > NO AUTH ne fournit volontairement aucun contrôle d’accès. PLAIN/LOGIN restent
