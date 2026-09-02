@@ -58,6 +58,9 @@ type TLSConfig struct {
 // MaxDataConcurrency leaves SMTP DATA concurrency unlimited. Zero protocol
 // timeout and recipient fields select their established defaults.
 type ServerOptions struct {
+	// ReadOnly requires an existing mail directory and prevents constructor
+	// writes. It is used by observer processes such as the MCP stdio bridge.
+	ReadOnly           bool
 	OutgoingConfig     *outgoing.OutgoingConfig
 	AuthConfig         *SMTPAuthConfig
 	AuthRequireTLS     bool
