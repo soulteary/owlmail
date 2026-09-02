@@ -19,6 +19,8 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- The Web inbox now uses compact email previews for mailbox lists and only
+  fetches complete message content after a message is selected.
 - The zero-credential default is now documented as NO AUTH mode. It accepts
   unauthenticated delivery and arbitrary PLAIN/LOGIN credentials for test
   clients that require SMTP credentials. Configuring both inbound credentials
