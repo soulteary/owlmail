@@ -1,6 +1,8 @@
 package mailserver
 
 import (
+	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -38,6 +40,32 @@ type MailboxIndex interface {
 	OwnsPath(string) bool
 	Backend() string
 	Close() error
+}
+
+// ValidateMailboxIndexPath rejects locations managed by OwlMail's durable
+// message metadata writer. Metadata files are atomically replaced and removed
+// without consulting the optional derived index, so sharing that namespace
+// would eventually detach, corrupt, or delete the live SQLite database.
+func ValidateMailboxIndexPath(mailDir, indexPath string) error {
+	if strings.TrimSpace(indexPath) == "" {
+		return nil
+	}
+	metadataRoot, err := filepath.Abs(filepath.Join(ResolveMailDirectory(mailDir), metadataDirectoryName))
+	if err != nil {
+		return fmt.Errorf("resolve mailbox metadata directory: %w", err)
+	}
+	absoluteIndex, err := filepath.Abs(indexPath)
+	if err != nil {
+		return fmt.Errorf("resolve mailbox index path: %w", err)
+	}
+	relative, err := filepath.Rel(metadataRoot, absoluteIndex)
+	if err != nil {
+		return fmt.Errorf("compare mailbox index and metadata paths: %w", err)
+	}
+	if relative == "." || (relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))) {
+		return fmt.Errorf("mailbox index path must not be inside the OwlMail metadata directory")
+	}
+	return nil
 }
 
 func indexedAddressText(addresses []*mail.Address, includeName bool) string {
@@ -79,13 +107,13 @@ func (ms *MailServer) rebuildMailboxIndex() error {
 		return nil
 	}
 	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
 	records := make([]IndexedEmail, 0, len(ms.storeOrder))
 	for position, id := range ms.storeOrder {
 		if email, ok := ms.storeByID[id]; ok {
 			records = append(records, makeIndexedEmail(email, ms.receivedAtByID[id], position))
 		}
 	}
-	ms.storeMutex.RUnlock()
 	if err := ms.mailboxIndex.Rebuild(records); err != nil {
 		return err
 	}

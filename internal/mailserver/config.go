@@ -39,6 +39,16 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	})
 }
 
+// ResolveMailDirectory returns the directory used by the server when callers
+// leave the mail directory unset. Keeping this resolution in one place lets
+// startup validate auxiliary storage paths against the effective directory.
+func ResolveMailDirectory(mailDir string) string {
+	if mailDir == "" {
+		return filepath.Join(os.TempDir(), fmt.Sprintf("owlmail-%d", os.Getpid()))
+	}
+	return mailDir
+}
+
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
@@ -71,9 +81,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if host == "" {
 		host = defaultHost
 	}
-	if mailDir == "" {
-		mailDir = filepath.Join(os.TempDir(), fmt.Sprintf("owlmail-%d", os.Getpid()))
-	}
+	mailDir = ResolveMailDirectory(mailDir)
 	maxMessageBytes := options.MaxMessageBytes
 	if maxMessageBytes <= 0 {
 		maxMessageBytes = DefaultMaxMessageBytes

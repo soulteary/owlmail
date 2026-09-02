@@ -606,6 +606,9 @@ func setupMailboxIndex(cfg *config.Config) (mailserver.MailboxIndex, error) {
 	if cfg.MailIndexPath == "" {
 		return nil, nil
 	}
+	if err := mailserver.ValidateMailboxIndexPath(cfg.MailDir, cfg.MailIndexPath); err != nil {
+		return nil, err
+	}
 	index, err := mailserver.NewSQLiteMailboxIndex(cfg.MailIndexPath)
 	if err != nil {
 		return nil, fmt.Errorf("open SQLite mailbox index: %w", err)

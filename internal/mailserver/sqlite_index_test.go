@@ -5,11 +5,43 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/soulteary/owlmail/internal/types"
 )
+
+type blockingRebuildMailboxIndex struct {
+	MailboxIndex
+	mutex   sync.Mutex
+	block   bool
+	started chan struct{}
+	release chan struct{}
+}
+
+func (index *blockingRebuildMailboxIndex) blockNextRebuild() (<-chan struct{}, chan<- struct{}) {
+	index.mutex.Lock()
+	defer index.mutex.Unlock()
+	index.block = true
+	index.started = make(chan struct{})
+	index.release = make(chan struct{})
+	return index.started, index.release
+}
+
+func (index *blockingRebuildMailboxIndex) Rebuild(records []IndexedEmail) error {
+	index.mutex.Lock()
+	if !index.block {
+		index.mutex.Unlock()
+		return index.MailboxIndex.Rebuild(records)
+	}
+	index.block = false
+	started, release := index.started, index.release
+	index.mutex.Unlock()
+	close(started)
+	<-release
+	return index.MailboxIndex.Rebuild(records)
+}
 
 func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "mailbox.db")
@@ -167,6 +199,72 @@ func TestMailServerUsesSQLiteIndexAndSynchronizesMutations(t *testing.T) {
 	stats := server.GetEmailStats()["index"].(map[string]interface{})
 	if stats["enabled"] != true || stats["ready"] != true || stats["backend"] != "sqlite" {
 		t.Fatalf("index stats = %#v", stats)
+	}
+}
+
+func TestMailboxIndexRebuildSerializesReadStateMutations(t *testing.T) {
+	directory := t.TempDir()
+	sqliteIndex, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := &blockingRebuildMailboxIndex{MailboxIndex: sqliteIndex}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = sqliteIndex.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "read-during-rebuild"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), validMessage(id), 0600); err != nil {
+		t.Fatal(err)
+	}
+	email := &types.Email{ID: id, Subject: "Unread", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	started, release := index.blockNextRebuild()
+	rebuilt := make(chan error, 1)
+	go func() { rebuilt <- server.rebuildMailboxIndex() }()
+	<-started
+	serialized := !server.storeMutex.TryLock()
+	if !serialized {
+		server.storeMutex.Unlock()
+	}
+	readDone := make(chan error, 1)
+	go func() { readDone <- server.ReadEmail(id) }()
+	close(release)
+	if err := <-rebuilt; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-readDone; err != nil {
+		t.Fatal(err)
+	}
+	if !serialized {
+		t.Fatal("mailbox index rebuild released the store lock before committing its snapshot")
+	}
+	read := true
+	results, total := server.QueryEmailPreviews(EmailQuery{Read: &read, Limit: 10})
+	if total != 1 || len(results) != 1 || results[0].ID != id {
+		t.Fatalf("read state after overlapping rebuild = %#v, total %d", results, total)
+	}
+}
+
+func TestValidateMailboxIndexPathRejectsMetadataNamespace(t *testing.T) {
+	directory := t.TempDir()
+	for _, path := range []string{
+		filepath.Join(directory, metadataDirectoryName),
+		filepath.Join(directory, metadataDirectoryName, "mailbox.db"),
+	} {
+		if err := ValidateMailboxIndexPath(directory, path); err == nil {
+			t.Fatalf("ValidateMailboxIndexPath(%q) accepted managed metadata storage", path)
+		}
+	}
+	if err := ValidateMailboxIndexPath(directory, filepath.Join(directory, "mailbox.db")); err != nil {
+		t.Fatalf("ValidateMailboxIndexPath rejected root index: %v", err)
 	}
 }
 
