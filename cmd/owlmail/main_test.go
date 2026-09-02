@@ -65,6 +65,15 @@ func TestMCPWebBaseURL(t *testing.T) {
 	}
 }
 
+func TestNormalizedWebExternalScheme(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.WebExternalURL = " \tHTTPS://mail.example.test/\n"
+	got, err := normalizedWebExternalScheme(cfg)
+	if err != nil || got != "https" {
+		t.Fatalf("normalizedWebExternalScheme() = %q, %v; want https", got, err)
+	}
+}
+
 func TestCompleteWebAuthConfig(t *testing.T) {
 	if _, err := completeWebAuthConfig(nil, nil); err == nil {
 		t.Fatal("nil config should fail")

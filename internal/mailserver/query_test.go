@@ -38,6 +38,7 @@ func TestMailboxQueryFiltersSortsAndPaginates(t *testing.T) {
 		{name: "subject descending", query: EmailQuery{SortBy: "subject", SortOrder: "desc", Limit: 10}, want: []string{"id-3", "id-2", "id-1"}},
 		{name: "from ascending", query: EmailQuery{SortBy: "from", SortOrder: "asc", Limit: 10}, want: []string{"id-1", "id-2", "id-3"}},
 		{name: "size ascending", query: EmailQuery{SortBy: "size", SortOrder: "asc", Limit: 10}, want: []string{"id-2", "id-3", "id-1"}},
+		{name: "store descending", query: EmailQuery{SortBy: "store", SortOrder: "desc", Limit: 10}, want: []string{"id-3", "id-2", "id-1"}},
 		{name: "unknown sort preserves store order", query: EmailQuery{SortBy: "unknown", SortOrder: "asc", Limit: 10}, want: []string{"id-1", "id-2", "id-3"}},
 		{name: "pagination after filtering", query: EmailQuery{Text: "needle", SortBy: "subject", SortOrder: "asc", Offset: 1, Limit: 1}, want: []string{"id-2"}},
 	}

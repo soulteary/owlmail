@@ -328,6 +328,11 @@ func sortEmailMatches(emails []emailQueryEntry, sortBy, sortOrder string) {
 	ascending := sortOrder == "asc"
 	switch sortBy {
 	case "store":
+		if sortOrder == "desc" {
+			for left, right := 0, len(emails)-1; left < right; left, right = left+1, right-1 {
+				emails[left], emails[right] = emails[right], emails[left]
+			}
+		}
 		return
 	case "":
 		sort.Slice(emails, func(i, j int) bool {

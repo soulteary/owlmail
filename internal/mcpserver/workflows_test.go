@@ -29,11 +29,22 @@ func TestLatestAndEventDrivenWaitReturnBoundedSummaries(t *testing.T) {
 	t.Cleanup(httpServer.Close)
 	session := connectTestClient(t, httpServer.URL)
 	t.Cleanup(func() { _ = session.Close() })
+	if err := mailbox.SaveEmailToStore("newest-with-stale-date", false,
+		&mailserver.Envelope{To: []string{"inbox@example.test"}},
+		&mailserver.Email{
+			Time: time.Now().Add(-24 * time.Hour), Subject: "Newest delivery with stale Date",
+			To: []*mail.Address{{Address: "inbox@example.test"}},
+		}); err != nil {
+		t.Fatal(err)
+	}
 
 	var latest latestEmailOutput
 	callTool(t, session, "get_latest_email", map[string]any{"limit": 2}, &latest)
 	if len(latest.Emails) != 2 {
 		t.Fatalf("latest emails = %d, want 2", len(latest.Emails))
+	}
+	if latest.Emails[0].ID != "newest-with-stale-date" {
+		t.Fatalf("latest email = %q, want newest delivery despite stale Date header", latest.Emails[0].ID)
 	}
 	for _, email := range latest.Emails {
 		if email.WebURL != "https://mail.example.test/owlmail/?email="+email.ID {

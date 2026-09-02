@@ -258,7 +258,7 @@ func registerWorkflowTools(server *mcp.Server, mailbox *mailserver.MailServer, s
 		if limit < 1 || limit > maximumLatestEmails {
 			return nil, latestEmailOutput{}, fmt.Errorf("limit must be between 1 and %d", maximumLatestEmails)
 		}
-		previews, _ := mailbox.QueryEmailPreviews(mailserver.EmailQuery{SortBy: "time", SortOrder: "desc", Limit: limit})
+		previews, _ := mailbox.QueryEmailPreviews(mailserver.EmailQuery{SortBy: "store", SortOrder: "desc", Limit: limit})
 		return nil, latestEmailOutput{Emails: service.makeSummaries(previews)}, nil
 	})
 

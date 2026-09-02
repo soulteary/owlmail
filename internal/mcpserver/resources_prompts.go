@@ -32,7 +32,7 @@ func registerResources(server *mcp.Server, mailbox *mailserver.MailServer, servi
 		Description: "The 50 newest compact email summaries. Full HTML, source, headers, and attachment bytes are omitted.",
 		MIMEType:    "application/json",
 	}, func(_ context.Context, request *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-		previews, total := mailbox.QueryEmailPreviews(mailserver.EmailQuery{SortBy: "time", SortOrder: "desc", Limit: defaultPageSize})
+		previews, total := mailbox.QueryEmailPreviews(mailserver.EmailQuery{SortBy: "store", SortOrder: "desc", Limit: defaultPageSize})
 		return jsonResource(request.Params.URI, emailPageResource{
 			Total: total, Emails: service.makeSummaries(previews),
 		})

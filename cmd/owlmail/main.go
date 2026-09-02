@@ -446,13 +446,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
 	}
-	externalScheme := cfg.WebExternalScheme
-	if cfg.WebExternalURL != "" {
-		parsedExternalURL, err := url.Parse(cfg.WebExternalURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid Web external URL: %w", err)
-		}
-		externalScheme = parsedExternalURL.Scheme
+	externalScheme, err := normalizedWebExternalScheme(cfg)
+	if err != nil {
+		return nil, err
 	}
 	if err := apiServer.SetExternalScheme(externalScheme); err != nil {
 		return nil, err
@@ -513,6 +509,21 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	return apiServer, nil
+}
+
+func normalizedWebExternalScheme(cfg *config.Config) (string, error) {
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return "", err
+	}
+	if externalURL == "" {
+		return cfg.WebExternalScheme, nil
+	}
+	parsedExternalURL, err := url.Parse(externalURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid Web external URL: %w", err)
+	}
+	return parsedExternalURL.Scheme, nil
 }
 
 func mcpWebBaseURL(cfg *config.Config) (string, error) {
