@@ -898,6 +898,14 @@ func TestInitializeApplicationNormalizesBasePathname(t *testing.T) {
 	}
 }
 
+func TestInitializeApplicationRejectsInvalidLogFormat(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.LogFormat = "jsno"
+	if err := initializeApplication(cfg); err == nil {
+		t.Fatal("initializeApplication accepted an invalid log format")
+	}
+}
+
 // TestCreateMailServer tests the createMailServer function
 func TestCreateMailServer(t *testing.T) {
 	// Test with nil config
