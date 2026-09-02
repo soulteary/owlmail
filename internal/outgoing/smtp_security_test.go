@@ -112,6 +112,29 @@ func TestOutgoingAuthenticationRequiresTLS(t *testing.T) {
 	}
 }
 
+func TestAbsoluteDeadlineKeepsElapsedPhaseBudget(t *testing.T) {
+	client, server := net.Pipe()
+	defer func() { _ = client.Close() }()
+	defer func() { _ = server.Close() }()
+
+	deadline := phaseDeadline(context.Background(), 400*time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
+	if err := setAbsoluteDeadline(context.Background(), client, deadline); err != nil {
+		t.Fatal(err)
+	}
+
+	started := time.Now()
+	_, err := client.Read(make([]byte, 1))
+	elapsed := time.Since(started)
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("Read() error = %v, want deadline timeout", err)
+	}
+	if elapsed >= 300*time.Millisecond {
+		t.Fatalf("Read() took %s, absolute phase deadline was reset", elapsed)
+	}
+}
+
 func TestSendMailDataDeadline(t *testing.T) {
 	addr, commands := startTestSMTPServer(t, testSMTPPlain, nil, true)
 	start := time.Now()
