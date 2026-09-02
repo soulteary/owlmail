@@ -30,6 +30,7 @@ func TestMailServerSetOutgoingConfig(t *testing.T) {
 		Port:     587,
 		User:     "user",
 		Password: "pass",
+		Secure:   true,
 	}
 
 	if err := server.SetOutgoingConfig(config); err != nil {
@@ -201,6 +202,7 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		Port:     587,
 		User:     "user1",
 		Password: "pass1",
+		Secure:   true,
 	}
 	if err := server.SetOutgoingConfig(config1); err != nil {
 		t.Fatal(err)
@@ -212,6 +214,7 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 		Port:     465,
 		User:     "user2",
 		Password: "pass2",
+		Secure:   true,
 	}
 	if err := server.SetOutgoingConfig(config2); err != nil {
 		t.Fatal(err)

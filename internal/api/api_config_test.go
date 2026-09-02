@@ -269,7 +269,9 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	outgoingConfig := &outgoing.OutgoingConfig{
 		Host:     "smtp.example.com",
 		Port:     587,
+		User:     "user",
 		Password: "top-secret",
+		Secure:   true,
 	}
 	if err := server.SetOutgoingConfig(outgoingConfig); err != nil {
 		t.Fatal(err)
@@ -633,8 +635,11 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 
 	// First set a config
 	config := map[string]interface{}{
-		"host": "smtp.example.com",
-		"port": 587,
+		"host":     "smtp.example.com",
+		"port":     587,
+		"user":     "user",
+		"password": "old-secret",
+		"secure":   true,
 	}
 	jsonBody, _ := json.Marshal(config)
 
