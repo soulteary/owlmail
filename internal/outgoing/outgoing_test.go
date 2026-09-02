@@ -1,10 +1,13 @@
 package outgoing
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,7 +67,7 @@ func TestSendMailContextCancellationClosesActiveConnection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	err = sendMailContext(ctx, listener.Addr().String(), nil, "from@example.test", []string{"to@example.test"}, []byte("body"))
+	err = sendMailContext(ctx, listener.Addr().String(), nil, "from@example.test", []string{"to@example.test"}, []byte("body"), false)
 	if err == nil || time.Since(started) > time.Second {
 		t.Fatalf("sendMailContext() error = %v after %s", err, time.Since(started))
 	}
@@ -73,6 +76,93 @@ func TestSendMailContextCancellationClosesActiveConnection(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("canceled SMTP connection remained open")
 	}
+}
+
+func TestSendMailContextHonorsSecureSetting(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		secure       bool
+		wantErr      bool
+		wantSTARTTLS bool
+	}{
+		{name: "plaintext", secure: false},
+		{name: "starttls", secure: true, wantErr: true, wantSTARTTLS: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			addr, result := startSTARTTLSAdvertisedSMTP(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			err := sendMailContext(ctx, addr, nil, "from@example.test", []string{"to@example.test"}, []byte("Subject: test\r\n\r\nbody"), tc.secure)
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("sendMailContext() error = %v, wantErr %v", err, tc.wantErr)
+			}
+			commands := <-result
+			gotSTARTTLS := false
+			for _, command := range commands {
+				if command == "STARTTLS" {
+					gotSTARTTLS = true
+				}
+			}
+			if gotSTARTTLS != tc.wantSTARTTLS {
+				t.Fatalf("SMTP commands = %v, STARTTLS = %v, want %v", commands, gotSTARTTLS, tc.wantSTARTTLS)
+			}
+		})
+	}
+}
+
+func startSTARTTLSAdvertisedSMTP(t *testing.T) (string, <-chan []string) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	result := make(chan []string, 1)
+	go func() {
+		commands := make([]string, 0, 5)
+		defer func() { result <- commands }()
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		_, _ = fmt.Fprint(conn, "220 localhost ESMTP\r\n")
+		inData := false
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				return
+			}
+			command := strings.TrimSpace(line)
+			if inData {
+				if command == "." {
+					inData = false
+					_, _ = fmt.Fprint(conn, "250 queued\r\n")
+				}
+				continue
+			}
+			commands = append(commands, command)
+			switch {
+			case strings.HasPrefix(command, "EHLO "):
+				_, _ = fmt.Fprint(conn, "250-localhost\r\n250 STARTTLS\r\n")
+			case command == "STARTTLS":
+				_, _ = fmt.Fprint(conn, "454 TLS unavailable\r\n")
+				return
+			case strings.HasPrefix(command, "MAIL FROM:"), strings.HasPrefix(command, "RCPT TO:"):
+				_, _ = fmt.Fprint(conn, "250 ok\r\n")
+			case command == "DATA":
+				inData = true
+				_, _ = fmt.Fprint(conn, "354 continue\r\n")
+			case command == "QUIT":
+				_, _ = fmt.Fprint(conn, "221 bye\r\n")
+				return
+			default:
+				_, _ = fmt.Fprint(conn, "500 unexpected command\r\n")
+			}
+		}
+	}()
+	return listener.Addr().String(), result
 }
 
 func TestNewOutgoingMail(t *testing.T) {

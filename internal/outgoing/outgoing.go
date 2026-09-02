@@ -138,7 +138,7 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	addr := fmt.Sprintf("%s:%d", om.config.Host, om.config.Port)
 
 	if task.Context != nil {
-		err = sendMailContext(task.Context, addr, auth, sender, recipients, emailData)
+		err = sendMailContext(task.Context, addr, auth, sender, recipients, emailData, om.config.Secure)
 	} else if om.config.Secure {
 		// Use TLS
 		err = sendMailTLS(addr, auth, sender, recipients, emailData)
@@ -398,7 +398,7 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 // sendMailContext performs an SMTP transaction on a connection that is
 // closed when ctx is canceled. This prevents a timed-out synchronous relay
 // from remaining queued or being delivered later after the caller retries.
-func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
+func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte, secure bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -430,9 +430,11 @@ func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from stri
 		}
 	}()
 
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
-			return relayContextError(ctx, err)
+	if secure {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
+				return relayContextError(ctx, err)
+			}
 		}
 	}
 	if auth != nil {
