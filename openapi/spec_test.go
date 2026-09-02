@@ -58,7 +58,20 @@ func TestDocumentsParseAndStayEquivalent(t *testing.T) {
 	validateDocumentShape(t, parsedJSON)
 	validateSecuritySemantics(t, parsedJSON)
 	validateQuerySemantics(t, parsedJSON)
+	validateRelaySemantics(t, parsedJSON)
 	validateLocalReferences(t, parsedJSON, parsedJSON)
+}
+
+func validateRelaySemantics(t *testing.T, document map[string]any) {
+	t.Helper()
+	paths := document["paths"].(map[string]any)
+	for _, path := range []string{"/emails/{id}/actions/relay", "/emails/{id}/actions/relay/{relayTo}"} {
+		operation := paths[path].(map[string]any)["post"].(map[string]any)
+		description := operation["description"].(string)
+		if !strings.Contains(description, "does not guarantee queue insertion or downstream SMTP delivery") {
+			t.Errorf("POST %s does not document asynchronous relay failure semantics", path)
+		}
+	}
 }
 
 func validateSecuritySemantics(t *testing.T, document map[string]any) {

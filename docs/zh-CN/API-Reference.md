@@ -150,9 +150,10 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `POST /api/v1/emails/:id/actions/relay` | 按邮件原收件人中继 |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | 中继到一个明确地址 |
 
-中继路由要求先配置出站 SMTP。成功响应只表示 OwlMail 接受了进程内中继请求，
-**不表示**下游 SMTP 已经投递邮件。API 在入队前不会对 `relayTo` 做完整邮箱地址
-语法校验；HTTP 响应之后发生的下游错误只会记录到进程日志。
+中继路由要求先配置出站 SMTP。成功响应只表示 OwlMail 收到了进程内中继请求，并
+尝试将其交给出站工作器；**不保证**队列已经接受任务，也不表示下游 SMTP 已经投递
+邮件。API 在异步处理前不会对 `relayTo` 做完整邮箱地址语法校验；队列饱和以及 HTTP
+响应之后发生的下游错误只会记录到进程日志。
 
 ### 设置与系统
 

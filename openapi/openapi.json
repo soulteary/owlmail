@@ -26,7 +26,7 @@
     },
     {
       "name": "Relay",
-      "description": "Asynchronous outgoing SMTP queue acceptance"
+      "description": "Asynchronous outgoing SMTP request handling"
     },
     {
       "name": "Settings",
@@ -948,8 +948,8 @@
         "tags": [
           "Relay"
         ],
-        "summary": "Queue an email for relay",
-        "description": "`200` means the in-process outgoing queue accepted the task. Delivery to the downstream SMTP server happens asynchronously; a later failure is logged and is not reflected in this HTTP response. Query `relayTo` takes precedence over the JSON body. When neither is supplied, the original message recipients are used.",
+        "summary": "Request email relay",
+        "description": "`200` acknowledges receipt of the in-process relay request and an attempt to hand it to the outgoing worker. It does not guarantee queue insertion or downstream SMTP delivery; queue saturation and later failures are reported only in process logs. Query `relayTo` takes precedence over the JSON body. When neither is supplied, the original message recipients are used.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -1015,8 +1015,8 @@
         "tags": [
           "Relay"
         ],
-        "summary": "Queue an email for relay to an explicit recipient",
-        "description": "`200` confirms queue acceptance only, not downstream SMTP delivery. Recipient syntax is not validated before queueing.",
+        "summary": "Request email relay to an explicit recipient",
+        "description": "`200` acknowledges receipt and an attempt to hand the request to the outgoing worker; it does not guarantee queue insertion or downstream SMTP delivery. Queue saturation and later failures are reported only in process logs. Recipient syntax is not validated before asynchronous handling.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
@@ -1451,7 +1451,7 @@
         "name": "relayTo",
         "in": "path",
         "required": true,
-        "description": "Explicit downstream recipient. The value is queued without API-layer syntax validation.",
+        "description": "Explicit downstream recipient. The value is passed to asynchronous relay handling without API-layer syntax validation.",
         "schema": {
           "type": "string",
           "minLength": 1

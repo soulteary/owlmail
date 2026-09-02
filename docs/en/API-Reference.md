@@ -158,10 +158,12 @@ Both batch routes accept:
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
 
 Relay routes require outgoing SMTP configuration. A success response confirms
-that OwlMail accepted the in-process relay request; it does **not** confirm that
-the downstream SMTP server delivered the message. The API does not
-syntactically validate `relayTo` before queueing it, and downstream failures are
-reported in process logs after the HTTP response.
+that OwlMail received the in-process relay request and attempted to hand it to
+the outgoing worker. It does **not** guarantee that the queue accepted the task
+or that the downstream SMTP server delivered the message. The API does not
+syntactically validate `relayTo` before asynchronous handling; queue saturation
+and later downstream failures are reported only in process logs after the HTTP
+response.
 
 ### Settings and system
 
