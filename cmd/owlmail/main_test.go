@@ -184,6 +184,22 @@ func TestReportWebAuthCompletion(t *testing.T) {
 	})
 }
 
+func TestSetupMailboxIndexRejectsMetadataCollision(t *testing.T) {
+	directory := t.TempDir()
+	indexPath := filepath.Join(directory, ".owlmail-meta", "message.json")
+	index, err := setupMailboxIndex(&config.Config{MailDir: directory, MailIndexPath: indexPath})
+	if index != nil {
+		_ = index.Close()
+		t.Fatal("setupMailboxIndex returned an index for managed metadata storage")
+	}
+	if err == nil || !strings.Contains(err.Error(), "metadata directory") {
+		t.Fatalf("setupMailboxIndex error = %v, want metadata collision", err)
+	}
+	if _, statErr := os.Stat(indexPath); !os.IsNotExist(statErr) {
+		t.Fatalf("setupMailboxIndex touched rejected path: %v", statErr)
+	}
+}
+
 func TestLoadAutoRelayRules(t *testing.T) {
 	// Create temporary directory
 	tmpDir := t.TempDir()

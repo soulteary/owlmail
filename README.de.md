@@ -216,6 +216,7 @@ docker buildx build \
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
+| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | Optionaler Pfad für einen wiederherstellbaren SQLite-Postfachindex; EML-Dateien bleiben maßgeblich |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | Dekodierte Anhänge in S3-kompatiblem Objektspeicher ablegen |
 | `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | Benutzerdefinierter S3-Endpunkt; leer verwendet AWS S3 |
 | `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3-Region |

@@ -71,6 +71,7 @@ type ServerOptions struct {
 	RetainAllHeaders   bool
 	AttachmentStore    attachmentstore.Store
 	AttachmentHealth   attachmentstore.ReadinessProvider
+	MailboxIndex       MailboxIndex
 }
 
 // AttachmentReader describes an attachment opened for HTTP streaming.
@@ -91,6 +92,8 @@ type MailServer struct {
 	storeByID               map[string]*types.Email
 	storeOrder              []string
 	receivedAtByID          map[string]time.Time
+	storePositionByID       map[string]int
+	nextStorePosition       int
 	storeMutex              sync.RWMutex
 	storageTransactionMutex sync.RWMutex
 	mailDir                 string
@@ -133,6 +136,8 @@ type MailServer struct {
 	cleanupWG           sync.WaitGroup
 	storageMetricsMutex sync.RWMutex
 	storageMetrics      StorageMetrics
+	mailboxIndex        MailboxIndex
+	mailboxIndexReady   atomic.Bool
 	receivedMessages    atomic.Uint64
 	deletedMessages     atomic.Uint64
 

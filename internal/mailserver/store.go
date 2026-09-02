@@ -129,6 +129,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	ms.receivedAtByID[id] = receivedAt
 	ms.storeByID[id] = storedEmail
+	ms.upsertMailboxIndexLocked(storedEmail, receivedAt)
 	if persistMetadata {
 		ms.receivedMessages.Add(1)
 	}
@@ -281,6 +282,9 @@ func (ms *MailServer) DeleteEmail(id string) error {
 			return fmt.Errorf("delete email rejected: %w", err)
 		}
 	}
+	if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(filepath.Join(ms.mailDir, id)) {
+		return fmt.Errorf("delete email rejected: mailbox index is stored inside the email attachment directory")
+	}
 
 	if err := ms.ensureDeletionFence(id); err != nil {
 		return err
@@ -289,7 +293,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		return err
 	}
 
-	ms.removeEmailFromMemory(id)
+	ms.deleteEmailFromRuntimeState(id)
 	ms.deletedMessages.Add(1)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
@@ -314,6 +318,10 @@ func (ms *MailServer) DeleteAllEmail() error {
 	}
 	var deletionErrors []error
 	for _, id := range ids {
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(filepath.Join(ms.mailDir, id)) {
+			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: mailbox index is stored inside the email attachment directory", id))
+			continue
+		}
 		if err := ms.ensureDeletionFence(id); err != nil {
 			deletionErrors = append(deletionErrors, fmt.Errorf("fence deletion for %s: %w", id, err))
 			continue
@@ -322,7 +330,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: %w", id, err))
 			continue
 		}
-		ms.removeEmailFromMemory(id)
+		ms.deleteEmailFromRuntimeState(id)
 		ms.deletedMessages.Add(1)
 	}
 	if err := errors.Join(deletionErrors...); err != nil {
@@ -333,7 +341,10 @@ func (ms *MailServer) DeleteAllEmail() error {
 	ms.storeByID = make(map[string]*Email)
 	ms.storeOrder = make([]string, 0)
 	ms.receivedAtByID = make(map[string]time.Time)
+	ms.storePositionByID = make(map[string]int)
+	ms.nextStorePosition = 0
 	ms.storeMutex.Unlock()
+	ms.clearMailboxIndex()
 
 	// Clear mail directory
 	files, err := os.ReadDir(ms.mailDir)
@@ -348,7 +359,11 @@ func (ms *MailServer) DeleteAllEmail() error {
 			if _, fenced := deletionFenceID(file.Name()); fenced {
 				continue
 			}
-			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
+			path := filepath.Join(ms.mailDir, file.Name())
+			if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(path) {
+				continue
+			}
+			if err := os.RemoveAll(path); err != nil {
 				deletionErrors = append(deletionErrors, fmt.Errorf("remove %s: %w", file.Name(), err))
 			}
 		}
@@ -467,6 +482,7 @@ func (ms *MailServer) ReadAllEmail() (int, error) {
 				return count, fmt.Errorf("persist read state for %s: %w", id, err)
 			}
 			email.Read = true
+			ms.upsertMailboxIndexLocked(email, ms.receivedAtByID[id])
 			count++
 		}
 	}
@@ -486,6 +502,7 @@ func (ms *MailServer) ReadEmail(id string) error {
 			ms.storeMutex.Unlock()
 			return fmt.Errorf("persist read state: %w", err)
 		}
+		ms.upsertMailboxIndexLocked(email, receivedAt)
 		ms.storeMutex.Unlock()
 		return nil
 	}
@@ -518,6 +535,7 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	stats["byDate"] = byDate
 	ms.storeMutex.RUnlock()
 	stats["storage"] = ms.storageStats()
+	stats["index"] = ms.mailboxIndexStatus()
 
 	return stats
 }
@@ -793,6 +811,10 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 	}
 
 	for _, file := range files {
+		emlPath := filepath.Join(ms.mailDir, file.Name())
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(emlPath) {
+			continue
+		}
 		if file.IsDir() {
 			continue
 		}
@@ -807,8 +829,6 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		if _, fenced := fencedIDs[id]; fenced {
 			continue
 		}
-		emlPath := filepath.Join(ms.mailDir, file.Name())
-
 		// Check if email already loaded
 		ms.storeMutex.RLock()
 		_, alreadyLoaded := ms.storeByID[id]
@@ -893,6 +913,12 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		return ms.receivedAtByID[ms.storeOrder[i]].Before(ms.receivedAtByID[ms.storeOrder[j]])
 	})
 	ms.storeMutex.Unlock()
+	if ms.mailboxIndex != nil && ms.mailboxIndexReady.Load() {
+		if err := ms.rebuildMailboxIndex(); err != nil {
+			ms.disableMailboxIndex("reload", err)
+			loadErrors = append(loadErrors, fmt.Errorf("rebuild mailbox index after reload: %w", err))
+		}
+	}
 	if err := ms.quarantineOrphanAttachmentDirectories(); err != nil {
 		loadErrors = append(loadErrors, err)
 	}

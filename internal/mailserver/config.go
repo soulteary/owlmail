@@ -39,6 +39,16 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	})
 }
 
+// ResolveMailDirectory returns the directory used by the server when callers
+// leave the mail directory unset. Keeping this resolution in one place lets
+// startup validate auxiliary storage paths against the effective directory.
+func ResolveMailDirectory(mailDir string) string {
+	if mailDir == "" {
+		return filepath.Join(os.TempDir(), fmt.Sprintf("owlmail-%d", os.Getpid()))
+	}
+	return mailDir
+}
+
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
@@ -71,9 +81,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if host == "" {
 		host = defaultHost
 	}
-	if mailDir == "" {
-		mailDir = filepath.Join(os.TempDir(), fmt.Sprintf("owlmail-%d", os.Getpid()))
-	}
+	mailDir = ResolveMailDirectory(mailDir)
 	maxMessageBytes := options.MaxMessageBytes
 	if maxMessageBytes <= 0 {
 		maxMessageBytes = DefaultMaxMessageBytes
@@ -100,6 +108,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		storeByID:               make(map[string]*types.Email),
 		storeOrder:              make([]string, 0),
 		receivedAtByID:          make(map[string]time.Time),
+		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
 		port:                    port,
 		host:                    host,
@@ -111,6 +120,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
+		mailboxIndex:            options.MailboxIndex,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
 		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
 		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
@@ -131,6 +141,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 
 	// Setup SMTP server
 	if err := ms.setupSMTPServer(); err != nil {
+		if ms.mailboxIndex != nil {
+			_ = ms.mailboxIndex.Close()
+		}
 		return nil, fmt.Errorf("failed to setup SMTP server: %w", err)
 	}
 
@@ -140,6 +153,16 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if err := ms.LoadMailsFromDirectory(); err != nil {
 		common.Error("Failed to load emails from directory: %v", err)
 		// Continue anyway, as this is not a fatal error
+	}
+	if ms.mailboxIndex != nil {
+		if err := ms.rebuildMailboxIndex(); err != nil {
+			_ = ms.mailboxIndex.Close()
+			return nil, fmt.Errorf("rebuild mailbox index: %w", err)
+		}
+		if err := ms.AddCloser(ms.mailboxIndex); err != nil {
+			_ = ms.mailboxIndex.Close()
+			return nil, fmt.Errorf("register mailbox index closer: %w", err)
+		}
 	}
 
 	return ms, nil

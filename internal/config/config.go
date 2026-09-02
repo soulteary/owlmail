@@ -234,6 +234,7 @@ type Config struct {
 	MailMaxMessages     int
 	MailMaxDiskMB       int
 	MailCleanupInterval string
+	MailIndexPath       string
 
 	// Web API configuration
 	WebPort            int
@@ -318,6 +319,7 @@ func DefaultConfig() *Config {
 		MailMaxMessages:        0,
 		MailMaxDiskMB:          0,
 		MailCleanupInterval:    DefaultMailCleanupInterval,
+		MailIndexPath:          "",
 		WebPort:                1080,
 		WebHost:                "localhost",
 		WebUser:                "",
@@ -383,6 +385,7 @@ type FlagRefs struct {
 	MailMaxMessages        *int
 	MailMaxDiskMB          *int
 	MailCleanupInterval    *string
+	MailIndexPath          *string
 	WebPort                *int
 	WebHost                *string
 	WebUser                *string
@@ -449,6 +452,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
 		MailMaxDiskMB:          fs.Int("mail-max-disk-mb", cfg.MailMaxDiskMB, "Maximum mailbox disk usage in MiB (0 = unlimited)"),
 		MailCleanupInterval:    fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
+		MailIndexPath:          fs.String("mail-index-path", cfg.MailIndexPath, "Optional SQLite mailbox index path"),
 		WebPort:                fs.Int("web", cfg.WebPort, "Web API port"),
 		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
@@ -516,6 +520,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),
 		MailMaxDiskMB:       resolveIntWithFlag(fs, "mail-max-disk-mb", "OWLMAIL_MAIL_MAX_DISK_MB", *refs.MailMaxDiskMB),
 		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
+		MailIndexPath:       resolveStringWithFlag(fs, "mail-index-path", "OWLMAIL_MAIL_INDEX_PATH", *refs.MailIndexPath),
 
 		WebPort:            resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
 		WebHost:            resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),

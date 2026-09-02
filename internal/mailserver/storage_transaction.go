@@ -296,6 +296,10 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 	}
 	var recoveryErrors []error
 	for _, entry := range entries {
+		entryPath := filepath.Join(ms.mailDir, entry.Name())
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(entryPath) {
+			continue
+		}
 		if id, ok := deletionFenceID(entry.Name()); ok {
 			if err := ms.cleanupDeletionFencedEmail(id); err != nil {
 				recoveryErrors = append(recoveryErrors, fmt.Errorf("clean deletion-fenced email %s: %w", id, err))
@@ -341,7 +345,7 @@ func (ms *MailServer) recoverStorageArtifacts() error {
 		if !strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
-		if err := ms.quarantinePath(filepath.Join(ms.mailDir, entry.Name()), "incomplete"); err != nil {
+		if err := ms.quarantinePath(entryPath, "incomplete"); err != nil {
 			recoveryErrors = append(recoveryErrors, fmt.Errorf("quarantine incomplete artifact %s: %w", entry.Name(), err))
 		}
 	}
@@ -483,6 +487,10 @@ func (ms *MailServer) quarantineOrphanAttachmentDirectories() error {
 		if !entry.IsDir() || entry.Name() == quarantineDirName || strings.HasPrefix(entry.Name(), storageTempPrefix) {
 			continue
 		}
+		entryPath := filepath.Join(ms.mailDir, entry.Name())
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(entryPath) {
+			continue
+		}
 		if !isGeneratedEmailID(entry.Name()) {
 			continue
 		}
@@ -491,7 +499,7 @@ func (ms *MailServer) quarantineOrphanAttachmentDirectories() error {
 		} else if !os.IsNotExist(err) {
 			return err
 		}
-		if err := ms.quarantinePath(filepath.Join(ms.mailDir, entry.Name()), "orphan-attachments"); err != nil {
+		if err := ms.quarantinePath(entryPath, "orphan-attachments"); err != nil {
 			return err
 		}
 	}

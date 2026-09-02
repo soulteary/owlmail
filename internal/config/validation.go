@@ -85,6 +85,11 @@ func ValidateConfig(cfg *Config) error {
 	if err != nil || cleanupInterval <= 0 {
 		return fmt.Errorf("mail cleanup interval must be a positive duration")
 	}
+	if cfg.MailIndexPath != "" {
+		if _, err := ValidatePath(cfg.MailIndexPath); err != nil {
+			return fmt.Errorf("mail index path: %w", err)
+		}
+	}
 
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {
