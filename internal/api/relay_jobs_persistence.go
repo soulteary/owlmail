@@ -135,6 +135,17 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	if err := os.Rename(temporaryPath, filepath.Join(store.directory, job.ID+".json")); err != nil {
 		return fmt.Errorf("commit relay job: %w", err)
 	}
+	directory, err := os.Open(store.directory)
+	if err != nil {
+		return fmt.Errorf("open relay job directory for sync: %w", err)
+	}
+	if err := directory.Sync(); err != nil {
+		_ = directory.Close()
+		return fmt.Errorf("sync relay job directory: %w", err)
+	}
+	if err := directory.Close(); err != nil {
+		return fmt.Errorf("close relay job directory: %w", err)
+	}
 	return nil
 }
 
