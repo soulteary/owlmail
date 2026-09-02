@@ -19,6 +19,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- Decoded MIME attachments now stream through a fixed-size buffer into private
+  transaction staging files while size and SHA-256 are calculated. Large
+  attachments no longer require an additional attachment-sized byte slice;
+  body read, staging write, S3 upload, and rollback failures reject the message
+  before it becomes visible.
 - Mailbox list queries now filter, sort, and paginate under a consistent store
   snapshot before cloning results; previews avoid cloning message bodies,
   headers, and attachment metadata.
