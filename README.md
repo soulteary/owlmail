@@ -335,7 +335,7 @@ request or startup; pending deletions are not republished. Upload must finish
 before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
 local files and does not include S3 object bytes.
 
-OwlMail uses `HeadBucket` to refresh a cached S3 readiness result every 30
+OwlMail uses a bounded, prefix-scoped `ListObjectsV2` request to refresh a cached S3 readiness result every 30
 seconds by default. `/readyz` and `/api/v1/ready` return that cache and never
 contact S3 synchronously. Existing `/healthz` and `/api/v1/health` endpoints are
 liveness checks and stay healthy during a temporary S3 outage. Startup remains

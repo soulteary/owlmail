@@ -26,18 +26,26 @@ type S3Config struct {
 }
 
 type s3Client interface {
-	HeadBucket(context.Context, *s3.HeadBucketInput, ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
 	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 	DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 }
 
-// CheckHealth verifies that the configured bucket exists and is accessible
-// using a read-only S3 operation.
+// CheckHealth verifies the configured bucket and attachment prefix using the
+// same prefix-scoped read permission needed by attachment cleanup. MaxKeys
+// keeps the read-only probe bounded.
 func (store *S3Store) CheckHealth(ctx context.Context) error {
-	if _, err := store.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(store.bucket)}); err != nil {
-		return fmt.Errorf("head S3 bucket: %w", err)
+	prefix := store.prefix
+	if prefix != "" {
+		prefix += "/"
+	}
+	if _, err := store.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:  aws.String(store.bucket),
+		Prefix:  aws.String(prefix),
+		MaxKeys: aws.Int32(1),
+	}); err != nil {
+		return fmt.Errorf("check S3 attachment prefix: %w", err)
 	}
 	return nil
 }

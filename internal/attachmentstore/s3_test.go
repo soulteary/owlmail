@@ -24,39 +24,30 @@ type fakeS3Client struct {
 	getErr       error
 	listErr      error
 	deleteErr    error
-	headMu       sync.Mutex
-	headErr      error
-	headBlock    bool
-	headCalls    int
+	healthMu     sync.Mutex
+	healthErr    error
+	healthBlock  bool
+	healthCalls  int
+	healthPrefix string
 }
 
-func (client *fakeS3Client) HeadBucket(ctx context.Context, _ *s3.HeadBucketInput, _ ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
-	client.headMu.Lock()
-	client.headCalls++
-	err := client.headErr
-	block := client.headBlock
-	client.headMu.Unlock()
-	if block {
-		<-ctx.Done()
-		return nil, ctx.Err()
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &s3.HeadBucketOutput{}, nil
+func (client *fakeS3Client) setHealthResult(err error, block bool) {
+	client.healthMu.Lock()
+	client.healthErr = err
+	client.healthBlock = block
+	client.healthMu.Unlock()
 }
 
-func (client *fakeS3Client) setHeadResult(err error, block bool) {
-	client.headMu.Lock()
-	client.headErr = err
-	client.headBlock = block
-	client.headMu.Unlock()
+func (client *fakeS3Client) healthCallCount() int {
+	client.healthMu.Lock()
+	defer client.healthMu.Unlock()
+	return client.healthCalls
 }
 
-func (client *fakeS3Client) headCallCount() int {
-	client.headMu.Lock()
-	defer client.headMu.Unlock()
-	return client.headCalls
+func (client *fakeS3Client) lastHealthPrefix() string {
+	client.healthMu.Lock()
+	defer client.healthMu.Unlock()
+	return client.healthPrefix
 }
 
 func newFakeS3Client() *fakeS3Client {
@@ -94,7 +85,22 @@ func (client *fakeS3Client) GetObject(_ context.Context, input *s3.GetObjectInpu
 	}, nil
 }
 
-func (client *fakeS3Client) ListObjectsV2(_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+func (client *fakeS3Client) ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	if aws.ToInt32(input.MaxKeys) == 1 {
+		client.healthMu.Lock()
+		client.healthCalls++
+		client.healthPrefix = aws.ToString(input.Prefix)
+		err := client.healthErr
+		block := client.healthBlock
+		client.healthMu.Unlock()
+		if block {
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
 	if client.listErr != nil {
 		return nil, client.listErr
 	}
@@ -178,27 +184,41 @@ func TestS3StoreCheckHealth(t *testing.T) {
 	if err := store.CheckHealth(context.Background()); err != nil {
 		t.Fatalf("CheckHealth() error = %v", err)
 	}
-	client.setHeadResult(&smithy.GenericAPIError{Code: "AccessDenied", Message: "secret provider detail"}, false)
+	client.setHealthResult(&smithy.GenericAPIError{Code: "AccessDenied", Message: "secret provider detail"}, false)
 	status := CheckHealth(context.Background(), store)
 	if status.Ready || status.Category != HealthPermissionDenied {
 		t.Fatalf("permission status = %#v", status)
 	}
-	client.setHeadResult(&smithy.GenericAPIError{Code: "NoSuchBucket", Message: "missing"}, false)
+	client.setHealthResult(&smithy.GenericAPIError{Code: "NoSuchBucket", Message: "missing"}, false)
 	if status := CheckHealth(context.Background(), store); status.Ready || status.Category != HealthNotFound {
 		t.Fatalf("missing bucket status = %#v", status)
 	}
-	client.setHeadResult(&net.DNSError{Err: "dial failed", Name: "objects.example.test"}, false)
+	client.setHealthResult(&net.DNSError{Err: "dial failed", Name: "objects.example.test"}, false)
 	if status := CheckHealth(context.Background(), store); status.Ready || status.Category != HealthNetwork {
 		t.Fatalf("network status = %#v", status)
 	}
-	if got := client.headCallCount(); got != 4 {
-		t.Fatalf("HeadBucket calls = %d, want 4", got)
+	if got := client.healthCallCount(); got != 4 {
+		t.Fatalf("health ListObjectsV2 calls = %d, want 4", got)
+	}
+}
+
+func TestS3StoreCheckHealthUsesConfiguredPrefix(t *testing.T) {
+	client := newFakeS3Client()
+	store := newS3Store(client, "mail-bucket", "/owlmail/attachments/")
+	if err := store.CheckHealth(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := client.healthCallCount(); got != 1 {
+		t.Fatalf("health calls = %d, want 1", got)
+	}
+	if got := client.lastHealthPrefix(); got != "owlmail/attachments/" {
+		t.Fatalf("health prefix = %q", got)
 	}
 }
 
 func TestMonitoredS3StoreTimeoutRecoveryAndClose(t *testing.T) {
 	client := newFakeS3Client()
-	client.setHeadResult(nil, true)
+	client.setHealthResult(nil, true)
 	store := newS3Store(client, "mail-bucket", "attachments")
 	monitored, err := NewMonitoredStore(store, 10*time.Millisecond, 15*time.Millisecond)
 	if err != nil {
@@ -206,7 +226,7 @@ func TestMonitoredS3StoreTimeoutRecoveryAndClose(t *testing.T) {
 	}
 	waitForHealthStatus(t, monitored, HealthTimeout)
 
-	client.setHeadResult(nil, false)
+	client.setHealthResult(nil, false)
 	waitForHealthStatus(t, monitored, HealthOK)
 	if !monitored.Readiness().Ready {
 		t.Fatalf("recovered readiness = %#v", monitored.Readiness())
@@ -218,10 +238,10 @@ func TestMonitoredS3StoreTimeoutRecoveryAndClose(t *testing.T) {
 	if status := monitored.Readiness(); status.Ready || status.Category != HealthClosed {
 		t.Fatalf("closed readiness = %#v", status)
 	}
-	calls := client.headCallCount()
+	calls := client.healthCallCount()
 	time.Sleep(30 * time.Millisecond)
-	if got := client.headCallCount(); got != calls {
-		t.Fatalf("HeadBucket called after Close: before=%d after=%d", calls, got)
+	if got := client.healthCallCount(); got != calls {
+		t.Fatalf("health probe called after Close: before=%d after=%d", calls, got)
 	}
 	if err := monitored.Close(); err != nil {
 		t.Fatalf("second Close() error = %v", err)

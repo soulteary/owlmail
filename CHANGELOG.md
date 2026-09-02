@@ -8,7 +8,7 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
-- Cached S3 readiness checks using bounded, read-only `HeadBucket` probes,
+- Cached S3 readiness checks using bounded, prefix-scoped read-only probes,
   separate unauthenticated liveness and readiness endpoints, automatic recovery,
   safe error categories, and an opt-in strict startup check.
 - Real inbound SMTP AUTH with PLAIN and LOGIN mechanisms, constant-time

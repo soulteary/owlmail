@@ -321,7 +321,7 @@ export OWLMAIL_S3_USE_PATH_STYLE=true
 该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
 `OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
 
-OwlMail 默认每 30 秒使用 `HeadBucket` 刷新一次 S3 readiness 缓存。
+OwlMail 默认每 30 秒使用带附件前缀且限制结果数量的 `ListObjectsV2` 刷新一次 S3 readiness 缓存。
 `/readyz` 和 `/api/v1/ready` 只读取缓存，不会在请求中同步访问 S3；现有
 `/healthz` 和 `/api/v1/health` 是 liveness，S3 暂时不可用时仍保持正常。
 为兼容已有部署，默认不会因首次探测失败而退出；如需严格启动检查，请设置

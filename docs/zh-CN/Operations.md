@@ -94,7 +94,7 @@ OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用
 可以不配置，此时使用 AWS SDK 默认凭据链，包括环境凭据、共享配置和工作负载角色。
 只有选定的 S3 兼容服务要求时，才开启路径式寻址。
 
-启用 S3 后，OwlMail 会立即执行只读的 `HeadBucket` 探测，并默认每 30 秒刷新一次
+启用 S3 后，OwlMail 会立即执行限定附件前缀和结果数量的只读 `ListObjectsV2` 探测，并默认每 30 秒刷新一次
 缓存结果；每次探测默认最多等待 3 秒。可以通过
 `OWLMAIL_S3_HEALTH_CHECK_INTERVAL`、`OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` 或对应命令行
 参数调整：

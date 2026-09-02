@@ -114,7 +114,8 @@ AWS SDK default credential chain is used, including environment credentials,
 shared configuration, and workload roles. Use path-style addressing only when
 the selected S3-compatible service requires it.
 
-When S3 is enabled, OwlMail immediately starts a read-only `HeadBucket` probe
+When S3 is enabled, OwlMail immediately starts a bounded, read-only
+`ListObjectsV2` probe scoped to the configured attachment prefix
 and refreshes the cached result every 30 seconds. Each probe has a three-second
 deadline by default. Configure these bounds with
 `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` and `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` (or the
