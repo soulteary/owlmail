@@ -224,6 +224,8 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 		}
 	}
 
+	// MAIL and every RCPT share one absolute deadline so the configured
+	// envelope timeout bounds the whole phase, independent of recipient count.
 	if err := setPhaseDeadline(ctx, smtpConn, timeouts.envelope); err != nil {
 		return err
 	}
@@ -231,9 +233,6 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 		return relayContextError(ctx, err)
 	}
 	for _, recipient := range to {
-		if err := setPhaseDeadline(ctx, smtpConn, timeouts.envelope); err != nil {
-			return err
-		}
 		if err := client.Rcpt(recipient); err != nil {
 			return relayContextError(ctx, err)
 		}
