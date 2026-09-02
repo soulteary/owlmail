@@ -8,9 +8,7 @@ import (
 	"github.com/emersion/go-message/mail"
 )
 
-// EmailQuery describes a mailbox snapshot query. Filtering, sorting and
-// pagination are evaluated while the store read lock is held, so Total and the
-// returned page describe one consistent mailbox state.
+// EmailQuery describes a mailbox snapshot query.
 type EmailQuery struct {
 	Query     string
 	From      string
@@ -38,15 +36,43 @@ type EmailPreview struct {
 	Preview       string    `json:"preview"`
 }
 
-// QueryEmails returns deep copies of only the selected page.
+type queryAddress struct {
+	name    string
+	address string
+}
+
+type emailQueryRecord struct {
+	source        *Email
+	id            string
+	time          time.Time
+	read          bool
+	subject       string
+	from          []queryAddress
+	to            []queryAddress
+	cc            []queryAddress
+	calculatedBCC []queryAddress
+	text          string
+	html          string
+	size          int64
+	sizeHuman     string
+	hasAttachment bool
+}
+
+// QueryEmails returns deep copies of only the selected page. The lightweight
+// query snapshot is captured under the store lock; body scans and sorting do
+// not block mailbox writers.
 func (ms *MailServer) QueryEmails(query EmailQuery) ([]*Email, int) {
+	page, total := paginateEmailRecords(ms.queryEmailSnapshot(), query)
+
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
-
-	page, total := ms.queryEmailPageLocked(query)
 	result := make([]*Email, 0, len(page))
-	for _, email := range page {
-		result = append(result, cloneEmail(email))
+	for _, record := range page {
+		email := cloneEmail(record.source)
+		// Read state can change between the lightweight snapshot and cloning.
+		// Preserve the state that was used to select this page.
+		email.Read = record.read
+		result = append(result, email)
 	}
 	return result, total
 }
@@ -54,40 +80,76 @@ func (ms *MailServer) QueryEmails(query EmailQuery) ([]*Email, int) {
 // QueryEmailPreviews returns detached summaries without cloning message bodies,
 // headers or attachment structures.
 func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int) {
-	ms.storeMutex.RLock()
-	defer ms.storeMutex.RUnlock()
-
-	page, total := ms.queryEmailPageLocked(query)
+	page, total := paginateEmailRecords(ms.queryEmailSnapshot(), query)
 	result := make([]EmailPreview, 0, len(page))
-	for _, email := range page {
+	for _, record := range page {
 		preview := EmailPreview{
-			ID:            email.ID,
-			Time:          email.Time,
-			Read:          email.Read,
-			Subject:       email.Subject,
-			Size:          email.Size,
-			SizeHuman:     email.SizeHuman,
-			HasAttachment: len(email.Attachments) > 0,
-			To:            make([]string, 0, len(email.To)),
+			ID:            record.id,
+			Time:          record.time,
+			Read:          record.read,
+			Subject:       record.subject,
+			Size:          record.size,
+			SizeHuman:     record.sizeHuman,
+			HasAttachment: record.hasAttachment,
+			To:            make([]string, 0, len(record.to)),
+			Preview:       emailPreviewText(record.text, record.html),
 		}
-		if len(email.From) > 0 {
-			preview.From = email.From[0].Address
+		if len(record.from) > 0 {
+			preview.From = record.from[0].address
 		}
-		for _, address := range email.To {
-			preview.To = append(preview.To, address.Address)
+		for _, address := range record.to {
+			preview.To = append(preview.To, address.address)
 		}
-		preview.Preview = emailPreviewText(email)
 		result = append(result, preview)
 	}
 	return result, total
 }
 
-func (ms *MailServer) queryEmailPageLocked(query EmailQuery) ([]*Email, int) {
-	matched := make([]*Email, 0, len(ms.storeOrder))
+func (ms *MailServer) queryEmailSnapshot() []emailQueryRecord {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+
+	records := make([]emailQueryRecord, 0, len(ms.storeOrder))
 	for _, id := range ms.storeOrder {
 		email, exists := ms.storeByID[id]
-		if exists && emailMatchesQuery(email, query) {
-			matched = append(matched, email)
+		if !exists {
+			continue
+		}
+		records = append(records, emailQueryRecord{
+			source:        email,
+			id:            email.ID,
+			time:          email.Time,
+			read:          email.Read,
+			subject:       email.Subject,
+			from:          snapshotAddresses(email.From),
+			to:            snapshotAddresses(email.To),
+			cc:            snapshotAddresses(email.CC),
+			calculatedBCC: snapshotAddresses(email.CalculatedBCC),
+			text:          email.Text,
+			html:          email.HTML,
+			size:          email.Size,
+			sizeHuman:     email.SizeHuman,
+			hasAttachment: len(email.Attachments) > 0,
+		})
+	}
+	return records
+}
+
+func snapshotAddresses(addresses []*mail.Address) []queryAddress {
+	result := make([]queryAddress, 0, len(addresses))
+	for _, address := range addresses {
+		if address != nil {
+			result = append(result, queryAddress{name: address.Name, address: address.Address})
+		}
+	}
+	return result
+}
+
+func paginateEmailRecords(records []emailQueryRecord, query EmailQuery) ([]emailQueryRecord, int) {
+	matched := records[:0]
+	for _, record := range records {
+		if emailMatchesQuery(record, query) {
+			matched = append(matched, record)
 		}
 	}
 	sortEmailQueryResults(matched, query.SortBy, query.SortOrder)
@@ -110,67 +172,67 @@ func (ms *MailServer) queryEmailPageLocked(query EmailQuery) ([]*Email, int) {
 	return matched[start:end], total
 }
 
-func emailMatchesQuery(email *Email, query EmailQuery) bool {
+func emailMatchesQuery(email emailQueryRecord, query EmailQuery) bool {
 	if query.Query != "" {
 		needle := strings.ToLower(query.Query)
-		if !strings.Contains(strings.ToLower(email.Subject), needle) &&
-			!strings.Contains(strings.ToLower(email.Text), needle) &&
-			!strings.Contains(strings.ToLower(email.HTML), needle) {
+		if !strings.Contains(strings.ToLower(email.subject), needle) &&
+			!strings.Contains(strings.ToLower(email.text), needle) &&
+			!strings.Contains(strings.ToLower(email.html), needle) {
 			return false
 		}
 	}
-	if query.From != "" && !addressListContains(email.From, query.From, true) {
+	if query.From != "" && !addressListContains(email.from, query.From, true) {
 		return false
 	}
-	if query.To != "" && !addressListContains(email.To, query.To, true) &&
-		!addressListContains(email.CC, query.To, true) &&
-		!addressListContains(email.CalculatedBCC, query.To, false) {
+	if query.To != "" && !addressListContains(email.to, query.To, true) &&
+		!addressListContains(email.cc, query.To, true) &&
+		!addressListContains(email.calculatedBCC, query.To, false) {
 		return false
 	}
 	if query.DateFrom != "" {
-		if from, err := time.Parse("2006-01-02", query.DateFrom); err == nil && email.Time.Before(from) {
+		if from, err := time.Parse("2006-01-02", query.DateFrom); err == nil && email.time.Before(from) {
 			return false
 		}
 	}
 	if query.DateTo != "" {
-		if to, err := time.Parse("2006-01-02", query.DateTo); err == nil && email.Time.After(to.Add(24*time.Hour)) {
+		if to, err := time.Parse("2006-01-02", query.DateTo); err == nil && email.time.After(to.Add(24*time.Hour)) {
 			return false
 		}
 	}
-	if query.Read != "" && email.Read != (query.Read == "true") {
+	if query.Read != "" && email.read != (query.Read == "true") {
 		return false
 	}
 	return true
 }
 
-func addressListContains(addresses []*mail.Address, value string, includeName bool) bool {
+func addressListContains(addresses []queryAddress, value string, includeName bool) bool {
 	needle := strings.ToLower(value)
 	for _, address := range addresses {
-		if address != nil && (strings.Contains(strings.ToLower(address.Address), needle) ||
-			(includeName && strings.Contains(strings.ToLower(address.Name), needle))) {
+		if strings.Contains(strings.ToLower(address.address), needle) ||
+			(includeName && strings.Contains(strings.ToLower(address.name), needle)) {
 			return true
 		}
 	}
 	return false
 }
 
-func sortEmailQueryResults(emails []*Email, sortBy, sortOrder string) {
+func sortEmailQueryResults(emails []emailQueryRecord, sortBy, sortOrder string) {
 	ascending := sortOrder == "asc"
 	var less func(i, j int) bool
 	switch sortBy {
 	case "":
-		less = func(i, j int) bool { return emails[i].Time.After(emails[j].Time) }
+		less = func(i, j int) bool { return emails[i].time.After(emails[j].time) }
 	case "time":
 		less = func(i, j int) bool {
 			if ascending {
-				return emails[i].Time.Before(emails[j].Time)
+				return emails[i].time.Before(emails[j].time)
 			}
-			return emails[i].Time.After(emails[j].Time)
+			return emails[i].time.After(emails[j].time)
 		}
 	case "subject":
 		less = func(i, j int) bool {
-			a := strings.ToLower(emails[i].Subject)
-			b := strings.ToLower(emails[j].Subject)
+			a := strings.ToLower(emails[i].subject)
+			b := strings.ToLower(emails[j].subject)
 			if ascending {
 				return a < b
 			}
@@ -179,11 +241,11 @@ func sortEmailQueryResults(emails []*Email, sortBy, sortOrder string) {
 	case "from":
 		less = func(i, j int) bool {
 			a, b := "", ""
-			if len(emails[i].From) > 0 {
-				a = strings.ToLower(emails[i].From[0].Address)
+			if len(emails[i].from) > 0 {
+				a = strings.ToLower(emails[i].from[0].address)
 			}
-			if len(emails[j].From) > 0 {
-				b = strings.ToLower(emails[j].From[0].Address)
+			if len(emails[j].from) > 0 {
+				b = strings.ToLower(emails[j].from[0].address)
 			}
 			if ascending {
 				return a < b
@@ -193,9 +255,9 @@ func sortEmailQueryResults(emails []*Email, sortBy, sortOrder string) {
 	case "size":
 		less = func(i, j int) bool {
 			if ascending {
-				return emails[i].Size < emails[j].Size
+				return emails[i].size < emails[j].size
 			}
-			return emails[i].Size > emails[j].Size
+			return emails[i].size > emails[j].size
 		}
 	}
 	if less != nil {
@@ -203,10 +265,9 @@ func sortEmailQueryResults(emails []*Email, sortBy, sortOrder string) {
 	}
 }
 
-func emailPreviewText(email *Email) string {
-	text := email.Text
+func emailPreviewText(text, html string) string {
 	if text == "" {
-		text = strings.NewReplacer("<", " <", ">", "> ", "\n", " ", "\r", " ").Replace(email.HTML)
+		text = strings.NewReplacer("<", " <", ">", "> ", "\n", " ", "\r", " ").Replace(html)
 		for strings.Contains(text, "  ") {
 			text = strings.ReplaceAll(text, "  ", " ")
 		}
