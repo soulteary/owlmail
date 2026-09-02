@@ -245,7 +245,7 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		if config.TLSMode == TLSModePlain {
 			return fmt.Errorf("outgoing SMTP authentication requires TLS")
 		}
-		mechanisms, ok := client.Extension("AUTH")
+		ok, mechanisms := client.Extension("AUTH")
 		if !ok || !supportsAuthMechanism(mechanisms, "PLAIN") {
 			return ErrAUTHPlainUnsupported
 		}
