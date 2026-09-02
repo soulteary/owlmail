@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -60,6 +61,7 @@ type ServerOptions struct {
 	UseUUIDForID       bool
 	MaxMessageBytes    int64
 	MaxDataConcurrency int
+	RetainAllHeaders   bool
 	AttachmentStore    attachmentstore.Store
 	AttachmentHealth   attachmentstore.ReadinessProvider
 }
@@ -89,6 +91,7 @@ type MailServer struct {
 	host                    string
 	maxMessageBytes         int64
 	maxDataConcurrency      int
+	retainAllHeaders        atomic.Bool
 	dataLimiter             *dataLimiter
 	attachmentStore         attachmentstore.Store
 	attachmentHealth        attachmentstore.ReadinessProvider

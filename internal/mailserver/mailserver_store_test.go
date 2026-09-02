@@ -72,6 +72,42 @@ func TestMailStoreReturnsDeepSnapshots(t *testing.T) {
 	}
 }
 
+func TestMailStoreRetainsAllHeadersOnlyWhenEnabled(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	envelope := &Envelope{To: []string{"recipient@example.test"}}
+
+	if err := server.SaveEmailToStore("default-off", false, envelope, &Email{
+		AllHeaders: map[string]interface{}{"x-large": "not retained"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := server.GetEmail("default-off")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("default-off complete headers = %#v, %v", stored, err)
+	}
+
+	server.SetRetainAllHeaders(true)
+	if err := server.SaveEmailToStore("compat-on", false, envelope, &Email{
+		AllHeaders: map[string]interface{}{"x-test-id": "retained"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err = server.GetEmail("compat-on")
+	if err != nil || stored.AllHeaders["x-test-id"] != "retained" {
+		t.Fatalf("enabled complete headers = %#v, %v", stored, err)
+	}
+
+	server.SetRetainAllHeaders(false)
+	stored, err = server.GetEmail("compat-on")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("disabled complete headers = %#v, %v", stored, err)
+	}
+}
+
 func TestMailStoreConcurrentSnapshotsAndMutations(t *testing.T) {
 	server, err := NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
@@ -1410,6 +1446,7 @@ func TestParseEmailWithSimpleText(t *testing.T) {
 			t.Errorf("Failed to close server: %v", err)
 		}
 	}()
+	server.SetRetainAllHeaders(true)
 
 	// Create simple text email
 	emailContent := []byte("From: from@example.com\r\n" +

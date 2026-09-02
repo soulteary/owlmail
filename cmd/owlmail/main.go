@@ -608,6 +608,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		UseUUIDForID:       cfg.UseUUIDForEmailID,
 		MaxMessageBytes:    int64(maxMessageMB) << 20,
 		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
+		RetainAllHeaders:   cfg.MailDevRESTCompat,
 		AttachmentStore:    attachmentStore,
 		AttachmentHealth:   healthProvider,
 	})

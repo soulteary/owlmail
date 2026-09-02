@@ -32,6 +32,9 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata, finalizeRollbackFence bool) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	if !ms.retainAllHeaders.Load() {
+		parsedEmail.AllHeaders = nil
+	}
 
 	parsedEmail.ID = id
 	// Only set time if not already set (from header parsing)
@@ -544,6 +547,21 @@ func collectAllHeaders(headers mail.Header) map[string]interface{} {
 	return result
 }
 
+// SetRetainAllHeaders controls the complete header projection used only by
+// optional compatibility APIs. Disabling it also releases any retained maps.
+// Callers should configure it before the SMTP server starts receiving mail.
+func (ms *MailServer) SetRetainAllHeaders(enabled bool) {
+	ms.retainAllHeaders.Store(enabled)
+	if enabled {
+		return
+	}
+	ms.storeMutex.Lock()
+	defer ms.storeMutex.Unlock()
+	for _, email := range ms.storeByID {
+		email.AllHeaders = nil
+	}
+}
+
 // parseEmailMessage parses a message without publishing it to the in-memory
 // store. This separation lets SMTP DATA finish all durable filesystem work
 // before the new-email event becomes visible.
@@ -562,7 +580,9 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	// Extract headers
 	// Wrap in mail.Header to get decoding support
 	headers := mail.Header{Header: msg.Header}
-	email.AllHeaders = collectAllHeaders(headers)
+	if ms.retainAllHeaders.Load() {
+		email.AllHeaders = collectAllHeaders(headers)
+	}
 
 	// Parse all headers into Headers map
 	// Common headers to parse

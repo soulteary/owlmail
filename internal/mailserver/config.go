@@ -101,6 +101,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
+	ms.retainAllHeaders.Store(options.RetainAllHeaders)
 
 	// Setup outgoing mail if config provided
 	if options.OutgoingConfig != nil {

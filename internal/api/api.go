@@ -112,6 +112,7 @@ func (api *API) SetBasePathname(basePathname string) error {
 // It must be called before the API server starts.
 func (api *API) SetMailDevRESTCompat(enabled bool) {
 	api.mailDevRESTCompat = enabled
+	api.mailServer.SetRetainAllHeaders(enabled)
 	api.setupRoutes()
 }
 
