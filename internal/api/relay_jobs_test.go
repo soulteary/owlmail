@@ -46,7 +46,11 @@ func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 	email := &types.Email{ID: "relay-status-mail", Subject: "Relay status", Time: time.Now()}
 	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
 	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("From: sender@example.test\r\nTo: recipient@example.test\r\n\r\nbody"), 0600); err != nil {
@@ -106,7 +110,11 @@ func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 
 func TestRelayJobNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 	req, _ := http.NewRequest(http.MethodGet, "/api/v1/relay-jobs/missing", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
@@ -115,5 +123,40 @@ func TestRelayJobNotFound(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("missing relay job status = %d", resp.StatusCode)
+	}
+}
+
+
+func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
+	store := newRelayJobStore()
+	store.limit = 1
+	ids := []string{"job-active", "job-replacement"}
+	store.newID = func() (string, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	}
+
+	active, err := store.create("mail-active", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.create("mail-rejected", ""); !errors.Is(err, errRelayJobCapacity) {
+		t.Fatalf("create at active capacity error = %v, want %v", err, errRelayJobCapacity)
+	}
+	if got, ok := store.get(active.ID); !ok || got.Status != relayJobQueued {
+		t.Fatalf("active job was evicted: %#v, %t", got, ok)
+	}
+
+	store.complete(active.ID, nil)
+	replacement, err := store.create("mail-replacement", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := store.get(active.ID); ok {
+		t.Fatal("completed job was not evicted to make room")
+	}
+	if got, ok := store.get(replacement.ID); !ok || got.EmailID != "mail-replacement" {
+		t.Fatalf("replacement job = %#v, %t", got, ok)
 	}
 }
