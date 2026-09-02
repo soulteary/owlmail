@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 
 	"github.com/soulteary/owlmail/internal/outgoing"
@@ -216,6 +217,53 @@ func TestSetOutgoingConfigUpdate(t *testing.T) {
 	}
 	if retrieved.Port != config2.Port {
 		t.Errorf("Expected port %d, got %d", config2.Port, retrieved.Port)
+	}
+}
+
+func TestOutgoingConfigRelayAndCloseAreConcurrentSafe(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25}); err != nil {
+		t.Fatal(err)
+	}
+
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 32; i++ {
+		wg.Add(2)
+		go func(i int) {
+			defer wg.Done()
+			<-start
+			config := &outgoing.OutgoingConfig{}
+			if i%2 == 0 {
+				config = &outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25, Password: "secret"}
+			}
+			_ = server.SetOutgoingConfig(config)
+		}(i)
+		go func() {
+			defer wg.Done()
+			<-start
+			_ = server.RelayMailTo(&Email{ID: "missing"}, "to@example.test", func(error) {})
+			_ = server.GetOutgoingConfig()
+		}()
+	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-start
+		_ = server.Close()
+	}()
+
+	close(start)
+	wg.Wait()
+
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25}); !errors.Is(err, outgoing.ErrClosed) {
+		t.Fatalf("SetOutgoingConfig() after Close error = %v, want %v", err, outgoing.ErrClosed)
+	}
+	if err := server.RelayMailTo(&Email{ID: "missing"}, "to@example.test", nil); !errors.Is(err, outgoing.ErrClosed) {
+		t.Fatalf("RelayMailTo() after Close error = %v, want %v", err, outgoing.ErrClosed)
 	}
 }
 

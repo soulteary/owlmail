@@ -90,6 +90,7 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 		Host:          "smtp.example.com",
 		Port:          587,
 		User:          "user",
+		Password:      "top-secret",
 		Secure:        true,
 		AutoRelay:     true,
 		AutoRelayAddr: "relay@example.com",
@@ -122,6 +123,9 @@ func TestAPIGetOutgoingConfigWithConfig(t *testing.T) {
 	if response["host"] != "smtp.example.com" {
 		t.Errorf("Expected host smtp.example.com, got %v", response["host"])
 	}
+	if _, exposed := response["password"]; exposed {
+		t.Fatal("outgoing settings response exposed password")
+	}
 }
 
 func TestAPIUpdateOutgoingConfig(t *testing.T) {
@@ -133,10 +137,11 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 	}()
 
 	config := map[string]interface{}{
-		"host":   "smtp.example.com",
-		"port":   587,
-		"user":   "user",
-		"secure": true,
+		"host":     "smtp.example.com",
+		"port":     587,
+		"user":     "user",
+		"password": "top-secret",
+		"secure":   true,
 	}
 	jsonBody, _ := json.Marshal(config)
 
@@ -153,6 +158,9 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+	if bytes.Contains(body, []byte("password")) || bytes.Contains(body, []byte("top-secret")) {
+		t.Fatal("outgoing update response exposed password")
 	}
 }
 
@@ -213,8 +221,9 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 
 	// Set outgoing config
 	outgoingConfig := &outgoing.OutgoingConfig{
-		Host: "smtp.example.com",
-		Port: 587,
+		Host:     "smtp.example.com",
+		Port:     587,
+		Password: "top-secret",
 	}
 	server.SetOutgoingConfig(outgoingConfig)
 
@@ -238,6 +247,10 @@ func TestAPIGetConfigWithOutgoing(t *testing.T) {
 	}
 	if response["outgoing"] == nil {
 		t.Error("Response should have outgoing field")
+	}
+	outgoingResponse := response["outgoing"].(map[string]interface{})
+	if _, exposed := outgoingResponse["password"]; exposed {
+		t.Fatal("settings response exposed outgoing password")
 	}
 }
 
@@ -273,7 +286,6 @@ func TestAPIGetConfigWithAuth(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
-
 	var response map[string]interface{}
 	if err := json.Unmarshal(body, &response); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
@@ -335,7 +347,6 @@ func TestAPIGetConfigWithTLS(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
-
 	var response map[string]interface{}
 	if err := json.Unmarshal(body, &response); err != nil {
 		t.Fatalf("Failed to unmarshal response: %v", err)
@@ -530,6 +541,9 @@ func TestAPIPatchOutgoingConfigAllFields(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
+	if bytes.Contains(body, []byte("password")) || bytes.Contains(body, []byte("\"pass\"")) {
+		t.Fatal("outgoing patch response exposed password")
+	}
 }
 
 func TestAPIPatchOutgoingConfigMissingHostAfterPatch(t *testing.T) {
@@ -571,9 +585,10 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 
 	// First set a config
 	config := map[string]interface{}{
-		"host": "smtp.example.com",
-		"port": 587,
-		"user": "user",
+		"host":     "smtp.example.com",
+		"port":     587,
+		"user":     "user",
+		"password": "old-secret",
 	}
 	jsonBody, _ := json.Marshal(config)
 
@@ -622,6 +637,24 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	}
 	if configResp["host"] != "smtp.example.com" {
 		t.Errorf("Expected host to remain smtp.example.com, got %v", configResp["host"])
+	}
+	if got := server.GetOutgoingConfig().Password; got != "old-secret" {
+		t.Fatalf("PATCH without password changed it to %q", got)
+	}
+
+	clearBody, _ := json.Marshal(map[string]interface{}{"password": ""})
+	clearReq, _ := http.NewRequest("PATCH", "/api/v1/settings/outgoing", bytes.NewBuffer(clearBody))
+	clearReq.Header.Set("Content-Type", "application/json")
+	clearResp, clearErr := api.app.Test(clearReq, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if clearErr != nil {
+		t.Fatalf("Clear password request failed: %v", clearErr)
+	}
+	defer func() { _ = clearResp.Body.Close() }()
+	if clearResp.StatusCode != http.StatusOK {
+		t.Fatalf("Clear password status = %d, want 200", clearResp.StatusCode)
+	}
+	if got := server.GetOutgoingConfig().Password; got != "" {
+		t.Fatalf("explicit empty PATCH password was not cleared: %q", got)
 	}
 }
 

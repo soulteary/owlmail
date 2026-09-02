@@ -142,7 +142,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	ms.emitAsynchronous("new", storedEmail)
 
 	// Auto relay if enabled
-	if ms.outgoing != nil && ms.outgoing.IsAutoRelayEnabled() {
+	if ms.IsAutoRelayEnabled() {
 		if err := ms.RelayMail(cloneEmail(storedEmail), true, func(err error) {
 			if err != nil {
 				common.Error("Error when auto-relaying email: %v", err)

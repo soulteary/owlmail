@@ -76,6 +76,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- Runtime outgoing relay configuration now uses immutable snapshots, starts
+  workers when relay is enabled dynamically, atomically applies updates, and
+  coordinates queue submission with idempotent shutdown without exposing SMTP
+  passwords through settings responses.
 - HTML email previews now combine server-side sanitization with a zero-permission
   iframe sandbox, a no-referrer policy, and a restrictive per-preview CSP.
   Remote images, fonts, stylesheets, and media are blocked by default and can
