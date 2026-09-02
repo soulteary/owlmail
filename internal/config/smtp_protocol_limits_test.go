@@ -2,6 +2,7 @@ package config
 
 import (
 	"flag"
+	"strings"
 	"testing"
 )
 
@@ -27,6 +28,22 @@ func TestSMTPProtocolLimitsResolveFlagsAndEnvironment(t *testing.T) {
 	cfg := ResolveConfig(fs, refs)
 	if cfg.SMTPReadTimeout != "12s" || cfg.SMTPWriteTimeout != "14s" || cfg.SMTPMaxRecipients != 80 {
 		t.Fatalf("unexpected resolved SMTP protocol limits: %#v", cfg)
+	}
+}
+
+func TestSMTPMaxRecipientsRejectsMalformedEnvironment(t *testing.T) {
+	t.Setenv("OWLMAIL_SMTP_MAX_RECIPIENTS", "not-a-number")
+	fs := flag.NewFlagSet("smtp-max-recipients-invalid", flag.ContinueOnError)
+	refs := DefineFlags(fs)
+	if err := fs.Parse(nil); err != nil {
+		t.Fatal(err)
+	}
+	cfg := ResolveConfig(fs, refs)
+	if cfg.SMTPMaxRecipients != -1 {
+		t.Fatalf("SMTPMaxRecipients = %d, want invalid sentinel -1", cfg.SMTPMaxRecipients)
+	}
+	if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "greater than zero") {
+		t.Fatalf("ValidateConfig() error = %v, want recipient-limit validation error", err)
 	}
 }
 
