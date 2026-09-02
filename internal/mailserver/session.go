@@ -63,6 +63,13 @@ func (s *Session) Data(r io.Reader) error {
 	if err := s.requireAuthentication(); err != nil {
 		return err
 	}
+	if !s.mailServer.tryAcquireDataSlot() {
+		return errSMTPDataConcurrencyLimit
+	}
+	defer s.mailServer.releaseDataSlot()
+	if s.mailServer.afterDataAcquire != nil {
+		s.mailServer.afterDataAcquire()
+	}
 	id := makeID(s.mailServer.useUUIDForID)
 	return s.mailServer.storeIncomingEmail(id, r, s)
 }

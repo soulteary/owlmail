@@ -393,6 +393,19 @@ SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-messag
 `OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限仍为 50，读写
 超时仍为 10 秒。
 
+OwlMail 默认还会把每个进程同时处理的 SMTP 邮件正文事务限制为 8 个。可通过
+`-smtp-max-concurrency` 或 `OWLMAIL_SMTP_MAX_CONCURRENCY` 调整；显式设置为
+`0` 会恢复不限制并发的原有行为。普通 SMTP、STARTTLS 与直接 SMTPS 共用邮件
+服务器持有的同一个 limiter。多副本部署中每个实例独立执行上限，这不是集群级或
+分布式配额。
+
+SMTP 库进入 DATA handler 时会以非阻塞方式获取名额，名额覆盖原始 EML 暂存、
+MIME 与正文处理、附件流式写入和摘要计算、S3 上传，以及原子提交或失败回滚。
+该上限不限制 TCP 连接、SMTP session、AUTH、MAIL FROM 或 RCPT TO。名额已满时，
+OwlMail 会安全排空但不存储本次邮件正文，并返回
+`451 4.3.2 temporary resource limit reached; try again later`。该临时状态允许合规
+SMTP 客户端重试；被拒绝的事务不会留下 EML、附件、索引记录或 S3 对象。
+
 同时省略 `-smtp-user` 与 `-smtp-password` 时使用 NO AUTH 模式：允许不认证直接
 投递，也接受任意 PLAIN/LOGIN 凭据，便于必须填写凭据的测试客户端零配置接入。
 同时设置两项后强制 SMTP AUTH；未认证事务返回 `530 5.7.0`，错误凭据返回

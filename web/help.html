@@ -91,6 +91,7 @@ SMTP_SECURE=false</code></pre>
                             <tbody>
                                 <tr><td>SMTP listener</td><td><code>-smtp</code>, <code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>, <code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>, <code>localhost</code></td></tr>
                                 <tr><td>SMTP message limit</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
+                                <tr><td>SMTP DATA concurrency</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td><code>8</code> per process; <code>0</code> is unlimited</td></tr>
                                 <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
                                 <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
                                 <tr><td>Attachment storage</td><td><code>-s3-enabled</code> and S3 options</td><td><code>OWLMAIL_S3_ENABLED</code> and S3 variables</td><td>Local mail directory</td></tr>
@@ -107,7 +108,7 @@ SMTP_SECURE=false</code></pre>
                     </div>
                     <h3>Web authentication defaults</h3>
                     <p>With only a username, OwlMail generates a random 32-character password and prints it once to stderr at startup. With only a password, the username defaults to <code>admin</code>. Supplying neither value disables authentication; supplying both uses them unchanged. Generated passwords change after every restart, so configure both values when credentials must remain stable. Startup fails if the generated password cannot be written to stderr. Use Basic Auth only over localhost or HTTPS.</p>
-                    <aside class="note"><strong>SMTP authentication modes:</strong> omitting both credentials selects NO AUTH, which permits unauthenticated delivery and accepts arbitrary PLAIN/LOGIN credentials for test clients. Setting both requires valid AUTH; setting only one fails startup. PLAIN/LOGIN is permitted without TLS for development compatibility by default. Enable <code>-smtp-auth-require-tls</code> with SMTP TLS to reject AUTH on cleartext connections while allowing it after STARTTLS and over SMTPS; anonymous NO AUTH delivery is unchanged, and missing TLS makes startup fail. Each SMTP/SMTPS connection uses 10-second read and write timeouts; a message is limited to 100 MiB by default (configurable with <code>-smtp-max-message-mb</code>) and 50 recipients.</aside>
+                    <aside class="note"><strong>SMTP authentication and capacity:</strong> omitting both credentials selects NO AUTH, which permits unauthenticated delivery and accepts arbitrary PLAIN/LOGIN credentials for test clients. Setting both requires valid AUTH; setting only one fails startup. PLAIN/LOGIN is permitted without TLS for development compatibility by default. Enable <code>-smtp-auth-require-tls</code> with SMTP TLS to reject AUTH on cleartext connections while allowing it after STARTTLS and over SMTPS; anonymous NO AUTH delivery is unchanged, and missing TLS makes startup fail. Each SMTP/SMTPS connection uses 10-second read and write timeouts; a message is limited to 100 MiB by default (configurable with <code>-smtp-max-message-mb</code>) and 50 recipients. One per-process limit of eight active DATA transactions is shared by SMTP, STARTTLS, and SMTPS; <code>0</code> is unlimited. Each replica enforces its own limit. At capacity the client receives retryable <code>451 4.3.2 temporary resource limit reached; try again later</code>.</aside>
                     <h3>Persistent Docker example</h3>
                     <pre><code>docker run -d --name owlmail \
   -p 1025:1025 -p 1080:1080 \
@@ -229,6 +230,7 @@ SMTP_SECURE=false</code></pre>
                             <tbody>
                                 <tr><td>SMTP 监听</td><td><code>-smtp</code>、<code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>、<code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>、<code>localhost</code></td></tr>
                                 <tr><td>SMTP 邮件上限</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
+                                <tr><td>SMTP DATA 并发</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td>每进程 <code>8</code>；<code>0</code> 表示不限制</td></tr>
                                 <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
                                 <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
                                 <tr><td>附件存储</td><td><code>-s3-enabled</code> 及 S3 参数</td><td><code>OWLMAIL_S3_ENABLED</code> 及 S3 变量</td><td>本地邮件目录</td></tr>
@@ -245,7 +247,7 @@ SMTP_SECURE=false</code></pre>
                     </div>
                     <h3>Web 认证默认策略</h3>
                     <p>只配置用户名时，OwlMail 会生成 32 字符随机密码，并在启动时向 stderr 输出一次；只配置密码时，用户名默认为 <code>admin</code>。两项均不配置表示关闭认证，两项均配置则原样使用。自动密码会在每次重启后变化，需要稳定凭据时应同时配置两项；如果无法将自动生成的密码写入 stderr，OwlMail 会启动失败。Basic Auth 只应在 localhost 或 HTTPS 上使用。</p>
-                    <aside class="note"><strong>SMTP 鉴权模式：</strong>两项凭据都省略时使用 NO AUTH，允许不认证投递，也接受测试客户端提交的任意 PLAIN/LOGIN 凭据；同时设置两项后强制验证，只设置一项会启动失败。为兼容开发环境，默认允许在未启用 TLS 时使用 PLAIN/LOGIN。启用 SMTP TLS 并设置 <code>-smtp-auth-require-tls</code> 后，明文连接会拒绝 AUTH，STARTTLS 后及 SMTPS 仍可正常认证；NO AUTH 匿名投递不变，缺少 TLS 配置会启动失败。每个 SMTP/SMTPS 连接的读写超时均为 10 秒；单封邮件默认最大 100 MiB（可用 <code>-smtp-max-message-mb</code> 调整），最多 50 个收件人。</aside>
+                    <aside class="note"><strong>SMTP 鉴权与容量：</strong>两项凭据都省略时使用 NO AUTH，允许不认证投递，也接受测试客户端提交的任意 PLAIN/LOGIN 凭据；同时设置两项后强制验证，只设置一项会启动失败。为兼容开发环境，默认允许在未启用 TLS 时使用 PLAIN/LOGIN。启用 SMTP TLS 并设置 <code>-smtp-auth-require-tls</code> 后，明文连接会拒绝 AUTH，STARTTLS 后及 SMTPS 仍可正常认证；NO AUTH 匿名投递不变，缺少 TLS 配置会启动失败。每个 SMTP/SMTPS 连接的读写超时均为 10 秒；单封邮件默认最大 100 MiB（可用 <code>-smtp-max-message-mb</code> 调整），最多 50 个收件人。普通 SMTP、STARTTLS 与 SMTPS 共用每进程 8 个活动 DATA 事务的默认上限；<code>0</code> 表示不限制，多副本各自执行上限。达到上限时客户端收到可重试的 <code>451 4.3.2 temporary resource limit reached; try again later</code>。</aside>
                     <h3>Docker 持久化示例</h3>
                     <pre><code>docker run -d --name owlmail \
   -p 1025:1025 -p 1080:1080 \

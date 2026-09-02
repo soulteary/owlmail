@@ -42,6 +42,9 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.MaxDataConcurrency < 0 {
+		return nil, fmt.Errorf("SMTP DATA max concurrency must be zero or greater")
+	}
 	if options.AuthRequireTLS && (options.TLSConfig == nil || !options.TLSConfig.Enabled) {
 		return nil, fmt.Errorf("SMTP AUTH cannot require TLS without an enabled TLS configuration")
 	}
@@ -83,6 +86,8 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		port:                    port,
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
+		maxDataConcurrency:      options.MaxDataConcurrency,
+		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,

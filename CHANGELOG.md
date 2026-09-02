@@ -8,6 +8,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- A configurable per-process SMTP DATA concurrency limit shared by ordinary
+  SMTP, STARTTLS, and SMTPS. The default of eight protects MIME parsing,
+  transactional staging, attachment hashing, and S3 uploads; `0` preserves an
+  explicit unlimited mode, while capacity returns retryable `451 4.3.2` after
+  safely draining the rejected message without creating storage artifacts.
 - An optional, default-off read-only MCP server using the official Go SDK's
   Streamable HTTP transport. It exposes compact list/search, detached email,
   lossless base64-encoded bounded raw source, and attachment-metadata tools;

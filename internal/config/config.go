@@ -6,6 +6,7 @@ package config
 
 import (
 	"flag"
+	"strconv"
 
 	"github.com/soulteary/cli-kit/env"
 	"github.com/soulteary/cli-kit/flagutil"
@@ -17,6 +18,11 @@ const DefaultMailCleanupInterval = "1h"
 // DefaultSMTPMaxMessageMB raises the historical 1 MiB limit while retaining a
 // bounded default suitable for development and test environments.
 const DefaultSMTPMaxMessageMB = 100
+
+// DefaultSMTPMaxConcurrency bounds concurrent high-resource SMTP DATA
+// transactions within one OwlMail process. Zero remains an explicit unlimited
+// mode for deployments that need the historical behavior.
+const DefaultSMTPMaxConcurrency = 8
 
 const DefaultS3Region = "us-east-1"
 const DefaultS3Prefix = "owlmail/attachments"
@@ -212,6 +218,7 @@ type Config struct {
 	SMTPPort            int
 	SMTPHost            string
 	SMTPMaxMessageMB    int
+	SMTPMaxConcurrency  int
 	MailDir             string
 	MailRetentionDays   int
 	MailMaxMessages     int
@@ -289,6 +296,7 @@ func DefaultConfig() *Config {
 		SMTPPort:               1025,
 		SMTPHost:               "localhost",
 		SMTPMaxMessageMB:       DefaultSMTPMaxMessageMB,
+		SMTPMaxConcurrency:     DefaultSMTPMaxConcurrency,
 		MailDir:                "",
 		MailRetentionDays:      0,
 		MailMaxMessages:        0,
@@ -347,6 +355,7 @@ type FlagRefs struct {
 	SMTPPort               *int
 	SMTPHost               *string
 	SMTPMaxMessageMB       *int
+	SMTPMaxConcurrency     *int
 	MailDir                *string
 	MailRetentionDays      *int
 	MailMaxMessages        *int
@@ -406,6 +415,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		SMTPPort:               fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
 		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		SMTPMaxMessageMB:       fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
+		SMTPMaxConcurrency:     fs.Int("smtp-max-concurrency", cfg.SMTPMaxConcurrency, "Maximum concurrent SMTP DATA transactions per process (0 = unlimited)"),
 		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
 		MailRetentionDays:      fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
 		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
@@ -466,6 +476,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
+		SMTPMaxConcurrency:  resolveSMTPMaxConcurrencyWithFlag(fs, *refs.SMTPMaxConcurrency),
 		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
 		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),
@@ -524,6 +535,28 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebhookRedisPrefix:     resolveStringWithFlag(fs, "webhook-redis-prefix", "OWLMAIL_WEBHOOK_REDIS_PREFIX", *refs.WebhookRedisPrefix),
 		WebhookShutdownTimeout: resolveStringWithFlag(fs, "webhook-shutdown-timeout", "OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT", *refs.WebhookShutdownTimeout),
 	}
+}
+
+// resolveSMTPMaxConcurrencyWithFlag keeps the established CLI-over-environment
+// priority while rejecting malformed environment values. ResolveConfig cannot
+// return an error without breaking its public API, so malformed values use the
+// invalid sentinel -1 and are rejected by validation and server construction.
+func resolveSMTPMaxConcurrencyWithFlag(fs *flag.FlagSet, flagValue int) int {
+	if flagutil.HasFlag(fs, "smtp-max-concurrency") {
+		return flagValue
+	}
+	if !env.Has("OWLMAIL_SMTP_MAX_CONCURRENCY") {
+		return flagValue
+	}
+	raw := env.Get("OWLMAIL_SMTP_MAX_CONCURRENCY", "")
+	if raw == "" {
+		return flagValue
+	}
+	value, err := strconv.Atoi(raw)
+	if err != nil {
+		return -1
+	}
+	return value
 }
 
 // ParseFlags is a convenience function that defines flags, parses arguments, and resolves config.

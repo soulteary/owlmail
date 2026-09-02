@@ -53,6 +53,11 @@ func (ms *MailServer) Listen() error {
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
 		common.Log("SMTP TLS/STARTTLS enabled")
 	}
+	if ms.maxDataConcurrency == 0 {
+		common.Log("SMTP DATA concurrency is unlimited")
+	} else {
+		common.Log("SMTP DATA concurrency limit: %d per process", ms.maxDataConcurrency)
+	}
 	return ms.smtpServer.ListenAndServe()
 }
 
