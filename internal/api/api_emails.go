@@ -73,7 +73,7 @@ func (api *API) getAttachment(c fiber.Ctx) error {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 	}
 
-	c.Set("Content-Type", attachment.ContentType)
+	setAttachmentResponseHeaders(c, attachment.ContentType, filename)
 	maxInt := int64(^uint(0) >> 1)
 	if attachment.Size >= 0 && attachment.Size <= maxInt {
 		return c.SendStream(attachment.Body, int(attachment.Size))
@@ -109,13 +109,13 @@ func (api *API) downloadEmail(c fiber.Ctx) error {
 func (api *API) getEmailSource(c fiber.Ctx) error {
 	id := c.Params("id")
 
-	content, err := api.mailServer.GetRawEmailContent(id)
+	path, err := api.mailServer.GetRawEmail(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 	}
 
 	c.Set("Content-Type", "text/plain; charset=utf-8")
-	return c.Send(content)
+	return c.SendFile(path)
 }
 
 // deleteEmail handles DELETE /api/v1/emails/:id
@@ -343,22 +343,48 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 	dateTo := c.Query("dateTo")
 	read := c.Query("read")
 
-	emails := api.mailServer.GetAllEmail()
-	var filtered []*types.Email
+	type exportCandidate struct {
+		id      string
+		subject string
+	}
+	filtered := make([]exportCandidate, 0)
 
 	if idsParam != "" {
 		ids := strings.Split(idsParam, ",")
-		idMap := make(map[string]bool)
-		for _, id := range ids {
-			idMap[strings.TrimSpace(id)] = true
+		if len(ids) > maxExportMessages {
+			return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Export is limited to %d emails", maxExportMessages)))
 		}
-		for _, email := range emails {
-			if idMap[email.ID] {
-				filtered = append(filtered, email)
+		seen := make(map[string]struct{}, len(ids))
+		for _, id := range ids {
+			id = strings.TrimSpace(id)
+			if id == "" {
+				continue
+			}
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			if preview, ok := api.mailServer.GetEmailPreview(id); ok {
+				filtered = append(filtered, exportCandidate{id: preview.ID, subject: preview.Subject})
 			}
 		}
 	} else {
-		filtered = applyEmailFilters(emails, query, from, to, dateFrom, dateTo, read)
+		mailQuery := mailserver.EmailQuery{Text: query, From: from, To: to, SortBy: "store", SortOrder: "desc", Limit: maxExportMessages + 1}
+		if value, err := time.Parse("2006-01-02", dateFrom); err == nil {
+			mailQuery.DateFrom = &value
+		}
+		if value, err := time.Parse("2006-01-02", dateTo); err == nil {
+			value = value.Add(24 * time.Hour)
+			mailQuery.DateTo = &value
+		}
+		if read != "" {
+			value := read == "true"
+			mailQuery.Read = &value
+		}
+		summaries, _ := api.mailServer.QueryEmailSummaries(mailQuery)
+		for _, summary := range summaries {
+			filtered = append(filtered, exportCandidate{id: summary.ID, subject: summary.Subject})
+		}
 	}
 
 	if len(filtered) == 0 {
@@ -368,13 +394,14 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Export is limited to %d emails", maxExportMessages)))
 	}
 	type exportItem struct {
-		email *types.Email
-		path  string
+		id      string
+		subject string
+		path    string
 	}
 	items := make([]exportItem, 0, len(filtered))
 	var totalBytes int64
 	for _, email := range filtered {
-		emlPath, err := api.mailServer.GetRawEmail(email.ID)
+		emlPath, err := api.mailServer.GetRawEmail(email.id)
 		if err != nil {
 			continue
 		}
@@ -386,7 +413,7 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 		if totalBytes > maxExportBytes {
 			return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Export source is limited to %d bytes", maxExportBytes)))
 		}
-		items = append(items, exportItem{email: email, path: emlPath})
+		items = append(items, exportItem{id: email.id, subject: email.subject, path: emlPath})
 	}
 	if len(items) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailsToExport, "No readable emails found to export"))
@@ -402,7 +429,7 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 				common.Verbose("Failed to open email during export: %v", err)
 				continue
 			}
-			filename := fmt.Sprintf("%s_%s.eml", item.email.ID, sanitizeFilename(item.email.Subject))
+			filename := fmt.Sprintf("%s_%s.eml", item.id, sanitizeFilename(item.subject))
 			fileWriter, err := zipWriter.Create(filename)
 			if err == nil {
 				_, err = io.Copy(fileWriter, emailFile)
