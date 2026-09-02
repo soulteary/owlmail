@@ -25,18 +25,24 @@ type Email struct {
 	Size          int64                  `json:"size"`
 	SizeHuman     string                 `json:"sizeHuman"`
 	Headers       map[string]interface{} `json:"headers"`
+	// AllHeaders retains the complete parsed header set for compatibility
+	// projections without changing OwlMail's native JSON response.
+	AllHeaders map[string]interface{} `json:"-"`
 }
 
 // Attachment represents an email attachment
 type Attachment struct {
-	ContentType       string `json:"contentType"`
-	FileName          string `json:"fileName"`
-	GeneratedFileName string `json:"generatedFileName"`
-	ContentID         string `json:"contentId"`
-	Size              int64  `json:"size"`
-	Transformed       bool   `json:"-"`
-	ContentSHA256     string `json:"-"`
-	Storage           string `json:"-"`
+	ContentType string `json:"contentType"`
+	// ContentDisposition preserves MIME parsing detail for compatibility
+	// projections without changing OwlMail's native JSON attachment shape.
+	ContentDisposition string `json:"-"`
+	FileName           string `json:"fileName"`
+	GeneratedFileName  string `json:"generatedFileName"`
+	ContentID          string `json:"contentId"`
+	Size               int64  `json:"size"`
+	Transformed        bool   `json:"-"`
+	ContentSHA256      string `json:"-"`
+	Storage            string `json:"-"`
 }
 
 // Envelope represents SMTP envelope information

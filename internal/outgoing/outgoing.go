@@ -1,9 +1,11 @@
 package outgoing
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/smtp"
 	"os"
 	"strings"
@@ -44,6 +46,7 @@ type RelayTask struct {
 	RelayTo     string // Optional relay address
 	IsAutoRelay bool
 	Callback    func(error)
+	Context     context.Context
 }
 
 // NewOutgoingMail creates a new outgoing mail handler
@@ -84,6 +87,11 @@ func (om *OutgoingMail) worker() {
 
 // relayEmail relays an email to the configured SMTP server
 func (om *OutgoingMail) relayEmail(task *RelayTask) error {
+	if task.Context != nil {
+		if err := task.Context.Err(); err != nil {
+			return err
+		}
+	}
 	if !om.enabled {
 		return fmt.Errorf("outgoing mail not configured")
 	}
@@ -129,7 +137,9 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	// Send email using net/smtp
 	addr := fmt.Sprintf("%s:%d", om.config.Host, om.config.Port)
 
-	if om.config.Secure {
+	if task.Context != nil {
+		err = sendMailContext(task.Context, addr, auth, sender, recipients, emailData, om.config.Secure)
+	} else if om.config.Secure {
 		// Use TLS
 		err = sendMailTLS(addr, auth, sender, recipients, emailData)
 	} else {
@@ -236,6 +246,19 @@ func (om *OutgoingMail) matchesRule(address, rule string) bool {
 
 // RelayMail queues an email for relay
 func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
+	om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, isAutoRelay, callback)
+}
+
+// RelayMailContext queues an email relay that is canceled if the caller's
+// context expires while the task is queued or in progress.
+func (om *OutgoingMail) RelayMailContext(ctx context.Context, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	om.enqueueRelay(ctx, true, email, emailPath, relayTo, isAutoRelay, callback)
+}
+
+func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) {
 	if !om.enabled {
 		if callback != nil {
 			callback(fmt.Errorf("outgoing mail not configured"))
@@ -250,14 +273,33 @@ func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo 
 		IsAutoRelay: isAutoRelay,
 		Callback:    callback,
 	}
+	if contextAware {
+		task.Context = ctx
+		if err := ctx.Err(); err != nil {
+			if callback != nil {
+				callback(err)
+			}
+			return
+		}
+	}
 
+	timer := time.NewTimer(5 * time.Second)
+	defer timer.Stop()
+	var canceled <-chan struct{}
+	if contextAware {
+		canceled = ctx.Done()
+	}
 	select {
 	case om.queue <- task:
 		// Task queued successfully
-	case <-time.After(5 * time.Second):
+	case <-timer.C:
 		// Queue full, call callback with error
 		if callback != nil {
 			callback(fmt.Errorf("relay queue is full"))
+		}
+	case <-canceled:
+		if callback != nil {
+			callback(ctx.Err())
 		}
 	}
 }
@@ -351,4 +393,83 @@ func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []by
 	}
 
 	return client.Quit()
+}
+
+// sendMailContext performs an SMTP transaction on a connection that is
+// closed when ctx is canceled. This prevents a timed-out synchronous relay
+// from remaining queued or being delivered later after the caller retries.
+func sendMailContext(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, msg []byte, secure bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return err
+	}
+	stopCancel := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stopCancel()
+	if deadline, ok := ctx.Deadline(); ok {
+		if err := conn.SetDeadline(deadline); err != nil {
+			_ = conn.Close()
+			return err
+		}
+	}
+
+	client, err := smtp.NewClient(conn, host)
+	if err != nil {
+		_ = conn.Close()
+		return relayContextError(ctx, err)
+	}
+	defer func() {
+		if err := client.Close(); err != nil {
+			common.Verbose("Failed to close SMTP client: %v", err)
+		}
+	}()
+
+	if secure {
+		if ok, _ := client.Extension("STARTTLS"); ok {
+			if err := client.StartTLS(&tls.Config{ServerName: host}); err != nil {
+				return relayContextError(ctx, err)
+			}
+		}
+	}
+	if auth != nil {
+		if err := client.Auth(auth); err != nil {
+			return relayContextError(ctx, err)
+		}
+	}
+	if err := client.Mail(from); err != nil {
+		return relayContextError(ctx, err)
+	}
+	for _, recipient := range to {
+		if err := client.Rcpt(recipient); err != nil {
+			return relayContextError(ctx, err)
+		}
+	}
+	w, err := client.Data()
+	if err != nil {
+		return relayContextError(ctx, err)
+	}
+	if _, err := w.Write(msg); err != nil {
+		_ = w.Close()
+		return relayContextError(ctx, err)
+	}
+	if err := w.Close(); err != nil {
+		return relayContextError(ctx, err)
+	}
+	if err := client.Quit(); err != nil {
+		return relayContextError(ctx, err)
+	}
+	return nil
+}
+
+func relayContextError(ctx context.Context, err error) error {
+	if contextErr := ctx.Err(); contextErr != nil {
+		return contextErr
+	}
+	return err
 }

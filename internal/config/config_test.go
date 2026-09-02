@@ -62,6 +62,37 @@ func TestBasePathnameConfiguration(t *testing.T) {
 	}
 }
 
+func TestMailDevRESTCompatConfiguration(t *testing.T) {
+	t.Run("disabled by default", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if got := ResolveConfig(fs, refs).MailDevRESTCompat; got {
+			t.Fatal("MailDev REST compatibility must be disabled by default")
+		}
+	})
+
+	t.Run("environment enables facade", func(t *testing.T) {
+		t.Setenv("OWLMAIL_MAILDEV_REST_COMPAT", "true")
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if got := ResolveConfig(fs, refs).MailDevRESTCompat; !got {
+			t.Fatal("OWLMAIL_MAILDEV_REST_COMPAT=true did not enable facade")
+		}
+	})
+
+	t.Run("CLI has priority", func(t *testing.T) {
+		t.Setenv("OWLMAIL_MAILDEV_REST_COMPAT", "true")
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-maildev-rest-compat=false"}); err != nil {
+			t.Fatal(err)
+		}
+		if got := ResolveConfig(fs, refs).MailDevRESTCompat; got {
+			t.Fatal("explicit CLI false did not override the environment")
+		}
+	})
+}
+
 func TestResolveString(t *testing.T) {
 	envMgr := testutil.NewEnvManager()
 	defer envMgr.Cleanup()

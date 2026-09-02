@@ -1,0 +1,201 @@
+package maildev
+
+import (
+	"encoding/json"
+	"net/mail"
+	"strings"
+	"testing"
+	"time"
+	"unicode/utf8"
+
+	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/types"
+)
+
+func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
+	received := time.Date(2026, time.January, 5, 19, 2, 9, 0, time.UTC)
+	source := &types.Email{
+		ID: "XwgKAxto", Time: received, Subject: "Surfers", Size: 1024, SizeHuman: "1.00 KB",
+		From: []*mail.Address{{Name: "Angelo Pappas", Address: "angelo@fbi.gov"}},
+		To:   []*mail.Address{{Name: "Johnny Utah", Address: "johnny@fbi.gov"}},
+		Headers: map[string]interface{}{
+			"Date":        "Sun, 05 Jan 2026 19:02:09 +0000",
+			"In-Reply-To": "<earlier@fbi.gov>",
+			"X-Priority":  "1",
+		},
+		AllHeaders: map[string]interface{}{
+			"date":        "Sun, 05 Jan 2026 19:02:09 +0000",
+			"in-reply-to": "<earlier@fbi.gov>",
+			"x-priority":  "1",
+			"x-test-id":   "custom-123",
+		},
+		Attachments: []*types.Attachment{{
+			FileName: "logo.png", GeneratedFileName: "safe.png", ContentType: "image/png",
+			ContentDisposition: "attachment", ContentID: "logo@fbi.gov", Size: 24,
+		}},
+		Envelope: &types.Envelope{
+			From: "angelo@fbi.gov", To: []string{"johnny@fbi.gov"},
+			Host: "mail.test", RemoteAddress: "127.0.0.1:1234",
+		},
+	}
+
+	dto := FromEmail(source, "/var/mail/owlmail")
+	encoded, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(encoded)
+	for _, fragment := range []string{
+		`"source":"/var/mail/owlmail/XwgKAxto.eml"`,
+		`"from":[{"address":"angelo@fbi.gov","name":"Angelo Pappas"}]`,
+		`"calculatedBcc":[]`,
+		`"date":"2026-01-05T19:02:09Z"`,
+		`"priority":"high"`,
+		`"filename":"logo.png"`,
+		`"contentDisposition":"attachment"`,
+		`"envelope":{"from":{"address":"angelo@fbi.gov"}`,
+	} {
+		if !strings.Contains(body, fragment) {
+			t.Errorf("MailDev DTO %s does not contain %s", body, fragment)
+		}
+	}
+	if strings.Contains(body, `"fileName"`) {
+		t.Fatalf("OwlMail attachment field leaked into compatibility DTO: %s", body)
+	}
+	if dto.InReplyTo != "<earlier@fbi.gov>" {
+		t.Fatalf("InReplyTo = %q", dto.InReplyTo)
+	}
+	if dto.SizeHuman != "1 KB" {
+		t.Fatalf("SizeHuman = %q, want MailDev-formatted size", dto.SizeHuman)
+	}
+	if _, exists := dto.Headers["Date"]; exists {
+		t.Fatalf("headers were not normalized to MailDev lowercase keys: %#v", dto.Headers)
+	}
+	if dto.Headers["date"] == nil {
+		t.Fatalf("lowercase date header missing: %#v", dto.Headers)
+	}
+	if dto.Headers["x-test-id"] != "custom-123" {
+		t.Fatalf("custom header missing: %#v", dto.Headers)
+	}
+	nativeJSON, err := json.Marshal(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(nativeJSON), "custom-123") {
+		t.Fatalf("internal complete headers leaked into native JSON: %s", nativeJSON)
+	}
+}
+
+func TestToSummaryMatchesMailDevProjection(t *testing.T) {
+	dto := ToSummary(&types.Email{
+		ID: "summary", Subject: "Subject", Text: "  hello\n\tworld  ",
+		Size: 2560, SizeHuman: "2.50 KiB",
+		From:        []*mail.Address{{Address: "from@example.com"}},
+		To:          []*mail.Address{{Address: "to@example.com"}},
+		Attachments: []*types.Attachment{{}, {}},
+	})
+	if dto.Preview != "hello world" || dto.AttachmentCount != 2 || dto.SizeHuman != "2.5 KB" {
+		t.Fatalf("unexpected summary: %#v", dto)
+	}
+	projected := FromEmailSummary(mailserver.EmailSummary{Size: 1024, SizeHuman: "1.00 KB"})
+	if projected.SizeHuman != "1 KB" {
+		t.Fatalf("projected SizeHuman = %q, want MailDev-formatted size", projected.SizeHuman)
+	}
+	encoded, err := json.Marshal(dto)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{`"html"`, `"text"`, `"headers"`} {
+		if strings.Contains(string(encoded), forbidden) {
+			t.Fatalf("body field leaked into summary: %s", encoded)
+		}
+	}
+}
+
+func TestFormatBytesMatchesMailDev(t *testing.T) {
+	for _, tc := range []struct {
+		size int64
+		want string
+	}{
+		{-1, "0 Bytes"},
+		{0, "0 Bytes"},
+		{500, "500 Bytes"},
+		{1024, "1 KB"},
+		{1234, "1.21 KB"},
+		{2560, "2.5 KB"},
+		{1572864, "1.5 MB"},
+		{1073741824, "1 GB"},
+	} {
+		if got := formatBytes(tc.size); got != tc.want {
+			t.Errorf("formatBytes(%d) = %q, want %q", tc.size, got, tc.want)
+		}
+	}
+}
+
+func TestToSummaryTruncatesOnUnicodeBoundaries(t *testing.T) {
+	dto := ToSummary(&types.Email{Text: strings.Repeat("界", PreviewLength+1)})
+	if !utf8.ValidString(dto.Preview) || len([]rune(dto.Preview)) != PreviewLength {
+		t.Fatalf("preview was not truncated safely: %q", dto.Preview)
+	}
+}
+
+func TestSummaryPreviewCapsLargeBodiesWhileNormalizingWhitespace(t *testing.T) {
+	preview := summaryPreview(strings.Repeat("word\t", 1<<20))
+	if preview != strings.Repeat("word ", PreviewLength/5) {
+		t.Fatalf("unexpected bounded preview: %q", preview)
+	}
+}
+
+func TestFilterAndPageUsesMailDevQueryRules(t *testing.T) {
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	emails := []Email{
+		{ID: "first", Time: base, Read: false, Subject: "Welcome", From: []Address{{Address: "alice@example.com"}}},
+		{ID: "second", Time: base.Add(time.Minute), Read: true, Subject: "Other", From: []Address{{Address: "bob@example.com"}}},
+		{ID: "third", Time: base.Add(2 * time.Minute), Read: false, Subject: "Welcome back", From: []Address{{Address: "alice+new@example.com"}}},
+	}
+	limit := 1
+	page := FilterAndPage(emails, map[string]string{"from.address": "alice@example.com", "read": "false"}, 0, &limit, "desc")
+	if len(page) != 1 || page[0].ID != "first" {
+		t.Fatalf("unexpected filtered page: %#v", page)
+	}
+	if got := FilterAndPage(emails, map[string]string{"subject": "welcome"}, 0, nil, ""); len(got) != 0 {
+		t.Fatalf("MailDev filters must be case-sensitive exact matches: %#v", got)
+	}
+}
+
+func TestMatchesFiltersRejectsUnexportedFieldTraversal(t *testing.T) {
+	email := Email{Time: time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)}
+	if MatchesFilters(email, map[string]string{"time.wall": "0"}) {
+		t.Fatal("unexported time.Time field unexpectedly matched")
+	}
+}
+
+func TestEmbedAttachmentURLsUsesFacadeAndBasePath(t *testing.T) {
+	html := `<img src="cid:logo@example.test"><img src="cid:dollar@example.test"><img src="https://example.test/pixel">`
+	result := EmbedAttachmentURLs(html, "/owlmail", "email-1", []Attachment{
+		{ContentID: "logo@example.test", GeneratedFileName: "safe logo.png"},
+		{ContentID: "dollar@example.test", GeneratedFileName: "safe.p$ng"},
+	})
+	if !strings.Contains(result, `src="/owlmail/api/email/email-1/attachment/safe%20logo.png"`) {
+		t.Fatalf("CID URL was not rewritten through the facade: %s", result)
+	}
+	if !strings.Contains(result, `src="https://example.test/pixel"`) {
+		t.Fatalf("unrelated image URL changed: %s", result)
+	}
+	if !strings.Contains(result, `src="/owlmail/api/email/email-1/attachment/safe.p$ng"`) {
+		t.Fatalf("dollar-prefixed replacement text was expanded: %s", result)
+	}
+}
+
+func TestParseNonNegativeIntMatchesJavaScriptPrefixParsing(t *testing.T) {
+	for _, test := range []struct {
+		input string
+		want  int
+		ok    bool
+	}{{"3tail", 3, true}, {" 10 ", 10, true}, {"-1", -1, false}, {"nope", 0, false}} {
+		got, ok := ParseNonNegativeInt(test.input)
+		if got != test.want || ok != test.ok {
+			t.Errorf("ParseNonNegativeInt(%q) = %d, %t; want %d, %t", test.input, got, ok, test.want, test.ok)
+		}
+	}
+}

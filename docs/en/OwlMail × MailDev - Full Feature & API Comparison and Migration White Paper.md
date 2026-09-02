@@ -16,11 +16,11 @@ OwlMail also provides a single Go binary, a versioned `/api/v1` surface, native
 SMTPS, browser notifications, generic webhook forwarding, and embedded local
 help. Those are OwlMail features, not proof of protocol equivalence.
 
-OwlMail is **not an exact drop-in replacement for current MailDev**. Important
-differences include API prefixes and response shapes, read-on-fetch behavior,
-batch routes, WebSocket protocol and event names, configuration breadth, and
-MailDev's MCP interface. Treat migration as a small integration change followed
-by tests, not as a binary swap with a compatibility guarantee.
+OwlMail is **not an exact drop-in replacement for current MailDev**. It now has
+an explicit, default-off REST facade for MailDev's current `/api` paths and
+payloads, but the browser UI, Socket.IO live protocol, configuration breadth,
+and MCP tool contracts remain distinct. Enable the facade for REST migrations
+and still test every non-REST integration.
 
 ## Feature comparison
 
@@ -35,7 +35,7 @@ by tests, not as a binary swap with a compatibility guarantee.
 | Web Basic Auth | Yes | Yes | OwlMail health endpoints remain public |
 | SMTP TLS / STARTTLS | Yes | Yes | Certificate paths must be readable |
 | Direct SMTPS | Version-dependent | Yes, port 465 when SMTP TLS is enabled | OwlMail-specific behavior |
-| REST API | Yes | Yes | Routes and payloads are not identical |
+| REST API | Yes | Yes, plus an opt-in MailDev `/api` facade | Native OwlMail routes remain different |
 | Live updates | Socket.IO | Native WebSocket | Client code must change |
 | Generic outgoing webhooks | Version-dependent | Yes | OwlMail supports templates, HMAC, retry, and filters |
 | Browser notifications | UI/version-dependent | Opt-in per browser | Requires permission and a secure context |
@@ -59,35 +59,41 @@ event names `newMail` and `deleteMail`.
 
 ### OwlMail interface
 
-OwlMail exposes two surfaces:
+OwlMail exposes three HTTP surfaces:
 
 - `/api/v1/*`: the preferred, versioned OwlMail API.
 - Unversioned `/email`, `/config`, `/healthz`, and `/socket.io` paths retained
   for existing OwlMail clients and common MailDev-style workflows.
+- Optional `/api/*` MailDev REST routes, enabled only by
+  `-maildev-rest-compat` or `OWLMAIL_MAILDEV_REST_COMPAT=true`.
 
 When `-base-pathname /owlmail` (or `OWLMAIL_BASE_PATHNAME=/owlmail`) is set,
 prepend `/owlmail` to every path in this section. The compatible
 `MAILDEV_BASE_PATHNAME` variable is also accepted. This changes route location,
 not protocol: `/owlmail/socket.io` is still native RFC 6455 WebSocket.
 
-The `/socket.io` OwlMail path is a native RFC 6455 WebSocket endpoint. Its name
-does not make it Socket.IO compatible.
+The REST facade shares OwlMail storage, authentication, HTTPS, and base-path
+routing. Only its detail route marks a message read, and its DTOs preserve the
+MailDev array, summary, envelope, attachment, mutation, and error shapes. The
+`/socket.io` OwlMail path is still a native RFC 6455 WebSocket endpoint. Its
+name does not make it Socket.IO compatible, and the REST option never enables
+Socket.IO.
 
 | Workflow | Current MailDev | OwlMail |
 |---|---|---|
-| list emails | `GET /api/email` | `GET /email` or `GET /api/v1/emails` |
-| compact list | `GET /api/email/summary` | `GET /email/preview` or `GET /api/v1/emails/preview` |
-| get detail | `GET /api/email/:id`, marks read | `GET /email/:id` or `GET /api/v1/emails/:id`, no read side effect |
+| list emails | `GET /api/email` | Same path when facade enabled; otherwise native routes differ |
+| compact list | `GET /api/email/summary` | Same path and summary envelope when facade enabled |
+| get detail | `GET /api/email/:id`, marks read | Same behavior only in the facade; native detail routes have no read side effect |
 | mark one read | implicit on detail | `PATCH /email/:id/read` or `PATCH /api/v1/emails/:id/read` |
-| delete many | `POST /api/email/delete` | `POST /email/batch/delete` or `DELETE /api/v1/emails/batch` |
-| reload directory | `GET /api/reloadMailsFromDirectory` | `GET /reloadMailsFromDirectory` or `POST /api/v1/emails/reload` |
-| configuration | `GET /api/config` | `GET /config` or `GET /api/v1/settings` |
-| health | `GET /api/healthz` | `GET /healthz` or `GET /api/v1/health` |
+| delete many | `POST /api/email/delete` | Same request/result shape when facade enabled |
+| reload directory | `GET /api/reloadMailsFromDirectory` | Same path when facade enabled |
+| configuration | `GET /api/config` | Same compact shape when facade enabled |
+| health | `GET /api/healthz` | Same public JSON boolean when facade enabled |
 | live events | Socket.IO `newMail`, `deleteMail` | native WS `{type:"new"}`, `{type:"delete"}` |
 
-Collection shapes also differ. OwlMail returns a pagination envelope such as
-`{ "total": 3, "limit": 50, "offset": 0, "emails": [...] }`; clients must not
-assume the MailDev list shape.
+Native collection shapes still differ: `/api/v1` returns a pagination envelope
+such as `{ "total": 3, "limit": 50, "offset": 0, "emails": [...] }`. The
+opt-in facade instead returns MailDev's array and summary-envelope shapes.
 
 See the [OwlMail API reference](./API-Reference.md) for the complete route list,
 payloads, status behavior, authentication, and WebSocket protocol.

@@ -72,6 +72,65 @@ func TestMailStoreReturnsDeepSnapshots(t *testing.T) {
 	}
 }
 
+func TestMailStoreRetainsAllHeadersOnlyWhenEnabled(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	envelope := &Envelope{To: []string{"recipient@example.test"}}
+
+	if err := server.SaveEmailToStore("default-off", false, envelope, &Email{
+		AllHeaders: map[string]interface{}{"x-large": "not retained"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := server.GetEmail("default-off")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("default-off complete headers = %#v, %v", stored, err)
+	}
+
+	server.SetRetainAllHeaders(true)
+	if err := server.SaveEmailToStore("compat-on", false, envelope, &Email{
+		AllHeaders: map[string]interface{}{"x-test-id": "retained"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	stored, err = server.GetEmail("compat-on")
+	if err != nil || stored.AllHeaders["x-test-id"] != "retained" {
+		t.Fatalf("enabled complete headers = %#v, %v", stored, err)
+	}
+
+	server.SetRetainAllHeaders(false)
+	stored, err = server.GetEmail("compat-on")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("disabled complete headers = %#v, %v", stored, err)
+	}
+}
+
+func TestMailStoreBackfillsHeadersWhenCompatibilityIsEnabled(t *testing.T) {
+	directory := t.TempDir()
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nX-Test-ID: existing-123\r\n\r\nbody")
+	if err := os.WriteFile(filepath.Join(directory, "existing.eml"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServer(1025, "localhost", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	stored, err := server.GetEmail("existing")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("default-off loaded headers = %#v, %v", stored, err)
+	}
+	server.SetRetainAllHeaders(true)
+	stored, err = server.GetEmail("existing")
+	if err != nil || stored.AllHeaders["x-test-id"] != "existing-123" {
+		t.Fatalf("backfilled headers = %#v, %v", stored, err)
+	}
+}
+
 func TestMailStoreConcurrentSnapshotsAndMutations(t *testing.T) {
 	server, err := NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
@@ -1410,11 +1469,14 @@ func TestParseEmailWithSimpleText(t *testing.T) {
 			t.Errorf("Failed to close server: %v", err)
 		}
 	}()
+	server.SetRetainAllHeaders(true)
 
 	// Create simple text email
 	emailContent := []byte("From: from@example.com\r\n" +
 		"To: to@example.com\r\n" +
 		"Subject: Simple Text Email\r\n" +
+		"X-Test-ID: first\r\n" +
+		"X-Test-ID: second\r\n" +
 		"Date: Mon, 02 Jan 2006 15:04:05 -0700\r\n" +
 		"Content-Type: text/plain\r\n" +
 		"\r\n" +
@@ -1442,6 +1504,13 @@ func TestParseEmailWithSimpleText(t *testing.T) {
 	}
 	if email.Text == "" {
 		t.Error("Text body should not be empty")
+	}
+	custom, ok := email.AllHeaders["x-test-id"].([]string)
+	if !ok || len(custom) != 2 || custom[0] != "first" || custom[1] != "second" {
+		t.Fatalf("complete custom headers = %#v", email.AllHeaders)
+	}
+	if _, leaked := email.Headers["X-Test-ID"]; leaked {
+		t.Fatalf("custom header changed native header projection: %#v", email.Headers)
 	}
 }
 

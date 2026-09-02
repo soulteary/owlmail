@@ -1,6 +1,8 @@
 package mailserver
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -147,6 +149,31 @@ func TestRelayMailTo(t *testing.T) {
 	})
 	// Error is expected in test environment, but we just want to verify it doesn't panic
 	_ = err
+}
+
+func TestWaitRelayResultHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := waitRelayResult(ctx, make(chan error))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitRelayResult() error = %v, want context cancellation", err)
+	}
+}
+
+func TestRelayMailAndWaitPropagatesCancellationToOutgoingTask(t *testing.T) {
+	server, err := NewMailServerWithOutgoing(1025, "localhost", t.TempDir(), &outgoing.OutgoingConfig{
+		Host: "smtp.example.test", Port: 25,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = server.RelayMailAndWait(ctx, &Email{ID: "canceled"}, "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RelayMailAndWait() error = %v, want context cancellation", err)
+	}
 }
 
 func TestSetOutgoingConfigUpdate(t *testing.T) {

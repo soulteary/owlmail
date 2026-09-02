@@ -32,6 +32,9 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 
 func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata, finalizeRollbackFence bool) error {
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
+	if !ms.retainAllHeaders.Load() {
+		parsedEmail.AllHeaders = nil
+	}
 
 	parsedEmail.ID = id
 	// Only set time if not already set (from header parsing)
@@ -526,6 +529,79 @@ func (ms *MailServer) parseEmail(id string, r io.Reader, s *Session, saveAttachm
 	return email, nil
 }
 
+func collectAllHeaders(headers mail.Header) map[string]interface{} {
+	grouped := make(map[string][]string)
+	fields := headers.Fields()
+	for fields.Next() {
+		key := strings.ToLower(fields.Key())
+		grouped[key] = append(grouped[key], fields.Value())
+	}
+	result := make(map[string]interface{}, len(grouped))
+	for key, values := range grouped {
+		if len(values) == 1 {
+			result[key] = values[0]
+		} else {
+			result[key] = values
+		}
+	}
+	return result
+}
+
+// SetRetainAllHeaders controls the complete header projection used only by
+// optional compatibility APIs. Disabling it also releases any retained maps.
+// Callers should configure it before the SMTP server starts receiving mail.
+func (ms *MailServer) SetRetainAllHeaders(enabled bool) {
+	wasEnabled := ms.retainAllHeaders.Swap(enabled)
+	if enabled {
+		if !wasEnabled {
+			ms.backfillAllHeaders()
+		}
+		return
+	}
+	ms.storeMutex.Lock()
+	defer ms.storeMutex.Unlock()
+	for _, email := range ms.storeByID {
+		email.AllHeaders = nil
+	}
+}
+
+func (ms *MailServer) backfillAllHeaders() {
+	ms.storeMutex.RLock()
+	ids := make([]string, 0, len(ms.storeOrder))
+	for _, id := range ms.storeOrder {
+		if email, exists := ms.storeByID[id]; exists && len(email.AllHeaders) == 0 {
+			ids = append(ids, id)
+		}
+	}
+	ms.storeMutex.RUnlock()
+
+	for _, id := range ids {
+		file, err := os.Open(filepath.Join(ms.mailDir, id+".eml"))
+		if err != nil {
+			common.Verbose("Failed to backfill headers for %s: %v", id, err)
+			continue
+		}
+		msg, readErr := message.Read(file)
+		closeErr := file.Close()
+		if readErr != nil {
+			common.Verbose("Failed to parse headers for %s: %v", id, readErr)
+			continue
+		}
+		if closeErr != nil {
+			common.Verbose("Failed to close email while backfilling headers for %s: %v", id, closeErr)
+		}
+		allHeaders := collectAllHeaders(mail.Header{Header: msg.Header})
+
+		ms.storeMutex.Lock()
+		if ms.retainAllHeaders.Load() {
+			if email, exists := ms.storeByID[id]; exists && len(email.AllHeaders) == 0 {
+				email.AllHeaders = allHeaders
+			}
+		}
+		ms.storeMutex.Unlock()
+	}
+}
+
 // parseEmailMessage parses a message without publishing it to the in-memory
 // store. This separation lets SMTP DATA finish all durable filesystem work
 // before the new-email event becomes visible.
@@ -544,6 +620,9 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	// Extract headers
 	// Wrap in mail.Header to get decoding support
 	headers := mail.Header{Header: msg.Header}
+	if ms.retainAllHeaders.Load() {
+		email.AllHeaders = collectAllHeaders(headers)
+	}
 
 	// Parse all headers into Headers map
 	// Common headers to parse
@@ -562,9 +641,6 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 			}
 		}
 	}
-	// Note: Additional custom headers can be added here if needed
-	// For now, we parse the most common headers listed above
-
 	// Parse date from headers
 	if email.Time, err = headers.Date(); err != nil {
 		email.Time = parseEmailDate(headers.Header)
@@ -628,9 +704,10 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 					}
 
 					attachment := &Attachment{
-						ContentType: partMediaType,
-						FileName:    filename,
-						ContentID:   contentID,
+						ContentType:        partMediaType,
+						ContentDisposition: disposition,
+						FileName:           filename,
+						ContentID:          contentID,
 					}
 
 					if saveAttachments {
