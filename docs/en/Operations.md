@@ -229,13 +229,15 @@ duplicate or unreferenced candidates, and stops the whole run instead of
 guessing when a mapping is ambiguous. Version 1/2 sidecars are upgraded to
 version 3 only after their MIME attachment order and the available local or
 remote content verify exactly. The EML, mailbox index, read state, and sequence
-are never rewritten.
+are never rewritten. Dry runs perform read-only size and SHA-256 verification
+for attachments already recorded in S3 and for remote-only recovery candidates;
+missing or corrupted remote objects make the dry run fail without writing data.
 
 Each object upload is streamed, reopened from S3, and checked for exact size
 and SHA-256 before the sidecar is atomically updated. Only then may
 `-delete-local` remove that one local file. The default is three retries after
 the first attempt, with a five-minute deadline per attempt; customize these
-with `-retries`, `-migration-attempt-timeout`, and
+with `-retries` (from 0 to 100), `-migration-attempt-timeout`, and
 `-migration-retry-delay`. Progress is printed per attachment and the final
 `summary` line is JSON.
 

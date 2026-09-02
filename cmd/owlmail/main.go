@@ -209,7 +209,7 @@ func runAttachmentMigration(ctx context.Context, args []string, stdout, stderr i
 	refs := config.DefineFlags(fs)
 	dryRun := fs.Bool("dry-run", false, "Validate and report migration work without remote or local writes")
 	deleteLocal := fs.Bool("delete-local", false, "Delete each local attachment only after verified upload and metadata commit")
-	retries := fs.Int("retries", defaultAttachmentMigrationRetries, "Retry count after the initial attempt for each attachment")
+	retries := fs.Int("retries", defaultAttachmentMigrationRetries, "Retry count from 0 to 100 after the initial attempt for each attachment")
 	attemptTimeout := fs.Duration("migration-attempt-timeout", defaultAttachmentMigrationTimeout, "Timeout for each upload and verification attempt")
 	retryDelay := fs.Duration("migration-retry-delay", defaultAttachmentMigrationRetryDelay, "Delay between migration attempts")
 	if err := fs.Parse(args); err != nil {

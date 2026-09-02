@@ -9,9 +9,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 ### Added
 
 - An idempotent `migrate-attachments` offline command for resumable local-to-S3
-  attachment migration, with dry-run planning, bounded retries, per-attachment
-  progress, exact filename/size/SHA-256 verification, atomic metadata commits,
-  and opt-in local deletion after remote verification.
+  attachment migration, with dry-run planning and read-only remote validation,
+  bounded retries, per-attachment progress, exact filename/size/SHA-256
+  verification, atomic metadata commits, and opt-in local deletion after remote
+  verification.
 - Responsive HTML email preview width presets for 100%, 1440, 1024, 768,
   425, 375, and 320 px without reloading the message or replacing its secure
   iframe.

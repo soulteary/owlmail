@@ -316,6 +316,111 @@ func TestAttachmentMigrationDryRunDoesNotWrite(t *testing.T) {
 	}
 }
 
+func TestAttachmentMigrationDryRunVerifiesRemoteAttachments(t *testing.T) {
+	tests := []struct {
+		name          string
+		markMigrated  bool
+		remoteContent string
+		wantError     string
+		wantPlanned   int
+	}{
+		{name: "migrated object is valid", markMigrated: true, remoteContent: "valid"},
+		{name: "recovery candidate is valid", remoteContent: "valid", wantPlanned: 1},
+		{name: "migrated object is missing", markMigrated: true, remoteContent: "missing", wantError: "object not found"},
+		{name: "migrated object checksum fails", markMigrated: true, remoteContent: "corrupt", wantError: "SHA-256 mismatch"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			directory := t.TempDir()
+			filename, path := createLocalMigrationMessage(t, directory, "dry-run-remote", multipartMessage())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			metadata := migrationMetadata(t, directory, "dry-run-remote")
+			if test.markMigrated {
+				metadata.Attachments[0].Storage = attachmentStorageS3
+				if err := persistMigrationMetadata(directory, metadata); err != nil {
+					t.Fatal(err)
+				}
+			}
+			metadataPath := filepath.Join(directory, metadataDirectoryName, "dry-run-remote.json")
+			before, err := os.ReadFile(metadataPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+				t.Fatal(err)
+			}
+
+			store := newMigrationFakeStore()
+			key := "dry-run-remote/" + filename
+			switch test.remoteContent {
+			case "valid":
+				store.objects[key] = data
+			case "corrupt":
+				corrupted := append([]byte(nil), data...)
+				corrupted[0] ^= 0xff
+				store.objects[key] = corrupted
+			}
+			options := migrationTestOptions()
+			options.DryRun = true
+			summary, migrationErr := MigrateLocalAttachments(context.Background(), directory, store, options)
+			if test.wantError == "" {
+				if migrationErr != nil {
+					t.Fatal(migrationErr)
+				}
+				if summary.AlreadyMigrated != 1 || summary.Verified != 1 || summary.Failed != 0 || summary.Planned != test.wantPlanned {
+					t.Fatalf("dry-run summary = %#v", summary)
+				}
+			} else {
+				if migrationErr == nil || !strings.Contains(migrationErr.Error(), test.wantError) {
+					t.Fatalf("dry-run error = %v, want %q", migrationErr, test.wantError)
+				}
+				if summary.AlreadyMigrated != 0 || summary.Verified != 0 || summary.Failed != 1 {
+					t.Fatalf("failed dry-run summary = %#v", summary)
+				}
+			}
+			if store.openCalls[key] != 1 || len(store.putCalls) != 0 {
+				t.Fatalf("dry-run store calls: open=%#v put=%#v", store.openCalls, store.putCalls)
+			}
+			after, err := os.ReadFile(metadataPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(before, after) {
+				t.Fatal("dry-run changed metadata")
+			}
+		})
+	}
+}
+
+func TestAttachmentMigrationRejectsRetryCountOverflow(t *testing.T) {
+	directory := t.TempDir()
+	_, path := createLocalMigrationMessage(t, directory, "retry-overflow", multipartMessage())
+	store := newMigrationFakeStore()
+	options := migrationTestOptions()
+	options.DeleteLocal = true
+	options.Retries = int(^uint(0) >> 1)
+
+	summary, err := MigrateLocalAttachments(context.Background(), directory, store, options)
+	if err == nil || !strings.Contains(err.Error(), "migration retries cannot exceed") {
+		t.Fatalf("migration error = %v", err)
+	}
+	if summary != (AttachmentMigrationSummary{}) {
+		t.Fatalf("summary = %#v, want zero value", summary)
+	}
+	if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+		t.Fatalf("invalid retry count used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+	}
+	if got := migrationMetadata(t, directory, "retry-overflow").Attachments[0].Storage; got != attachmentStorageLocal {
+		t.Fatalf("storage = %q, want local", got)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("invalid retry count removed local source: %v", err)
+	}
+}
+
 func TestAttachmentMigrationRejectsChecksumMismatchBeforeUpload(t *testing.T) {
 	directory := t.TempDir()
 	_, path := createLocalMigrationMessage(t, directory, "checksum", multipartMessage())

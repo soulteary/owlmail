@@ -16,7 +16,10 @@ import (
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 )
 
-const attachmentMigrationCopyBufferSize = 32 * 1024
+const (
+	attachmentMigrationCopyBufferSize = 32 * 1024
+	maxAttachmentMigrationRetries     = 100
+)
 
 // AttachmentMigrationOptions configures the offline local-to-S3 migration.
 // Retries is the number of attempts after the initial attempt.
@@ -90,6 +93,9 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 	if options.Retries < 0 {
 		return summary, fmt.Errorf("migration retries cannot be negative")
 	}
+	if options.Retries > maxAttachmentMigrationRetries {
+		return summary, fmt.Errorf("migration retries cannot exceed %d", maxAttachmentMigrationRetries)
+	}
 	if options.AttemptTimeout <= 0 {
 		return summary, fmt.Errorf("migration attempt timeout must be positive")
 	}
@@ -101,30 +107,44 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 	if err != nil {
 		return summary, err
 	}
+	var migrationErrors []error
 	for _, plan := range plans {
 		summary.EmailsScanned++
 		summary.AttachmentsScanned += len(plan.attachments)
 		for _, item := range plan.attachments {
-			if plan.metadata.Attachments[item.index].Storage != attachmentStorageS3 {
+			alreadyMigrated := plan.metadata.Attachments[item.index].Storage == attachmentStorageS3
+			if !alreadyMigrated {
 				summary.Planned++
 			}
-			if options.DryRun {
-				status := "planned"
-				if plan.metadata.Attachments[item.index].Storage == attachmentStorageS3 {
-					status = "already-migrated"
-					summary.AlreadyMigrated++
-				} else if !item.localExists {
-					status = "remote-verification-needed"
-				}
-				reportAttachmentMigration(options, item, plan.emailID, status, 0, nil)
+			if !options.DryRun {
+				continue
 			}
+			if !alreadyMigrated && item.localExists {
+				reportAttachmentMigration(options, item, plan.emailID, "planned", 0, nil)
+				continue
+			}
+
+			attempts, verifyErr := retryAttachmentMigration(ctx, options, item, plan.emailID, false, store)
+			summary.RetryAttempts += attempts - 1
+			if verifyErr != nil {
+				summary.Failed++
+				migrationErrors = append(migrationErrors, fmt.Errorf("dry-run verify remote attachment %s/%s: %w", plan.emailID, item.filename, verifyErr))
+				reportAttachmentMigration(options, item, plan.emailID, "failed", attempts, verifyErr)
+				continue
+			}
+			summary.AlreadyMigrated++
+			summary.Verified++
+			status := "remote-verified"
+			if alreadyMigrated {
+				status = "already-migrated"
+			}
+			reportAttachmentMigration(options, item, plan.emailID, status, attempts, nil)
 		}
 	}
 	if options.DryRun {
-		return summary, nil
+		return summary, errors.Join(migrationErrors...)
 	}
 
-	var migrationErrors []error
 	for planIndex := range plans {
 		plan := &plans[planIndex]
 		for itemIndex := range plan.attachments {
