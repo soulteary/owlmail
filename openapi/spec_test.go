@@ -56,6 +56,7 @@ func TestDocumentsParseAndStayEquivalent(t *testing.T) {
 	}
 
 	validateDocumentShape(t, parsedJSON)
+	validateQuerySemantics(t, parsedJSON)
 	validateLocalReferences(t, parsedJSON, parsedJSON)
 }
 
@@ -120,6 +121,22 @@ func validateDocumentShape(t *testing.T, document map[string]any) {
 			if responses, ok := operation["responses"].(map[string]any); !ok || len(responses) == 0 {
 				t.Errorf("%s %s has no responses", method, path)
 			}
+		}
+	}
+}
+
+func validateQuerySemantics(t *testing.T, document map[string]any) {
+	t.Helper()
+	components := document["components"].(map[string]any)
+	parameters := components["parameters"].(map[string]any)
+	wants := map[string]string{
+		"DateTo": "Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values are ignored.",
+		"SortBy": "Sort key. When omitted, results are sorted newest-first. Unsupported non-empty values preserve mailbox order.",
+	}
+	for name, want := range wants {
+		parameter := parameters[name].(map[string]any)
+		if got := parameter["description"]; got != want {
+			t.Errorf("%s description = %q, want %q", name, got, want)
 		}
 	}
 }

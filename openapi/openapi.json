@@ -1520,7 +1520,7 @@
       "DateTo": {
         "name": "dateTo",
         "in": "query",
-        "description": "Inclusive UTC-naive calendar date upper boundary. Invalid values are ignored.",
+        "description": "Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values are ignored.",
         "schema": {
           "type": "string",
           "format": "date"
@@ -1539,7 +1539,7 @@
       "SortBy": {
         "name": "sortBy",
         "in": "query",
-        "description": "Sort key. When omitted or unsupported, mailbox order is preserved.",
+        "description": "Sort key. When omitted, results are sorted newest-first. Unsupported non-empty values preserve mailbox order.",
         "schema": {
           "type": "string",
           "enum": [
