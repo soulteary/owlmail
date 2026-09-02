@@ -65,6 +65,13 @@ func TestPrometheusMetricsAreOptIn(t *testing.T) {
 	}
 }
 
+func TestPrometheusMetricsUseProcessStartTime(t *testing.T) {
+	metrics := newPrometheusMetrics()
+	if !metrics.startedAt.Equal(processStartedAt) {
+		t.Fatalf("metrics start = %v, process start = %v", metrics.startedAt, processStartedAt)
+	}
+}
+
 func TestPrometheusMetricsCountMessagesStoredBeforeAPI(t *testing.T) {
 	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {

@@ -9,12 +9,14 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
+var processStartedAt = time.Now()
+
 type prometheusMetrics struct {
 	startedAt time.Time
 }
 
 func newPrometheusMetrics() *prometheusMetrics {
-	return &prometheusMetrics{startedAt: time.Now()}
+	return &prometheusMetrics{startedAt: processStartedAt}
 }
 
 func (api *API) prometheusMetrics(c fiber.Ctx) error {
