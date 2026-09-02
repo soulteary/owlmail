@@ -43,7 +43,12 @@ func (ms *MailServer) Listen() error {
 	if ms.authRequired() {
 		common.Log("SMTP AUTH required (PLAIN/LOGIN)")
 	} else {
-		common.Log("SMTP NO AUTH mode enabled (unauthenticated delivery and arbitrary PLAIN/LOGIN credentials accepted)")
+		common.Log("SMTP NO AUTH mode enabled (unauthenticated delivery accepted)")
+	}
+	if ms.authRequireTLS {
+		common.Log("SMTP AUTH restricted to TLS connections")
+	} else if !ms.authRequired() {
+		common.Log("Arbitrary PLAIN/LOGIN credentials accepted for development clients")
 	}
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
 		common.Log("SMTP TLS/STARTTLS enabled")

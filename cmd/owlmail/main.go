@@ -427,6 +427,9 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Setup TLS config
 	tlsConfig := setupTLSConfig(cfg)
+	if cfg.SMTPAuthRequireTLS && tlsConfig == nil {
+		return nil, fmt.Errorf("SMTP AUTH cannot require TLS without an enabled TLS configuration")
+	}
 	attachmentStore, err := setupAttachmentStore(cfg)
 	if err != nil {
 		return nil, err
@@ -447,6 +450,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
 		OutgoingConfig:  outgoingConfig,
 		AuthConfig:      authConfig,
+		AuthRequireTLS:  cfg.SMTPAuthRequireTLS,
 		TLSConfig:       tlsConfig,
 		UseUUIDForID:    cfg.UseUUIDForEmailID,
 		MaxMessageBytes: int64(maxMessageMB) << 20,

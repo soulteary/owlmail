@@ -54,6 +54,7 @@ type TLSConfig struct {
 type ServerOptions struct {
 	OutgoingConfig  *outgoing.OutgoingConfig
 	AuthConfig      *SMTPAuthConfig
+	AuthRequireTLS  bool
 	TLSConfig       *TLSConfig
 	UseUUIDForID    bool
 	MaxMessageBytes int64
@@ -104,6 +105,7 @@ type MailServer struct {
 	}
 	authConfig          *SMTPAuthConfig
 	authVerifier        *credentialVerifier
+	authRequireTLS      bool
 	tlsConfig           *TLSConfig
 	useUUIDForID        bool
 	storagePolicy       StoragePolicy
@@ -146,6 +148,12 @@ func (ms *MailServer) GetMailDir() string {
 // GetAuthConfig returns the SMTP authentication configuration
 func (ms *MailServer) GetAuthConfig() *SMTPAuthConfig {
 	return ms.authConfig
+}
+
+// GetAuthRequireTLS reports whether SMTP AUTH is restricted to encrypted
+// connections. Anonymous delivery in NO AUTH mode is unaffected.
+func (ms *MailServer) GetAuthRequireTLS() bool {
+	return ms.authRequireTLS
 }
 
 // GetTLSConfig returns the TLS configuration

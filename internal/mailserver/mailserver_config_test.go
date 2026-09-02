@@ -2,6 +2,7 @@ package mailserver
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -69,6 +70,18 @@ func TestNewMailServerWithCustomMessageLimit(t *testing.T) {
 	}
 	if server.smtpsServer == nil || server.smtpsServer.MaxMessageBytes != limit {
 		t.Fatalf("SMTPS MaxMessageBytes was not configured: %#v", server.smtpsServer)
+	}
+}
+
+func TestNewMailServerRejectsAuthRequireTLSWithoutTLS(t *testing.T) {
+	for _, tlsConfig := range []*TLSConfig{nil, {Enabled: false}} {
+		_, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{
+			AuthRequireTLS: true,
+			TLSConfig:      tlsConfig,
+		})
+		if err == nil || !strings.Contains(err.Error(), "SMTP AUTH cannot require TLS") {
+			t.Fatalf("TLS config %#v error = %v, want clear configuration error", tlsConfig, err)
+		}
 	}
 }
 

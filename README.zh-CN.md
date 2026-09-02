@@ -250,6 +250,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Webhook 优雅排空截止时间 |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 入站 SMTP 用户名；与密码同时配置后强制 AUTH |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 入站 SMTP 密码；与用户名同时配置后强制 AUTH |
+| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | TLS 建立前拒绝 PLAIN/LOGIN；必须同时启用 SMTP TLS |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
@@ -531,6 +532,12 @@ Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义�
 
 同时配置两项后启用真正的强制 SMTP AUTH。未认证事务会收到 `530 5.7.0`，错误
 凭据会收到 `535 5.7.8`。只配置其中一项时启动失败，不会静默回退到 NO AUTH。
+
+若希望保留默认开发体验，同时避免凭据经过明文连接，可在启用 SMTP TLS 的同时
+设置 `-smtp-auth-require-tls`（或 `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`）。此时
+明文 SMTP 既不会声明也不会接受 PLAIN/LOGIN；STARTTLS 后及 SMTPS 连接仍可正常
+认证。NO AUTH 模式下的匿名投递不受影响。开启此选项但没有启用且可用的 SMTP TLS
+配置时，服务会直接启动失败。
 
 > [!WARNING]
 > NO AUTH 有意不提供访问控制；为兼容开发环境，PLAIN/LOGIN 也允许在未启用 TLS

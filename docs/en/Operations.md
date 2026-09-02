@@ -242,6 +242,13 @@ setup. Setting both values requires SMTP AUTH: unauthenticated transactions are
 rejected with `530 5.7.0`, and invalid credentials with `535 5.7.8`. Supplying
 only one value fails startup.
 
+For deployments that must not expose authentication payloads on a cleartext
+connection, set `-smtp-auth-require-tls` or
+`OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true` and enable SMTP TLS. The plaintext listener
+then rejects PLAIN/LOGIN, while both STARTTLS sessions and direct SMTPS accept
+AUTH. NO AUTH still permits anonymous delivery. Enabling the policy without an
+enabled TLS configuration fails startup before a listener is opened.
+
 > [!WARNING]
 > NO AUTH is intentionally open. OwlMail also permits PLAIN/LOGIN on a
 > non-TLS connection for development compatibility. Keep the listener on a

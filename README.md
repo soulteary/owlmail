@@ -257,6 +257,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Inbound SMTP username; configure together with the password to require AUTH |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Inbound SMTP password; configure together with the username to require AUTH |
+| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | Reject PLAIN/LOGIN before TLS; requires SMTP TLS to be enabled |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -550,6 +551,13 @@ Configure both values to require real SMTP AUTH. OwlMail rejects a transaction
 before authentication with `530 5.7.0` and rejects invalid credentials with
 `535 5.7.8`. Configuring only one value fails startup instead of silently
 falling back to NO AUTH.
+
+Set `-smtp-auth-require-tls` (or `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`) together
+with SMTP TLS to prevent credentials from crossing a cleartext connection.
+Plaintext SMTP then neither advertises nor accepts PLAIN/LOGIN, while AUTH works
+after STARTTLS and over SMTPS. Anonymous delivery remains available in NO AUTH
+mode. Enabling this option without an enabled, usable SMTP TLS configuration
+fails startup.
 
 > [!WARNING]
 > NO AUTH deliberately provides no access-control boundary. PLAIN and LOGIN can

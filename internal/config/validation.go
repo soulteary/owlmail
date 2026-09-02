@@ -40,6 +40,9 @@ func ValidateConfig(cfg *Config) error {
 	if (cfg.SMTPUser == "") != (cfg.SMTPPassword == "") {
 		return fmt.Errorf("SMTP username and password must be configured together")
 	}
+	if cfg.SMTPAuthRequireTLS && !cfg.TLSEnabled {
+		return fmt.Errorf("SMTP AUTH cannot require TLS unless SMTP TLS is enabled")
+	}
 	if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 		return fmt.Errorf("web external scheme must be http or https")
 	}

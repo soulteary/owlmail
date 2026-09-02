@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -171,6 +172,21 @@ func TestValidateConfig(t *testing.T) {
 		cfg.SMTPUser = "user"
 		if err := ValidateConfig(cfg); err != nil {
 			t.Fatalf("complete SMTP credentials should be valid: %v", err)
+		}
+	})
+
+	t.Run("SMTP AUTH requires TLS without SMTP TLS", func(t *testing.T) {
+		cfg := DefaultConfig()
+		cfg.SMTPAuthRequireTLS = true
+		if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "SMTP AUTH cannot require TLS") {
+			t.Fatalf("ValidateConfig() error = %v, want clear SMTP AUTH TLS configuration error", err)
+		}
+
+		cfg.TLSEnabled = true
+		cfg.TLSCertFile = "/path/to/cert.pem"
+		cfg.TLSKeyFile = "/path/to/key.pem"
+		if err := ValidateConfig(cfg); err != nil {
+			t.Fatalf("ValidateConfig() with SMTP TLS enabled error = %v", err)
 		}
 	})
 

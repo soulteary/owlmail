@@ -233,6 +233,7 @@ docker buildx build \
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 인바운드 SMTP 사용자 이름; 비밀번호와 함께 설정하면 AUTH 필수 |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 인바운드 SMTP 비밀번호; 사용자 이름과 함께 설정하면 AUTH 필수 |
+| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | TLS 전 PLAIN/LOGIN 거부; SMTP TLS 활성화 필요 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -470,6 +471,13 @@ EOF
 사용됩니다. 인증 없는 전송과 함께 SMTP 자격 증명을 요구하는 애플리케이션을 위해
 임의의 PLAIN/LOGIN 자격 증명도 허용합니다. 두 값을 모두 설정하면 SMTP AUTH가
 필수가 됩니다. 하나만 설정하면 NO AUTH로 조용히 돌아가지 않고 시작에 실패합니다.
+
+자격 증명이 평문 연결을 통과하지 않도록 하려면 SMTP TLS와 함께
+`-smtp-auth-require-tls`(또는 `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`)를
+활성화하세요. 평문 SMTP는 PLAIN/LOGIN을 광고하거나 허용하지 않지만 STARTTLS 후와
+SMTPS에서는 AUTH가 정상 작동합니다. NO AUTH 모드의 익명 전송은 그대로 유지됩니다.
+활성화되고 사용 가능한 SMTP TLS 설정이 없으면 이 옵션을 켠 상태로 시작할 수
+없습니다.
 
 > [!WARNING]
 > NO AUTH는 의도적으로 접근 제어를 제공하지 않습니다. 개발 호환성을 위해

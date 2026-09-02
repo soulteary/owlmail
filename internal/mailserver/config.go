@@ -42,6 +42,9 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.AuthRequireTLS && (options.TLSConfig == nil || !options.TLSConfig.Enabled) {
+		return nil, fmt.Errorf("SMTP AUTH cannot require TLS without an enabled TLS configuration")
+	}
 	if options.AuthConfig != nil && options.AuthConfig.Enabled && (options.AuthConfig.Username == "" || options.AuthConfig.Password == "") {
 		return nil, fmt.Errorf("SMTP username and password are both required when authentication is enabled")
 	}
@@ -88,6 +91,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		listeners:               make(map[string][]eventListener),
 		authConfig:              options.AuthConfig,
 		authVerifier:            authVerifier,
+		authRequireTLS:          options.AuthRequireTLS,
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
@@ -125,10 +129,9 @@ func (ms *MailServer) setupSMTPServer() error {
 	s.MaxMessageBytes = ms.maxMessageBytes
 	s.MaxRecipients = 50
 
-	// OwlMail is a development SMTP server. PLAIN and LOGIN must remain usable
-	// without TLS for local testing; deployments that carry real credentials
-	// should enable TLS or isolate the listener.
-	s.AllowInsecureAuth = true
+	// Preserve the development-friendly default while allowing deployments to
+	// require an encrypted transport before PLAIN or LOGIN is accepted.
+	s.AllowInsecureAuth = !ms.authRequireTLS
 
 	// Configure TLS for STARTTLS
 	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
@@ -165,7 +168,7 @@ func (ms *MailServer) setupSMTPServer() error {
 		smtps.MaxMessageBytes = ms.maxMessageBytes
 		smtps.MaxRecipients = 50
 
-		smtps.AllowInsecureAuth = true
+		smtps.AllowInsecureAuth = !ms.authRequireTLS
 
 		// Use same TLS config
 		smtps.TLSConfig = s.TLSConfig

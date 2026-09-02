@@ -3,6 +3,7 @@ package mailserver
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/tls"
 	"errors"
 	"net"
 	"strings"
@@ -192,6 +193,103 @@ func TestSMTPAuthRequiredMode(t *testing.T) {
 	}
 }
 
+func TestSMTPAuthRequireTLSRejectsPlaintext(t *testing.T) {
+	authConfig := &SMTPAuthConfig{Enabled: true, Username: "user", Password: "pass"}
+	_, address := startSMTPAuthTLSTestServer(t, authConfig, false)
+
+	for name, authClient := range map[string]sasl.Client{
+		"PLAIN": sasl.NewPlainClient("", "user", "pass"),
+		"LOGIN": sasl.NewLoginClient("user", "pass"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			client := dialSMTPTestClient(t, address)
+			defer func() { _ = client.Close() }()
+			if client.SupportsAuth(name) {
+				t.Fatalf("plaintext connection advertised AUTH %s", name)
+			}
+			if err := client.Auth(authClient); err == nil {
+				t.Fatalf("plaintext AUTH %s succeeded", name)
+			}
+		})
+	}
+}
+
+func TestSMTPAuthRequireTLSAllowsSTARTTLS(t *testing.T) {
+	authConfig := &SMTPAuthConfig{Enabled: true, Username: "user", Password: "pass"}
+	server, address := startSMTPAuthTLSTestServer(t, authConfig, false)
+
+	for name, authClient := range map[string]sasl.Client{
+		"PLAIN": sasl.NewPlainClient("", "user", "pass"),
+		"LOGIN": sasl.NewLoginClient("user", "pass"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, err := smtp.DialStartTLS(address, insecureSMTPTestTLSConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = client.Close() }()
+			if !client.SupportsAuth(name) {
+				t.Fatalf("STARTTLS connection did not advertise AUTH %s", name)
+			}
+			if err := client.Auth(authClient); err != nil {
+				t.Fatalf("STARTTLS AUTH %s failed: %v", name, err)
+			}
+			sendSMTPTestMessage(t, client, strings.ToLower(name)+"-starttls@example.test")
+			quitSMTPTestClient(t, client)
+		})
+	}
+
+	if got := len(server.GetAllEmail()); got != 2 {
+		t.Fatalf("stored STARTTLS messages = %d, want 2", got)
+	}
+}
+
+func TestSMTPAuthRequireTLSAllowsSMTPS(t *testing.T) {
+	authConfig := &SMTPAuthConfig{Enabled: true, Username: "user", Password: "pass"}
+	server, address := startSMTPAuthTLSTestServer(t, authConfig, true)
+
+	for name, authClient := range map[string]sasl.Client{
+		"PLAIN": sasl.NewPlainClient("", "user", "pass"),
+		"LOGIN": sasl.NewLoginClient("user", "pass"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			client, err := smtp.DialTLS(address, insecureSMTPTestTLSConfig())
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = client.Close() }()
+			if !client.SupportsAuth(name) {
+				t.Fatalf("SMTPS connection did not advertise AUTH %s", name)
+			}
+			if err := client.Auth(authClient); err != nil {
+				t.Fatalf("SMTPS AUTH %s failed: %v", name, err)
+			}
+			sendSMTPTestMessage(t, client, strings.ToLower(name)+"-smtps@example.test")
+			quitSMTPTestClient(t, client)
+		})
+	}
+
+	if got := len(server.GetAllEmail()); got != 2 {
+		t.Fatalf("stored SMTPS messages = %d, want 2", got)
+	}
+}
+
+func TestSMTPAuthRequireTLSKeepsNoAuthAnonymousDelivery(t *testing.T) {
+	server, address := startSMTPAuthTLSTestServer(t, nil, false)
+	client := dialSMTPTestClient(t, address)
+	defer func() { _ = client.Close() }()
+
+	if client.SupportsAuth(sasl.Plain) || client.SupportsAuth(sasl.Login) {
+		t.Fatal("plaintext NO AUTH connection advertised AUTH while TLS was required")
+	}
+	sendSMTPTestMessage(t, client, "anonymous@example.test")
+	quitSMTPTestClient(t, client)
+
+	if got := len(server.GetAllEmail()); got != 1 {
+		t.Fatalf("stored anonymous messages = %d, want 1", got)
+	}
+}
+
 func startSMTPAuthTestServer(t *testing.T, authConfig *SMTPAuthConfig) (*MailServer, string) {
 	t.Helper()
 	server, err := NewMailServerWithConfig(1025, "127.0.0.1", t.TempDir(), nil, authConfig, nil)
@@ -216,6 +314,49 @@ func startSMTPAuthTestServer(t *testing.T, authConfig *SMTPAuthConfig) (*MailSer
 		}
 	})
 	return server, listener.Addr().String()
+}
+
+func startSMTPAuthTLSTestServer(t *testing.T, authConfig *SMTPAuthConfig, implicitTLS bool) (*MailServer, string) {
+	t.Helper()
+	server, err := NewMailServerWithOptions(1025, "127.0.0.1", t.TempDir(), ServerOptions{
+		AuthConfig:     authConfig,
+		AuthRequireTLS: true,
+		TLSConfig:      &TLSConfig{Enabled: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawListener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		_ = server.Close()
+		t.Fatal(err)
+	}
+	listener := net.Listener(rawListener)
+	serve := server.smtpServer
+	if implicitTLS {
+		serve = server.smtpsServer
+		listener = tls.NewListener(rawListener, serve.TLSConfig)
+	}
+	done := make(chan error, 1)
+	go func() {
+		done <- serve.Serve(listener)
+	}()
+	t.Cleanup(func() {
+		_ = server.Close()
+		select {
+		case <-done:
+		case <-time.After(2 * time.Second):
+			t.Error("SMTP TLS test server did not stop")
+		}
+	})
+	return server, rawListener.Addr().String()
+}
+
+func insecureSMTPTestTLSConfig() *tls.Config {
+	return &tls.Config{
+		// The test server uses a fresh self-signed certificate.
+		InsecureSkipVerify: true, //nolint:gosec
+	}
 }
 
 func dialSMTPTestClient(t *testing.T, address string) *smtp.Client {

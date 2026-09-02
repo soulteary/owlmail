@@ -233,6 +233,7 @@ docker buildx build \
 | `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
 | `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 受信 SMTP ユーザー名。パスワードと同時設定すると AUTH を必須化 |
 | `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 受信 SMTP パスワード。ユーザー名と同時設定すると AUTH を必須化 |
+| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | TLS 確立前の PLAIN/LOGIN を拒否。SMTP TLS の有効化が必要 |
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
@@ -470,6 +471,13 @@ EOF
 AUTH** モードになります。未認証の配送に加え、SMTP 設定を必須とするアプリの
 ために任意の PLAIN/LOGIN 認証情報も受け入れます。両方を設定すると SMTP AUTH
 が必須になります。片方だけの設定は NO AUTH に戻らず、起動エラーになります。
+
+認証情報を平文接続で送信させない場合は、SMTP TLS とともに
+`-smtp-auth-require-tls`（または `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`）を
+有効にします。平文 SMTP では PLAIN/LOGIN を通知せず、受け付けませんが、
+STARTTLS 後および SMTPS では AUTH を利用できます。NO AUTH モードの匿名配送は
+変わりません。有効かつ利用可能な SMTP TLS 設定がない場合、このオプションを
+有効にすると起動に失敗します。
 
 > [!WARNING]
 > NO AUTH は意図的にアクセス制御を提供しません。開発互換性のため

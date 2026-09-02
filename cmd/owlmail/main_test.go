@@ -918,6 +918,13 @@ func TestCreateMailServer(t *testing.T) {
 		t.Fatal("createMailServer() with partial SMTP credentials should fail")
 	}
 
+	requireTLSWithoutTLS := *cfg
+	requireTLSWithoutTLS.MailDir = t.TempDir()
+	requireTLSWithoutTLS.SMTPAuthRequireTLS = true
+	if _, err := createMailServer(&requireTLSWithoutTLS); err == nil || !strings.Contains(err.Error(), "SMTP AUTH cannot require TLS") {
+		t.Fatalf("createMailServer() error = %v, want clear missing SMTP TLS error", err)
+	}
+
 	// Test with invalid outgoing config (invalid rules file)
 	tmpDir5 := t.TempDir()
 	cfg = &config.Config{
