@@ -112,8 +112,10 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `dateFrom` | `YYYY-MM-DD` 格式的包含式起始日期 |
 | `dateTo` | `YYYY-MM-DD` 格式的包含式结束日期 |
 | `read` | `true` 或 `false` |
-| `sortBy` | `time`、`subject`、`from` 或 `size`；省略时默认按时间倒序 |
+| `sortBy` | `time`、`subject`、`from`、`size` 或 `store`；省略时默认按时间倒序 |
 | `sortOrder` | `asc` 或 `desc` |
+
+格式错误、负数、超出范围或未知的查询值会返回 `400`，不再被静默替换为默认值。
 
 导出路由支持相同筛选条件。设置 `ids=id1,id2` 时优先按给定 ID 导出。
 
@@ -141,6 +143,8 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 ```json
 { "ids": ["aB3dEfGh", "550e8400-e29b-41d4-a716-446655440000"] }
 ```
+
+每次批量请求最多接收 1000 个 ID；更大的请求会在修改邮箱前返回 `413`。
 
 ### 单封邮件
 

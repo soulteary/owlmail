@@ -120,8 +120,11 @@ Example error:
 | `dateFrom` | inclusive lower date boundary in `YYYY-MM-DD` form |
 | `dateTo` | inclusive upper date boundary in `YYYY-MM-DD` form |
 | `read` | `true` or `false` |
-| `sortBy` | `time`, `subject`, `from`, or `size`; time descending is the default when omitted |
+| `sortBy` | `time`, `subject`, `from`, `size`, or `store`; time descending is the default when omitted |
 | `sortOrder` | `asc` or `desc` |
+
+Malformed, negative, out-of-range, or unknown query values return `400`
+instead of being silently replaced by defaults.
 
 Export routes accept the same filters. `ids=id1,id2` takes precedence and
 exports only the listed IDs.
@@ -150,6 +153,9 @@ Both batch routes accept:
 ```json
 { "ids": ["aB3dEfGh", "550e8400-e29b-41d4-a716-446655440000"] }
 ```
+
+A batch is limited to 1000 IDs and larger requests return `413` before any
+mailbox mutation occurs.
 
 ### Individual email
 
