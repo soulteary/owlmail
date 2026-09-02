@@ -27,12 +27,36 @@ for stable credentials. Startup fails if that generated password cannot be
 written to stderr, because no recoverable credential would remain. The health
 endpoints remain unauthenticated. When Basic Auth is enabled, browser requests
 carrying an `Origin` header and WebSocket upgrades must come from OwlMail's own
-origin; server-to-server clients that omit `Origin` are accepted. Use HTTPS
-outside a trusted local development machine.
+origin; this same-origin check still applies to the unauthenticated health
+endpoints and can return plain-text `403`. Server-to-server clients that omit
+`Origin` are accepted. Use HTTPS outside a trusted local development machine.
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
 ```
+
+## OpenAPI 3.1 contract
+
+The canonical, version-controlled contract is available as
+[JSON](../../openapi/openapi.json) and [YAML](../../openapi/openapi.yaml).
+The running server exposes the same read-only documents:
+
+```bash
+curl -u admin:secret http://localhost:1080/api/v1/openapi.json
+curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
+```
+
+These contract endpoints follow the normal Basic Auth and browser same-origin
+policy. Only `/api/v1/health` and `/api/v1/ready` are public within the
+versioned API. With `-base-pathname=/owlmail`, use
+`/owlmail/api/v1/openapi.json`; the returned `servers[0].url` is likewise
+`/owlmail/api/v1`.
+
+The contract covers only OwlMail's native `/api/v1` behavior. The unversioned
+MailDev-style compatibility routes are intentionally excluded. CI parses both
+serializations, checks that they are semantically equivalent, resolves every
+local `$ref`, and compares every registered versioned method/path with the
+contract so route additions and removals cannot silently drift.
 
 ## Common conventions
 
@@ -44,7 +68,11 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
   maximum limit is 1000; invalid values fall back to their defaults.
 - Timestamps are JSON-encoded Go `time.Time` values in RFC 3339 form.
 - Successful mutations usually return `code`, `message`, and optional `data`.
-  Errors return an HTTP error status plus `code`, `error`, and `message`.
+  Handler-level API errors return an HTTP error status plus `code`, `error`,
+  and `message`. Basic Auth and browser same-origin middleware reject requests
+  with plain-text `401` or `403` responses before an API handler runs. When
+  installed, the same-origin check runs before Basic Auth, so `403` does not
+  imply that authentication succeeded.
 
 Example collection response:
 
@@ -59,8 +87,8 @@ Example collection response:
       "time": "2026-08-29T12:00:00Z",
       "read": false,
       "subject": "Welcome",
-      "from": [{ "address": "sender@example.com", "name": "Sender" }],
-      "to": [{ "address": "recipient@example.com", "name": "" }]
+      "from": [{ "Address": "sender@example.com", "Name": "Sender" }],
+      "to": [{ "Address": "recipient@example.com", "Name": "" }]
     }
   ]
 }
@@ -96,6 +124,9 @@ Example error:
 Export routes accept the same filters. `ids=id1,id2` takes precedence and
 exports only the listed IDs.
 
+The compact `preview` string is truncated after 200 UTF-8 bytes, rather than
+200 characters, and receives `...` when truncated.
+
 ## Versioned API
 
 ### Email collection
@@ -125,18 +156,20 @@ Both batch routes accept:
 | `GET /api/v1/emails/:id` | full email JSON |
 | `DELETE /api/v1/emails/:id` | delete one email |
 | `PATCH /api/v1/emails/:id/read` | mark one email as read |
-| `GET /api/v1/emails/:id/html` | sanitized HTML, `text/html` |
-| `GET /api/v1/emails/:id/source` | raw RFC 822 source, `text/plain` |
-| `GET /api/v1/emails/:id/raw` | downloadable EML file |
-| `GET /api/v1/emails/:id/attachments/:filename` | one decoded attachment |
+| `GET /api/v1/emails/:id/html` | sanitized HTML, `text/html; charset=utf-8` |
+| `GET /api/v1/emails/:id/source` | raw RFC 822 source, `text/plain; charset=utf-8` |
+| `GET /api/v1/emails/:id/raw` | downloadable EML, `message/rfc822` |
+| `GET /api/v1/emails/:id/attachments/:filename` | decoded bytes using the attachment metadata Content-Type |
 | `POST /api/v1/emails/:id/actions/relay` | relay using the message recipients |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
 
 Relay routes require outgoing SMTP configuration. A success response confirms
-that OwlMail accepted the in-process relay request; it does **not** confirm that
-the downstream SMTP server delivered the message. The API does not
-syntactically validate `relayTo` before queueing it, and downstream failures are
-reported in process logs after the HTTP response.
+that OwlMail received the in-process relay request and attempted to hand it to
+the outgoing worker. It does **not** guarantee that the queue accepted the task
+or that the downstream SMTP server delivered the message. The API does not
+syntactically validate `relayTo` before asynchronous handling; queue saturation
+and later downstream failures are reported only in process logs after the HTTP
+response.
 
 ### Settings and system
 
@@ -150,6 +183,11 @@ reported in process logs after the HTTP response.
 | `GET /api/v1/ready` | unauthenticated cached dependency readiness check |
 | `GET /api/v1/version` | build/version information |
 | `GET /api/v1/ws` | native WebSocket endpoint |
+| `GET /api/v1/openapi.json` | base-path-aware OpenAPI 3.1 JSON contract |
+| `GET /api/v1/openapi.yaml` | base-path-aware OpenAPI 3.1 YAML contract |
+
+Malformed WebSocket upgrade headers or handshake keys return a plain-text
+`400` response before a WebSocket connection is established.
 
 The liveness response is independent of remote storage. Readiness returns
 HTTP `200` only when every enabled dependency is ready and HTTP `503` while the
@@ -193,7 +231,9 @@ development defaults for values that were not injected.
 The outgoing settings body supports `host`, `port`, `user`, `password`,
 `secure`, `autoRelay`, `autoRelayAddr`, `allowRules`, and `denyRules`. `host` is
 required and `port` must be between 1 and 65535. Changes are in memory; they do
-not rewrite the process flags or environment.
+not rewrite the process flags or environment. In PATCH requests, rule lists
+must be arrays when present; use an empty array to clear a list because `null`
+is not an update.
 
 The `smtpAuth` object returned by the settings endpoint is `null` in NO AUTH
 mode and reflects the configured username (never the password) when required

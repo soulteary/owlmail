@@ -22,6 +22,7 @@ in eigenen Verzeichnissen organisiert.
 - **[API-Referenz](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - Endpunkte, Authentifizierung, Antwortformate, WebSocket-Ereignisse und
     dokumentierte MailDev-Unterschiede.
+  - Maschinenlesbar: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
 - **[Betrieb und Fehlerbehebung](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - Bereitstellungsprofile, Persistenz, Sicherheit, TLS, Kapazität und Diagnose.
 - **[Sendmail-kompatible CLI](./Sendmail.md)**

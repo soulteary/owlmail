@@ -684,6 +684,9 @@ func TestAPIDownloadEmail(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
+	if contentType := resp.Header.Get("Content-Type"); contentType != "message/rfc822" {
+		t.Errorf("Expected Content-Type message/rfc822, got %s", contentType)
+	}
 }
 
 func TestAPIGetAllEmailsWithFilters(t *testing.T) {

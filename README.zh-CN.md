@@ -376,6 +376,8 @@ OwlMail 使用标准化的 API 响应格式：
 ```
 
 `code` 字段包含标准化的错误/成功代码，可用于国际化。`message` 字段提供英文文本以保持向后兼容。
+Basic Auth 与浏览器同源中间件错误发生在进入 API 处理器之前，因此会返回纯文本
+`401` 或 `403`。
 
 ### 邮件 ID 格式
 
@@ -482,9 +484,13 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/ready` - 缓存的依赖 readiness 检查
 - `GET /api/v1/version` - 版本信息
 - `GET /api/v1/ws` - WebSocket 连接
+- `GET /api/v1/openapi.json` - OpenAPI 3.1 合约（JSON）
+- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 合约（YAML）
 
 完整的子资源、鉴权、响应结构和 WebSocket 事件见
-[API 参考](./docs/zh-CN/API-Reference.md)。
+[API 参考](./docs/zh-CN/API-Reference.md)或版本控制中的
+[OpenAPI 合约](./openapi/openapi.yaml)。服务端返回的合约会自动包含配置的
+base pathname。
 
 ## 🔧 使用示例
 

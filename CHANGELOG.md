@@ -8,6 +8,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- A complete OpenAPI 3.1 contract for the native `/api/v1` API in JSON and
+  YAML, including request/response examples, authentication and public probe
+  boundaries, base-path-aware read-only specification endpoints, asynchronous
+  relay semantics, WebSocket upgrade documentation, and CI route-drift checks.
 - A sendmail-compatible `owlmail sendmail` subcommand for PHP, cron, and
   legacy programs. It submits stdin through the normal SMTP boundary, supports
   `-t`, `-f`, `-i`/`-oi`, explicit recipients, AUTH, STARTTLS, and SMTPS,
