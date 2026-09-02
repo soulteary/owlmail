@@ -13,6 +13,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -21,19 +22,8 @@ const (
 	maxExportBytes    = 256 << 20
 )
 
-// EmailPreview represents a lightweight email preview
-type EmailPreview struct {
-	ID            string    `json:"id"`
-	Time          time.Time `json:"time"`
-	Read          bool      `json:"read"`
-	Subject       string    `json:"subject"`
-	From          string    `json:"from"`
-	To            []string  `json:"to"`
-	Size          int64     `json:"size"`
-	SizeHuman     string    `json:"sizeHuman"`
-	HasAttachment bool      `json:"hasAttachment"`
-	Preview       string    `json:"preview"` // First 200 chars of text
-}
+// EmailPreview represents a lightweight email preview.
+type EmailPreview = mailserver.EmailPreview
 
 // getAllEmails handles GET /api/v1/emails
 func (api *API) getAllEmails(c fiber.Ctx) error {
@@ -61,39 +51,16 @@ func (api *API) getAllEmails(c fiber.Ctx) error {
 		offset = 0
 	}
 
-	emails := api.mailServer.GetAllEmail()
-	filtered := applyEmailFilters(emails, query, from, to, dateFrom, dateTo, read)
-
-	if sortBy != "" {
-		applyEmailSorting(filtered, sortBy, sortOrder)
-	} else {
-		sort.Slice(filtered, func(i, j int) bool {
-			return filtered[i].Time.After(filtered[j].Time)
-		})
-	}
-
-	total := len(filtered)
-	start := offset
-	end := offset + limit
-	if start > total {
-		start = total
-	}
-	if end > total {
-		end = total
-	}
-
-	var paginatedEmails []*types.Email
-	if start < end {
-		paginatedEmails = filtered[start:end]
-	} else {
-		paginatedEmails = make([]*types.Email, 0)
-	}
+	emails, total := api.mailServer.QueryEmails(mailserver.EmailQuery{
+		Query: query, From: from, To: to, DateFrom: dateFrom, DateTo: dateTo,
+		Read: read, SortBy: sortBy, SortOrder: sortOrder, Offset: offset, Limit: limit,
+	})
 
 	return c.JSON(fiber.Map{
 		"total":  total,
 		"limit":  limit,
 		"offset": offset,
-		"emails": paginatedEmails,
+		"emails": emails,
 	})
 }
 
@@ -247,74 +214,10 @@ func (api *API) getEmailPreviews(c fiber.Ctx) error {
 		offset = 0
 	}
 
-	emails := api.mailServer.GetAllEmail()
-	filtered := applyEmailFilters(emails, query, from, to, dateFrom, dateTo, read)
-
-	if sortBy != "" {
-		applyEmailSorting(filtered, sortBy, sortOrder)
-	} else {
-		sort.Slice(filtered, func(i, j int) bool {
-			return filtered[i].Time.After(filtered[j].Time)
-		})
-	}
-
-	total := len(filtered)
-	start := offset
-	end := offset + limit
-	if start > total {
-		start = total
-	}
-	if end > total {
-		end = total
-	}
-
-	var paginatedEmails []*types.Email
-	if start < end {
-		paginatedEmails = filtered[start:end]
-	} else {
-		paginatedEmails = make([]*types.Email, 0)
-	}
-
-	previews := make([]*EmailPreview, 0, len(paginatedEmails))
-	for _, email := range paginatedEmails {
-		preview := &EmailPreview{
-			ID:            email.ID,
-			Time:          email.Time,
-			Read:          email.Read,
-			Subject:       email.Subject,
-			Size:          email.Size,
-			SizeHuman:     email.SizeHuman,
-			HasAttachment: len(email.Attachments) > 0,
-		}
-
-		if len(email.From) > 0 {
-			preview.From = email.From[0].Address
-		}
-
-		preview.To = make([]string, 0, len(email.To))
-		for _, addr := range email.To {
-			preview.To = append(preview.To, addr.Address)
-		}
-
-		previewText := email.Text
-		if previewText == "" {
-			previewText = email.HTML
-			previewText = strings.ReplaceAll(previewText, "<", " <")
-			previewText = strings.ReplaceAll(previewText, ">", "> ")
-			previewText = strings.ReplaceAll(previewText, "\n", " ")
-			previewText = strings.ReplaceAll(previewText, "\r", " ")
-			for strings.Contains(previewText, "  ") {
-				previewText = strings.ReplaceAll(previewText, "  ", " ")
-			}
-			previewText = strings.TrimSpace(previewText)
-		}
-		if len(previewText) > 200 {
-			previewText = previewText[:200] + "..."
-		}
-		preview.Preview = previewText
-
-		previews = append(previews, preview)
-	}
+	previews, total := api.mailServer.QueryEmailPreviews(mailserver.EmailQuery{
+		Query: query, From: from, To: to, DateFrom: dateFrom, DateTo: dateTo,
+		Read: read, SortBy: sortBy, SortOrder: sortOrder, Offset: offset, Limit: limit,
+	})
 
 	return c.JSON(fiber.Map{
 		"total":    total,

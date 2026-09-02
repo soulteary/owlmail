@@ -19,6 +19,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- Mailbox list queries now filter, sort, and paginate under a consistent store
+  snapshot before cloning results; previews avoid cloning message bodies,
+  headers, and attachment metadata.
 - The Web inbox now uses compact email previews for mailbox lists and only
   fetches complete message content after a message is selected.
 - The zero-credential default is now documented as NO AUTH mode. It accepts
