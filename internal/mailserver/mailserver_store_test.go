@@ -108,6 +108,29 @@ func TestMailStoreRetainsAllHeadersOnlyWhenEnabled(t *testing.T) {
 	}
 }
 
+func TestMailStoreBackfillsHeadersWhenCompatibilityIsEnabled(t *testing.T) {
+	directory := t.TempDir()
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nX-Test-ID: existing-123\r\n\r\nbody")
+	if err := os.WriteFile(filepath.Join(directory, "existing.eml"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServer(1025, "localhost", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	stored, err := server.GetEmail("existing")
+	if err != nil || stored.AllHeaders != nil {
+		t.Fatalf("default-off loaded headers = %#v, %v", stored, err)
+	}
+	server.SetRetainAllHeaders(true)
+	stored, err = server.GetEmail("existing")
+	if err != nil || stored.AllHeaders["x-test-id"] != "existing-123" {
+		t.Fatalf("backfilled headers = %#v, %v", stored, err)
+	}
+}
+
 func TestMailStoreConcurrentSnapshotsAndMutations(t *testing.T) {
 	server, err := NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {

@@ -107,6 +107,7 @@ type MailServer struct {
 	closersMutex            sync.Mutex
 	outgoing                interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
+		RelayMailContext(ctx context.Context, email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error))
 		UpdateConfig(config interface{})
 		GetConfig() interface{}
 		IsAutoRelayEnabled() bool

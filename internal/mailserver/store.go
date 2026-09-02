@@ -551,14 +551,54 @@ func collectAllHeaders(headers mail.Header) map[string]interface{} {
 // optional compatibility APIs. Disabling it also releases any retained maps.
 // Callers should configure it before the SMTP server starts receiving mail.
 func (ms *MailServer) SetRetainAllHeaders(enabled bool) {
-	ms.retainAllHeaders.Store(enabled)
+	wasEnabled := ms.retainAllHeaders.Swap(enabled)
 	if enabled {
+		if !wasEnabled {
+			ms.backfillAllHeaders()
+		}
 		return
 	}
 	ms.storeMutex.Lock()
 	defer ms.storeMutex.Unlock()
 	for _, email := range ms.storeByID {
 		email.AllHeaders = nil
+	}
+}
+
+func (ms *MailServer) backfillAllHeaders() {
+	ms.storeMutex.RLock()
+	ids := make([]string, 0, len(ms.storeOrder))
+	for _, id := range ms.storeOrder {
+		if email, exists := ms.storeByID[id]; exists && len(email.AllHeaders) == 0 {
+			ids = append(ids, id)
+		}
+	}
+	ms.storeMutex.RUnlock()
+
+	for _, id := range ids {
+		file, err := os.Open(filepath.Join(ms.mailDir, id+".eml"))
+		if err != nil {
+			common.Verbose("Failed to backfill headers for %s: %v", id, err)
+			continue
+		}
+		msg, readErr := message.Read(file)
+		closeErr := file.Close()
+		if readErr != nil {
+			common.Verbose("Failed to parse headers for %s: %v", id, readErr)
+			continue
+		}
+		if closeErr != nil {
+			common.Verbose("Failed to close email while backfilling headers for %s: %v", id, closeErr)
+		}
+		allHeaders := collectAllHeaders(mail.Header{Header: msg.Header})
+
+		ms.storeMutex.Lock()
+		if ms.retainAllHeaders.Load() {
+			if email, exists := ms.storeByID[id]; exists && len(email.AllHeaders) == 0 {
+				email.AllHeaders = allHeaders
+			}
+		}
+		ms.storeMutex.Unlock()
 	}
 }
 

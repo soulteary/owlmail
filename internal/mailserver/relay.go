@@ -38,19 +38,15 @@ func (ms *MailServer) RelayMailAndWait(ctx context.Context, email *Email, relayT
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if ms.outgoing == nil {
+		return fmt.Errorf("outgoing mail not configured")
+	}
 	result := make(chan error, 1)
 	callback := func(err error) {
 		result <- err
 	}
-	var err error
-	if relayTo == "" {
-		err = ms.RelayMail(email, false, callback)
-	} else {
-		err = ms.RelayMailTo(email, relayTo, callback)
-	}
-	if err != nil {
-		return err
-	}
+	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
+	ms.outgoing.RelayMailContext(ctx, email, emlPath, relayTo, false, callback)
 	return waitRelayResult(ctx, result)
 }
 

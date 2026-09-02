@@ -1,6 +1,9 @@
 package outgoing
 
 import (
+	"context"
+	"errors"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -8,6 +11,69 @@ import (
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/owlmail/internal/types"
 )
+
+func TestRelayEmailStopsBeforeCanceledTaskStarts(t *testing.T) {
+	om := &OutgoingMail{enabled: true}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := om.relayEmail(&RelayTask{Context: ctx, EmailPath: "/missing"})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("relayEmail() error = %v, want context cancellation", err)
+	}
+}
+
+func TestRelayMailContextDoesNotQueueCanceledTask(t *testing.T) {
+	om := &OutgoingMail{enabled: true, queue: make(chan *RelayTask, 1)}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	called := make(chan error, 1)
+	om.RelayMailContext(ctx, &types.Email{}, "/missing", "", false, func(err error) {
+		called <- err
+	})
+	if len(om.queue) != 0 {
+		t.Fatal("canceled relay task was queued")
+	}
+	select {
+	case err := <-called:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("callback error = %v, want context cancellation", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("canceled relay did not invoke callback")
+	}
+}
+
+func TestSendMailContextCancellationClosesActiveConnection(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	serverDone := make(chan struct{})
+	go func() {
+		defer close(serverDone)
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		buffer := make([]byte, 1)
+		_, _ = conn.Read(buffer)
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	err = sendMailContext(ctx, listener.Addr().String(), nil, "from@example.test", []string{"to@example.test"}, []byte("body"))
+	if err == nil || time.Since(started) > time.Second {
+		t.Fatalf("sendMailContext() error = %v after %s", err, time.Since(started))
+	}
+	select {
+	case <-serverDone:
+	case <-time.After(time.Second):
+		t.Fatal("canceled SMTP connection remained open")
+	}
+}
 
 func TestNewOutgoingMail(t *testing.T) {
 	// Test with nil config

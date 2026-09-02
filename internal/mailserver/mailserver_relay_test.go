@@ -160,6 +160,22 @@ func TestWaitRelayResultHonorsCancellation(t *testing.T) {
 	}
 }
 
+func TestRelayMailAndWaitPropagatesCancellationToOutgoingTask(t *testing.T) {
+	server, err := NewMailServerWithOutgoing(1025, "localhost", t.TempDir(), &outgoing.OutgoingConfig{
+		Host: "smtp.example.test", Port: 25,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = server.RelayMailAndWait(ctx, &Email{ID: "canceled"}, "")
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("RelayMailAndWait() error = %v, want context cancellation", err)
+	}
+}
+
 func TestSetOutgoingConfigUpdate(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := NewMailServer(1025, "localhost", tmpDir)
