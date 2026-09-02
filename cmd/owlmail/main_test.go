@@ -2,8 +2,11 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/cli-kit/testutil"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
@@ -960,6 +964,57 @@ func TestSetupAttachmentStore(t *testing.T) {
 	if err != nil || store == nil {
 		t.Fatalf("enabled setupAttachmentStore() = %#v, %v", store, err)
 	}
+}
+
+type healthTestStore struct {
+	healthErr error
+}
+
+func (store *healthTestStore) Put(context.Context, string, string, string, io.Reader, int64) error {
+	return nil
+}
+func (store *healthTestStore) Open(context.Context, string, string) (*attachmentstore.Object, error) {
+	return nil, errors.New("not implemented")
+}
+func (store *healthTestStore) DeleteEmail(context.Context, string) error { return nil }
+func (store *healthTestStore) CheckHealth(context.Context) error         { return store.healthErr }
+
+func TestSetupAttachmentHealthStrictAndCompatibleModes(t *testing.T) {
+	if _, err := setupAttachmentHealth(nil, nil); err == nil {
+		t.Fatal("nil config should fail")
+	}
+	cfg := config.DefaultConfig()
+	if monitor, err := setupAttachmentHealth(nil, cfg); err != nil || monitor != nil {
+		t.Fatalf("disabled health setup = %#v, %v", monitor, err)
+	}
+
+	store := &healthTestStore{healthErr: errors.New("https://access:secret@example.test?token=private")}
+	monitor, err := setupAttachmentHealth(store, cfg)
+	if err != nil {
+		t.Fatalf("default non-strict setup failed: %v", err)
+	}
+	if monitor == nil {
+		t.Fatal("default non-strict setup did not create a monitor")
+	}
+	_ = monitor.Close()
+
+	cfg.S3StartupCheck = true
+	_, err = setupAttachmentHealth(store, cfg)
+	if err == nil || !strings.Contains(err.Error(), "unknown") {
+		t.Fatalf("strict setup error = %v", err)
+	}
+	for _, secret := range []string{"access", "secret", "example.test", "private"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("strict startup error leaked %q: %v", secret, err)
+		}
+	}
+
+	store.healthErr = nil
+	monitor, err = setupAttachmentHealth(store, cfg)
+	if err != nil || monitor == nil {
+		t.Fatalf("successful strict setup = %#v, %v", monitor, err)
+	}
+	_ = monitor.Close()
 }
 
 func TestCreateMailServerRejectsNegativeMessageLimit(t *testing.T) {

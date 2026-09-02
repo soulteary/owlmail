@@ -19,6 +19,9 @@ All notable changes to OwlMail are documented in this file. The format follows
   streaming downloads, recoverable deletion and quarantine cleanup,
   content-verified legacy attachment mapping, retention cleanup, and
   compatibility with existing local attachments.
+- Cached S3 readiness checks using read-only `HeadBucket`, separate liveness
+  and readiness endpoints, bounded probe timeouts, automatic recovery, and an
+  opt-in strict startup check that preserves the non-strict default behavior.
 
 ### Changed
 

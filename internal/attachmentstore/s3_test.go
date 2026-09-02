@@ -6,7 +6,9 @@ import (
 	"errors"
 	"io"
 	"sort"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -20,6 +22,7 @@ type fakeS3Client struct {
 	getErr       error
 	listErr      error
 	deleteErr    error
+	headBucket   func(context.Context) error
 }
 
 func newFakeS3Client() *fakeS3Client {
@@ -27,6 +30,15 @@ func newFakeS3Client() *fakeS3Client {
 		objects:      make(map[string][]byte),
 		contentTypes: make(map[string]string),
 	}
+}
+
+func (client *fakeS3Client) HeadBucket(ctx context.Context, _ *s3.HeadBucketInput, _ ...func(*s3.Options)) (*s3.HeadBucketOutput, error) {
+	if client.headBucket != nil {
+		if err := client.headBucket(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return &s3.HeadBucketOutput{}, nil
 }
 
 func (client *fakeS3Client) PutObject(_ context.Context, input *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
@@ -184,4 +196,117 @@ func TestNewS3ValidatesRequiredConfiguration(t *testing.T) {
 	if _, err := NewS3(ctx, S3Config{Region: "us-east-1", Bucket: "bucket", AccessKeyID: "access", SecretAccessKey: "secret"}); err != nil {
 		t.Fatalf("NewS3() valid static configuration error = %v", err)
 	}
+}
+
+type fakeS3APIError struct {
+	code string
+	text string
+}
+
+func (err fakeS3APIError) Error() string     { return err.text }
+func (err fakeS3APIError) ErrorCode() string { return err.code }
+
+func TestS3HealthProbeSuccessAndPermissionFailure(t *testing.T) {
+	client := newFakeS3Client()
+	store := newS3Store(client, "mail-bucket", "attachments")
+	monitor, err := NewHealthMonitor(store, time.Minute, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status := monitor.ProbeNow(context.Background()); !status.Ready() || status.ErrorCategory != HealthErrorNone {
+		t.Fatalf("successful health status = %#v", status)
+	}
+	client.headBucket = func(context.Context) error {
+		return fakeS3APIError{code: "AccessDenied", text: "secret endpoint and token must not escape"}
+	}
+	status := monitor.ProbeNow(context.Background())
+	if status.Ready() || status.ErrorCategory != HealthErrorPermission {
+		t.Fatalf("permission health status = %#v", status)
+	}
+}
+
+func TestS3HealthProbeTimeout(t *testing.T) {
+	client := newFakeS3Client()
+	client.headBucket = func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	monitor, err := NewHealthMonitor(newS3Store(client, "bucket", ""), time.Minute, 10*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := monitor.ProbeNow(context.Background())
+	if status.Ready() || status.ErrorCategory != HealthErrorTimeout {
+		t.Fatalf("timeout health status = %#v", status)
+	}
+}
+
+func TestS3HealthMonitorRecovers(t *testing.T) {
+	client := newFakeS3Client()
+	var unavailable atomic.Bool
+	unavailable.Store(true)
+	client.headBucket = func(context.Context) error {
+		if unavailable.Load() {
+			return fakeS3APIError{code: "ServiceUnavailable", text: "temporary outage"}
+		}
+		return nil
+	}
+	monitor, err := NewHealthMonitor(newS3Store(client, "bucket", ""), 5*time.Millisecond, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	monitor.Start(context.Background())
+	defer func() { _ = monitor.Close() }()
+	waitForHealthState(t, monitor, HealthUnready)
+	unavailable.Store(false)
+	waitForHealthState(t, monitor, HealthReady)
+}
+
+func TestS3HealthMonitorCloseCancelsProbeAndStopsRefresh(t *testing.T) {
+	client := newFakeS3Client()
+	entered := make(chan struct{}, 1)
+	var calls atomic.Int64
+	client.headBucket = func(ctx context.Context) error {
+		calls.Add(1)
+		select {
+		case entered <- struct{}{}:
+		default:
+		}
+		<-ctx.Done()
+		return ctx.Err()
+	}
+	monitor, err := NewHealthMonitor(newS3Store(client, "bucket", ""), 5*time.Millisecond, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	monitor.Start(context.Background())
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("background health probe did not start")
+	}
+	if err := monitor.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if status := monitor.Snapshot(); status.State != HealthClosed || status.ErrorCategory != HealthErrorClosed {
+		t.Fatalf("closed health status = %#v", status)
+	}
+	count := calls.Load()
+	time.Sleep(20 * time.Millisecond)
+	if calls.Load() != count {
+		t.Fatal("health probes continued after Close")
+	}
+}
+
+func waitForHealthState(t *testing.T, monitor *HealthMonitor, want HealthState) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if monitor.Snapshot().State == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("health state = %q, want %q", monitor.Snapshot().State, want)
 }

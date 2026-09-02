@@ -49,6 +49,8 @@ func (store *memoryAttachmentStore) Put(ctx context.Context, emailID, filename, 
 	return nil
 }
 
+func (store *memoryAttachmentStore) CheckHealth(context.Context) error { return nil }
+
 func (store *memoryAttachmentStore) Open(ctx context.Context, emailID, filename string) (*attachmentstore.Object, error) {
 	if store.blockOpen {
 		<-ctx.Done()

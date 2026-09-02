@@ -213,6 +213,9 @@ docker buildx build \
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 任意の静的シークレットキー |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 任意のセッショントークン |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | パス形式のバケットアドレスを使用 |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | 最初の読み取り専用 S3 バケット確認に失敗した場合は起動を中止 |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | バックグラウンド S3 readiness 確認間隔 |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 5s | 各 S3 readiness 確認のタイムアウト |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |

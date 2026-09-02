@@ -26,10 +26,21 @@ type S3Config struct {
 }
 
 type s3Client interface {
+	HeadBucket(context.Context, *s3.HeadBucketInput, ...func(*s3.Options)) (*s3.HeadBucketOutput, error)
 	PutObject(context.Context, *s3.PutObjectInput, ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 	GetObject(context.Context, *s3.GetObjectInput, ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(context.Context, *s3.ListObjectsV2Input, ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 	DeleteObject(context.Context, *s3.DeleteObjectInput, ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
+}
+
+// CheckHealth verifies that the configured credentials can address the bucket.
+// HeadBucket is read-only and does not create, mutate, or enumerate objects.
+func (store *S3Store) CheckHealth(ctx context.Context) error {
+	_, err := store.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(store.bucket)})
+	if err != nil {
+		return fmt.Errorf("check S3 bucket: %w", err)
+	}
+	return nil
 }
 
 // S3Store stores attachments as <prefix>/<email-id>/<generated-filename>.

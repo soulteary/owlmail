@@ -147,8 +147,30 @@ reported in process logs after the HTTP response.
 | `PUT /api/v1/settings/outgoing` | replace outgoing SMTP settings |
 | `PATCH /api/v1/settings/outgoing` | update selected outgoing SMTP fields |
 | `GET /api/v1/health` | unauthenticated liveness check |
+| `GET /api/v1/ready` | unauthenticated cached dependency readiness check |
 | `GET /api/v1/version` | build/version information |
 | `GET /api/v1/ws` | native WebSocket endpoint |
+
+The liveness response is independent of remote storage. Readiness returns
+HTTP `200` only when every enabled dependency is ready and HTTP `503` while the
+cached S3 probe is checking or failing:
+
+```json
+{
+  "status": "unready",
+  "checks": {
+    "attachment_store": {
+      "status": "unready",
+      "error_category": "permission",
+      "checked_at": "2026-09-02T05:45:00Z"
+    }
+  }
+}
+```
+
+The response never includes raw SDK errors, endpoints, access keys, secret
+keys, or session tokens. A readiness request reads a background-refreshed cache
+and does not synchronously contact S3.
 
 A release build returns version provenance similar to:
 
@@ -226,6 +248,7 @@ for existing OwlMail integrations. Prefer `/api/v1` for new code.
 | `PUT /config/outgoing` | `PUT /api/v1/settings/outgoing` |
 | `PATCH /config/outgoing` | `PATCH /api/v1/settings/outgoing` |
 | `GET /healthz` | `GET /api/v1/health` |
+| `GET /readyz` | `GET /api/v1/ready` |
 | `GET /reloadMailsFromDirectory` | reload the configured mail directory |
 
 ## WebSocket protocol

@@ -84,6 +84,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
 		attachmentStore:         options.AttachmentStore,
+		attachmentHealth:        options.AttachmentHealth,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
 		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
 		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
@@ -94,6 +95,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		authRequireTLS:          options.AuthRequireTLS,
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
+	}
+	if closer, ok := options.AttachmentHealth.(interface{ Close() error }); ok {
+		ms.closers = append(ms.closers, closer)
 	}
 
 	// Setup outgoing mail if config provided

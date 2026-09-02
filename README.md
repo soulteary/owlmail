@@ -237,6 +237,9 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | Optional static secret key |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | Optional static credential session token |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | Use path-style bucket addressing for compatible services |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | Fail startup if the initial read-only S3 bucket check fails |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | Background S3 readiness refresh interval |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 5s | Deadline for each S3 readiness probe |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |
@@ -319,6 +322,8 @@ export OWLMAIL_S3_PREFIX=owlmail/attachments
 export OWLMAIL_S3_ACCESS_KEY=replace-me
 export OWLMAIL_S3_SECRET_KEY=replace-me
 export OWLMAIL_S3_USE_PATH_STYLE=true
+# Optional: fail startup if the first HeadBucket check fails.
+export OWLMAIL_S3_STARTUP_CHECK=true
 ./owlmail -mail-directory ./owlmail-data
 ```
 
@@ -331,6 +336,15 @@ per-message fence and all local recovery evidence, then retries on the next
 request or startup; pending deletions are not republished. Upload must finish
 before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
 local files and does not include S3 object bytes.
+
+OwlMail checks S3 with the read-only `HeadBucket` operation. By default the
+initial check runs asynchronously: startup remains compatible, while
+`GET /readyz` and `GET /api/v1/ready` return `503` until a check succeeds.
+Set `OWLMAIL_S3_STARTUP_CHECK=true` to make only the initial check fatal.
+Subsequent S3 outages never terminate the process; they make readiness fail
+until a background check recovers. Readiness requests return the cached result
+and never wait on S3. Liveness remains available at `/healthz` and
+`/api/v1/health`.
 
 ## 📡 API Documentation
 
@@ -411,7 +425,8 @@ the [API reference](./docs/en/API-Reference.md#maildev-migration-boundary).
 #### Configuration and System
 
 - `GET /config` - Get configuration information
-- `GET /healthz` - Health check
+- `GET /healthz` - Process liveness check
+- `GET /readyz` - Cached dependency readiness check
 - `GET /reloadMailsFromDirectory` - Reload emails from directory
 - `GET /socket.io` - WebSocket connection (standard WebSocket, not Socket.IO)
 
@@ -459,7 +474,8 @@ OwlMail provides a more standardized RESTful API design:
 - `GET /api/v1/settings/outgoing` - Get outgoing configuration
 - `PUT /api/v1/settings/outgoing` - Update outgoing configuration
 - `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
-- `GET /api/v1/health` - Health check
+- `GET /api/v1/health` - Process liveness check
+- `GET /api/v1/ready` - Cached dependency readiness check
 - `GET /api/v1/version` - Version info
 - `GET /api/v1/ws` - WebSocket connection
 

@@ -92,6 +92,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
                                 <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
                                 <tr><td>Attachment storage</td><td><code>-s3-enabled</code> and S3 options</td><td><code>OWLMAIL_S3_ENABLED</code> and S3 variables</td><td>Local mail directory</td></tr>
+                                <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>, interval and timeout options</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> and health-check variables</td><td>Async checks every <code>30s</code>, <code>5s</code> timeout</td></tr>
                                 <tr><td>Web authentication</td><td><code>-web-user</code>, <code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>, <code>OWLMAIL_WEB_PASSWORD</code></td><td>Disabled; partial credentials are completed safely</td></tr>
                                 <tr><td>SMTP authentication</td><td><code>-smtp-user</code>, <code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>, <code>OWLMAIL_SMTP_PASSWORD</code></td><td>NO AUTH; set both to require PLAIN/LOGIN</td></tr>
                                 <tr><td>Require TLS for SMTP AUTH</td><td><code>-smtp-auth-require-tls</code></td><td><code>OWLMAIL_SMTP_AUTH_REQUIRE_TLS</code></td><td>Disabled; requires SMTP TLS when enabled</td></tr>
@@ -143,7 +144,8 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET /api/v1/emails/:id</code><span>Read a message</span></div>
                         <div><code>GET /api/v1/emails/:id/raw</code><span>Download the original message</span></div>
                         <div><code>DELETE /api/v1/emails/:id</code><span>Delete a message</span></div>
-                        <div><code>GET /api/v1/health</code><span>Health check</span></div>
+                        <div><code>GET /api/v1/health</code><span>Process liveness</span></div>
+                        <div><code>GET /api/v1/ready</code><span>Cached dependency readiness</span></div>
                         <div><code>GET /api/v1/version</code><span>Build/version information</span></div>
                         <div><code>GET /api/v1/ws</code><span>Live WebSocket events</span></div>
                     </div>
@@ -228,6 +230,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
                                 <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
                                 <tr><td>附件存储</td><td><code>-s3-enabled</code> 及 S3 参数</td><td><code>OWLMAIL_S3_ENABLED</code> 及 S3 变量</td><td>本地邮件目录</td></tr>
+                                <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>、间隔和超时参数</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> 及健康探测变量</td><td>默认异步每 <code>30s</code> 探测，超时 <code>5s</code></td></tr>
                                 <tr><td>Web 认证</td><td><code>-web-user</code>、<code>-web-password</code></td><td><code>OWLMAIL_WEB_USER</code>、<code>OWLMAIL_WEB_PASSWORD</code></td><td>关闭；单项凭据会安全补全</td></tr>
                                 <tr><td>SMTP 鉴权</td><td><code>-smtp-user</code>、<code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>、<code>OWLMAIL_SMTP_PASSWORD</code></td><td>默认 NO AUTH；同时设置两项后强制 PLAIN/LOGIN</td></tr>
                                 <tr><td>SMTP AUTH 强制 TLS</td><td><code>-smtp-auth-require-tls</code></td><td><code>OWLMAIL_SMTP_AUTH_REQUIRE_TLS</code></td><td>默认关闭；开启时要求 SMTP TLS</td></tr>
@@ -279,7 +282,8 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET /api/v1/emails/:id</code><span>读取单封邮件</span></div>
                         <div><code>GET /api/v1/emails/:id/raw</code><span>下载原始邮件</span></div>
                         <div><code>DELETE /api/v1/emails/:id</code><span>删除单封邮件</span></div>
-                        <div><code>GET /api/v1/health</code><span>健康检查</span></div>
+                        <div><code>GET /api/v1/health</code><span>进程存活检查</span></div>
+                        <div><code>GET /api/v1/ready</code><span>缓存的依赖 readiness</span></div>
                         <div><code>GET /api/v1/version</code><span>构建和版本信息</span></div>
                         <div><code>GET /api/v1/ws</code><span>实时 WebSocket 事件</span></div>
                     </div>

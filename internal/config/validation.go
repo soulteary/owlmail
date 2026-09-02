@@ -99,6 +99,12 @@ func ValidateConfig(cfg *Config) error {
 			}
 		}
 	}
+	if healthInterval, err := time.ParseDuration(cfg.S3HealthInterval); err != nil || healthInterval <= 0 {
+		return fmt.Errorf("S3 health check interval must be a positive duration")
+	}
+	if healthTimeout, err := time.ParseDuration(cfg.S3HealthTimeout); err != nil || healthTimeout <= 0 {
+		return fmt.Errorf("S3 health check timeout must be a positive duration")
+	}
 
 	// Validate auto relay rules file path if specified
 	if cfg.AutoRelayRules != "" {
