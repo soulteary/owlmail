@@ -389,13 +389,18 @@ func TestHealthzSkippedAuth(t *testing.T) {
 		}
 	}()
 	api := NewAPIWithAuth(server, 1080, "localhost", "user", "pass")
-	req, _ := http.NewRequest("GET", "/healthz", nil)
-	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
-	if err != nil {
-		t.Fatalf("Test request failed: %v", err)
+	if err := api.SetBasePathname("/owlmail"); err != nil {
+		t.Fatal(err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	for _, route := range []string{"/healthz", "/owlmail/healthz"} {
+		req, _ := http.NewRequest(http.MethodGet, route, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("Test request failed: %v", err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %s status = %d, want 200", route, resp.StatusCode)
+		}
 	}
 }

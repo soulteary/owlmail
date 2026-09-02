@@ -388,6 +388,16 @@ func TestBasePathRouting(t *testing.T) {
 			}
 
 			if tt.prefix != "" {
+				req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
+				resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+				if err != nil {
+					t.Fatal(err)
+				}
+				_ = resp.Body.Close()
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("image health check status = %d, want 200", resp.StatusCode)
+				}
+
 				for _, route := range []string{"/", "/api/v1/health", "/style.css"} {
 					req, _ = http.NewRequest(http.MethodGet, route, nil)
 					resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})

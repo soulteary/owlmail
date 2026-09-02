@@ -135,7 +135,11 @@ func (api *API) setupRoutes() {
 
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, api.route("/healthz"), api.route("/readyz"), api.route("/api/v1/health"), api.route("/api/v1/ready")))
+		healthRoutes := []string{api.route("/healthz"), api.route("/readyz"), api.route("/api/v1/health"), api.route("/api/v1/ready")}
+		if api.basePathname != "" {
+			healthRoutes = append(healthRoutes, "/healthz")
+		}
+		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...))
 	}
 
 	// Static files are embedded in the executable so the UI and help page work
@@ -332,6 +336,11 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 
 	// Health check route (MailDev compatible)
 	app.Get(api.route("/healthz"), adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	if api.basePathname != "" {
+		// Keep the fixed image health check working when browser and API routes
+		// are mounted below a reverse-proxy prefix.
+		app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	}
 	app.Get(api.route("/readyz"), api.readiness)
 
 	// Reload mails from directory route (MailDev compatible)
