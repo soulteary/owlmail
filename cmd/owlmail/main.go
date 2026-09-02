@@ -504,6 +504,12 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
 	}
+	if attachmentHealth != nil {
+		if err := server.AddCloser(attachmentHealth); err != nil {
+			_ = server.Close()
+			return nil, fmt.Errorf("register attachment health monitor: %w", err)
+		}
+	}
 	healthOwned = false
 	storagePolicy, err := setupStoragePolicy(cfg)
 	if err != nil {

@@ -206,7 +206,7 @@ type fakeS3APIError struct {
 func (err fakeS3APIError) Error() string     { return err.text }
 func (err fakeS3APIError) ErrorCode() string { return err.code }
 
-func TestS3HealthProbeSuccessAndPermissionFailure(t *testing.T) {
+func TestS3HealthProbeSuccessAndSafeErrorCategories(t *testing.T) {
 	client := newFakeS3Client()
 	store := newS3Store(client, "mail-bucket", "attachments")
 	monitor, err := NewHealthMonitor(store, time.Minute, time.Second)
@@ -217,12 +217,26 @@ func TestS3HealthProbeSuccessAndPermissionFailure(t *testing.T) {
 	if status := monitor.ProbeNow(context.Background()); !status.Ready() || status.ErrorCategory != HealthErrorNone {
 		t.Fatalf("successful health status = %#v", status)
 	}
-	client.headBucket = func(context.Context) error {
-		return fakeS3APIError{code: "AccessDenied", text: "secret endpoint and token must not escape"}
+	tests := []struct {
+		name string
+		code string
+		want HealthErrorCategory
+	}{
+		{name: "permission", code: "AccessDenied", want: HealthErrorPermission},
+		{name: "credentials", code: "InvalidAccessKeyId", want: HealthErrorCredentials},
+		{name: "missing bucket", code: "NoSuchBucket", want: HealthErrorNotFound},
+		{name: "network service", code: "ServiceUnavailable", want: HealthErrorUnavailable},
 	}
-	status := monitor.ProbeNow(context.Background())
-	if status.Ready() || status.ErrorCategory != HealthErrorPermission {
-		t.Fatalf("permission health status = %#v", status)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client.headBucket = func(context.Context) error {
+				return fakeS3APIError{code: test.code, text: "secret endpoint and token must not escape"}
+			}
+			status := monitor.ProbeNow(context.Background())
+			if status.Ready() || status.ErrorCategory != test.want {
+				t.Fatalf("health status = %#v, want category %q", status, test.want)
+			}
+		})
 	}
 }
 

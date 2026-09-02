@@ -96,9 +96,6 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
-	if closer, ok := options.AttachmentHealth.(interface{ Close() error }); ok {
-		ms.closers = append(ms.closers, closer)
-	}
 
 	// Setup outgoing mail if config provided
 	if options.OutgoingConfig != nil {
