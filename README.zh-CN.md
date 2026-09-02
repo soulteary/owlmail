@@ -217,6 +217,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | 每进程跨 SMTP、STARTTLS 与 SMTPS 的并发 DATA 事务数；`0` 表示不限制；达到上限返回可重试的 `451 4.3.2` |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
+| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成邮件深链接时使用的浏览器可见 HTTP(S) origin；反向代理子路径仍通过 `-base-pathname` 配置 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲 MCP 会话 |
@@ -292,10 +293,13 @@ Streamable HTTP 端点，然后连接 `http://localhost:1080/mcp`。若设置
 HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请求也必须携带
 同一组 Basic Auth 凭据。
 
-服务只提供 `list_emails`、`search_emails`、`get_email`、
-`get_email_source` 和 `list_attachments`。列表和搜索仅返回摘要；`get_email`
-默认省略 HTML；原始 source 使用无损 base64 返回，默认最多读取 1 MiB 原始
-字节；没有任何工具返回附件内容。
+服务提供七个只读工具：在原有轻量查询、深复制详情、有界 source 和附件元数据
+能力上，增加 `get_latest_email` 与事件驱动的 `wait_for_email`。同时提供有界的
+`owlmail://inbox`、`owlmail://stats`、`owlmail://email/{id}` Resources，以及
+注册验证、密码重置和等待投递 Prompts。邮件结果包含 Web UI 深链接；反向代理
+部署可设置 `-web-external-url https://mail.example.com`（或
+`OWLMAIL_WEB_EXTERNAL_URL`），并使用 `-base-pathname` 单独配置子路径。任何工具
+都不会返回附件字节，只有显式调用 `get_email(include_html=true)` 才返回 HTML。
 完整安全及会话生命周期说明见[运维文档](./docs/zh-CN/Operations.md#供测试代理使用的只读-mcp)。
 
 ### 环境变量兼容性

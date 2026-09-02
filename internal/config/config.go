@@ -231,6 +231,7 @@ type Config struct {
 	WebUser            string
 	WebPassword        string
 	WebExternalScheme  string
+	WebExternalURL     string
 	BasePathname       string
 	MCPEnabled         bool
 	MCPSessionTimeout  string
@@ -307,6 +308,7 @@ func DefaultConfig() *Config {
 		WebUser:                "",
 		WebPassword:            "",
 		WebExternalScheme:      "",
+		WebExternalURL:         "",
 		BasePathname:           "",
 		MCPEnabled:             false,
 		MCPSessionTimeout:      DefaultMCPSessionTimeout,
@@ -365,6 +367,7 @@ type FlagRefs struct {
 	WebHost                *string
 	WebUser                *string
 	WebPassword            *string
+	WebExternalURL         *string
 	BasePathname           *string
 	MCPEnabled             *bool
 	MCPSessionTimeout      *string
@@ -425,6 +428,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		WebExternalURL:         fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
 		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MCPEnabled:             fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
 		MCPSessionTimeout:      fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
@@ -488,6 +492,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebUser:            resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
 		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
 		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		WebExternalURL:     resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
 		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
 		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
 		MCPSessionTimeout:  resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),

@@ -96,6 +96,15 @@ func TestMailboxQueryReturnsDetachedResults(t *testing.T) {
 	if previewsAgain[0].To[0] != "team@example.test" {
 		t.Fatalf("preview query exposed mutable store state: %#v", previewsAgain[0])
 	}
+	previewByID, exists := server.GetEmailPreview("id-1")
+	if !exists || previewByID.ID != "id-1" || len(previewByID.To) != 1 {
+		t.Fatalf("preview by ID = %#v, %v", previewByID, exists)
+	}
+	previewByID.To[0] = "mutated@example.test"
+	previewByIDAgain, _ := server.GetEmailPreview("id-1")
+	if previewByIDAgain.To[0] != "team@example.test" {
+		t.Fatalf("preview by ID exposed mutable store state: %#v", previewByIDAgain)
+	}
 }
 
 func TestMailboxQueryPreviewBuildsOnlySummaryFields(t *testing.T) {

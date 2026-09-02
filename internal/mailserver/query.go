@@ -74,6 +74,20 @@ func (ms *MailServer) QueryEmailPreviews(query EmailQuery) ([]EmailPreview, int)
 	return previews, total
 }
 
+// GetEmailPreview returns one detached summary using the same snapshot and
+// formatting boundary as QueryEmailPreviews.
+func (ms *MailServer) GetEmailPreview(id string) (EmailPreview, bool) {
+	ms.storeMutex.RLock()
+	email, exists := ms.storeByID[id]
+	if !exists {
+		ms.storeMutex.RUnlock()
+		return EmailPreview{}, false
+	}
+	entry := snapshotEmailQueryEntry(email, true, true)
+	ms.storeMutex.RUnlock()
+	return makeEmailPreview(entry), true
+}
+
 type emailQueryAddress struct {
 	name    string
 	address string

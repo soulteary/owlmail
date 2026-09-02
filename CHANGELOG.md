@@ -8,6 +8,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- Read-only MCP testing workflows with compact latest-email lookup, bounded
+  event-driven delivery waits, Web UI deep links, inbox/statistics/email
+  resources, and verification/reset/delivery prompts. Waiters are limited per
+  session and process and are removed on cancellation, timeout, session close,
+  or shutdown; generated links support HTTPS, reverse-proxy base paths, and the
+  explicit `OWLMAIL_WEB_EXTERNAL_URL` origin.
 - A configurable per-process SMTP DATA concurrency limit shared by ordinary
   SMTP, STARTTLS, and SMTPS. The default of eight protects MIME parsing,
   transactional staging, attachment hashing, and S3 uploads; `0` preserves an
