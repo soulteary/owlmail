@@ -12,7 +12,7 @@ All notable changes to OwlMail are documented in this file. The format follows
   distinguishes release and main-branch versions, corrects the current MCP
   boundary, and documents API, live-event, storage, sendmail, and migration
   tradeoffs without claiming unverified performance equivalence.
-- - Read-only MCP testing workflows with compact latest-email lookup, bounded
+- Read-only MCP testing workflows with compact latest-email lookup, bounded
   event-driven delivery waits, Web UI deep links, inbox/statistics/email
   resources, and verification/reset/delivery prompts. Waiters are limited per
   session and process and are removed on cancellation, timeout, session close,
