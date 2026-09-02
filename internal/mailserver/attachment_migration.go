@@ -273,6 +273,9 @@ func preflightAttachmentMigration(ctx context.Context, mailDir string) ([]attach
 		if parseErr != nil || closeErr != nil {
 			return nil, fmt.Errorf("parse email %s: %w", id, errors.Join(parseErr, closeErr))
 		}
+		if err := validateLocalAttachmentDirectory(mailDir, id); err != nil {
+			return nil, fmt.Errorf("validate local attachment directory for %s: %w", id, err)
+		}
 		if len(email.Attachments) == 0 {
 			if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
 				return nil, fmt.Errorf("load attachment metadata for %s: %w", id, metadataErr)
@@ -286,8 +289,16 @@ func preflightAttachmentMigration(ctx context.Context, mailDir string) ([]attach
 			plans = append(plans, attachmentMigrationPlan{emailID: id})
 			continue
 		}
-		if metadataErr != nil {
+		metadataMissing := errors.Is(metadataErr, os.ErrNotExist)
+		if metadataErr != nil && !metadataMissing {
 			return nil, fmt.Errorf("load attachment metadata for %s: %w", id, metadataErr)
+		}
+		if metadataMissing {
+			info, err := entry.Info()
+			if err != nil {
+				return nil, fmt.Errorf("inspect legacy email %s: %w", id, err)
+			}
+			metadata = emailMetadata{Version: 1, ID: id, Sequence: info.ModTime().UTC()}
 		}
 		if len(metadata.Attachments) == 0 && metadata.Version < currentMetadataVersion {
 			if err := reader.restoreLegacyLocalAttachmentMetadataContext(ctx, id, email.Attachments); err != nil {
@@ -361,6 +372,27 @@ func migrationFenceExists(mailDir, id string) bool {
 		}
 	}
 	return false
+}
+
+func validateLocalAttachmentDirectory(mailDir, id string) error {
+	directory := filepath.Join(mailDir, id)
+	if err := validatePath(mailDir, directory); err != nil {
+		return err
+	}
+	info, err := os.Lstat(directory)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("attachment directory is a symbolic link")
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("attachment path is not a directory")
+	}
+	return nil
 }
 
 func verifyLocalMigrationSource(ctx context.Context, path string, expectedSize int64, expectedSHA256 string) (bool, error) {
@@ -505,6 +537,9 @@ func persistMigrationMetadata(mailDir string, metadata emailMetadata) error {
 
 func deleteMigratedLocalAttachment(mailDir, emailID, path string) error {
 	if err := validatePath(filepath.Join(mailDir, emailID), path); err != nil {
+		return err
+	}
+	if err := validateLocalAttachmentDirectory(mailDir, emailID); err != nil {
 		return err
 	}
 	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {

@@ -368,6 +368,42 @@ func TestAttachmentMigrationRestoresVersionOneMetadata(t *testing.T) {
 	}
 }
 
+func TestAttachmentMigrationRestoresMissingLegacyMetadata(t *testing.T) {
+	directory := t.TempDir()
+	const id = "legacy-missing-sidecar"
+	filename, path := createLocalMigrationMessage(t, directory, id, multipartMessage())
+	emlInfo, err := os.Stat(filepath.Join(directory, id+".eml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(directory, metadataDirectoryName, id+".json")); err != nil {
+		t.Fatal(err)
+	}
+	store := newMigrationFakeStore()
+
+	summary, err := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if summary.Uploaded != 1 || summary.Verified != 1 || summary.Failed != 0 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	upgraded := migrationMetadata(t, directory, id)
+	if upgraded.Version != currentMetadataVersion || len(upgraded.Attachments) != 1 {
+		t.Fatalf("upgraded metadata = %#v", upgraded)
+	}
+	attachment := upgraded.Attachments[0]
+	if attachment.GeneratedFileName != filename || attachment.ContentSHA256 == "" || attachment.Storage != attachmentStorageS3 {
+		t.Fatalf("upgraded attachment metadata = %#v", attachment)
+	}
+	if !upgraded.Sequence.Equal(emlInfo.ModTime().UTC()) {
+		t.Fatalf("upgraded sequence = %s, want EML mtime %s", upgraded.Sequence, emlInfo.ModTime().UTC())
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("default migration removed local attachment: %v", err)
+	}
+}
+
 func TestAttachmentMigrationRecognizesVersionTwoRemoteObject(t *testing.T) {
 	directory := t.TempDir()
 	filename, path := createLocalMigrationMessage(t, directory, "legacy-remote", multipartMessage())
@@ -584,6 +620,44 @@ func TestAttachmentMigrationRejectsAmbiguousMetadataBeforeUpload(t *testing.T) {
 	}
 	if len(store.putCalls) != 0 {
 		t.Fatalf("ambiguous preflight uploaded objects: %#v", store.putCalls)
+	}
+}
+
+func TestAttachmentMigrationRejectsSymlinkedAttachmentDirectory(t *testing.T) {
+	directory := t.TempDir()
+	const id = "symlinked-directory"
+	filename, path := createLocalMigrationMessage(t, directory, id, multipartMessage())
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	targetDirectory := t.TempDir()
+	targetPath := filepath.Join(targetDirectory, filename)
+	if err := os.WriteFile(targetPath, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Dir(path)); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(targetDirectory, filepath.Join(directory, id)); err != nil {
+		t.Skipf("cannot create attachment-directory symlink: %v", err)
+	}
+	store := newMigrationFakeStore()
+	options := migrationTestOptions()
+	options.DeleteLocal = true
+
+	_, err = MigrateLocalAttachments(context.Background(), directory, store, options)
+	if err == nil || !strings.Contains(err.Error(), "attachment directory is a symbolic link") {
+		t.Fatalf("migration error = %v", err)
+	}
+	if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+		t.Fatalf("symlinked directory used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+	}
+	if _, err := os.Stat(targetPath); err != nil {
+		t.Fatalf("migration removed symlink target: %v", err)
+	}
+	if got := migrationMetadata(t, directory, id).Attachments[0].Storage; got != attachmentStorageLocal {
+		t.Fatalf("storage = %q, want local", got)
 	}
 }
 
