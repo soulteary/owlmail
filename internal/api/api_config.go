@@ -23,7 +23,7 @@ func (api *API) getConfig(c fiber.Ctx) error {
 	}
 
 	outgoingConfig := api.mailServer.GetOutgoingConfig()
-	if outgoingConfig != nil {
+	if outgoingConfig != nil && outgoingConfig.Host != "" {
 		config["outgoing"] = fiber.Map{
 			"host":          outgoingConfig.Host,
 			"port":          outgoingConfig.Port,
@@ -65,7 +65,7 @@ func (api *API) getConfig(c fiber.Ctx) error {
 // getOutgoingConfig handles GET /api/v1/settings/outgoing
 func (api *API) getOutgoingConfig(c fiber.Ctx) error {
 	outgoingConfig := api.mailServer.GetOutgoingConfig()
-	if outgoingConfig == nil {
+	if outgoingConfig == nil || outgoingConfig.Host == "" {
 		return c.JSON(fiber.Map{
 			"enabled": false,
 			"message": "Outgoing mail not configured",
@@ -87,6 +87,8 @@ func (api *API) getOutgoingConfig(c fiber.Ctx) error {
 
 // updateOutgoingConfig handles PUT /api/v1/settings/outgoing
 func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
+	// PUT is a complete replacement: omitting or clearing password disables
+	// authentication for relay tasks accepted after this update.
 	var config outgoing.OutgoingConfig
 	if err := c.Bind().Body(&config); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
@@ -100,7 +102,9 @@ func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 	}
 
-	api.mailServer.SetOutgoingConfig(&config)
+	if err := api.mailServer.SetOutgoingConfig(&config); err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeConfigUpdateFailed, err.Error()))
+	}
 
 	return c.JSON(fiber.Map{
 		"code":    SuccessCodeConfigUpdated,
@@ -139,6 +143,8 @@ func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 	if user, ok := updates["user"].(string); ok {
 		currentConfig.User = user
 	}
+	// PATCH preserves the current password unless the field is present. An
+	// explicit empty string clears it for subsequently accepted relay tasks.
 	if password, ok := updates["password"].(string); ok {
 		currentConfig.Password = password
 	}
@@ -176,7 +182,9 @@ func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodePortOutOfRange, "Port must be between 1 and 65535"))
 	}
 
-	api.mailServer.SetOutgoingConfig(currentConfig)
+	if err := api.mailServer.SetOutgoingConfig(currentConfig); err != nil {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeConfigUpdateFailed, err.Error()))
+	}
 
 	return c.JSON(fiber.Map{
 		"code":    SuccessCodeConfigUpdated,

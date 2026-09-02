@@ -64,6 +64,14 @@ func (ms *MailServer) Listen() error {
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
 	var closeErrors []error
+	// Reject new relay configuration and queue submissions from the start of
+	// shutdown while allowing the current relay instance to drain below.
+	ms.outgoingMutex.Lock()
+	outgoingRelay := ms.outgoing
+	shouldCloseOutgoing := !ms.outgoingClosed
+	ms.outgoingClosed = true
+	ms.outgoingMutex.Unlock()
+
 	// Stop accepting SMTP data before draining dependent delivery services.
 	if ms.smtpsServer != nil {
 		if err := ms.smtpsServer.Close(); err != nil {
@@ -86,8 +94,8 @@ func (ms *MailServer) Close() error {
 			closeErrors = append(closeErrors, err)
 		}
 	}
-	if ms.outgoing != nil {
-		ms.outgoing.Close()
+	if shouldCloseOutgoing && outgoingRelay != nil {
+		outgoingRelay.Close()
 	}
 
 	// Safely close eventChan, handling the case where it's already closed
