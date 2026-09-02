@@ -477,8 +477,12 @@ runtime's security policy.
 
 The SMTP and SMTPS servers accept at most 100 MiB per message by default. Set
 `-smtp-max-message-mb` or `OWLMAIL_SMTP_MAX_MESSAGE_MB` to a positive MiB value
-to change the limit. The recipient limit remains 50 and read/write timeouts
-remain 10 seconds.
+to change the limit. The recipient limit defaults to 50 and can be changed with
+`-smtp-max-recipients` or `OWLMAIL_SMTP_MAX_RECIPIENTS`. Read and write timeouts
+default to 10 seconds and can be changed with `-smtp-read-timeout` /
+`OWLMAIL_SMTP_READ_TIMEOUT` and `-smtp-write-timeout` /
+`OWLMAIL_SMTP_WRITE_TIMEOUT`. Recipient limits must be positive, and timeout
+values must be positive Go duration strings.
 
 OwlMail also allows eight concurrent SMTP message-body transactions per process
 by default. Configure the limit with `-smtp-max-concurrency` or

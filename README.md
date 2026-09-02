@@ -223,6 +223,9 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximum inbound message size in MiB |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Concurrent DATA transactions per process across SMTP, STARTTLS, and SMTPS; `0` is unlimited; a full limit returns retryable `451 4.3.2` |
+| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP command and DATA read timeout |
+| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP response write timeout |
+| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximum recipients accepted per message |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |

@@ -1126,6 +1126,15 @@ func TestCreateMailServerRejectsNegativeDataConcurrency(t *testing.T) {
 	}
 }
 
+func TestCreateMailServerRejectsNegativeRecipientLimit(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = t.TempDir()
+	cfg.SMTPMaxRecipients = -1
+	if _, err := createMailServer(cfg); err == nil || !strings.Contains(err.Error(), "greater than zero") {
+		t.Fatalf("createMailServer() error = %v, want recipient-limit validation error", err)
+	}
+}
+
 // TestStartServers tests the startServers function
 func TestStartServers(t *testing.T) {
 	// Test with nil server

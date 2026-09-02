@@ -659,6 +659,29 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if int64(maxMessageMB) > maxMessageMBWithoutOverflow {
 		return nil, fmt.Errorf("SMTP max message size is too large")
 	}
+	readTimeoutValue := cfg.SMTPReadTimeout
+	if readTimeoutValue == "" {
+		readTimeoutValue = config.DefaultSMTPReadTimeout
+	}
+	readTimeout, err := time.ParseDuration(readTimeoutValue)
+	if err != nil || readTimeout <= 0 {
+		return nil, fmt.Errorf("SMTP read timeout must be a positive duration")
+	}
+	writeTimeoutValue := cfg.SMTPWriteTimeout
+	if writeTimeoutValue == "" {
+		writeTimeoutValue = config.DefaultSMTPWriteTimeout
+	}
+	writeTimeout, err := time.ParseDuration(writeTimeoutValue)
+	if err != nil || writeTimeout <= 0 {
+		return nil, fmt.Errorf("SMTP write timeout must be a positive duration")
+	}
+	maxRecipients := cfg.SMTPMaxRecipients
+	if maxRecipients == 0 {
+		maxRecipients = config.DefaultSMTPMaxRecipients
+	}
+	if maxRecipients < 0 {
+		return nil, fmt.Errorf("SMTP max recipients must be greater than zero")
+	}
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
@@ -669,6 +692,9 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		UseUUIDForID:       cfg.UseUUIDForEmailID,
 		MaxMessageBytes:    int64(maxMessageMB) << 20,
 		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
+		ReadTimeout:        readTimeout,
+		WriteTimeout:       writeTimeout,
+		MaxRecipients:      maxRecipients,
 		RetainAllHeaders:   cfg.MailDevRESTCompat,
 		AttachmentStore:    attachmentStore,
 		AttachmentHealth:   healthProvider,

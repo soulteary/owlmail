@@ -200,6 +200,9 @@ docker buildx build \
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Taille maximale des messages entrants en MiB |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Transactions DATA simultanées par processus pour SMTP, STARTTLS et SMTPS ; `0` signifie illimité ; la saturation renvoie l’erreur temporaire `451 4.3.2` |
+| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | Délai de lecture des commandes SMTP et de DATA |
+| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | Délai d’écriture des réponses SMTP |
+| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Nombre maximal de destinataires par message |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Origine HTTP(S) visible par le navigateur pour les liens profonds ; configurez séparément le sous-chemin avec `-base-pathname` |

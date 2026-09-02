@@ -411,8 +411,11 @@ docker run -d \
 ## SMTP 入口限制与鉴权模式
 
 SMTP 与 SMTPS 默认单封邮件上限为 100 MiB。可通过 `-smtp-max-message-mb` 或
-`OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限仍为 50，读写
-超时仍为 10 秒。
+`OWLMAIL_SMTP_MAX_MESSAGE_MB` 设置为其他正整数 MiB。收件人上限默认为 50，可用
+`-smtp-max-recipients` 或 `OWLMAIL_SMTP_MAX_RECIPIENTS` 调整。读写超时默认为
+10 秒，可分别用 `-smtp-read-timeout` / `OWLMAIL_SMTP_READ_TIMEOUT` 和
+`-smtp-write-timeout` / `OWLMAIL_SMTP_WRITE_TIMEOUT` 调整。收件人上限必须为正数，
+超时必须为正数的 Go duration 字符串。
 
 OwlMail 默认还会把每个进程同时处理的 SMTP 邮件正文事务限制为 8 个。可通过
 `-smtp-max-concurrency` 或 `OWLMAIL_SMTP_MAX_CONCURRENCY` 调整；显式设置为
