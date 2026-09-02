@@ -245,12 +245,12 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		if config.TLSMode == TLSModePlain {
 			return fmt.Errorf("outgoing SMTP authentication requires TLS")
 		}
+		if err := setPhaseDeadline(ctx, smtpConn, timeouts.auth); err != nil {
+			return err
+		}
 		ok, mechanisms := client.Extension("AUTH")
 		if !ok || !supportsAuthMechanism(mechanisms, "PLAIN") {
 			return ErrAUTHPlainUnsupported
-		}
-		if err := setPhaseDeadline(ctx, smtpConn, timeouts.auth); err != nil {
-			return err
 		}
 		if err := client.Auth(auth); err != nil {
 			return relayContextError(ctx, err)

@@ -56,7 +56,7 @@ func TestSendMailTransportModes(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			addr, commands := startTestSMTPServer(t, test.serverMode, serverTLS, false, "PLAIN")
+			addr, commands := startTestSMTPServer(t, test.serverMode, serverTLS, false, "PLAIN", 0)
 			err := sendMailWithConfig(context.Background(), addr, test.auth, "from@example.test", []string{"to@example.test"}, []byte("Subject: relay test\r\n\r\nbody"), test.config)
 			if err != nil {
 				t.Fatalf("sendMailWithConfig() error = %v", err)
@@ -72,7 +72,7 @@ func TestSendMailTransportModes(t *testing.T) {
 }
 
 func TestSTARTTLSFailsClosedWhenUnsupported(t *testing.T) {
-	addr, commands := startTestSMTPServer(t, testSMTPPlain, nil, false, "")
+	addr, commands := startTestSMTPServer(t, testSMTPPlain, nil, false, "", 0)
 	err := sendMailWithConfig(context.Background(), addr, nil, "from@example.test", []string{"to@example.test"}, []byte("body"), &OutgoingConfig{TLSMode: TLSModeSTARTTLS})
 	if !errors.Is(err, ErrSTARTTLSUnsupported) {
 		t.Fatalf("sendMailWithConfig() error = %v, want ErrSTARTTLSUnsupported", err)
@@ -87,14 +87,14 @@ func TestSTARTTLSFailsClosedWhenUnsupported(t *testing.T) {
 
 func TestSMTPSCertificateVerificationAndExplicitOptOut(t *testing.T) {
 	serverTLS, _ := testTLSConfigs(t)
-	addr, commands := startTestSMTPServer(t, testSMTPS, serverTLS, false, "")
+	addr, commands := startTestSMTPServer(t, testSMTPS, serverTLS, false, "", 0)
 	err := sendMailWithConfig(context.Background(), addr, nil, "from@example.test", []string{"to@example.test"}, []byte("body"), &OutgoingConfig{TLSMode: TLSModeSMTPS})
 	if err == nil || !strings.Contains(err.Error(), "certificate") {
 		t.Fatalf("sendMailWithConfig() error = %v, want certificate verification failure", err)
 	}
 	<-commands
 
-	addr, commands = startTestSMTPServer(t, testSMTPS, serverTLS, false, "")
+	addr, commands = startTestSMTPServer(t, testSMTPS, serverTLS, false, "", 0)
 	err = sendMailWithConfig(context.Background(), addr, nil, "from@example.test", []string{"to@example.test"}, []byte("body"), &OutgoingConfig{
 		TLSMode:            TLSModeSMTPS,
 		InsecureSkipVerify: true,
@@ -116,7 +116,7 @@ func TestAuthenticationRequiresAdvertisedPlainMechanism(t *testing.T) {
 	serverTLS, clientTLS := testTLSConfigs(t)
 	for _, mode := range []testSMTPMode{testSMTPSTARTTLS, testSMTPS} {
 		t.Run(string(mode), func(t *testing.T) {
-			addr, commands := startTestSMTPServer(t, mode, serverTLS, false, "LOGIN")
+			addr, commands := startTestSMTPServer(t, mode, serverTLS, false, "LOGIN", 0)
 			config := &OutgoingConfig{
 				TLSMode:   TLSMode(mode),
 				tlsConfig: clientTLS,
@@ -141,6 +141,35 @@ func TestAuthenticationRequiresAdvertisedPlainMechanism(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestSMTPSAuthDeadlineStartsBeforeCapabilityDiscovery(t *testing.T) {
+	serverTLS, clientTLS := testTLSConfigs(t)
+	addr, commands := startTestSMTPServer(t, testSMTPS, serverTLS, false, "PLAIN", 150*time.Millisecond)
+	config := &OutgoingConfig{
+		TLSMode:        TLSModeSMTPS,
+		tlsConfig:      clientTLS,
+		User:           "relay",
+		Password:       "secret",
+		ConnectTimeout: "50ms",
+		AuthTimeout:    "500ms",
+	}
+	err := sendMailWithConfig(
+		context.Background(),
+		addr,
+		smtp.PlainAuth("", "relay", "secret", "127.0.0.1"),
+		"from@example.test",
+		[]string{"to@example.test"},
+		[]byte("body"),
+		config,
+	)
+	if err != nil {
+		t.Fatalf("sendMailWithConfig() error = %v, AUTH capability discovery used the connect deadline", err)
+	}
+	got := <-commands
+	if !containsCommand(got, "AUTH PLAIN") {
+		t.Fatalf("SMTP commands = %q, missing AUTH PLAIN", got)
 	}
 }
 
@@ -196,7 +225,7 @@ func TestRemainingPhaseBudgetSurvivesInterveningPhase(t *testing.T) {
 }
 
 func TestSendMailDataDeadline(t *testing.T) {
-	addr, commands := startTestSMTPServer(t, testSMTPPlain, nil, true, "")
+	addr, commands := startTestSMTPServer(t, testSMTPPlain, nil, true, "", 0)
 	start := time.Now()
 	err := sendMailWithConfig(context.Background(), addr, nil, "from@example.test", []string{"to@example.test"}, []byte("body"), &OutgoingConfig{
 		TLSMode:     TLSModePlain,
@@ -352,7 +381,7 @@ func testTLSConfigs(t *testing.T) (*tls.Config, *tls.Config) {
 	return &tls.Config{Certificates: []tls.Certificate{certificate}, MinVersion: tls.VersionTLS12}, &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
 }
 
-func startTestSMTPServer(t *testing.T, mode testSMTPMode, tlsConfig *tls.Config, stallData bool, authMechanisms string) (string, <-chan []string) {
+func startTestSMTPServer(t *testing.T, mode testSMTPMode, tlsConfig *tls.Config, stallData bool, authMechanisms string, ehloDelay time.Duration) (string, <-chan []string) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -388,6 +417,9 @@ func startTestSMTPServer(t *testing.T, mode testSMTPMode, tlsConfig *tls.Config,
 			seen = append(seen, command)
 			switch {
 			case strings.HasPrefix(command, "EHLO "):
+				if tlsActive && ehloDelay > 0 {
+					time.Sleep(ehloDelay)
+				}
 				if mode == testSMTPSTARTTLS && !tlsActive {
 					_, _ = fmt.Fprint(conn, "250-localhost\r\n250 STARTTLS\r\n")
 				} else if tlsActive && authMechanisms != "" {
