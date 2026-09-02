@@ -123,7 +123,6 @@ func TestMailServerUsesSQLiteIndexAndSynchronizesMutations(t *testing.T) {
 	}
 }
 
-
 func TestDeleteAllPreservesNestedSQLiteIndex(t *testing.T) {
 	directory := t.TempDir()
 	indexPath := filepath.Join(directory, ".index", "mailbox.db")
