@@ -334,6 +334,47 @@ func TestRunTimesOutWhenServerWithholdsGreeting(t *testing.T) {
 	}
 }
 
+func TestDialSMTPReusesTheDialDeadline(t *testing.T) {
+	connection := &deadlineCaptureConn{}
+	var dialDeadline time.Time
+	client, err := dialSMTPWith("mail.example:25", config{timeout: time.Minute}, &tls.Config{}, func(_, _ string, deadline time.Time) (net.Conn, error) {
+		dialDeadline = deadline
+		return connection, nil
+	})
+	if err != nil {
+		t.Fatalf("dialSMTPWith() error = %v", err)
+	}
+	_ = client.Close()
+	if dialDeadline.IsZero() {
+		t.Fatal("dial deadline was not set")
+	}
+	if !connection.deadline.Equal(dialDeadline) {
+		t.Fatalf("connection deadline = %s, dial deadline = %s", connection.deadline, dialDeadline)
+	}
+}
+
+type deadlineCaptureConn struct {
+	deadline time.Time
+}
+
+func (conn *deadlineCaptureConn) Read([]byte) (int, error)         { return 0, io.EOF }
+func (conn *deadlineCaptureConn) Write(buffer []byte) (int, error) { return len(buffer), nil }
+func (conn *deadlineCaptureConn) Close() error                     { return nil }
+func (conn *deadlineCaptureConn) LocalAddr() net.Addr              { return &net.TCPAddr{} }
+func (conn *deadlineCaptureConn) RemoteAddr() net.Addr             { return &net.TCPAddr{} }
+func (conn *deadlineCaptureConn) SetDeadline(deadline time.Time) error {
+	conn.deadline = deadline
+	return nil
+}
+func (conn *deadlineCaptureConn) SetReadDeadline(deadline time.Time) error {
+	conn.deadline = deadline
+	return nil
+}
+func (conn *deadlineCaptureConn) SetWriteDeadline(deadline time.Time) error {
+	conn.deadline = deadline
+	return nil
+}
+
 type fakeBackend struct {
 	mu       sync.Mutex
 	username string

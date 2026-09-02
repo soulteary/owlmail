@@ -617,12 +617,24 @@ func (conn *cappedDeadlineConn) cap(deadline time.Time) time.Time {
 	return deadline
 }
 
+type smtpDialFunc func(network, address string, deadline time.Time) (net.Conn, error)
+
 func dialSMTP(address string, cfg config, tlsConfig *tls.Config) (*smtp.Client, error) {
-	connection, err := (&net.Dialer{Timeout: cfg.timeout}).Dial("tcp", address)
+	return dialSMTPWith(address, cfg, tlsConfig, func(network, address string, deadline time.Time) (net.Conn, error) {
+		return (&net.Dialer{Deadline: deadline}).Dial(network, address)
+	})
+}
+
+func dialSMTPWith(address string, cfg config, tlsConfig *tls.Config, dial smtpDialFunc) (*smtp.Client, error) {
+	// One absolute deadline covers the complete operation. In particular, do
+	// not start a fresh timeout after Dial succeeds: a slow connection must
+	// consume the same budget as greeting, TLS, AUTH, commands, and DATA.
+	deadline := time.Now().Add(cfg.timeout)
+	connection, err := dial("tcp", address, deadline)
 	if err != nil {
 		return nil, err
 	}
-	bounded := &cappedDeadlineConn{Conn: connection, deadline: time.Now().Add(cfg.timeout)}
+	bounded := &cappedDeadlineConn{Conn: connection, deadline: deadline}
 	if err := bounded.SetDeadline(bounded.deadline); err != nil {
 		_ = connection.Close()
 		return nil, err
