@@ -216,10 +216,6 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadataContext(ctx context.Co
 	return nil
 }
 
-func attachmentFileSHA256(path string) (string, error) {
-	return attachmentFileSHA256Context(context.Background(), path)
-}
-
 func attachmentFileSHA256Context(ctx context.Context, path string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err

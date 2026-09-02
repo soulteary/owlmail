@@ -464,6 +464,26 @@ func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
 	}
 }
 
+type failingWebhookHandoffService struct {
+	err error
+}
+
+func (service *failingWebhookHandoffService) Enqueue(*mailserver.Email) error {
+	return service.err
+}
+
+func (*failingWebhookHandoffService) Commit(string) error {
+	return nil
+}
+
+func (*failingWebhookHandoffService) Abort(string) error {
+	return nil
+}
+
+func (*failingWebhookHandoffService) RecoverAcceptedPending() error {
+	return nil
+}
+
 func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 	mailDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", mailDir)
@@ -471,33 +491,8 @@ func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	dispatcher, err := webhooknotify.NewDispatcher(webhooknotify.Config{Targets: []webhooknotify.Target{{
-		Name: "test",
-		URL:  "https://example.com/hook",
-	}}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
-		MaxConcurrency: 1,
-		SpoolDir:       mailDir,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	outboxPath := filepath.Join(mailDir, ".owlmail-webhook-outbox")
-	defer func() {
-		_ = os.Remove(outboxPath)
-		_ = os.MkdirAll(outboxPath, 0750)
-		_ = service.Close()
-	}()
+	service := &failingWebhookHandoffService{err: errors.New("injected webhook outbox failure")}
 	if err := registerWebhookService(server, service); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(outboxPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(outboxPath, []byte("blocks outbox directory"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -509,6 +504,9 @@ func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("email commit succeeded despite the failed webhook outbox")
+	}
+	if !strings.Contains(err.Error(), service.err.Error()) {
+		t.Fatalf("email commit error = %v, want injected handoff failure", err)
 	}
 	if _, err := server.GetEmail("failed-outbox"); err == nil {
 		t.Fatal("email became visible after the durable handoff failed")

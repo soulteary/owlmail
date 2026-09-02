@@ -376,7 +376,14 @@ func setupWebhookService(cfg *config.Config, dispatcher *webhooknotify.Dispatche
 	return service, nil
 }
 
-func registerWebhookService(server *mailserver.MailServer, service *webhooknotify.Service) error {
+type webhookHandoffService interface {
+	Enqueue(*mailserver.Email) error
+	Commit(string) error
+	Abort(string) error
+	RecoverAcceptedPending() error
+}
+
+func registerWebhookService(server *mailserver.MailServer, service webhookHandoffService) error {
 	if server == nil || service == nil {
 		return nil
 	}
