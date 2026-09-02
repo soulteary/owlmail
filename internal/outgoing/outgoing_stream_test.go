@@ -204,6 +204,45 @@ func TestRelayEmailPreservesHELOOnlyAuthBehavior(t *testing.T) {
 	}
 }
 
+func TestRelayEmailRejectsESMTPWithoutAUTH(t *testing.T) {
+	addr, result := startRelaySMTPServer(t, readRelaySMTPData)
+	host, portText, err := net.SplitHostPort(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	port, err := strconv.Atoi(portText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	messagePath := t.TempDir() + "/message.eml"
+	if err := os.WriteFile(messagePath, []byte("Subject: ESMTP without AUTH\r\n\r\nbody"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	om := &OutgoingMail{
+		config:  &OutgoingConfig{Host: host, Port: port, User: "configured", Password: "secret"},
+		enabled: true,
+	}
+	err = om.relayEmail(&RelayTask{
+		Email: &types.Email{
+			Subject:  "ESMTP without AUTH",
+			Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
+		},
+		EmailPath: messagePath,
+	})
+	if err == nil || !strings.Contains(err.Error(), "server doesn't support AUTH") {
+		t.Fatalf("relayEmail() error = %v, want unsupported AUTH error", err)
+	}
+	serverResult := <-result
+	for _, command := range serverResult.commands {
+		if strings.HasPrefix(command, "AUTH ") || strings.HasPrefix(command, "MAIL FROM:") {
+			t.Fatalf("ESMTP commands unexpectedly contain %q", command)
+		}
+	}
+	if serverResult.accepted {
+		t.Fatal("ESMTP server accepted an anonymously relayed message")
+	}
+}
+
 func TestSendMailContextSourceFailureAbortsData(t *testing.T) {
 	addr, result := startRelaySMTPServer(t, readRelaySMTPData)
 	source := &failingRelayReadCloser{data: []byte("Subject: partial\r\n\r\nbody")}
