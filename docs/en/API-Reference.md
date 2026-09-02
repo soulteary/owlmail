@@ -40,6 +40,8 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
   UUIDs when `-use-uuid-for-email-id` is enabled; both formats can be queried.
 - `GET /api/v1/emails/:id` and `GET /email/:id` do **not** mark an email as
   read. Use the corresponding `PATCH` route explicitly.
+- When the optional MailDev REST facade is enabled, only
+  `GET /api/email/:id` reproduces MailDev's read-on-fetch side effect.
 - Collection and preview endpoints default to `limit=50` and `offset=0`. The
   maximum limit is 1000; invalid values fall back to their defaults.
 - Timestamps are JSON-encoded Go `time.Time` values in RFC 3339 form.
@@ -224,6 +226,51 @@ curl -u admin:secret \
   }'
 ```
 
+## Optional MailDev REST facade
+
+The current MailDev REST contract is available only when explicitly enabled:
+
+```bash
+owlmail -maildev-rest-compat
+# equivalent environment setting:
+OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+```
+
+The default is `false`; with the option off, the routes below return `404`.
+`-base-pathname /owlmail` moves them below `/owlmail/api`. They share OwlMail's
+listener, HTTPS, CORS/origin protection, and Basic Auth. As in MailDev,
+`/api/healthz` remains unauthenticated. The facade delegates to the existing
+mailbox, durable read metadata, transactional deletion, attachment store, and
+outgoing relay worker; it does not create a second index or storage format.
+
+| Method and path | MailDev-compatible result |
+|---|---|
+| `GET /api/email` | Full email JSON array; supports `skip`, optional `limit`, optional `sort=asc\|desc`, and field/dot-path filters |
+| `GET /api/email/summary` | `{items,total,storeTotal,unread,skip,limit}`; defaults to 50, clamps to 200, and supports `search`, `sort`, and `unread=true` |
+| `GET /api/email/:id` | Full MailDev DTO and, only here, persistently marks an unread message read |
+| `DELETE /api/email/:id` | JSON boolean `true`; missing ID is `404 {"error":"Email was not found"}` |
+| `POST /api/email/delete` | Accepts `{"ids":[...]}` and returns `{"deleted":[...],"notFound":[...]}` |
+| `DELETE /api/email/all` | JSON boolean `true` |
+| `PATCH /api/email/read-all` | Number of messages changed |
+| `GET /api/email/:id/html` | HTML with CID sources rewritten to compatibility attachment URLs |
+| `GET /api/email/:id/source` | Raw RFC 822 bytes |
+| `GET /api/email/:id/download` | `message/rfc822` download named `<id>.eml` |
+| `GET /api/email/:id/attachment/:filename` | Streamed attachment with its stored media type |
+| `POST /api/email/:id/relay` | Relays to original recipients; JSON boolean `true` after the attempt succeeds |
+| `POST /api/email/:id/relay/:relayTo` | Relays to an explicit validated recipient |
+| `GET /api/config` | MailDev-shaped `version`, `smtpPort`, `isOutgoingEnabled`, and `outgoingHost` |
+| `GET /api/healthz` | Public JSON boolean `true` |
+| `GET /api/reloadMailsFromDirectory` | Reloads the configured directory and returns JSON boolean `true` |
+
+Compatibility errors have the single-field shape `{"error":"..."}`. JSON,
+HTML, source, EML, and attachment responses preserve their corresponding
+Content-Type. The facade changes neither routes nor DTOs under `/api/v1`.
+
+This option provides **REST compatibility only**. OwlMail does not expose a
+Socket.IO server, namespace handshake, polling transport, or MailDev events such
+as `newMail` and `deleteMail`. `/socket.io` remains OwlMail's historical native
+RFC 6455 alias and is not part of this facade.
+
 ## Unversioned compatibility routes
 
 These routes use names historically associated with MailDev and are retained
@@ -283,26 +330,26 @@ There is no Socket.IO framing, event negotiation, or fallback transport.
 
 Current MailDev documents its REST API under `/api`, provides
 `/api/email/summary` and `/api/email/delete`, marks a message read when its detail
-is fetched, and uses Socket.IO events. OwlMail intentionally differs in these
-areas. See the [upstream MailDev REST reference](https://github.com/maildev/maildev/blob/main/docs/rest.md)
-and validate clients against the following matrix rather than assuming a
-drop-in replacement.
+is fetched, and uses Socket.IO events. OwlMail's opt-in REST facade covers the
+documented HTTP contract, while native APIs and the live protocol intentionally
+differ. See the [upstream MailDev REST reference](https://github.com/maildev/maildev/blob/main/docs/rest.md)
+and validate non-REST clients rather than assuming a complete drop-in replacement.
 
 | Area | Current MailDev | OwlMail |
 |---|---|---|
-| API prefix | `/api` (plus optional base pathname) | unversioned `/email` routes and `/api/v1`, optionally below `-base-pathname` |
-| list shape | MailDev-defined email list/summary shapes | `{ total, limit, offset, emails }` or `{ ..., previews }` |
-| detail read state | detail fetch marks read | explicit `PATCH` only |
-| batch delete | `POST /api/email/delete` | `POST /email/batch/delete` or `DELETE /api/v1/emails/batch` |
+| API prefix | `/api` (plus optional base pathname) | same when the facade is enabled; native routes remain available |
+| list shape | MailDev-defined email list/summary shapes | same in the facade; native `/api/v1` uses OwlMail envelopes |
+| detail read state | detail fetch marks read | same only at `/api/email/:id`; native detail remains side-effect free |
+| batch delete | `POST /api/email/delete` | same in the facade; native batch routes remain available |
 | live protocol | Socket.IO, `newMail` / `deleteMail` | native WebSocket, `new` / `delete` |
 | configuration | MailDev's current CLI/config surface | documented OwlMail flags and supported MailDev environment aliases |
 
 Before migrating an automated client:
 
-1. Update or proxy the API prefix; `MAILDEV_BASE_PATHNAME` can be reused as an OwlMail compatibility alias.
-2. Adapt collection response parsing.
-3. Replace Socket.IO code with a native WebSocket client.
-4. Mark messages read explicitly when required.
+1. Enable the REST facade for an unchanged MailDev REST client, or migrate new code to `/api/v1`.
+2. Reuse `MAILDEV_BASE_PATHNAME` as an OwlMail base-path alias if needed.
+3. Replace Socket.IO code with a native WebSocket client; the REST switch does not cover it.
+4. When using native detail routes, continue to mark messages read explicitly.
 5. Exercise delete, relay, attachment, authentication, and error paths in a
    staging environment.
 

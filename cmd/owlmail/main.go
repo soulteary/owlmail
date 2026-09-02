@@ -437,6 +437,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
 	}
@@ -474,6 +475,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 	if cfg.MCPEnabled {
 		common.Log("Read-only MCP enabled at %s://%s:%d%s/mcp (idle timeout: %s)", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname, cfg.MCPSessionTimeout)
+	}
+	if cfg.MailDevRESTCompat {
+		common.Log("MailDev REST compatibility facade enabled at %s://%s:%d%s/api", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
 	}
 	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
 	if cfg.WebUser != "" && cfg.WebPassword != "" {

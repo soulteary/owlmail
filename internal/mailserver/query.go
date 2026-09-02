@@ -13,16 +13,21 @@ import (
 // upper boundary used by the existing HTTP API, and Limit is applied after
 // filtering and sorting.
 type EmailQuery struct {
-	Text      string
-	From      string
-	To        string
-	DateFrom  *time.Time
-	DateTo    *time.Time
-	Read      *bool
-	SortBy    string
-	SortOrder string
-	Offset    int
-	Limit     int
+	Text string
+	// SearchAddresses includes sender and recipient names and addresses in the
+	// free-text match. ExcludeHTML keeps compatibility queries aligned with
+	// MailDev, whose summary search covers the plain-text body but not HTML.
+	SearchAddresses bool
+	ExcludeHTML     bool
+	From            string
+	To              string
+	DateFrom        *time.Time
+	DateTo          *time.Time
+	Read            *bool
+	SortBy          string
+	SortOrder       string
+	Offset          int
+	Limit           int
 }
 
 // EmailPreview is the detached, lightweight representation returned for a
@@ -122,8 +127,8 @@ func (ms *MailServer) snapshotEmailQueryEntries(query EmailQuery) []emailQueryEn
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
 
-	needFrom := query.From != "" || query.SortBy == "from"
-	needTo := query.To != ""
+	needFrom := query.From != "" || query.SortBy == "from" || query.SearchAddresses
+	needTo := query.To != "" || query.SearchAddresses
 	entries := make([]emailQueryEntry, 0, len(ms.storeOrder))
 	for _, id := range ms.storeOrder {
 		if email, exists := ms.storeByID[id]; exists {
@@ -180,31 +185,44 @@ func snapshotQueryAddresses(addresses []*mail.Address) []emailQueryAddress {
 }
 
 type compiledEmailQuery struct {
-	text     string
-	from     string
-	to       string
-	dateFrom *time.Time
-	dateTo   *time.Time
-	read     *bool
+	text            string
+	searchAddresses bool
+	excludeHTML     bool
+	from            string
+	to              string
+	dateFrom        *time.Time
+	dateTo          *time.Time
+	read            *bool
 }
 
 func compileEmailQuery(query EmailQuery) compiledEmailQuery {
 	return compiledEmailQuery{
-		text:     strings.ToLower(query.Text),
-		from:     strings.ToLower(query.From),
-		to:       strings.ToLower(query.To),
-		dateFrom: query.DateFrom,
-		dateTo:   query.DateTo,
-		read:     query.Read,
+		text:            strings.ToLower(query.Text),
+		searchAddresses: query.SearchAddresses,
+		excludeHTML:     query.ExcludeHTML,
+		from:            strings.ToLower(query.From),
+		to:              strings.ToLower(query.To),
+		dateFrom:        query.DateFrom,
+		dateTo:          query.DateTo,
+		read:            query.Read,
 	}
 }
 
 func (query compiledEmailQuery) matches(email emailQueryEntry) bool {
-	if query.text != "" &&
-		!strings.Contains(strings.ToLower(email.subject), query.text) &&
-		!strings.Contains(strings.ToLower(email.text), query.text) &&
-		!strings.Contains(strings.ToLower(email.html), query.text) {
-		return false
+	if query.text != "" {
+		matched := strings.Contains(strings.ToLower(email.subject), query.text) ||
+			strings.Contains(strings.ToLower(email.text), query.text)
+		if !matched && !query.excludeHTML {
+			matched = strings.Contains(strings.ToLower(email.html), query.text)
+		}
+		if !matched && query.searchAddresses {
+			matched = queryAddressesContain(email.from, query.text, true) ||
+				queryAddressesContain(email.to, query.text, true) ||
+				queryAddressesContain(email.cc, query.text, true)
+		}
+		if !matched {
+			return false
+		}
 	}
 	if query.from != "" && !queryAddressesContain(email.from, query.from, true) {
 		return false

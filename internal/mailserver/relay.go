@@ -29,6 +29,27 @@ func (ms *MailServer) RelayMailTo(email *Email, relayTo string, callback func(er
 	return nil
 }
 
+// RelayMailAndWait relays one message and waits for the outgoing worker's
+// result. OwlMail's native API intentionally keeps its asynchronous enqueue
+// semantics; the MailDev REST facade uses this method because MailDev only
+// returns success after the relay attempt completes.
+func (ms *MailServer) RelayMailAndWait(email *Email, relayTo string) error {
+	result := make(chan error, 1)
+	callback := func(err error) {
+		result <- err
+	}
+	var err error
+	if relayTo == "" {
+		err = ms.RelayMail(email, false, callback)
+	} else {
+		err = ms.RelayMailTo(email, relayTo, callback)
+	}
+	if err != nil {
+		return err
+	}
+	return <-result
+}
+
 // SetOutgoingConfig sets the outgoing mail configuration
 func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) {
 	if ms.outgoing == nil {

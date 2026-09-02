@@ -225,6 +225,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
+| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Enable the opt-in MailDev `/api` REST facade; Socket.IO remains unsupported |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle MCP sessions |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP sessions during shutdown |
@@ -405,6 +406,24 @@ OwlMail supports two email ID formats, and all API endpoints are compatible with
 When using the `:id` parameter in API requests, you can use either format. For example:
 - `GET /email/aB3dEfGh` - Using random string ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
+
+### Optional MailDev REST facade
+
+Current MailDev REST clients can opt into its `/api` route and payload contract:
+
+```bash
+owlmail -maildev-rest-compat
+# or: OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+```
+
+This enables `/api/email`, `/api/email/summary`, `/api/email/delete`, detail,
+HTML, source, EML download, attachment, relay, `/api/config`, `/api/healthz`,
+and `/api/reloadMailsFromDirectory`. The facade uses the configured Basic Auth,
+HTTPS, and base pathname; its health route stays public like MailDev's. Only
+`GET /api/email/:id` marks the message read. Disabling the option removes every
+new `/api` route. Socket.IO is **not** implemented: live MailDev clients must
+still migrate to OwlMail's native WebSocket protocol. See the
+[API reference](./docs/en/API-Reference.md#optional-maildev-rest-facade).
 
 ### MailDev-style Compatibility API
 
@@ -668,14 +687,16 @@ export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
 ### 2. API Compatibility
 
-API paths and payloads differ in current MailDev. Use OwlMail's versioned API for
-new integrations and adapt existing clients deliberately:
+Existing REST clients can explicitly enable the default-off MailDev facade;
+new integrations should use OwlMail's versioned API. The facade does not add
+Socket.IO compatibility:
 
 ```bash
-# Current MailDev API
+# Existing MailDev REST client
+OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
 curl http://localhost:1080/api/email
 
-# OwlMail API
+# New OwlMail integration
 curl http://localhost:1080/api/v1/emails
 ```
 

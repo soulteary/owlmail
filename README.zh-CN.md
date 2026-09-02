@@ -218,6 +218,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
+| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | 显式启用 MailDev `/api` REST 兼容 facade；仍不支持 Socket.IO |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲 MCP 会话 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 会话的期限 |
@@ -386,6 +387,23 @@ OwlMail 支持两种邮件 ID 格式，所有 API 端点都兼容这两种格式
 在 API 请求中使用 `:id` 参数时，可以使用任意一种格式。例如：
 - `GET /email/aB3dEfGh` - 使用随机字符串 ID
 - `GET /email/550e8400-e29b-41d4-a716-446655440000` - 使用 UUID ID
+
+### 可选 MailDev REST facade
+
+现有 MailDev REST 客户端可显式启用其 `/api` 路由和载荷合约：
+
+```bash
+owlmail -maildev-rest-compat
+# 或：OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+```
+
+启用后提供 `/api/email`、`/api/email/summary`、`/api/email/delete`、详情、
+HTML、source、EML 下载、附件、relay、`/api/config`、`/api/healthz` 和
+`/api/reloadMailsFromDirectory`。facade 复用 Basic Auth、HTTPS 与 base path；
+health 与 MailDev 一样公开。只有 `GET /api/email/:id` 会将邮件标记已读。
+关闭选项时所有新增 `/api` 路由均不存在。这里**不实现 Socket.IO**，实时客户端
+仍需迁移到 OwlMail 原生 WebSocket 协议。详见
+[API 参考](./docs/zh-CN/API-Reference.md#可选-maildev-rest-facade)。
 
 ### MailDev 风格兼容路由
 
@@ -640,14 +658,15 @@ export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
 ### 2. API 兼容
 
-当前 MailDev 与 OwlMail 的 API 路径和载荷不同。新集成请使用 OwlMail 版本化
-API，并显式适配现有客户端：
+现有 REST 客户端可显式启用默认关闭的 MailDev facade；新集成应使用 OwlMail
+版本化 API。该 facade 不提供 Socket.IO 兼容：
 
 ```bash
-# 当前 MailDev API
+# 现有 MailDev REST 客户端
+OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
 curl http://localhost:1080/api/email
 
-# OwlMail API
+# 新 OwlMail 集成
 curl http://localhost:1080/api/v1/emails
 ```
 

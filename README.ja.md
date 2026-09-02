@@ -201,6 +201,7 @@ docker buildx build \
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` などの URL パス接頭辞。既定はルートパス |
+| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade を明示的に有効化。Socket.IO は引き続き非互換 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp` で読み取り専用 MCP Streamable HTTP エンドポイントを有効化 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | アイドル状態の MCP セッションを終了 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | シャットダウン時に MCP セッションを終了する期限 |
@@ -557,14 +558,16 @@ export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
 ### 2. API Compatibility
 
-API パスとペイロードは異なります。新規連携ではバージョン付き OwlMail API を使い、
-既存クライアントは明示的に修正してください：
+既存の REST クライアントは、デフォルトで無効な MailDev facade を明示的に
+有効化できます。新規連携ではバージョン付き OwlMail API を使用してください。
+facade に Socket.IO 互換性は含まれません：
 
 ```bash
-# 現在の MailDev API
+# 既存の MailDev REST クライアント
+OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
 curl http://localhost:1080/api/email
 
-# OwlMail API
+# 新規 OwlMail 連携
 curl http://localhost:1080/api/v1/emails
 ```
 

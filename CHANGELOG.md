@@ -8,6 +8,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- An optional, default-off MailDev REST facade under `/api`, with independent
+  MailDev-shaped full-email and summary DTOs, filtering and pagination,
+  read-on-detail behavior, bulk deletion, content downloads, synchronous relay
+  results, config, health, and directory reload routes. It shares OwlMail's
+  storage, Basic Auth, HTTPS, and base pathname while explicitly excluding
+  Socket.IO compatibility.
 - A configurable per-process SMTP DATA concurrency limit shared by ordinary
   SMTP, STARTTLS, and SMTPS. The default of eight protects MIME parsing,
   transactional staging, attachment hashing, and S3 uploads; `0` preserves an

@@ -232,6 +232,7 @@ type Config struct {
 	WebPassword        string
 	WebExternalScheme  string
 	BasePathname       string
+	MailDevRESTCompat  bool
 	MCPEnabled         bool
 	MCPSessionTimeout  string
 	MCPShutdownTimeout string
@@ -308,6 +309,7 @@ func DefaultConfig() *Config {
 		WebPassword:            "",
 		WebExternalScheme:      "",
 		BasePathname:           "",
+		MailDevRESTCompat:      false,
 		MCPEnabled:             false,
 		MCPSessionTimeout:      DefaultMCPSessionTimeout,
 		MCPShutdownTimeout:     DefaultMCPShutdownTimeout,
@@ -366,6 +368,7 @@ type FlagRefs struct {
 	WebUser                *string
 	WebPassword            *string
 	BasePathname           *string
+	MailDevRESTCompat      *bool
 	MCPEnabled             *bool
 	MCPSessionTimeout      *string
 	MCPShutdownTimeout     *string
@@ -426,6 +429,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
 		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
+		MailDevRESTCompat:      fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
 		MCPEnabled:             fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
 		MCPSessionTimeout:      fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
 		MCPShutdownTimeout:     fs.String("mcp-shutdown-timeout", cfg.MCPShutdownTimeout, "Maximum time to close MCP sessions during shutdown"),
@@ -489,6 +493,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
 		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
 		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
+		MailDevRESTCompat:  resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
 		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
 		MCPSessionTimeout:  resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
 		MCPShutdownTimeout: resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
