@@ -103,6 +103,9 @@ func TestSetAttachmentResponseHeaders(t *testing.T) {
 		wantDisposition bool
 	}{
 		{name: "svg is downloaded", contentType: "image/svg+xml", filename: "diagram.svg", wantType: "image/svg+xml", wantDisposition: true},
+		{name: "structured XML is downloaded", contentType: "application/atom+xml", filename: "feed.xml", wantType: "application/atom+xml", wantDisposition: true},
+		{name: "legacy JavaScript is downloaded", contentType: "application/x-javascript", filename: "payload.js", wantType: "application/x-javascript", wantDisposition: true},
+		{name: "ECMAScript is downloaded", contentType: "text/ecmascript", filename: "payload.es", wantType: "text/ecmascript", wantDisposition: true},
 		{name: "html parameters are recognized", contentType: "text/html; charset=utf-8", filename: "page.html", wantType: "text/html; charset=utf-8", wantDisposition: true},
 		{name: "png stays inline", contentType: "image/png", filename: "pixel.png", wantType: "image/png"},
 		{name: "empty type is safe", filename: "blob.bin", wantType: "application/octet-stream"},
