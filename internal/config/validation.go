@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/soulteary/cli-kit/validator"
 )
@@ -160,7 +161,8 @@ func NormalizeBasePathname(value string) (string, error) {
 	}
 	for _, segment := range strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/") {
 		decoded, decodeErr := url.PathUnescape(segment)
-		if decodeErr != nil || decoded == "." || decoded == ".." || strings.ContainsAny(decoded, "/\\?#:*+<>()") {
+		if decodeErr != nil || decoded == "." || decoded == ".." ||
+			strings.ContainsAny(decoded, "/\\?#:*+<>()") || strings.IndexFunc(decoded, unicode.IsControl) >= 0 {
 			return "", fmt.Errorf("base pathname contains an unsafe path segment")
 		}
 	}
