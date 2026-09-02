@@ -383,6 +383,14 @@ func TestNormalizeBasePathname(t *testing.T) {
 		{input: "/*", valid: false},
 		{input: "/tenant+", valid: false},
 		{input: "/tenant<id>", valid: false},
+		{input: "/%23tenant", valid: false},
+		{input: "/%3Ftenant", valid: false},
+		{input: "/%3ftenant", valid: false},
+		{input: "/%3Atenant", valid: false},
+		{input: "/%2A", valid: false},
+		{input: "/tenant%2B", valid: false},
+		{input: "/tenant%3Cid%3E", valid: false},
+		{input: "/tenant%28id%29", valid: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {

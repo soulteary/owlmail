@@ -160,7 +160,7 @@ func NormalizeBasePathname(value string) (string, error) {
 	}
 	for _, segment := range strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/") {
 		decoded, decodeErr := url.PathUnescape(segment)
-		if decodeErr != nil || decoded == "." || decoded == ".." || strings.ContainsAny(decoded, "/\\") {
+		if decodeErr != nil || decoded == "." || decoded == ".." || strings.ContainsAny(decoded, "/\\?#:*+<>()") {
 			return "", fmt.Errorf("base pathname contains an unsafe path segment")
 		}
 	}
