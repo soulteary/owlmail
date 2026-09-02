@@ -129,6 +129,9 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	ms.receivedAtByID[id] = receivedAt
 	ms.storeByID[id] = storedEmail
+	if persistMetadata {
+		ms.receivedMessages.Add(1)
+	}
 	ms.storeMutex.Unlock()
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
@@ -287,6 +290,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	}
 
 	ms.removeEmailFromMemory(id)
+	ms.deletedMessages.Add(1)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
 
@@ -319,6 +323,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 			continue
 		}
 		ms.removeEmailFromMemory(id)
+		ms.deletedMessages.Add(1)
 	}
 	if err := errors.Join(deletionErrors...); err != nil {
 		return err

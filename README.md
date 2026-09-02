@@ -231,6 +231,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Enable the opt-in MailDev `/api` REST facade; Socket.IO remains unsupported |
+| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Expose Prometheus metrics at the base-path-aware `/metrics` endpoint; protected by Web Basic Auth when configured |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle MCP sessions |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP sessions during shutdown |

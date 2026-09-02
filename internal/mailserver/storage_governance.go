@@ -40,6 +40,43 @@ type StorageMetrics struct {
 	LastCleanupError string    `json:"lastCleanupError,omitempty"`
 }
 
+// MailboxMetrics is a disk-I/O-free snapshot for runtime monitoring.
+type MailboxMetrics struct {
+	Total            int
+	Read             int
+	Unread           int
+	ReceivedMessages uint64
+	DeletedMessages  uint64
+	Storage          StorageMetrics
+}
+
+// GetMailboxMetrics returns current mailbox counts and retention counters
+// without calculating on-disk usage.
+func (ms *MailServer) GetMailboxMetrics() MailboxMetrics {
+	ms.storeMutex.RLock()
+	total := len(ms.storeByID)
+	unread := 0
+	for _, email := range ms.storeByID {
+		if !email.Read {
+			unread++
+		}
+	}
+	ms.storeMutex.RUnlock()
+
+	ms.storageMetricsMutex.RLock()
+	storage := ms.storageMetrics
+	ms.storageMetricsMutex.RUnlock()
+
+	return MailboxMetrics{
+		Total:            total,
+		Read:             total - unread,
+		Unread:           unread,
+		ReceivedMessages: ms.receivedMessages.Load(),
+		DeletedMessages:  ms.deletedMessages.Load(),
+		Storage:          storage,
+	}
+}
+
 type emailMetadata struct {
 	Version     int                  `json:"version"`
 	ID          string               `json:"id"`

@@ -208,6 +208,7 @@ docker buildx build \
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Origine HTTP(S) visible par le navigateur pour les liens profonds ; configurez séparément le sous-chemin avec `-base-pathname` |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Préfixe de chemin URL tel que `/owlmail`; la racine reste la valeur par défaut |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Active explicitement la façade REST MailDev sous `/api` ; Socket.IO reste incompatible |
+| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Expose les métriques Prometheus sur `/metrics` sous le chemin de base ; l’authentification Basic Web existante s’applique |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Active le point d'accès MCP Streamable HTTP en lecture seule sous `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Ferme les sessions MCP inactives |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Délai de fermeture des sessions MCP à l'arrêt |

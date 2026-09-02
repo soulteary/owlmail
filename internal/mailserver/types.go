@@ -133,6 +133,8 @@ type MailServer struct {
 	cleanupWG           sync.WaitGroup
 	storageMetricsMutex sync.RWMutex
 	storageMetrics      StorageMetrics
+	receivedMessages    atomic.Uint64
+	deletedMessages     atomic.Uint64
 
 	// Storage hooks are intentionally unexported and nil in production. They
 	// provide deterministic fault injection for transaction boundary tests.

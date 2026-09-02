@@ -39,6 +39,8 @@ type API struct {
 	externalScheme    string
 	basePathname      string
 	mailDevRESTCompat bool
+	metricsEnabled    bool
+	metrics           *prometheusMetrics
 	mcpHandler        http.Handler
 	relayJobs         *relayJobStore
 }
@@ -61,6 +63,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		port:          port,
 		host:          host,
 		wsClients:     make(map[*websocket.Conn]*sync.Mutex),
+		metrics:       newPrometheusMetrics(),
 		authUser:      user,
 		authPassword:  password,
 		httpsEnabled:  httpsEnabled,
@@ -115,6 +118,13 @@ func (api *API) SetBasePathname(basePathname string) error {
 func (api *API) SetMailDevRESTCompat(enabled bool) {
 	api.mailDevRESTCompat = enabled
 	api.mailServer.SetRetainAllHeaders(enabled)
+	api.setupRoutes()
+}
+
+// SetMetricsEnabled controls the opt-in Prometheus endpoint. The endpoint
+// follows the configured base pathname and existing HTTP Basic Auth policy.
+func (api *API) SetMetricsEnabled(enabled bool) {
+	api.metricsEnabled = enabled
 	api.setupRoutes()
 }
 
@@ -210,6 +220,9 @@ func (api *API) setupRoutes() {
 	// New improved RESTful API routes
 	// ============================================================================
 	api.setupImprovedAPIRoutes(app)
+	if api.metricsEnabled {
+		app.Get(api.route("/metrics"), api.prometheusMetrics)
+	}
 	if api.mcpHandler != nil {
 		app.All(api.route("/mcp"), adaptor.HTTPHandler(api.mcpHandler))
 	}
@@ -234,6 +247,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/readyz") ||
 			strings.HasPrefix(path, "/socket.io") ||
 			strings.HasPrefix(path, "/mcp") ||
+			strings.HasPrefix(path, "/metrics") ||
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
