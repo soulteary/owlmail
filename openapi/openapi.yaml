@@ -583,7 +583,7 @@ paths:
       tags:
       - Relay
       summary: Request email relay
-      description: Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category.
+      description: Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. If all 1000 status slots are active, the request returns 503 with Retry-After instead of evicting an active job.
       operationId: relayEmail
       parameters:
       - $ref: '#/components/parameters/EmailID'
@@ -627,12 +627,27 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: Relay status store is full of active jobs; retry later.
+          headers:
+            Retry-After:
+              description: Suggested delay before retrying, in seconds.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+              example:
+                code: RELAY_FAILED
+                message: Relay status capacity reached; retry later.
   /emails/{id}/actions/relay/{relayTo}:
     post:
       tags:
       - Relay
       summary: Request email relay to an explicit recipient
-      description: Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category.
+      description: Returns 202 after OwlMail creates a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; failed jobs expose only a bounded error category. If all 1000 status slots are active, the request returns 503 with Retry-After instead of evicting an active job.
       operationId: relayEmailTo
       parameters:
       - $ref: '#/components/parameters/EmailID'
@@ -664,12 +679,27 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '503':
+          description: Relay status store is full of active jobs; retry later.
+          headers:
+            Retry-After:
+              description: Suggested delay before retrying, in seconds.
+              schema:
+                type: integer
+                minimum: 1
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+              example:
+                code: RELAY_FAILED
+                message: Relay status capacity reached; retry later.
   /relay-jobs/{jobID}:
     get:
       tags:
       - Relay
       summary: Get asynchronous relay status
-      description: Returns the current state of one process-local relay job. Completed jobs are retained for 24 hours; the store keeps at most 1000 jobs.
+      description: Returns the current state of one process-local relay job. Completed jobs are retained for 24 hours; the store keeps at most 1000 jobs and never evicts an active job.
       operationId: getRelayJob
       parameters:
       - $ref: '#/components/parameters/RelayJobID'
