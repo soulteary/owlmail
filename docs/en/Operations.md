@@ -451,7 +451,10 @@ available over stdio without opening an HTTP listener:
 
 Protocol messages use stdout and OwlMail logs use stderr. The stdio command
 ignores relay, webhook, and retention settings inherited from the environment,
-so its MCP tools and process remain read-only.
+so its MCP tools and process remain read-only. The mail directory must already
+exist. The bridge rescans committed EML files every 500 ms using a read-only
+loader; it never runs storage recovery, metadata migration, or quarantine, and
+new captures become visible to queries and `wait_for_email`.
 
 ## HTTPS and TLS
 
