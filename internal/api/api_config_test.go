@@ -704,8 +704,9 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	if clearResp.StatusCode != http.StatusOK {
 		t.Fatalf("Clear password status = %d, want 200", clearResp.StatusCode)
 	}
-	if got := server.GetOutgoingConfig().Password; got != "" {
-		t.Fatalf("explicit empty PATCH password was not cleared: %q", got)
+	cleared := server.GetOutgoingConfig()
+	if cleared.Password != "" || cleared.User != "" {
+		t.Fatalf("explicit empty PATCH password did not disable credentials: user=%q password=%q", cleared.User, cleared.Password)
 	}
 }
 

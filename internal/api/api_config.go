@@ -76,6 +76,9 @@ func (api *API) updateOutgoingConfig(c fiber.Ctx) error {
 	if err := c.Bind().Body(&config); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid request: "+err.Error()))
 	}
+	if config.Password == "" {
+		config.User = ""
+	}
 
 	if config.Host == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeHostRequired, "Host is required"))
@@ -122,9 +125,13 @@ func (api *API) patchOutgoingConfig(c fiber.Ctx) error {
 		currentConfig.User = user
 	}
 	// PATCH preserves the current password unless the field is present. An
-	// explicit empty string clears it for subsequently accepted relay tasks.
+	// explicit empty string clears both credentials so the resulting snapshot
+	// disables authentication while remaining a valid configuration.
 	if password, ok := updates["password"].(string); ok {
 		currentConfig.Password = password
+		if password == "" {
+			currentConfig.User = ""
+		}
 	}
 	if secure, ok := updates["secure"].(bool); ok {
 		currentConfig.Secure = secure
