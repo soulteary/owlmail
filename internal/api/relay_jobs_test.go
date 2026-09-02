@@ -160,7 +160,6 @@ func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 	}
 }
 
-
 func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {
