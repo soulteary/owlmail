@@ -166,6 +166,70 @@ func TestMailServerUsesSQLiteIndexAndSynchronizesMutations(t *testing.T) {
 	}
 }
 
+func TestReloadRebuildsSQLiteStorePositionsAfterSorting(t *testing.T) {
+	directory := t.TempDir()
+	index, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = index.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	laterID, earlierID := "Aa11Bb22", "Zz99Yy88"
+	later := time.Unix(1_700_000_100, 0)
+	earlier := later.Add(-time.Minute)
+	for _, item := range []struct {
+		id       string
+		received time.Time
+	}{{laterID, later}, {earlierID, earlier}} {
+		path := filepath.Join(directory, item.id+".eml")
+		if err := os.WriteFile(path, validMessage(item.id), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, item.received, item.received); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := server.LoadMailsFromDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	results, total := server.QueryEmailPreviews(EmailQuery{SortBy: "store", Limit: 10})
+	if total != 2 || len(results) != 2 || results[0].ID != earlierID || results[1].ID != laterID {
+		t.Fatalf("indexed reload order = %#v, total %d", results, total)
+	}
+}
+
+func TestStartupPreservesSQLiteIndexInsideGeneratedIDDirectory(t *testing.T) {
+	directory := t.TempDir()
+	indexDirectory := filepath.Join(directory, "Ab12Cd34")
+	indexPath := filepath.Join(indexDirectory, "mailbox.db")
+	index, err := NewSQLiteMailboxIndex(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{MailboxIndex: index})
+	if err != nil {
+		_ = index.Close()
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("startup moved the configured SQLite index: %v", err)
+	}
+	if _, err := os.Stat(indexDirectory); err != nil {
+		t.Fatalf("startup moved the configured SQLite directory: %v", err)
+	}
+	status := server.GetEmailStats()["index"].(map[string]interface{})
+	if status["ready"] != true {
+		t.Fatalf("configured index was not ready after startup: %#v", status)
+	}
+}
+
 func TestDeleteAllPreservesNestedSQLiteIndex(t *testing.T) {
 	directory := t.TempDir()
 	indexPath := filepath.Join(directory, ".index", "mailbox.db")

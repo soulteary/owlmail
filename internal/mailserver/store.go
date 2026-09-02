@@ -906,6 +906,12 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		return ms.receivedAtByID[ms.storeOrder[i]].Before(ms.receivedAtByID[ms.storeOrder[j]])
 	})
 	ms.storeMutex.Unlock()
+	if ms.mailboxIndex != nil && ms.mailboxIndexReady.Load() {
+		if err := ms.rebuildMailboxIndex(); err != nil {
+			ms.disableMailboxIndex("reload", err)
+			loadErrors = append(loadErrors, fmt.Errorf("rebuild mailbox index after reload: %w", err))
+		}
+	}
 	if err := ms.quarantineOrphanAttachmentDirectories(); err != nil {
 		loadErrors = append(loadErrors, err)
 	}
