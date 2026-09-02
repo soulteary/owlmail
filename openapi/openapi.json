@@ -357,7 +357,7 @@
                       "time": "2026-09-02T12:00:00Z",
                       "read": false,
                       "subject": "Welcome",
-                      "from": "Sender <sender@example.com>",
+                      "from": "sender@example.com",
                       "to": [
                         "recipient@example.com"
                       ],

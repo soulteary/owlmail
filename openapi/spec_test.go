@@ -81,6 +81,14 @@ func validateTransportSemantics(t *testing.T, document map[string]any) {
 	if !strings.Contains(description, "200 UTF-8 bytes, not characters") {
 		t.Error("EmailPreview.preview does not document byte-based truncation")
 	}
+
+	previewOperation := paths["/emails/preview"].(map[string]any)["get"].(map[string]any)
+	previewResponse := previewOperation["responses"].(map[string]any)["200"].(map[string]any)
+	previewContent := previewResponse["content"].(map[string]any)["application/json"].(map[string]any)
+	previewExample := previewContent["example"].(map[string]any)["previews"].([]any)[0].(map[string]any)
+	if got := previewExample["from"]; got != "sender@example.com" {
+		t.Errorf("EmailPreview example from = %q, want address-only value", got)
+	}
 }
 
 func validateRelaySemantics(t *testing.T, document map[string]any) {
