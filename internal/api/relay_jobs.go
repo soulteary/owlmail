@@ -21,8 +21,9 @@ const (
 	relayJobSucceeded = "succeeded"
 	relayJobFailed    = "failed"
 
-	defaultRelayJobTTL   = 24 * time.Hour
-	defaultRelayJobLimit = 1000
+	defaultRelayJobTTL              = 24 * time.Hour
+	defaultRelayJobLimit            = 1000
+	defaultRelayJobMinimumRetention = time.Minute
 )
 
 type relayJob struct {
@@ -34,22 +35,28 @@ type relayJob struct {
 	CreatedAt     time.Time  `json:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	CompletedAt   *time.Time `json:"completedAt,omitempty"`
+	retainUntil   time.Time
 }
 
 type relayJobStore struct {
-	mu    sync.Mutex
-	jobs  map[string]relayJob
-	order []string
-	now   func() time.Time
-	newID func() (string, error)
-	ttl   time.Duration
-	limit int
+	mu               sync.Mutex
+	jobs             map[string]relayJob
+	order            []string
+	now              func() time.Time
+	newID            func() (string, error)
+	ttl              time.Duration
+	limit            int
+	minimumRetention time.Duration
 }
 
 func newRelayJobStore() *relayJobStore {
 	return &relayJobStore{
-		jobs: make(map[string]relayJob), now: time.Now, newID: randomRelayJobID,
-		ttl: defaultRelayJobTTL, limit: defaultRelayJobLimit,
+		jobs:             make(map[string]relayJob),
+		now:              time.Now,
+		newID:            randomRelayJobID,
+		ttl:              defaultRelayJobTTL,
+		limit:            defaultRelayJobLimit,
+		minimumRetention: defaultRelayJobMinimumRetention,
 	}
 }
 
@@ -71,7 +78,7 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.pruneLocked(now)
-	if !store.makeRoomLocked() {
+	if !store.makeRoomLocked(now) {
 		return relayJob{}, errRelayJobCapacity
 	}
 	store.jobs[id] = job
@@ -88,6 +95,7 @@ func (store *relayJobStore) complete(id string, relayErr error) {
 	}
 	now := store.now().UTC()
 	job.UpdatedAt, job.CompletedAt = now, &now
+	job.retainUntil = now.Add(store.minimumRetention)
 	if relayErr == nil {
 		job.Status, job.ErrorCategory = relayJobSucceeded, ""
 	} else {
@@ -132,11 +140,12 @@ func (store *relayJobStore) pruneLocked(now time.Time) {
 	store.order = kept
 }
 
-func (store *relayJobStore) makeRoomLocked() bool {
+func (store *relayJobStore) makeRoomLocked(now time.Time) bool {
 	for store.limit > 0 && len(store.order) >= store.limit {
 		removeIndex := -1
 		for index, id := range store.order {
-			if store.jobs[id].CompletedAt != nil {
+			job := store.jobs[id]
+			if job.CompletedAt != nil && !now.Before(job.retainUntil) {
 				removeIndex = index
 				break
 			}

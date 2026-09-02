@@ -129,6 +129,7 @@ func TestRelayJobNotFound(t *testing.T) {
 func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 	store := newRelayJobStore()
 	store.limit = 1
+	store.minimumRetention = 0
 	ids := []string{"job-active", "job-rejected", "job-replacement"}
 	store.newID = func() (string, error) {
 		id := ids[0]
@@ -157,6 +158,40 @@ func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
 	}
 	if got, ok := store.get(replacement.ID); !ok || got.EmailID != "mail-replacement" {
 		t.Fatalf("replacement job = %#v, %t", got, ok)
+	}
+}
+
+func TestRelayJobStoreKeepsFreshlyCompletedJobQueryable(t *testing.T) {
+	currentTime := time.Unix(1_700_000_000, 0).UTC()
+	store := newRelayJobStore()
+	store.limit = 1
+	store.minimumRetention = time.Minute
+	store.now = func() time.Time { return currentTime }
+	ids := []string{"job-accepted", "job-too-early", "job-after-window"}
+	store.newID = func() (string, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	}
+
+	accepted, err := store.create("mail-accepted", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.complete(accepted.ID, nil)
+	if _, err := store.create("mail-too-early", ""); !errors.Is(err, errRelayJobCapacity) {
+		t.Fatalf("create during minimum retention error = %v, want %v", err, errRelayJobCapacity)
+	}
+	if got, ok := store.get(accepted.ID); !ok || got.Status != relayJobSucceeded {
+		t.Fatalf("freshly completed job was not queryable: %#v, %t", got, ok)
+	}
+
+	currentTime = currentTime.Add(time.Minute)
+	if _, err := store.create("mail-after-window", ""); err != nil {
+		t.Fatalf("create after minimum retention: %v", err)
+	}
+	if _, ok := store.get(accepted.ID); ok {
+		t.Fatal("completed job was retained after its protected window under capacity pressure")
 	}
 }
 
