@@ -17,6 +17,8 @@ func TestEmailQueryRejectsInvalidValues(t *testing.T) {
 		"/api/v1/emails?dateFrom=yesterday",
 		"/api/v1/emails?dateTo=2026-99-99",
 		"/api/v1/emails?read=maybe",
+		"/api/v1/emails?read=1",
+		"/api/v1/emails?read=TRUE",
 		"/api/v1/emails?sortBy=unknown",
 		"/api/v1/emails/preview?sortOrder=sideways",
 	}
