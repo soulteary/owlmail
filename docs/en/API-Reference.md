@@ -164,14 +164,20 @@ Both batch routes accept:
 | `GET /api/v1/emails/:id/attachments/:filename` | decoded bytes using the attachment metadata Content-Type |
 | `POST /api/v1/emails/:id/actions/relay` | relay using the message recipients |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
+| `GET /api/v1/relay-jobs/:jobID` | inspect an asynchronous relay job |
 
-Relay routes require outgoing SMTP configuration. A success response confirms
-that OwlMail received the in-process relay request and attempted to hand it to
-the outgoing worker. It does **not** guarantee that the queue accepted the task
-or that the downstream SMTP server delivered the message. The API does not
-syntactically validate `relayTo` before asynchronous handling; queue saturation
-and later downstream failures are reported only in process logs after the HTTP
-response.
+Native v1 relay routes require outgoing SMTP configuration and return `202`
+with an opaque job ID, a base-path-aware `statusUrl`, and the current state.
+Poll that URL until the state is `succeeded` or `failed`. Failed jobs expose a
+bounded `errorCategory`, never the raw downstream error. Jobs are process-local
+and completed records expire after 24 hours. The status store keeps at most
+1000 jobs; completed records have a one-minute post-completion protection
+window and may be evicted under capacity pressure after that window. Active
+jobs are never evicted. If all slots are active or protected, a new request
+returns `503` with `Retry-After: 1`. Explicit `relayTo` values are limited to
+1024 UTF-8 bytes before a status record is created.
+Historical `/email` aliases keep their existing response behavior; the opt-in
+MailDev facade continues to wait for its relay attempt.
 
 ### Settings and system
 

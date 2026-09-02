@@ -97,9 +97,16 @@ func validateRelaySemantics(t *testing.T, document map[string]any) {
 	for _, path := range []string{"/emails/{id}/actions/relay", "/emails/{id}/actions/relay/{relayTo}"} {
 		operation := paths[path].(map[string]any)["post"].(map[string]any)
 		description := operation["description"].(string)
-		if !strings.Contains(description, "does not guarantee queue insertion or downstream SMTP delivery") {
-			t.Errorf("POST %s does not document asynchronous relay failure semantics", path)
+		if !strings.Contains(description, "queryable relay job") {
+			t.Errorf("POST %s does not document queryable asynchronous relay semantics", path)
 		}
+		if _, ok := operation["responses"].(map[string]any)["202"]; !ok {
+			t.Errorf("POST %s does not document HTTP 202", path)
+		}
+	}
+	status := paths["/relay-jobs/{jobID}"].(map[string]any)["get"].(map[string]any)
+	if status["operationId"] != "getRelayJob" {
+		t.Errorf("relay status operation = %#v", status["operationId"])
 	}
 }
 

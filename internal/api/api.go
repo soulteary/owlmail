@@ -40,6 +40,7 @@ type API struct {
 	basePathname      string
 	mailDevRESTCompat bool
 	mcpHandler        http.Handler
+	relayJobs         *relayJobStore
 }
 
 // NewAPI creates a new API server instance
@@ -66,6 +67,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		httpsCertFile: certFile,
 		httpsKeyFile:  keyFile,
 		wsUpgrader:    websocket.Upgrader{},
+		relayJobs:     newRelayJobStore(),
 	}
 	api.wsUpgrader.CheckOrigin = func(r *http.Request) bool {
 		return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, api.requestScheme())
@@ -291,8 +293,9 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	emailsGroup.Get("/:id/source", api.getEmailSource)
 	emailsGroup.Get("/:id/raw", api.downloadEmail)
 	emailsGroup.Get("/:id/attachments/:filename", api.getAttachment)
-	emailsGroup.Post("/:id/actions/relay", api.relayEmail)
-	emailsGroup.Post("/:id/actions/relay/:relayTo", api.relayEmailWithParam)
+	emailsGroup.Post("/:id/actions/relay", api.relayEmailAsync)
+	emailsGroup.Post("/:id/actions/relay/:relayTo", api.relayEmailWithParamAsync)
+	v1.Get("/relay-jobs/:jobID", api.getRelayJob)
 
 	// Settings resource
 	settingsGroup := v1.Group("/settings")
