@@ -666,6 +666,9 @@ test('delayed initial deep link cannot supersede newer history navigation', asyn
     const harness = createHarness({
         fetchImpl: async (url) => {
             const requestURL = new URL(url);
+            if (requestURL.pathname.endsWith('/settings/outgoing')) {
+                return jsonResponse({ enabled: false });
+            }
             if (requestURL.pathname.endsWith('/emails/preview')) {
                 return new Promise((resolve) => {
                     resolvePreview = () => resolve(jsonResponse({ previews: [], total: 0 }));
