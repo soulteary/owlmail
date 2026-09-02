@@ -120,12 +120,6 @@ func (config *OutgoingConfig) timeouts() (smtpTimeouts, error) {
 	return result, nil
 }
 
-// sendMailTLS preserves the historical helper name while giving Secure the
-// MailDev-compatible meaning: implicit TLS from the first byte on the wire.
-func sendMailTLS(addr string, auth smtp.Auth, from string, to []string, msg []byte) error {
-	return sendMailWithConfig(context.Background(), addr, auth, from, to, msg, (&OutgoingConfig{Secure: true}).withDefaults())
-}
-
 // sendMailContext preserves the streaming helper call shape from the relay
 // performance work. secure=true has the fail-closed SMTPS meaning. The final
 // argument is retained for source compatibility; plaintext authentication is
