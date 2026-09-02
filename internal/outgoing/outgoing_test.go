@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
@@ -67,7 +68,7 @@ func TestSendMailContextCancellationClosesActiveConnection(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 	started := time.Now()
-	err = sendMailContext(ctx, listener.Addr().String(), nil, "from@example.test", []string{"to@example.test"}, []byte("body"), false)
+	err = sendMailContext(ctx, listener.Addr().String(), nil, "from@example.test", []string{"to@example.test"}, io.NopCloser(strings.NewReader("body")), false)
 	if err == nil || time.Since(started) > time.Second {
 		t.Fatalf("sendMailContext() error = %v after %s", err, time.Since(started))
 	}
@@ -92,7 +93,7 @@ func TestSendMailContextHonorsSecureSetting(t *testing.T) {
 			addr, result := startSTARTTLSAdvertisedSMTP(t)
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			err := sendMailContext(ctx, addr, nil, "from@example.test", []string{"to@example.test"}, []byte("Subject: test\r\n\r\nbody"), tc.secure)
+			err := sendMailContext(ctx, addr, nil, "from@example.test", []string{"to@example.test"}, io.NopCloser(strings.NewReader("Subject: test\r\n\r\nbody")), tc.secure)
 			if (err != nil) != tc.wantErr {
 				t.Fatalf("sendMailContext() error = %v, wantErr %v", err, tc.wantErr)
 			}
@@ -748,36 +749,30 @@ func TestOutgoingMailClose(t *testing.T) {
 	// In production, you would need to add a check to prevent double close
 }
 
-func TestSendMailTLS(t *testing.T) {
-	// Test that sendMailTLS function exists and can be called
-	// We can't easily test actual SMTP connection in unit tests,
-	// but we can verify the function exists and handles errors properly
-
+func TestSendMailContextConnectionErrors(t *testing.T) {
 	// Test with invalid address (should fail quickly)
-	err := sendMailTLS("invalid:address", nil, "from@example.com", []string{"to@example.com"}, []byte("test"))
+	err := sendMailContext(context.Background(), "invalid:address", nil, "from@example.com", []string{"to@example.com"}, io.NopCloser(strings.NewReader("test")), true)
 	if err == nil {
-		// In test environment, this might succeed if there's a mock server
-		// But typically it should fail
-		t.Log("sendMailTLS with invalid address (expected to fail in most cases)")
+		t.Log("sendMailContext with invalid address unexpectedly succeeded")
 	}
 
 	// Test with nil auth
-	err = sendMailTLS("localhost:25", nil, "from@example.com", []string{"to@example.com"}, []byte("test"))
+	err = sendMailContext(context.Background(), "localhost:25", nil, "from@example.com", []string{"to@example.com"}, io.NopCloser(strings.NewReader("test")), true)
 	// This will likely fail because there's no SMTP server, but function should handle it
 	if err != nil {
-		t.Logf("sendMailTLS failed as expected: %v", err)
+		t.Logf("sendMailContext failed as expected: %v", err)
 	}
 
 	// Test with empty recipients
-	err = sendMailTLS("localhost:25", nil, "from@example.com", []string{}, []byte("test"))
+	err = sendMailContext(context.Background(), "localhost:25", nil, "from@example.com", []string{}, io.NopCloser(strings.NewReader("test")), true)
 	if err == nil {
-		t.Log("sendMailTLS with empty recipients (expected to fail)")
+		t.Log("sendMailContext with empty recipients unexpectedly succeeded")
 	}
 
 	// Test with empty message
-	err = sendMailTLS("localhost:25", nil, "from@example.com", []string{"to@example.com"}, []byte{})
+	err = sendMailContext(context.Background(), "localhost:25", nil, "from@example.com", []string{"to@example.com"}, io.NopCloser(strings.NewReader("")), true)
 	if err != nil {
-		t.Logf("sendMailTLS with empty message failed: %v", err)
+		t.Logf("sendMailContext with empty message failed: %v", err)
 	}
 }
 
