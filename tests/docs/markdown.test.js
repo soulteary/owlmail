@@ -336,6 +336,12 @@ test("security-sensitive SMTP authentication modes remain explicit", () => {
     "smtp-max-message-mb",
     "50 recipients",
     "50 个收件人",
+    "smtp-read-timeout",
+    "OWLMAIL_SMTP_READ_TIMEOUT",
+    "smtp-write-timeout",
+    "OWLMAIL_SMTP_WRITE_TIMEOUT",
+    "smtp-max-recipients",
+    "OWLMAIL_SMTP_MAX_RECIPIENTS",
     "OWLMAIL_SMTP_MAX_CONCURRENCY",
     "451 4.3.2",
   ]) {

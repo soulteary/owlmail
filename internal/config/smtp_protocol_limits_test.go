@@ -31,6 +31,22 @@ func TestSMTPProtocolLimitsResolveFlagsAndEnvironment(t *testing.T) {
 	}
 }
 
+func TestSMTPProtocolLimitsRejectExplicitEmptyTimeoutFlags(t *testing.T) {
+	for _, flagName := range []string{"smtp-read-timeout", "smtp-write-timeout"} {
+		t.Run(flagName, func(t *testing.T) {
+			fs := flag.NewFlagSet("smtp-empty-timeout", flag.ContinueOnError)
+			refs := DefineFlags(fs)
+			if err := fs.Parse([]string{"-" + flagName + "="}); err != nil {
+				t.Fatal(err)
+			}
+			cfg := ResolveConfig(fs, refs)
+			if err := ValidateConfig(cfg); err == nil || !strings.Contains(err.Error(), "positive duration") {
+				t.Fatalf("ValidateConfig() error = %v, want timeout validation error", err)
+			}
+		})
+	}
+}
+
 func TestSMTPMaxRecipientsRejectsMalformedEnvironment(t *testing.T) {
 	t.Setenv("OWLMAIL_SMTP_MAX_RECIPIENTS", "not-a-number")
 	fs := flag.NewFlagSet("smtp-max-recipients-invalid", flag.ContinueOnError)

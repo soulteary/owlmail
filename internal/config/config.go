@@ -29,6 +29,8 @@ const DefaultSMTPReadTimeout = "10s"
 const DefaultSMTPWriteTimeout = "10s"
 const DefaultSMTPMaxRecipients = 50
 
+const invalidSMTPTimeout = "invalid"
+
 const DefaultS3Region = "us-east-1"
 const DefaultS3Prefix = "owlmail/attachments"
 const DefaultS3HealthCheckInterval = "30s"
@@ -498,8 +500,8 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
 		SMTPMaxConcurrency:  resolveSMTPMaxConcurrencyWithFlag(fs, *refs.SMTPMaxConcurrency),
-		SMTPReadTimeout:     resolveStringWithFlag(fs, "smtp-read-timeout", "OWLMAIL_SMTP_READ_TIMEOUT", *refs.SMTPReadTimeout),
-		SMTPWriteTimeout:    resolveStringWithFlag(fs, "smtp-write-timeout", "OWLMAIL_SMTP_WRITE_TIMEOUT", *refs.SMTPWriteTimeout),
+		SMTPReadTimeout:     resolveSMTPTimeoutWithFlag(fs, "smtp-read-timeout", "OWLMAIL_SMTP_READ_TIMEOUT", *refs.SMTPReadTimeout),
+		SMTPWriteTimeout:    resolveSMTPTimeoutWithFlag(fs, "smtp-write-timeout", "OWLMAIL_SMTP_WRITE_TIMEOUT", *refs.SMTPWriteTimeout),
 		SMTPMaxRecipients:   resolveSMTPMaxRecipientsWithFlag(fs, *refs.SMTPMaxRecipients),
 		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
@@ -560,6 +562,16 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebhookRedisPrefix:     resolveStringWithFlag(fs, "webhook-redis-prefix", "OWLMAIL_WEBHOOK_REDIS_PREFIX", *refs.WebhookRedisPrefix),
 		WebhookShutdownTimeout: resolveStringWithFlag(fs, "webhook-shutdown-timeout", "OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT", *refs.WebhookShutdownTimeout),
 	}
+}
+
+// resolveSMTPTimeoutWithFlag keeps an omitted field compatible with manually
+// constructed Config values while preserving an explicitly empty flag as an
+// invalid duration for startup validation.
+func resolveSMTPTimeoutWithFlag(fs *flag.FlagSet, flagName, owlmailKey, flagValue string) string {
+	if flagutil.HasFlag(fs, flagName) && flagValue == "" {
+		return invalidSMTPTimeout
+	}
+	return resolveStringWithFlag(fs, flagName, owlmailKey, flagValue)
 }
 
 // resolveSMTPMaxConcurrencyWithFlag keeps the established CLI-over-environment
