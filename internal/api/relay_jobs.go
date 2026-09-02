@@ -2,8 +2,8 @@ package api
 
 import (
 	"crypto/rand"
-	"errors"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
