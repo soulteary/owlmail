@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/maildev"
@@ -13,6 +15,8 @@ import (
 )
 
 var mailDevRelayAddress = regexp.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}(\.[0-9]{1,3}){3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`)
+
+const mailDevRelayTimeout = 30 * time.Second
 
 // setupMailDevRESTCompatRoutes registers only the current MailDev /api REST
 // surface. It intentionally does not register a Socket.IO endpoint.
@@ -275,7 +279,9 @@ func (api *API) mailDevRelayEmail(c fiber.Ctx) error {
 	if relayTo != "" && !mailDevRelayAddress.MatchString(relayTo) {
 		return mailDevError(c, http.StatusBadRequest, fmt.Sprintf("Incorrect email address provided: %s", relayTo))
 	}
-	if err := api.mailServer.RelayMailAndWait(email, relayTo); err != nil {
+	ctx, cancel := context.WithTimeout(c.RequestCtx(), mailDevRelayTimeout)
+	defer cancel()
+	if err := api.mailServer.RelayMailAndWait(ctx, email, relayTo); err != nil {
 		return mailDevError(c, http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(true)

@@ -1,6 +1,8 @@
 package mailserver
 
 import (
+	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -147,6 +149,15 @@ func TestRelayMailTo(t *testing.T) {
 	})
 	// Error is expected in test environment, but we just want to verify it doesn't panic
 	_ = err
+}
+
+func TestWaitRelayResultHonorsCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := waitRelayResult(ctx, make(chan error))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("waitRelayResult() error = %v, want context cancellation", err)
+	}
 }
 
 func TestSetOutgoingConfigUpdate(t *testing.T) {

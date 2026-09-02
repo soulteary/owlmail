@@ -228,6 +228,9 @@ worker，不创建第二套索引或存储格式。
 | `GET /api/healthz` | 公开的 JSON 布尔值 `true` |
 | `GET /api/reloadMailsFromDirectory` | 重载已配置目录并返回 JSON 布尔值 `true` |
 
+relay 请求会等待现有 outgoing worker 的投递结果，以匹配 MailDev 的成功语义；
+HTTP 等待遵循请求取消且最多 30 秒，facade 不会另建 relay worker。
+
 兼容错误统一为单字段 `{"error":"..."}`。JSON、HTML、source、EML 与附件
 保留各自 Content-Type。facade 不改变 `/api/v1` 的任何路由或 DTO。
 

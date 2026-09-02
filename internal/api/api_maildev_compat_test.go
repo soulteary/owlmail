@@ -78,7 +78,7 @@ func TestMailDevRESTFacadeContractAndReadSideEffect(t *testing.T) {
 		},
 		Attachments: []*types.Attachment{{
 			FileName: "logo.png", GeneratedFileName: "safe-logo.png", ContentType: "image/png",
-			ContentID: "logo@example.test", Size: 4,
+			ContentDisposition: "inline", ContentID: "logo@example.test", Size: 4,
 		}},
 	}
 	envelope := &types.Envelope{

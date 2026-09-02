@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -23,7 +24,7 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 		},
 		Attachments: []*types.Attachment{{
 			FileName: "logo.png", GeneratedFileName: "safe.png", ContentType: "image/png",
-			ContentID: "logo@fbi.gov", Size: 24,
+			ContentDisposition: "attachment", ContentID: "logo@fbi.gov", Size: 24,
 		}},
 		Envelope: &types.Envelope{
 			From: "angelo@fbi.gov", To: []string{"johnny@fbi.gov"},
@@ -44,7 +45,7 @@ func TestFromEmailUsesMailDevDTOShape(t *testing.T) {
 		`"date":"2026-01-05T19:02:09Z"`,
 		`"priority":"high"`,
 		`"filename":"logo.png"`,
-		`"contentDisposition":"inline"`,
+		`"contentDisposition":"attachment"`,
 		`"envelope":{"from":{"address":"angelo@fbi.gov"}`,
 	} {
 		if !strings.Contains(body, fragment) {
@@ -83,6 +84,13 @@ func TestToSummaryMatchesMailDevProjection(t *testing.T) {
 		if strings.Contains(string(encoded), forbidden) {
 			t.Fatalf("body field leaked into summary: %s", encoded)
 		}
+	}
+}
+
+func TestToSummaryTruncatesOnUnicodeBoundaries(t *testing.T) {
+	dto := ToSummary(&types.Email{Text: strings.Repeat("界", PreviewLength+1)})
+	if !utf8.ValidString(dto.Preview) || len([]rune(dto.Preview)) != PreviewLength {
+		t.Fatalf("preview was not truncated safely: %q", dto.Preview)
 	}
 }
 

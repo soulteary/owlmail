@@ -148,9 +148,12 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		if attachment == nil {
 			continue
 		}
-		disposition := "attachment"
-		if attachment.ContentID != "" {
+		disposition := attachment.ContentDisposition
+		if disposition == "" && attachment.ContentID != "" {
 			disposition = "inline"
+		}
+		if disposition == "" {
+			disposition = "attachment"
 		}
 		result.Attachments = append(result.Attachments, Attachment{
 			Filename: attachment.FileName, GeneratedFileName: attachment.GeneratedFileName,
@@ -173,8 +176,9 @@ func ToSummary(email *types.Email) Summary {
 	preview := ""
 	if email.Text != "" {
 		preview = strings.Join(strings.Fields(email.Text), " ")
-		if len(preview) > PreviewLength {
-			preview = preview[:PreviewLength]
+		runes := []rune(preview)
+		if len(runes) > PreviewLength {
+			preview = string(runes[:PreviewLength])
 		}
 	}
 	result := Summary{

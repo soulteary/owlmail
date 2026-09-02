@@ -262,6 +262,10 @@ outgoing relay worker; it does not create a second index or storage format.
 | `GET /api/healthz` | Public JSON boolean `true` |
 | `GET /api/reloadMailsFromDirectory` | Reloads the configured directory and returns JSON boolean `true` |
 
+Relay requests wait for the outgoing attempt so their success value matches
+MailDev, but the HTTP wait follows request cancellation and is capped at 30
+seconds; the facade continues to use OwlMail's existing relay worker.
+
 Compatibility errors have the single-field shape `{"error":"..."}`. JSON,
 HTML, source, EML, and attachment responses preserve their corresponding
 Content-Type. The facade changes neither routes nor DTOs under `/api/v1`.

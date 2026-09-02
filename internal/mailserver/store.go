@@ -628,9 +628,10 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 					}
 
 					attachment := &Attachment{
-						ContentType: partMediaType,
-						FileName:    filename,
-						ContentID:   contentID,
+						ContentType:        partMediaType,
+						ContentDisposition: disposition,
+						FileName:           filename,
+						ContentID:          contentID,
 					}
 
 					if saveAttachments {
