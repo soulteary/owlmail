@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/types"
@@ -12,7 +13,11 @@ import (
 
 func TestPrometheusMetricsAreOptIn(t *testing.T) {
 	api, server, tmpDir := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 
 	req, _ := http.NewRequest(http.MethodGet, "/metrics", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
@@ -62,7 +67,11 @@ func TestPrometheusMetricsAreOptIn(t *testing.T) {
 
 func TestPrometheusMetricsUseBasePathAndBasicAuth(t *testing.T) {
 	_, server, _ := setupTestAPI(t)
-	defer server.Close()
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
 	api := NewAPIWithAuth(server, 1080, "localhost", "metrics", "secret")
 	if err := api.SetBasePathname("/owlmail"); err != nil {
 		t.Fatal(err)
@@ -88,5 +97,35 @@ func TestPrometheusMetricsUseBasePathAndBasicAuth(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("authenticated metrics status = %d", resp.StatusCode)
+	}
+}
+
+
+func TestPrometheusMetricsCountDeleteAll(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
+	api.SetMetricsEnabled(true)
+
+	for _, id := range []string{"delete-all-1", "delete-all-2"} {
+		email := &types.Email{ID: id, Subject: id}
+		envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+		if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(time.Second)
+	for api.metrics.deleted.Load() != 2 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if got := api.metrics.deleted.Load(); got != 2 {
+		t.Fatalf("deleted metric after delete-all = %d, want 2", got)
 	}
 }
