@@ -95,6 +95,21 @@ func createLocalMigrationMessage(t *testing.T, directory, id string, message []b
 	return filename, path
 }
 
+func createMigrationMessageWithoutAttachments(t *testing.T, directory, id string) {
+	t.Helper()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.storeIncomingEmail(id, bytes.NewReader(validMessage("no attachments")), nil); err != nil {
+		_ = server.Close()
+		t.Fatal(err)
+	}
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func migrationTestOptions() AttachmentMigrationOptions {
 	return AttachmentMigrationOptions{AttemptTimeout: time.Second, RetryDelay: 0}
 }
@@ -141,6 +156,76 @@ func TestAttachmentMigrationContextReaderStopsBetweenReads(t *testing.T) {
 	if count, err := reader.Read(buffer); count != 0 || !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled read = %d, %v", count, err)
 	}
+}
+
+func TestAttachmentMigrationValidatesAttachmentFreeMessages(t *testing.T) {
+	t.Run("rejects attachment metadata", func(t *testing.T) {
+		directory := t.TempDir()
+		const id = "empty-with-metadata"
+		createMigrationMessageWithoutAttachments(t, directory, id)
+		metadata := migrationMetadata(t, directory, id)
+		metadata.Attachments = append(metadata.Attachments, attachmentMetadata{
+			GeneratedFileName: "leftover.txt", Size: 8,
+			ContentSHA256: strings.Repeat("0", 64), Storage: attachmentStorageLocal,
+		})
+		if err := persistMigrationMetadata(directory, metadata); err != nil {
+			t.Fatal(err)
+		}
+		store := newMigrationFakeStore()
+
+		_, err := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions())
+		if err == nil || !strings.Contains(err.Error(), "metadata count 1 does not match MIME count 0") {
+			t.Fatalf("migration error = %v", err)
+		}
+		if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+			t.Fatalf("invalid sidecar used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+		}
+	})
+
+	t.Run("rejects leftover local files", func(t *testing.T) {
+		directory := t.TempDir()
+		const id = "empty-with-local"
+		createMigrationMessageWithoutAttachments(t, directory, id)
+		attachmentDirectory := filepath.Join(directory, id)
+		if err := os.MkdirAll(attachmentDirectory, 0750); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(attachmentDirectory, "leftover.txt"), []byte("leftover"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		store := newMigrationFakeStore()
+
+		_, err := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions())
+		if err == nil || !strings.Contains(err.Error(), "is not referenced by metadata") {
+			t.Fatalf("migration error = %v", err)
+		}
+		if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+			t.Fatalf("leftover local file used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+		}
+	})
+
+	t.Run("accepts legacy message without sidecar", func(t *testing.T) {
+		directory := t.TempDir()
+		const id = "empty-legacy"
+		createMigrationMessageWithoutAttachments(t, directory, id)
+		if err := os.Remove(filepath.Join(directory, metadataDirectoryName, id+".json")); err != nil {
+			t.Fatal(err)
+		}
+		store := newMigrationFakeStore()
+		options := migrationTestOptions()
+		options.DryRun = true
+
+		summary, err := MigrateLocalAttachments(context.Background(), directory, store, options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if summary.EmailsScanned != 1 || summary.AttachmentsScanned != 0 || summary.Failed != 0 {
+			t.Fatalf("summary = %#v", summary)
+		}
+		if len(store.putCalls) != 0 || len(store.openCalls) != 0 {
+			t.Fatalf("empty legacy message used store: put=%#v open=%#v", store.putCalls, store.openCalls)
+		}
+	})
 }
 
 func TestAttachmentMigrationPartialSuccessAndResume(t *testing.T) {

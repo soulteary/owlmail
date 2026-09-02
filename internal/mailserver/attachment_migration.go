@@ -274,6 +274,15 @@ func preflightAttachmentMigration(ctx context.Context, mailDir string) ([]attach
 			return nil, fmt.Errorf("parse email %s: %w", id, errors.Join(parseErr, closeErr))
 		}
 		if len(email.Attachments) == 0 {
+			if metadataErr != nil && !errors.Is(metadataErr, os.ErrNotExist) {
+				return nil, fmt.Errorf("load attachment metadata for %s: %w", id, metadataErr)
+			}
+			if metadataErr == nil && len(metadata.Attachments) != 0 {
+				return nil, fmt.Errorf("ambiguous attachment mapping for %s: metadata count %d does not match MIME count 0", id, len(metadata.Attachments))
+			}
+			if err := rejectUnmappedLocalFiles(ctx, mailDir, id, map[string]struct{}{}); err != nil {
+				return nil, err
+			}
 			plans = append(plans, attachmentMigrationPlan{emailID: id})
 			continue
 		}
@@ -337,7 +346,7 @@ func preflightAttachmentMigration(ctx context.Context, mailDir string) ([]attach
 				size: saved.Size, sha256: expectedSHA256, localPath: localPath, localExists: localExists,
 			})
 		}
-		if err := rejectUnmappedLocalFiles(mailDir, id, referencedFiles); err != nil {
+		if err := rejectUnmappedLocalFiles(ctx, mailDir, id, referencedFiles); err != nil {
 			return nil, err
 		}
 		plans = append(plans, plan)
@@ -381,7 +390,10 @@ func verifyLocalMigrationSource(ctx context.Context, path string, expectedSize i
 	return true, nil
 }
 
-func rejectUnmappedLocalFiles(mailDir, id string, referenced map[string]struct{}) error {
+func rejectUnmappedLocalFiles(ctx context.Context, mailDir, id string, referenced map[string]struct{}) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	directory := filepath.Join(mailDir, id)
 	entries, err := os.ReadDir(directory)
 	if errors.Is(err, os.ErrNotExist) {
@@ -391,6 +403,9 @@ func rejectUnmappedLocalFiles(mailDir, id string, referenced map[string]struct{}
 		return fmt.Errorf("read local attachment directory for %s: %w", id, err)
 	}
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if entry.IsDir() {
 			return fmt.Errorf("ambiguous attachment mapping for %s: unexpected directory %q", id, entry.Name())
 		}
