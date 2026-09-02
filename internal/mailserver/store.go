@@ -212,6 +212,7 @@ func (ms *MailServer) saveAttachmentReaderInDirectory(attachmentDir string, atta
 
 	attachment.Size = written
 	attachment.ContentSHA256 = hex.EncodeToString(digest.Sum(nil))
+	attachment.Storage = attachmentStorageLocal
 	return nil
 }
 

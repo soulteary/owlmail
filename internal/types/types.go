@@ -36,6 +36,7 @@ type Attachment struct {
 	Size              int64  `json:"size"`
 	Transformed       bool   `json:"-"`
 	ContentSHA256     string `json:"-"`
+	Storage           string `json:"-"`
 }
 
 // Envelope represents SMTP envelope information

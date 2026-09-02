@@ -45,6 +45,7 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(statErr, err, closeErr, cleanupErr)
 		}
+		attachment.Storage = attachmentStorageS3
 	}
 	return nil
 }
@@ -132,9 +133,19 @@ func validateAttachmentFilename(filename string) error {
 // written before attachment names were persisted in metadata. Matching by size
 // and extension handles existing local mail without changing its files.
 func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachments []*Attachment) error {
+	return ms.restoreLegacyLocalAttachmentMetadataContext(context.Background(), id, attachments)
+}
+
+func (ms *MailServer) restoreLegacyLocalAttachmentMetadataContext(ctx context.Context, id string, attachments []*Attachment) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	directory := filepath.Join(ms.mailDir, id)
 	entries, err := os.ReadDir(directory)
 	if err != nil {
+		return err
+	}
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 	type candidate struct {
@@ -144,6 +155,9 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 	}
 	files := make([]candidate, 0, len(entries))
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if entry.IsDir() {
 			continue
 		}
@@ -154,7 +168,7 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 		if err != nil {
 			return err
 		}
-		contentSHA256, err := attachmentFileSHA256(filepath.Join(directory, entry.Name()))
+		contentSHA256, err := attachmentFileSHA256Context(ctx, filepath.Join(directory, entry.Name()))
 		if err != nil {
 			return err
 		}
@@ -167,6 +181,9 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 	used := make([]bool, len(files))
 	assignments := make([]int, len(attachments))
 	for attachmentIndex, attachment := range attachments {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if attachment == nil {
 			return fmt.Errorf("legacy attachment metadata is incomplete")
 		}
@@ -199,18 +216,33 @@ func (ms *MailServer) restoreLegacyLocalAttachmentMetadata(id string, attachment
 	return nil
 }
 
-func attachmentFileSHA256(path string) (string, error) {
+func attachmentFileSHA256Context(ctx context.Context, path string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	file, err := os.Open(path)
 	if err != nil {
 		return "", err
 	}
 	hash := sha256.New()
-	_, copyErr := io.Copy(hash, file)
+	_, copyErr := io.Copy(hash, contextReader{ctx: ctx, reader: file})
 	closeErr := file.Close()
 	if err := errors.Join(copyErr, closeErr); err != nil {
 		return "", err
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader contextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	return reader.reader.Read(buffer)
 }
 
 func attachmentExtension(attachment *Attachment) string {

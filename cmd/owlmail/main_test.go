@@ -464,6 +464,26 @@ func TestRegisterWebhookHandlerHandlesNil(t *testing.T) {
 	}
 }
 
+type failingWebhookHandoffService struct {
+	err error
+}
+
+func (service *failingWebhookHandoffService) Enqueue(*mailserver.Email) error {
+	return service.err
+}
+
+func (*failingWebhookHandoffService) Commit(string) error {
+	return nil
+}
+
+func (*failingWebhookHandoffService) Abort(string) error {
+	return nil
+}
+
+func (*failingWebhookHandoffService) RecoverAcceptedPending() error {
+	return nil
+}
+
 func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 	mailDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", mailDir)
@@ -471,33 +491,8 @@ func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	dispatcher, err := webhooknotify.NewDispatcher(webhooknotify.Config{Targets: []webhooknotify.Target{{
-		Name: "test",
-		URL:  "https://example.com/hook",
-	}}}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	service, err := webhooknotify.NewService(dispatcher, webhooknotify.ServiceOptions{
-		MaxConcurrency: 1,
-		SpoolDir:       mailDir,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	outboxPath := filepath.Join(mailDir, ".owlmail-webhook-outbox")
-	defer func() {
-		_ = os.Remove(outboxPath)
-		_ = os.MkdirAll(outboxPath, 0750)
-		_ = service.Close()
-	}()
+	service := &failingWebhookHandoffService{err: errors.New("injected webhook outbox failure")}
 	if err := registerWebhookService(server, service); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.RemoveAll(outboxPath); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(outboxPath, []byte("blocks outbox directory"), 0600); err != nil {
 		t.Fatal(err)
 	}
 
@@ -509,6 +504,9 @@ func TestRegisterWebhookServicePropagatesOutboxFailure(t *testing.T) {
 	)
 	if err == nil {
 		t.Fatal("email commit succeeded despite the failed webhook outbox")
+	}
+	if !strings.Contains(err.Error(), service.err.Error()) {
+		t.Fatalf("email commit error = %v, want injected handoff failure", err)
 	}
 	if _, err := server.GetEmail("failed-outbox"); err == nil {
 		t.Fatal("email became visible after the durable handoff failed")
@@ -1015,6 +1013,35 @@ func TestSetupAttachmentHealthStrictAndCompatibleModes(t *testing.T) {
 		t.Fatalf("successful strict setup = %#v, %v", monitor, err)
 	}
 	_ = monitor.Close()
+}
+
+func TestRunAttachmentMigrationDryRun(t *testing.T) {
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	directory := t.TempDir()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := runAttachmentMigration(context.Background(), []string{
+		"-dry-run",
+		"-s3-enabled",
+		"-s3-region", "us-east-1",
+		"-s3-bucket", "owlmail-test",
+		"-mail-directory", directory,
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runAttachmentMigration() error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `summary {"emailsScanned":0`) {
+		t.Fatalf("migration output = %q", stdout.String())
+	}
+}
+
+func TestRunAttachmentMigrationRequiresConfiguredS3(t *testing.T) {
+	err := runAttachmentMigration(context.Background(), []string{
+		"-dry-run", "-mail-directory", t.TempDir(),
+	}, io.Discard, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "requires -s3-enabled") {
+		t.Fatalf("runAttachmentMigration() error = %v", err)
+	}
 }
 
 func TestCreateMailServerRejectsNegativeMessageLimit(t *testing.T) {

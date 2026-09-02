@@ -147,11 +147,64 @@ OwlMail 会把附件流式写入本地暂存文件并写入持久回滚标记，
 原位置的 `.eml` 作为重试标记。每次远端删除尝试的截止时间为 30 秒，失去响应的
 端点不会无限占用存储事务锁，未完成的清理会留待后续重试。
 
-开启 S3 不会自动迁移已有附件：旧本地附件仍可读取并正常删除，新邮件附件写入
+仅开启 S3 不会自动迁移已有附件：旧本地附件仍可读取并正常删除，新邮件附件写入
 S3。启动恢复旧附件文件名时，只有文件大小、扩展名和 SHA-256 内容摘要共同唯一匹配
 一个本地文件才会写入升级后的元数据；存在歧义时不会持久化映射。关闭 S3 或修改
-bucket/prefix 也不会自动下载或搬迁对象，变更前应先完成迁移。
-`-mail-max-disk-mb` 与 `storage.diskBytes` 只统计本地文件，不包含远端对象占用。
+bucket/prefix 也不会自动下载或搬迁对象。`-mail-max-disk-mb` 与
+`storage.diskBytes` 只统计本地文件，不包含远端对象占用。
+
+#### 离线本地附件迁移到 S3
+
+迁移前应停止 OwlMail，并备份 `-mail-directory`。迁移命令复用服务端的
+`OWLMAIL_S3_*` 环境变量和 S3 参数。先执行只读预检：
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+./owlmail migrate-attachments \
+  -mail-directory ./owlmail-data \
+  -dry-run
+```
+
+去掉 `-dry-run` 即开始上传。本地附件默认保留：
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+./owlmail migrate-attachments -mail-directory ./owlmail-data
+```
+
+只有确认要让已验证的 S3 对象成为唯一解码附件副本时，才显式增加
+`-delete-local`：
+
+```bash
+./owlmail migrate-attachments \
+  -s3-enabled -s3-region us-east-1 -s3-bucket owlmail \
+  -mail-directory ./owlmail-data \
+  -delete-local
+```
+
+预检会在第一次上传前读取所有已提交 EML 和 sidecar，使用 generated filename、
+解码后 size 与 SHA-256 校验映射；遇到重复或未被元数据引用的候选文件会停止整个
+任务，不会猜测。版本 1/2 sidecar 只有在 MIME 附件顺序以及现有本地或远端内容完全
+匹配后，才会随成功迁移升级为版本 3。原始 EML、邮箱索引、已读状态和排序时间均不会
+改写。dry-run 会对已记录为 S3 以及仅远端存在的恢复候选执行只读 size 和 SHA-256
+校验；远端对象缺失或损坏会让 dry-run 失败，但不会写入任何数据。
+预检的 EML 扫描和本地文件哈希会响应命令取消信号，因此操作者可以在上传开始前安全
+中断耗时较长的只读校验。
+
+每个对象都会流式上传，再从 S3 重新打开并校验精确大小和 SHA-256，之后才会原子
+更新 sidecar；只有元数据提交成功后，`-delete-local` 才可删除对应本地文件。默认在
+首次尝试后重试 3 次，每次截止时间为 5 分钟；可通过 `-retries`（0～100）、
+`-migration-attempt-timeout` 和 `-migration-retry-delay` 调整。命令逐附件输出进度，
+最后一行 `summary` 为 JSON 统计。
+
+对象 key 是确定的：若在元数据提交前中断，重复运行会安全覆盖并重新验证同一个对象；
+若在元数据提交后中断，重复运行会验证已记录的 S3 对象，并在指定参数时继续删除本地
+文件，而不会再次上传。因此命令可幂等重复执行。若存在待处理存储 fence，应先正常
+启动一次 OwlMail 完成恢复。本命令只支持本地到 S3，不实现 S3 到本地的反向迁移。
 
 ### 3. 持久化 Docker 部署
 

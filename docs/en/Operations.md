@@ -180,14 +180,76 @@ S3 is unavailable. Each remote deletion attempt has a 30-second deadline, so a
 stalled endpoint releases the storage transaction lock and leaves cleanup for a
 later retry.
 
-Enabling S3 does not migrate existing attachments. Existing local attachments
-remain readable and are removed normally, while newly received attachments use
-S3. During startup, legacy attachment filenames are recovered only when file
-size, extension, and SHA-256 content digest identify one unique local file;
-ambiguous metadata is not persisted. Disabling S3 or changing its bucket/prefix
-does not download or relocate objects, so migrate those objects before changing
-the configuration. The `-mail-max-disk-mb` limit and `storage.diskBytes`
-statistic cover local files only and do not include remote object bytes.
+Enabling S3 alone does not migrate existing attachments. Existing local
+attachments remain readable and are removed normally, while newly received
+attachments use S3. During startup, legacy attachment filenames are recovered
+only when file size, extension, and SHA-256 content digest identify one unique
+local file; ambiguous metadata is not persisted. Disabling S3 or changing its
+bucket/prefix does not download or relocate objects. The `-mail-max-disk-mb`
+limit and `storage.diskBytes` statistic cover local files only and do not
+include remote object bytes.
+
+#### Offline local-to-S3 attachment migration
+
+Stop OwlMail and back up `-mail-directory` before migration. The command uses
+the same `OWLMAIL_S3_*` variables and S3 flags as the server. Start with a
+read-only preflight:
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+./owlmail migrate-attachments \
+  -mail-directory ./owlmail-data \
+  -dry-run
+```
+
+Remove `-dry-run` to upload. Local attachments are retained by default:
+
+```bash
+OWLMAIL_S3_ENABLED=true \
+OWLMAIL_S3_REGION=us-east-1 \
+OWLMAIL_S3_BUCKET=owlmail \
+./owlmail migrate-attachments -mail-directory ./owlmail-data
+```
+
+Only add `-delete-local` when the verified S3 copy should become the sole
+decoded attachment copy:
+
+```bash
+./owlmail migrate-attachments \
+  -s3-enabled -s3-region us-east-1 -s3-bucket owlmail \
+  -mail-directory ./owlmail-data \
+  -delete-local
+```
+
+The preflight reads every committed EML and sidecar before the first upload.
+It validates the generated filename, decoded size, and SHA-256 mapping, rejects
+duplicate or unreferenced candidates, and stops the whole run instead of
+guessing when a mapping is ambiguous. Version 1/2 sidecars are upgraded to
+version 3 only after their MIME attachment order and the available local or
+remote content verify exactly. The EML, mailbox index, read state, and sequence
+are never rewritten. Dry runs perform read-only size and SHA-256 verification
+for attachments already recorded in S3 and for remote-only recovery candidates;
+missing or corrupted remote objects make the dry run fail without writing data.
+The preflight EML scan and local-file hashing honor command cancellation, so an
+operator can safely interrupt a long read-only validation before uploads begin.
+
+Each object upload is streamed, reopened from S3, and checked for exact size
+and SHA-256 before the sidecar is atomically updated. Only then may
+`-delete-local` remove that one local file. The default is three retries after
+the first attempt, with a five-minute deadline per attempt; customize these
+with `-retries` (from 0 to 100), `-migration-attempt-timeout`, and
+`-migration-retry-delay`. Progress is printed per attachment and the final
+`summary` line is JSON.
+
+The object key is deterministic, so interruption before the metadata commit is
+recovered by safely overwriting and re-verifying the same object. Interruption
+after the metadata commit is recovered by verifying the recorded S3 object and,
+if requested, finishing local deletion without uploading again. Repeating the
+command is therefore idempotent. Pending storage fences must first be resolved
+by a normal OwlMail startup. This command intentionally supports only local to
+S3 migration; it does not download S3 objects back to local storage.
 
 ### 3. Persistent Docker deployment
 
