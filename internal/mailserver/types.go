@@ -64,6 +64,7 @@ type ServerOptions struct {
 	RetainAllHeaders   bool
 	AttachmentStore    attachmentstore.Store
 	AttachmentHealth   attachmentstore.ReadinessProvider
+	MailboxIndex       MailboxIndex
 }
 
 // AttachmentReader describes an attachment opened for HTTP streaming.
@@ -123,6 +124,8 @@ type MailServer struct {
 	cleanupWG           sync.WaitGroup
 	storageMetricsMutex sync.RWMutex
 	storageMetrics      StorageMetrics
+	mailboxIndex        MailboxIndex
+	mailboxIndexReady   atomic.Bool
 
 	// Storage hooks are intentionally unexported and nil in production. They
 	// provide deterministic fault injection for transaction boundary tests.

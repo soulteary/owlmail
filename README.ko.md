@@ -211,6 +211,7 @@ docker buildx build \
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
 | `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
+| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | empty | 재구축 가능한 SQLite 사서함 쿼리 인덱스의 선택 경로이며 EML 파일이 계속 원본 데이터 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 디코딩된 첨부 파일을 S3 호환 스토리지에 저장 |
 | `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | 사용자 지정 S3 엔드포인트. 비우면 AWS S3 사용 |
 | `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 리전 |

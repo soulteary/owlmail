@@ -90,6 +90,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
+		mailboxIndex:             options.MailboxIndex,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
 		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
 		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
@@ -110,6 +111,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 
 	// Setup SMTP server
 	if err := ms.setupSMTPServer(); err != nil {
+		if ms.mailboxIndex != nil {
+			_ = ms.mailboxIndex.Close()
+		}
 		return nil, fmt.Errorf("failed to setup SMTP server: %w", err)
 	}
 
@@ -119,6 +123,16 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if err := ms.LoadMailsFromDirectory(); err != nil {
 		common.Error("Failed to load emails from directory: %v", err)
 		// Continue anyway, as this is not a fatal error
+	}
+	if ms.mailboxIndex != nil {
+		if err := ms.rebuildMailboxIndex(); err != nil {
+			_ = ms.mailboxIndex.Close()
+			return nil, fmt.Errorf("rebuild mailbox index: %w", err)
+		}
+		if err := ms.AddCloser(ms.mailboxIndex); err != nil {
+			_ = ms.mailboxIndex.Close()
+			return nil, fmt.Errorf("register mailbox index closer: %w", err)
+		}
 	}
 
 	return ms, nil

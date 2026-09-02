@@ -538,6 +538,20 @@ func initializeApplication(cfg *config.Config) error {
 	return reportWebAuthCompletion(cfg, completion, os.Stderr)
 }
 
+func setupMailboxIndex(cfg *config.Config) (mailserver.MailboxIndex, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if cfg.MailIndexPath == "" {
+		return nil, nil
+	}
+	index, err := mailserver.NewSQLiteMailboxIndex(cfg.MailIndexPath)
+	if err != nil {
+		return nil, fmt.Errorf("open SQLite mailbox index: %w", err)
+	}
+	return index, nil
+}
+
 // createMailServer creates and configures the mail server
 func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if cfg == nil {
@@ -599,6 +613,10 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if int64(maxMessageMB) > maxMessageMBWithoutOverflow {
 		return nil, fmt.Errorf("SMTP max message size is too large")
 	}
+	mailboxIndex, err := setupMailboxIndex(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
@@ -612,6 +630,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		RetainAllHeaders:   cfg.MailDevRESTCompat,
 		AttachmentStore:    attachmentStore,
 		AttachmentHealth:   healthProvider,
+		MailboxIndex:       mailboxIndex,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)

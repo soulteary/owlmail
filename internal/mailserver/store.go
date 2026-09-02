@@ -129,6 +129,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	ms.receivedAtByID[id] = receivedAt
 	ms.storeByID[id] = storedEmail
+	ms.upsertMailboxIndexLocked(storedEmail, receivedAt)
 	ms.storeMutex.Unlock()
 
 	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
@@ -286,6 +287,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 		return err
 	}
 
+	ms.deleteMailboxIndex(id)
 	ms.removeEmailFromMemory(id)
 
 	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
@@ -318,6 +320,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 			deletionErrors = append(deletionErrors, fmt.Errorf("delete %s: %w", id, err))
 			continue
 		}
+		ms.deleteMailboxIndex(id)
 		ms.removeEmailFromMemory(id)
 	}
 	if err := errors.Join(deletionErrors...); err != nil {
@@ -329,6 +332,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 	ms.storeOrder = make([]string, 0)
 	ms.receivedAtByID = make(map[string]time.Time)
 	ms.storeMutex.Unlock()
+	ms.clearMailboxIndex()
 
 	// Clear mail directory
 	files, err := os.ReadDir(ms.mailDir)
@@ -343,7 +347,11 @@ func (ms *MailServer) DeleteAllEmail() error {
 			if _, fenced := deletionFenceID(file.Name()); fenced {
 				continue
 			}
-			if err := os.RemoveAll(filepath.Join(ms.mailDir, file.Name())); err != nil {
+			path := filepath.Join(ms.mailDir, file.Name())
+			if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(path) {
+				continue
+			}
+			if err := os.RemoveAll(path); err != nil {
 				deletionErrors = append(deletionErrors, fmt.Errorf("remove %s: %w", file.Name(), err))
 			}
 		}
@@ -462,6 +470,7 @@ func (ms *MailServer) ReadAllEmail() (int, error) {
 				return count, fmt.Errorf("persist read state for %s: %w", id, err)
 			}
 			email.Read = true
+			ms.upsertMailboxIndexLocked(email, ms.receivedAtByID[id])
 			count++
 		}
 	}
@@ -481,6 +490,7 @@ func (ms *MailServer) ReadEmail(id string) error {
 			ms.storeMutex.Unlock()
 			return fmt.Errorf("persist read state: %w", err)
 		}
+		ms.upsertMailboxIndexLocked(email, receivedAt)
 		ms.storeMutex.Unlock()
 		return nil
 	}
@@ -513,6 +523,7 @@ func (ms *MailServer) GetEmailStats() map[string]interface{} {
 	stats["byDate"] = byDate
 	ms.storeMutex.RUnlock()
 	stats["storage"] = ms.storageStats()
+	stats["index"] = ms.mailboxIndexStatus()
 
 	return stats
 }

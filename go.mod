@@ -22,6 +22,7 @@ require (
 	github.com/soulteary/logger-kit/v2 v2.1.0
 	github.com/soulteary/version-kit/v2 v2.1.0
 	go.yaml.in/yaml/v3 v3.0.5
+	modernc.org/sqlite v1.44.3
 )
 
 require (

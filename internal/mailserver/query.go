@@ -151,6 +151,9 @@ type emailQueryEntry struct {
 }
 
 func (ms *MailServer) queryEmailPage(query EmailQuery) ([]emailQueryEntry, int) {
+	if page, total, ok := ms.queryIndexedEmailPage(query); ok {
+		return page, total
+	}
 	entries := ms.snapshotEmailQueryEntries(query)
 	compiled := compileEmailQuery(query)
 	matches := entries[:0]
