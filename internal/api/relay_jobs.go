@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -292,8 +293,8 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
-	err = api.submitRelayJob(job, email)
-	if err != nil {
+	err, handled := api.submitRelayJob(job, email)
+	if err != nil && !handled {
 		api.relayJobs.remove(job.ID)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 	}
@@ -305,21 +306,25 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	}))
 }
 
-func (api *API) submitRelayJob(job relayJob, message *types.Email) error {
+func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool) {
 	if message == nil {
-		return fmt.Errorf("email is unavailable")
+		return fmt.Errorf("email is unavailable"), false
 	}
 	job, err := api.relayJobs.beginAttempt(job.ID)
 	if err != nil {
-		return fmt.Errorf("persist relay attempt: %w", err)
+		return fmt.Errorf("persist relay attempt: %w", err), false
 	}
+	var callbackHandled atomic.Bool
 	callback := func(relayErr error) {
+		callbackHandled.Store(true)
 		api.finishRelayAttempt(job.ID, relayErr)
 	}
 	if job.RelayTo != "" {
-		return api.mailServer.RelayMailTo(message, job.RelayTo, callback)
+		err = api.mailServer.RelayMailTo(message, job.RelayTo, callback)
+	} else {
+		err = api.mailServer.RelayMail(message, false, callback)
 	}
-	return api.mailServer.RelayMail(message, false, callback)
+	return err, callbackHandled.Load()
 }
 
 func (api *API) finishRelayAttempt(jobID string, relayErr error) {
@@ -373,7 +378,11 @@ func (api *API) retryRelayJob(jobID string) {
 	}
 	email, err := api.mailServer.GetEmail(job.EmailID)
 	if err == nil {
-		err = api.submitRelayJob(job, email)
+		var handled bool
+		err, handled = api.submitRelayJob(job, email)
+		if handled {
+			return
+		}
 	}
 	if err != nil {
 		api.finishRelayAttempt(jobID, err)
@@ -391,7 +400,11 @@ func (api *API) recoverRelayJobs() {
 		}
 		email, err := api.mailServer.GetEmail(job.EmailID)
 		if err == nil {
-			err = api.submitRelayJob(job, email)
+			var handled bool
+			err, handled = api.submitRelayJob(job, email)
+			if handled {
+				continue
+			}
 		}
 		if err != nil {
 			api.finishRelayAttempt(job.ID, err)
