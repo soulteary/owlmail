@@ -95,6 +95,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const serviceNotifications = [];
     const serviceWorkerRegistrations = [];
     const webSocketURLs = [];
+    const historyCalls = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -110,7 +111,33 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const window = {
         Notification,
         isSecureContext: secure,
-        location: { origin: 'http://owlmail.test', protocol: 'http:', host: 'owlmail.test', search: '' },
+        location: {
+            origin: 'http://owlmail.test',
+            protocol: 'http:',
+            host: 'owlmail.test',
+            pathname: '/',
+            search: '',
+            hash: '',
+            href: 'http://owlmail.test/'
+        },
+        history: {
+            pushState(state, title, url) {
+                historyCalls.push({ method: 'pushState', state, title, url: String(url) });
+                const next = new URL(String(url), window.location.href);
+                window.location.href = next.href;
+                window.location.pathname = next.pathname;
+                window.location.search = next.search;
+                window.location.hash = next.hash;
+            },
+            replaceState(state, title, url) {
+                historyCalls.push({ method: 'replaceState', state, title, url: String(url) });
+                const next = new URL(String(url), window.location.href);
+                window.location.href = next.href;
+                window.location.pathname = next.pathname;
+                window.location.search = next.search;
+                window.location.hash = next.hash;
+            }
+        },
         addEventListener(name, handler) { windowListeners.set(name, handler); },
         focus() {}
     };
@@ -177,6 +204,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         emailViewportFrame,
         emailViewportStage,
         fetchRequests,
+        historyCalls,
         notificationStatus,
         notificationToggle,
         notifications,
@@ -529,4 +557,54 @@ test('initial language setup translates the empty email detail', () => {
     harness.run("setLanguage('fr', false)");
 
     assert.match(harness.emailDetail.innerHTML, /Sélectionnez un email/);
+});
+
+
+test('email selection updates browser history and popstate restores the message', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+
+    await harness.run("loadEmailDetail('mail-42')");
+    assert.equal(harness.historyCalls.length, 1);
+    assert.equal(harness.historyCalls[0].method, 'pushState');
+    assert.equal(new URL(harness.historyCalls[0].url, 'http://owlmail.test').searchParams.get('email'), 'mail-42');
+
+    harness.window.location.href = 'http://owlmail.test/?email=mail-17';
+    harness.window.location.search = '?email=mail-17';
+    harness.run('handleHistoryNavigation()');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-17');
+
+    harness.window.location.href = 'http://owlmail.test/';
+    harness.window.location.search = '';
+    harness.run('handleHistoryNavigation()');
+    assert.equal(harness.run('state.currentEmail'), null);
+});
+
+test('mailbox keyboard navigation supports arrows, j/k, escape, and ignores inputs', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            const id = new URL(url).pathname.split('/').pop();
+            return jsonResponse({ id, subject: id, from: [], to: [], attachments: [] });
+        }
+    });
+    harness.run("state.emails = [{ id: 'mail-1' }, { id: 'mail-2' }]");
+
+    await harness.run("handleMailboxKeydown({ key: 'j', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-1');
+
+    await harness.run("handleMailboxKeydown({ key: 'ArrowDown', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-2');
+
+    const requestsBeforeInput = harness.fetchRequests.length;
+    harness.run("handleMailboxKeydown({ key: 'k', target: { tagName: 'INPUT' }, preventDefault() {} })");
+    assert.equal(harness.fetchRequests.length, requestsBeforeInput);
+
+    harness.run("handleMailboxKeydown({ key: 'Escape', target: { tagName: 'BODY' }, preventDefault() {} })");
+    assert.equal(harness.run('state.currentEmail'), null);
+    assert.equal(harness.window.location.search, '');
 });
