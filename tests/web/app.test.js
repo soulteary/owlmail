@@ -10,7 +10,9 @@ const styleSource = fs.readFileSync(path.join(__dirname, '../../web/style.css'),
 function createClassList() {
     const values = new Set();
     return {
+        add(...names) { names.forEach((name) => values.add(name)); },
         contains: (name) => values.has(name),
+        remove(...names) { names.forEach((name) => values.delete(name)); },
         toggle(name, enabled) {
             if (enabled) values.add(name);
             else values.delete(name);
