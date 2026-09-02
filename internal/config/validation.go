@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"path"
 	"strings"
 	"time"
 	"unicode"
@@ -159,22 +158,21 @@ func NormalizeBasePathname(value string) (string, error) {
 	if err != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
 		return "", fmt.Errorf("base pathname must be a valid URL path without query or fragment")
 	}
-	for _, segment := range strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/") {
+	escapedSegments := strings.Split(strings.Trim(parsed.EscapedPath(), "/"), "/")
+	normalizedSegments := make([]string, 0, len(escapedSegments))
+	for _, segment := range escapedSegments {
 		decoded, decodeErr := url.PathUnescape(segment)
-		if decodeErr != nil || decoded == "." || decoded == ".." ||
+		if decodeErr != nil || decoded == "" || decoded == "." || decoded == ".." ||
 			strings.ContainsAny(decoded, "/\\%?#:*+<>()") || strings.IndexFunc(decoded, unicode.IsControl) >= 0 {
 			return "", fmt.Errorf("base pathname contains an unsafe path segment")
 		}
+		normalizedSegments = append(normalizedSegments, url.PathEscape(decoded))
 	}
 
-	normalized := path.Clean(parsed.Path)
-	if normalized == "." || normalized == "/" {
-		return "", nil
-	}
-	if normalized != parsed.Path && strings.Contains(parsed.Path, "//") {
+	if strings.Contains(parsed.Path, "//") {
 		return "", fmt.Errorf("base pathname cannot contain empty path segments")
 	}
-	return strings.TrimSuffix(normalized, "/"), nil
+	return "/" + strings.Join(normalizedSegments, "/"), nil
 }
 
 // ValidatePort validates that a port number is within the valid range (1-65535).

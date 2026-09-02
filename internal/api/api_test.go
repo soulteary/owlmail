@@ -444,6 +444,26 @@ func TestBasePathHealthzKeepsImageHealthCheckReachable(t *testing.T) {
 	}
 }
 
+func TestEscapedBasePathRouting(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	if err := api.SetBasePathname("/team%20mail"); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, route := range []string{"/team%20mail/", "/team%20mail/style.css", "/team%20mail/api/v1/health"} {
+		req, _ := http.NewRequest(http.MethodGet, route, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("GET %s failed: %v", route, err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET %s status = %d, want 200", route, resp.StatusCode)
+		}
+	}
+}
+
 func TestAPIStart(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)
