@@ -226,6 +226,93 @@ test('selected messages still use the single-email detail endpoint', async () =>
     assert.equal(harness.run('state.currentEmail.html'), '<p>Full message body</p>');
 });
 
+test('HTML previews survive attribute parsing with a zero-permission sandbox', async () => {
+    const harness = createHarness();
+    const preview = harness.run(`renderHTML(
+        '<form action="https://attacker.test"><a target="_top" href="https://attacker.test">leave</a></form>',
+        'mail-42',
+        []
+    )`);
+
+    assert.match(preview, /sandbox=""/);
+    assert.match(preview, /referrerpolicy="no-referrer"/);
+    assert.doesNotMatch(preview, /allow-scripts|allow-forms|allow-popups|allow-top-navigation/);
+
+    let parsedSrcdoc = null;
+    await new HTMLRewriter()
+        .on('iframe', {
+            element(element) {
+                parsedSrcdoc = element.getAttribute('srcdoc');
+            }
+        })
+        .transform(new Response(preview))
+        .text();
+    assert.match(parsedSrcdoc, /&lt;meta http-equiv=&quot;Content-Security-Policy&quot;/);
+    assert.match(parsedSrcdoc, /&lt;meta name=&quot;referrer&quot; content=&quot;no-referrer&quot;&gt;/);
+    assert.match(parsedSrcdoc, /&lt;form action=&quot;https:\/\/attacker\.test&quot;&gt;/);
+    assert.match(parsedSrcdoc, /&lt;\/form&gt;$/);
+
+    const csp = harness.run('previewContentSecurityPolicy(false)');
+    assert.match(csp, /script-src 'none'/);
+    assert.match(csp, /form-action 'none'/);
+    assert.match(csp, /frame-src 'none'/);
+});
+
+test('remote tracking resources are blocked until the user explicitly loads them', () => {
+    const harness = createHarness();
+    harness.run(`
+        state.currentEmail = {
+            id: 'mail-42',
+            subject: 'Tracking test',
+            from: [],
+            to: [],
+            attachments: [],
+            html: '<img src="https://tracker.example.test/pixel.gif" width="1" height="1"><link rel="stylesheet" href="https://cdn.example.test/mail.css">'
+        };
+        renderEmailDetail();
+    `);
+
+    assert.match(harness.emailDetail.innerHTML, /Load remote content/);
+    const blockedCSP = harness.run('previewContentSecurityPolicy(false)');
+    assert.match(blockedCSP, /img-src data: blob: http:\/\/owlmail\.test/);
+    assert.doesNotMatch(blockedCSP, /img-src http: https:/);
+    assert.doesNotMatch(blockedCSP, /style-src[^;]* http: https:/);
+
+    harness.run("loadRemoteContent('mail-42')");
+
+    assert.equal(harness.run('remoteContentAllowedEmailID'), 'mail-42');
+    assert.doesNotMatch(harness.emailDetail.innerHTML, /Load remote content/);
+    const allowedCSP = harness.run('previewContentSecurityPolicy(true)');
+    assert.match(allowedCSP, /img-src http: https:/);
+    assert.match(allowedCSP, /font-src http: https:/);
+    assert.match(allowedCSP, /style-src[^;]* http: https:/);
+});
+
+test('CID images resolve to local attachments without enabling remote content', () => {
+    const harness = createHarness();
+    const resolved = harness.run(`resolveCIDReferences(
+        '<table style="width: 100%"><tr><td><img src="cid:logo@example.test"></td></tr></table>',
+        'mail-42',
+        [{ contentId: 'logo@example.test', generatedFileName: 'logo image.png' }]
+    )`);
+
+    assert.match(resolved, /\/api\/v1\/emails\/mail-42\/attachments\/logo%20image\.png/);
+    assert.equal(harness.run(`hasRemoteEmailResources(${JSON.stringify(resolved)})`), false);
+    const preview = harness.run(`renderHTML(${JSON.stringify(resolved)}, 'mail-42', [])`);
+    assert.doesNotMatch(preview, /Load remote content/);
+    assert.match(harness.run('previewContentSecurityPolicy(false)'), /http:\/\/owlmail\.test/);
+});
+
+test('remote detection covers every srcset candidate while ignoring local resources', () => {
+    const harness = createHarness();
+    assert.equal(harness.run(`hasRemoteEmailResources(
+        '<img srcset="http://owlmail.test/local.png 1x, https://tracker.example.test/remote.png 2x">'
+    )`), true);
+    assert.equal(harness.run(`hasRemoteEmailResources(
+        '<img src="http://owlmail.test/api/v1/emails/mail-42/attachments/local.png">'
+    )`), false);
+});
+
 test('initialization never prompts and keeps notifications disabled by default', () => {
     const harness = createHarness();
     let permissionRequests = 0;

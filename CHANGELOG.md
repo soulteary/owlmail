@@ -22,6 +22,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
+- HTML email previews now combine server-side sanitization with a zero-permission
+  iframe sandbox, a no-referrer policy, and a restrictive per-preview CSP.
+  Remote images, fonts, stylesheets, and media are blocked by default and can
+  be loaded only through an explicit, non-persistent per-message action. CID
+  images continue to resolve through OwlMail's local attachment endpoint.
 - Decoded MIME attachments now stream through a fixed-size buffer into private
   transaction staging files while size and SHA-256 are calculated. Large
   attachments no longer require an additional attachment-sized byte slice;

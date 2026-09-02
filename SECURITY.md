@@ -58,6 +58,27 @@ While we don't currently have a formal bug bounty program, we take security cont
 - **Environment Isolation**: Don't expose unprotected instances on public networks
 - **Sensitive Information**: Don't hardcode passwords or keys in code or configuration
 
+### HTML Email Preview Isolation
+
+OwlMail treats captured HTML email as untrusted content. The server removes
+active markup and unsafe URL schemes, constrains stylesheet links and inline
+styles, and hardens external anchors with safe targets and relationship tokens.
+The web inbox then renders the result inside a sandboxed `srcdoc` iframe without
+script, form, popup, same-origin, or top-navigation permissions. The frame also
+uses `referrerpolicy="no-referrer"` and a restrictive Content Security Policy.
+
+Remote images, fonts, stylesheets, and media can disclose that a message was
+viewed, the viewer's IP address, and request-specific tracking identifiers.
+OwlMail blocks those requests by default. The **Load remote content** control is
+an explicit, per-message, non-persistent exception intended for visual template
+inspection. Loading remote content contacts infrastructure selected by the
+message author. CID images are mapped to OwlMail's local attachment endpoint
+and do not require enabling remote content.
+
+The isolation is defense in depth, not a reason to expose OwlMail publicly.
+Keep authentication enabled and restrict network access whenever captured mail
+may contain sensitive data.
+
 ### For Developers
 
 - **Dependency Updates**: Regularly update dependencies to get security patches

@@ -14,6 +14,7 @@ import (
 	"mime"
 	"net"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -193,13 +194,59 @@ func validatePath(baseDir, resolvedPath string) error {
 	return nil
 }
 
-// sanitizeHTML sanitizes HTML content
+var (
+	safeLinkTarget       = regexp.MustCompile(`^_blank$`)
+	safeLinkRel          = regexp.MustCompile(`(?i)^(?:nofollow|noreferrer|noopener)(?:\s+(?:nofollow|noreferrer|noopener))*$`)
+	safeStylesheetRel    = regexp.MustCompile(`(?i)^stylesheet$`)
+	safeStylesheetType   = regexp.MustCompile(`(?i)^text/css$`)
+	safeMediaQuery       = regexp.MustCompile(`(?i)^[a-z0-9\s(),.:/_-]+$`)
+	safeInlineStyleValue = regexp.MustCompile(`(?i)^[#a-z0-9\s(),.%!'"/_-]+$`)
+	sanitizedLinkElement = regexp.MustCompile(`(?i)<link\b[^>]*>`)
+	stylesheetRelToken   = regexp.MustCompile(`(?i)\brel="[^"]*\bstylesheet\b[^"]*"`)
+)
+
+// sanitizeHTML keeps common email presentation markup while removing active
+// content. Remote resources may remain in the sanitized document so the web UI
+// can offer an explicit visual-inspection mode; its preview CSP blocks those
+// resources by default.
 func sanitizeHTML(html string) string {
 	p := bluemonday.UGCPolicy()
-	p.AllowAttrs("target").OnElements("a")
+	p.AllowURLSchemes("cid")
+	p.AllowAttrs("target").Matching(safeLinkTarget).OnElements("a")
+	p.AllowAttrs("rel").Matching(safeLinkRel).OnElements("a")
+	p.RequireNoFollowOnLinks(true)
+	p.RequireNoReferrerOnLinks(true)
+	p.AddTargetBlankToFullyQualifiedLinks(true)
+
+	// Stylesheets are retained only for the web preview's user-initiated remote
+	// content mode. Other link relations (preload, prefetch, icons, and similar)
+	// are discarded so they cannot initiate unrelated requests.
 	p.AllowElements("link")
-	p.AllowAttrs("rel", "href", "type", "media").OnElements("link")
-	return p.Sanitize(html)
+	p.AllowAttrs("rel").Matching(safeStylesheetRel).OnElements("link")
+	p.AllowAttrs("href").OnElements("link")
+	p.AllowAttrs("type").Matching(safeStylesheetType).OnElements("link")
+	p.AllowAttrs("media").Matching(safeMediaQuery).OnElements("link")
+
+	// Email layouts rely heavily on inline presentation styles. Allow a bounded
+	// set of non-fetching properties and values; background-image, @import,
+	// url(), expression(), and custom properties are intentionally excluded.
+	p.AllowStyles(
+		"color", "background-color", "font-family", "font-size", "font-weight",
+		"font-style", "text-decoration", "text-align", "line-height",
+		"letter-spacing", "white-space", "vertical-align", "display",
+		"width", "height", "min-width", "max-width", "min-height", "max-height",
+		"margin", "margin-top", "margin-right", "margin-bottom", "margin-left",
+		"padding", "padding-top", "padding-right", "padding-bottom", "padding-left",
+		"border", "border-width", "border-style", "border-color", "border-radius",
+		"border-collapse", "border-spacing", "table-layout", "opacity",
+	).Matching(safeInlineStyleValue).Globally()
+	sanitized := p.Sanitize(html)
+	return sanitizedLinkElement.ReplaceAllStringFunc(sanitized, func(link string) string {
+		if stylesheetRelToken.MatchString(link) {
+			return link
+		}
+		return ""
+	})
 }
 
 // parseEmailDate parses the Date header from email headers

@@ -334,6 +334,24 @@ body {
     background: #fafafa;
 }
 
+.email-remote-content-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding: 10px 12px;
+    border: 1px solid #f0c36d;
+    border-radius: 4px;
+    background: #fff8e5;
+    color: #6d5200;
+    font-size: 14px;
+}
+
+.email-remote-content-notice .btn {
+    flex: 0 0 auto;
+}
+
 .email-detail-html iframe {
     width: 100%;
     border: none;
@@ -643,6 +661,12 @@ body.dark-theme .email-detail-text {
 body.dark-theme .email-detail-html {
     background: #1a1a1a;
     border-color: #444;
+}
+
+body.dark-theme .email-remote-content-notice {
+    background: #3d3520;
+    border-color: #806c35;
+    color: #f0d98a;
 }
 
 body.dark-theme .email-detail-attachments {
