@@ -16,7 +16,8 @@
   "security": [
     {
       "basicAuth": []
-    }
+    },
+    {}
   ],
   "tags": [
     {
@@ -1420,7 +1421,7 @@
       "basicAuth": {
         "type": "http",
         "scheme": "basic",
-        "description": "Optional deployment-wide HTTP Basic Auth. A 401 response is plain text and includes `WWW-Authenticate: Basic realm=\"OwlMail\"` when credentials are omitted."
+        "description": "Deployment-conditional HTTP Basic Auth. When server credentials are configured, callers must supply matching credentials; rejected requests receive a plain-text 401 with `WWW-Authenticate: Basic realm=\"OwlMail\"`."
       }
     },
     "parameters": {

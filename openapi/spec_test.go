@@ -56,8 +56,38 @@ func TestDocumentsParseAndStayEquivalent(t *testing.T) {
 	}
 
 	validateDocumentShape(t, parsedJSON)
+	validateSecuritySemantics(t, parsedJSON)
 	validateQuerySemantics(t, parsedJSON)
 	validateLocalReferences(t, parsedJSON, parsedJSON)
+}
+
+func validateSecuritySemantics(t *testing.T, document map[string]any) {
+	t.Helper()
+	security := document["security"].([]any)
+	if len(security) != 2 {
+		t.Fatalf("global security has %d alternatives, want Basic Auth and anonymous", len(security))
+	}
+	hasBasicAuth, hasAnonymous := false, false
+	for _, rawRequirement := range security {
+		requirement := rawRequirement.(map[string]any)
+		if len(requirement) == 0 {
+			hasAnonymous = true
+		}
+		if scopes, ok := requirement["basicAuth"].([]any); ok && len(scopes) == 0 {
+			hasBasicAuth = true
+		}
+	}
+	if !hasBasicAuth || !hasAnonymous {
+		t.Fatalf("global security = %#v, want Basic Auth and anonymous alternatives", security)
+	}
+
+	paths := document["paths"].(map[string]any)
+	for _, path := range []string{"/health", "/ready"} {
+		operation := paths[path].(map[string]any)["get"].(map[string]any)
+		if public, ok := operation["security"].([]any); !ok || len(public) != 0 {
+			t.Errorf("GET %s security = %#v, want an explicit public override", path, operation["security"])
+		}
+	}
 }
 
 func TestDocumentsUseEffectiveServerURL(t *testing.T) {

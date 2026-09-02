@@ -15,6 +15,7 @@ servers:
   description: Root deployment; the served contract includes the configured base pathname
 security:
 - basicAuth: []
+- {}
 tags:
 - name: Emails
   description: Mailbox queries and mutations
@@ -891,8 +892,8 @@ components:
     basicAuth:
       type: http
       scheme: basic
-      description: 'Optional deployment-wide HTTP Basic Auth. A 401 response is plain text and includes `WWW-Authenticate:
-        Basic realm="OwlMail"` when credentials are omitted.'
+      description: 'Deployment-conditional HTTP Basic Auth. When server credentials are configured, callers must supply matching
+        credentials; rejected requests receive a plain-text 401 with `WWW-Authenticate: Basic realm="OwlMail"`.'
   parameters:
     EmailID:
       name: id
