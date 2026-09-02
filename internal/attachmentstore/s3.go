@@ -34,11 +34,25 @@ type s3Client interface {
 }
 
 // CheckHealth verifies that the configured credentials can address the bucket.
-// HeadBucket is read-only and does not create, mutate, or enumerate objects.
+// HeadBucket is preferred. A bounded prefix-scoped ListObjectsV2 fallback
+// supports least-privilege policies that deny bucket-wide HeadBucket while
+// permitting OwlMail's actual attachment prefix.
 func (store *S3Store) CheckHealth(ctx context.Context) error {
 	_, err := store.client.HeadBucket(ctx, &s3.HeadBucketInput{Bucket: aws.String(store.bucket)})
-	if err != nil {
-		return fmt.Errorf("check S3 bucket: %w", err)
+	if err == nil {
+		return nil
+	}
+	prefix := store.prefix
+	if prefix != "" {
+		prefix += "/"
+	}
+	_, fallbackErr := store.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket:  aws.String(store.bucket),
+		Prefix:  aws.String(prefix),
+		MaxKeys: aws.Int32(1),
+	})
+	if fallbackErr != nil {
+		return fmt.Errorf("check S3 attachment prefix: %w", fallbackErr)
 	}
 	return nil
 }

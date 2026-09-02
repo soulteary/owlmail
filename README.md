@@ -337,7 +337,8 @@ request or startup; pending deletions are not republished. Upload must finish
 before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
 local files and does not include S3 object bytes.
 
-OwlMail checks S3 with the read-only `HeadBucket` operation. By default the
+OwlMail prefers the read-only `HeadBucket` operation and falls back to a
+one-key, prefix-scoped `ListObjectsV2` check for least-privilege policies. By default the
 initial check runs asynchronously: startup remains compatible, while
 `GET /readyz` and `GET /api/v1/ready` return `503` until a check succeeds.
 Set `OWLMAIL_S3_STARTUP_CHECK=true` to make only the initial check fatal.

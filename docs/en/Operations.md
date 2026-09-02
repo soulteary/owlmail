@@ -122,7 +122,9 @@ uses `/healthz` for this reason.
 
 `GET /readyz` and `GET /api/v1/ready` are readiness checks. With local
 attachment storage they return ready immediately. With S3 enabled, OwlMail
-runs a read-only `HeadBucket` probe in the background, caches the latest result,
+runs a read-only `HeadBucket` probe in the background. If a least-privilege
+policy rejects the bucket-wide operation, it falls back to `ListObjectsV2`
+scoped to the attachment prefix and `MaxKeys=1`. OwlMail caches the latest result
 and refreshes it every 30 seconds by default. Each probe has a five-second
 deadline. An HTTP readiness request only reads that cache; it never performs or
 waits for a remote S3 request.

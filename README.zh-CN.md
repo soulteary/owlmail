@@ -323,7 +323,8 @@ export OWLMAIL_S3_STARTUP_CHECK=true
 该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
 `OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
 
-OwlMail 使用只读 `HeadBucket` 探测 S3。默认异步执行首次探测，以保持既有启动行为；
+OwlMail 优先使用只读 `HeadBucket` 探测 S3；若最小权限策略不允许 bucket 级探测，
+则回退到最多读取一个键、限定附件前缀的 `ListObjectsV2`。默认异步执行首次探测，以保持既有启动行为；
 在探测成功前，`GET /readyz` 与 `GET /api/v1/ready` 返回 `503`。设置
 `OWLMAIL_S3_STARTUP_CHECK=true` 后，仅首次探测失败会终止启动。运行期间 S3
 暂时不可用只会让 readiness 失败，不会使进程退出；后台探测恢复后 readiness

@@ -23,6 +23,7 @@ type fakeS3Client struct {
 	listErr      error
 	deleteErr    error
 	headBucket   func(context.Context) error
+	listObjects  func(context.Context, *s3.ListObjectsV2Input) error
 }
 
 func newFakeS3Client() *fakeS3Client {
@@ -69,7 +70,15 @@ func (client *fakeS3Client) GetObject(_ context.Context, input *s3.GetObjectInpu
 	}, nil
 }
 
-func (client *fakeS3Client) ListObjectsV2(_ context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+func (client *fakeS3Client) ListObjectsV2(ctx context.Context, input *s3.ListObjectsV2Input, _ ...func(*s3.Options)) (*s3.ListObjectsV2Output, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if client.listObjects != nil {
+		if err := client.listObjects(ctx, input); err != nil {
+			return nil, err
+		}
+	}
 	if client.listErr != nil {
 		return nil, client.listErr
 	}
@@ -229,14 +238,42 @@ func TestS3HealthProbeSuccessAndSafeErrorCategories(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client.headBucket = func(context.Context) error {
-				return fakeS3APIError{code: test.code, text: "secret endpoint and token must not escape"}
+			probeErr := fakeS3APIError{code: test.code, text: "secret endpoint and token must not escape"}
+			client.headBucket = func(context.Context) error { return probeErr }
+			client.listObjects = func(context.Context, *s3.ListObjectsV2Input) error {
+				return probeErr
 			}
 			status := monitor.ProbeNow(context.Background())
 			if status.Ready() || status.ErrorCategory != test.want {
 				t.Fatalf("health status = %#v, want category %q", status, test.want)
 			}
 		})
+	}
+}
+
+func TestS3HealthProbeFallsBackToBoundedPrefixCheck(t *testing.T) {
+	client := newFakeS3Client()
+	client.headBucket = func(context.Context) error {
+		return fakeS3APIError{code: "AccessDenied", text: "bucket-wide check denied"}
+	}
+	client.listObjects = func(_ context.Context, input *s3.ListObjectsV2Input) error {
+		if got := aws.ToString(input.Bucket); got != "mail-bucket" {
+			t.Fatalf("fallback bucket = %q", got)
+		}
+		if got := aws.ToString(input.Prefix); got != "owlmail/attachments/" {
+			t.Fatalf("fallback prefix = %q", got)
+		}
+		if got := aws.ToInt32(input.MaxKeys); got != 1 {
+			t.Fatalf("fallback MaxKeys = %d", got)
+		}
+		return nil
+	}
+	monitor, err := NewHealthMonitor(newS3Store(client, "mail-bucket", "owlmail/attachments"), time.Minute, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status := monitor.ProbeNow(context.Background()); !status.Ready() {
+		t.Fatalf("prefix-scoped fallback status = %#v", status)
 	}
 }
 
@@ -261,6 +298,12 @@ func TestS3HealthMonitorRecovers(t *testing.T) {
 	var unavailable atomic.Bool
 	unavailable.Store(true)
 	client.headBucket = func(context.Context) error {
+		if unavailable.Load() {
+			return fakeS3APIError{code: "ServiceUnavailable", text: "temporary outage"}
+		}
+		return nil
+	}
+	client.listObjects = func(context.Context, *s3.ListObjectsV2Input) error {
 		if unavailable.Load() {
 			return fakeS3APIError{code: "ServiceUnavailable", text: "temporary outage"}
 		}
