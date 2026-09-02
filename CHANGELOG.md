@@ -8,6 +8,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- A source-pinned three-way OwlMail, MailDev, and MailCatcher comparison that
+  distinguishes release and main-branch versions, corrects the current MCP
+  boundary, and documents API, live-event, storage, sendmail, and migration
+  tradeoffs without claiming unverified performance equivalence.
+
 - An optional, default-off MailDev REST facade under `/api`, with independent
   MailDev-shaped full-email and summary DTOs, filtering and pagination,
   read-on-detail behavior, bulk deletion, content downloads, synchronous relay

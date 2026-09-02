@@ -387,6 +387,29 @@ test("OpenAPI contract is linked from every translated README", () => {
   }
 });
 
+test("three-way comparison stays source-pinned and reflects MCP support", () => {
+  for (const document of [
+    "docs/en/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
+    "docs/zh-CN/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
+  ]) {
+    const markdown = fs.readFileSync(path.join(root, document), "utf8");
+    for (const marker of [
+      "OwlMail × MailDev × MailCatcher",
+      "2026-09-02",
+      "03bbad9a8223d61a2d841f341b1d953bf5af1d05",
+      "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
+      "43e488e2a5692532c131a87d5bd16a973ee8db56",
+      "0.11.0",
+      "MCP",
+      "MailCatcher",
+    ]) {
+      assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
+    }
+    assert.ok(!markdown.includes("| MCP server | Current MailDev provides one | No |"));
+    assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
+  }
+});
+
 test("0.6.0 release documentation and workflow stay connected", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   const releaseStart = changelog.indexOf("## [0.6.0]");
