@@ -58,6 +58,8 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
   使用 UUID。两种格式均可查询。
 - `GET /api/v1/emails/:id` 和 `GET /email/:id` **不会**自动标记已读；请显式
   调用对应的 `PATCH` 路由。
+- 启用可选 MailDev REST facade 后，只有 `GET /api/email/:id` 会复现
+  MailDev 的“读取即标记已读”副作用。
 - 列表和预览端点默认 `limit=50`、`offset=0`，最大 `limit` 为 1000；非法值
   会回退到默认值。
 - 时间由 Go `time.Time` 编码为 RFC 3339 格式。
@@ -226,6 +228,51 @@ curl -u admin:secret \
   }'
 ```
 
+## 可选 MailDev REST facade
+
+只有显式启用后，才会提供当前 MailDev REST 合约：
+
+```bash
+owlmail -maildev-rest-compat
+# 等价环境变量：
+OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+```
+
+默认值为 `false`；关闭时以下路由返回 `404`。设置 `-base-pathname /owlmail`
+后，它们位于 `/owlmail/api`。facade 复用 OwlMail 的监听端口、HTTPS、
+CORS/同源保护和 Basic Auth；与 MailDev 一样，`/api/healthz` 无需认证。
+实现直接委托给现有邮箱、持久化已读元数据、事务删除、附件 Store 与出站 relay
+worker，不创建第二套索引或存储格式。
+
+| 方法和路径 | MailDev 兼容结果 |
+|---|---|
+| `GET /api/email` | 完整邮件 JSON 数组；支持 `skip`、可选 `limit`、可选 `sort=asc\|desc` 及字段/点路径过滤 |
+| `GET /api/email/summary` | `{items,total,storeTotal,unread,skip,limit}`；默认 50、最大 200，并支持 `search`、`sort`、`unread=true` |
+| `GET /api/email/:id` | 完整 MailDev DTO；只有此路由会持久化未读→已读 |
+| `DELETE /api/email/:id` | JSON 布尔值 `true`；ID 不存在返回 `404 {"error":"Email was not found"}` |
+| `POST /api/email/delete` | 接收 `{"ids":[...]}`，返回 `{"deleted":[...],"notFound":[...]}` |
+| `DELETE /api/email/all` | JSON 布尔值 `true` |
+| `PATCH /api/email/read-all` | 实际变更的邮件数量 |
+| `GET /api/email/:id/html` | HTML；将 CID 地址改写为兼容附件 URL |
+| `GET /api/email/:id/source` | 原始 RFC 822 字节 |
+| `GET /api/email/:id/download` | 名为 `<id>.eml` 的 `message/rfc822` 下载 |
+| `GET /api/email/:id/attachment/:filename` | 按存储的媒体类型流式返回附件 |
+| `POST /api/email/:id/relay` | 转发至原始收件人；尝试成功后返回 JSON 布尔值 `true` |
+| `POST /api/email/:id/relay/:relayTo` | 转发至经过校验的显式收件地址 |
+| `GET /api/config` | MailDev 形状的 `version`、`smtpPort`、`isOutgoingEnabled`、`outgoingHost` |
+| `GET /api/healthz` | 公开的 JSON 布尔值 `true` |
+| `GET /api/reloadMailsFromDirectory` | 重载已配置目录并返回 JSON 布尔值 `true` |
+
+relay 请求会等待现有 outgoing worker 的投递结果，以匹配 MailDev 的成功语义；
+HTTP 等待遵循请求取消且最多 30 秒，facade 不会另建 relay worker。
+
+兼容错误统一为单字段 `{"error":"..."}`。JSON、HTML、source、EML 与附件
+保留各自 Content-Type。facade 不改变 `/api/v1` 的任何路由或 DTO。
+
+此选项**只提供 REST 兼容**。OwlMail 不提供 Socket.IO 服务、namespace 握手、
+polling transport，也不发送 MailDev 的 `newMail`、`deleteMail` 事件。
+`/socket.io` 仍是 OwlMail 历史原生 RFC 6455 别名，不属于本 facade。
+
 ## 无版本兼容路由
 
 这些路径沿用 MailDev 历史风格，供现有 OwlMail 集成继续使用。新代码应优先
@@ -283,26 +330,26 @@ Socket.IO 帧、事件协商或降级传输。
 ## MailDev 迁移边界
 
 当前 MailDev 文档将 REST API 放在 `/api` 下，提供 `/api/email/summary` 和
-`/api/email/delete`，读取详情时会标记已读，并使用 Socket.IO 事件。OwlMail
-在这些方面有意采用不同设计。请对照
+`/api/email/delete`，读取详情时会标记已读，并使用 Socket.IO 事件。OwlMail 的
+可选 REST facade 覆盖文档化 HTTP 合约，原生 API 与实时协议仍有意采用不同设计。请对照
 [MailDev 官方 REST 参考](https://github.com/maildev/maildev/blob/main/docs/rest.md)
 和下表验证客户端，不要直接假设可以无缝替换。
 
 | 范围 | 当前 MailDev | OwlMail |
 |---|---|---|
-| API 前缀 | `/api`，还可配置基础路径 | 无版本 `/email` 路由及 `/api/v1`，可统一挂载到 `-base-pathname` 下 |
-| 列表结构 | MailDev 定义的邮件列表/摘要结构 | `{ total, limit, offset, emails }` 或 `{ ..., previews }` |
-| 详情读取状态 | 获取详情即标记已读 | 只通过显式 `PATCH` 修改 |
-| 批量删除 | `POST /api/email/delete` | `POST /email/batch/delete` 或 `DELETE /api/v1/emails/batch` |
+| API 前缀 | `/api`，还可配置基础路径 | 启用 facade 后相同；原生路由继续保留 |
+| 列表结构 | MailDev 定义的邮件列表/摘要结构 | facade 相同；原生 `/api/v1` 使用 OwlMail 信封结构 |
+| 详情读取状态 | 获取详情即标记已读 | 仅 `/api/email/:id` 相同；原生详情无副作用 |
+| 批量删除 | `POST /api/email/delete` | facade 相同；原生批量路由继续保留 |
 | 实时协议 | Socket.IO，`newMail` / `deleteMail` | 原生 WebSocket，`new` / `delete` |
 | 配置 | MailDev 当前 CLI/配置项 | OwlMail 已文档化参数和受支持的 MailDev 环境变量别名 |
 
 迁移自动化客户端前：
 
-1. 修改或代理 API 前缀；迁移时可继续使用 `MAILDEV_BASE_PATHNAME` 兼容别名。
-2. 适配列表响应结构。
-3. 将 Socket.IO 客户端替换为原生 WebSocket 客户端。
-4. 需要时显式标记已读。
+1. 为未修改的 MailDev REST 客户端启用 facade，或将新代码迁移到 `/api/v1`。
+2. 如有需要，可继续使用 `MAILDEV_BASE_PATHNAME` 作为 OwlMail base path 别名。
+3. 将 Socket.IO 客户端替换为原生 WebSocket 客户端；REST 开关不覆盖它。
+4. 使用原生详情路由时，仍需显式标记已读。
 5. 在预发布环境验证删除、中继、附件、鉴权和错误路径。
 
 更完整的功能比较见

@@ -14,6 +14,12 @@ All notable changes to OwlMail are documented in this file. The format follows
   session and process and are removed on cancellation, timeout, session close,
   or shutdown; generated links support HTTPS, reverse-proxy base paths, and the
   explicit `OWLMAIL_WEB_EXTERNAL_URL` origin.
+- An optional, default-off MailDev REST facade under `/api`, with independent
+  MailDev-shaped full-email and summary DTOs, filtering and pagination,
+  read-on-detail behavior, bulk deletion, content downloads, synchronous relay
+  results, config, health, and directory reload routes. It shares OwlMail's
+  storage, Basic Auth, HTTPS, and base pathname while explicitly excluding
+  Socket.IO compatibility.
 - A complete OpenAPI 3.1 contract for the native `/api/v1` API in JSON and
   YAML, including request/response examples, authentication and public probe
   boundaries, base-path-aware read-only specification endpoints, asynchronous

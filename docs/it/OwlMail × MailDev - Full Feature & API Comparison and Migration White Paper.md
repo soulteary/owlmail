@@ -19,6 +19,9 @@ sono equivalenti a livello di protocollo né intercambiabili senza verifica**.
 Prefissi API, risposte, stato di lettura e protocollo in tempo reale differiscono.
 Consulta il [riferimento API](../en/API-Reference.md).
 
+L'opzione `-maildev-rest-compat`, disattivata per impostazione predefinita,
+espone le route REST MailDev correnti sotto `/api`. Non abilita Socket.IO.
+
 > **Nota**: Il contenuto completo sarà disponibile una volta completata la traduzione. Nel frattempo, si prega di fare riferimento alla versione inglese per i dettagli completi.
 
 ---

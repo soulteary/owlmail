@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 
@@ -27,6 +28,35 @@ func (ms *MailServer) RelayMailTo(email *Email, relayTo string, callback func(er
 	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
 	ms.outgoing.RelayMail(email, emlPath, relayTo, false, callback)
 	return nil
+}
+
+// RelayMailAndWait relays one message and waits for the outgoing worker's
+// result. OwlMail's native API intentionally keeps its asynchronous enqueue
+// semantics; the MailDev REST facade uses this method because MailDev only
+// returns success after the relay attempt completes.
+func (ms *MailServer) RelayMailAndWait(ctx context.Context, email *Email, relayTo string) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if ms.outgoing == nil {
+		return fmt.Errorf("outgoing mail not configured")
+	}
+	result := make(chan error, 1)
+	callback := func(err error) {
+		result <- err
+	}
+	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
+	ms.outgoing.RelayMailContext(ctx, email, emlPath, relayTo, false, callback)
+	return waitRelayResult(ctx, result)
+}
+
+func waitRelayResult(ctx context.Context, result <-chan error) error {
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("relay attempt canceled: %w", ctx.Err())
+	}
 }
 
 // SetOutgoingConfig sets the outgoing mail configuration

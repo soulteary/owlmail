@@ -203,6 +203,7 @@ docker buildx build \
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Host API Web |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Origin HTTP(S) visibile dal browser per i deep link; configura separatamente il sottopercorso con `-base-pathname` |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Prefisso del percorso URL come `/owlmail`; la radice resta predefinita |
+| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Abilita esplicitamente il facade REST MailDev sotto `/api`; Socket.IO resta incompatibile |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Abilita l'endpoint MCP Streamable HTTP in sola lettura in `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Chiude le sessioni MCP inattive |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Termine per chiudere le sessioni MCP durante l'arresto |
@@ -568,14 +569,16 @@ export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
 ### 2. Compatibilità API
 
-I percorsi e i payload API sono diversi. Usa l'API OwlMail versionata per le
-nuove integrazioni e adatta esplicitamente i client esistenti:
+I client REST esistenti possono abilitare esplicitamente la facade MailDev,
+disattivata per impostazione predefinita. Le nuove integrazioni devono usare
+l'API OwlMail versionata. La facade non aggiunge compatibilità Socket.IO:
 
 ```bash
-# API MailDev corrente
+# Client REST MailDev esistente
+OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
 curl http://localhost:1080/api/email
 
-# API OwlMail
+# Nuova integrazione OwlMail
 curl http://localhost:1080/api/v1/emails
 ```
 

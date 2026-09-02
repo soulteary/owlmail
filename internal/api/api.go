@@ -24,21 +24,22 @@ import (
 
 // API represents the REST API server
 type API struct {
-	mailServer     *mailserver.MailServer
-	app            *fiber.App
-	port           int
-	host           string
-	wsUpgrader     websocket.Upgrader
-	wsClients      map[*websocket.Conn]*sync.Mutex
-	wsClientsLock  sync.RWMutex
-	authUser       string
-	authPassword   string
-	httpsEnabled   bool
-	httpsCertFile  string
-	httpsKeyFile   string
-	externalScheme string
-	basePathname   string
-	mcpHandler     http.Handler
+	mailServer        *mailserver.MailServer
+	app               *fiber.App
+	port              int
+	host              string
+	wsUpgrader        websocket.Upgrader
+	wsClients         map[*websocket.Conn]*sync.Mutex
+	wsClientsLock     sync.RWMutex
+	authUser          string
+	authPassword      string
+	httpsEnabled      bool
+	httpsCertFile     string
+	httpsKeyFile      string
+	externalScheme    string
+	basePathname      string
+	mailDevRESTCompat bool
+	mcpHandler        http.Handler
 }
 
 // NewAPI creates a new API server instance
@@ -107,6 +108,14 @@ func (api *API) SetBasePathname(basePathname string) error {
 	return nil
 }
 
+// SetMailDevRESTCompat enables or disables the opt-in MailDev REST facade.
+// It must be called before the API server starts.
+func (api *API) SetMailDevRESTCompat(enabled bool) {
+	api.mailDevRESTCompat = enabled
+	api.mailServer.SetRetainAllHeaders(enabled)
+	api.setupRoutes()
+}
+
 // SetMCPHandler enables the optional MCP endpoint using the same listener,
 // HTTPS configuration, base pathname, and Basic Auth middleware as the Web API.
 func (api *API) SetMCPHandler(handler http.Handler) error {
@@ -122,9 +131,8 @@ func (api *API) route(path string) string {
 	return api.basePathname + path
 }
 
-// setupRoutes configures all API routes
-// This function sets up both MailDev-compatible routes (for backward compatibility)
-// and new improved RESTful API routes
+// setupRoutes configures OwlMail's historical and versioned APIs, plus the
+// default-off MailDev REST facade when explicitly enabled.
 func (api *API) setupRoutes() {
 	app := fiber.New(fiber.Config{})
 
@@ -148,6 +156,9 @@ func (api *API) setupRoutes() {
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
 		healthRoutes := []string{api.route("/healthz"), api.route("/readyz"), api.route("/api/v1/health"), api.route("/api/v1/ready")}
+		if api.mailDevRESTCompat {
+			healthRoutes = append(healthRoutes, api.route("/api/healthz"))
+		}
 		if api.basePathname != "" {
 			healthRoutes = append(healthRoutes, "/healthz")
 		}
@@ -189,6 +200,9 @@ func (api *API) setupRoutes() {
 	// MailDev-compatible API routes (maintains backward compatibility)
 	// ============================================================================
 	api.setupMailDevCompatibleRoutes(app)
+	if api.mailDevRESTCompat {
+		api.setupMailDevRESTCompatRoutes(app)
+	}
 
 	// ============================================================================
 	// New improved RESTful API routes
@@ -331,9 +345,11 @@ func (api *API) setupEventListeners() {
 	})
 }
 
-// setupMailDevCompatibleRoutes sets up MailDev-compatible API routes
+// setupMailDevCompatibleRoutes sets up OwlMail's historical unversioned routes.
+// These aliases resemble older MailDev workflows but are not the opt-in,
+// contract-compatible /api facade.
 func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
-	// Email routes (MailDev compatible)
+	// Historical OwlMail email aliases.
 	emailGroup := app.Group(api.route("/email"))
 	emailGroup.Get("", api.getAllEmails)
 	emailGroup.Get("/:id", api.getEmailByID)
@@ -353,7 +369,7 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 	emailGroup.Post("/batch/read", api.batchReadEmails)
 	emailGroup.Get("/export", api.exportEmails)
 
-	// WebSocket route (MailDev compatible)
+	// Historical native WebSocket alias. This is not Socket.IO compatible.
 	app.Get(api.route("/socket.io"), adaptor.HTTPHandlerFunc(api.handleWebSocketHTTP))
 
 	// Config routes (MailDev compatible)

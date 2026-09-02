@@ -14,10 +14,10 @@ OwlMail 与 MailDev 的核心目标一致：接收 SMTP 邮件、保存以供检
 OwlMail 还提供单一 Go 二进制、版本化 `/api/v1`、原生 SMTPS、浏览器通知、
 通用 Webhook 转发和内嵌本地帮助。这些是 OwlMail 的自身能力，不代表协议等价。
 
-OwlMail **不是当前 MailDev 的精确无缝替代品**。需要关注 API 前缀与响应结构、
-读取详情时的已读副作用、批量路由、WebSocket 协议与事件名、配置覆盖范围，以及
-MailDev 的 MCP 接口。迁移应被视为一次小型集成改造并配套测试，而不是直接替换
-二进制并假设完全兼容。
+OwlMail **不是当前 MailDev 的精确无缝替代品**。现在可以显式开启默认关闭的
+MailDev `/api` REST facade 来兼容当前路由与载荷，但浏览器 UI、Socket.IO 实时
+协议、配置覆盖范围和 MCP 工具合约仍不相同。REST 迁移可使用 facade，非 REST
+集成仍必须逐项验证。
 
 ## 功能比较
 
@@ -32,7 +32,7 @@ MailDev 的 MCP 接口。迁移应被视为一次小型集成改造并配套测�
 | Web Basic Auth | 支持 | 支持 | OwlMail 健康检查仍公开 |
 | SMTP TLS / STARTTLS | 支持 | 支持 | 证书路径必须可读 |
 | 直接 SMTPS | 随版本而异 | 开启 SMTP TLS 时监听 465 | OwlMail 特有行为 |
-| REST API | 支持 | 支持 | 路由和载荷不完全相同 |
+| REST API | 支持 | 支持，并提供可选 MailDev `/api` facade | OwlMail 原生路由仍不同 |
 | 实时更新 | Socket.IO | 原生 WebSocket | 客户端代码需要修改 |
 | 通用出站 Webhook | 随版本而异 | 支持 | OwlMail 提供模板、HMAC、重试和过滤 |
 | 浏览器通知 | 随 UI/版本而异 | 浏览器内按需开启 | 需要权限和安全上下文 |
@@ -54,35 +54,39 @@ MailDev 的 MCP 接口。迁移应被视为一次小型集成改造并配套测�
 
 ### OwlMail 接口
 
-OwlMail 提供两个接口面：
+OwlMail 提供三个 HTTP 接口面：
 
 - `/api/v1/*`：推荐的新集成接口。
 - 无版本的 `/email`、`/config`、`/healthz` 和 `/socket.io`：保留给已有
   OwlMail 客户端及常见 MailDev 风格工作流。
+- 可选 `/api/*` MailDev REST 路由，仅在 `-maildev-rest-compat` 或
+  `OWLMAIL_MAILDEV_REST_COMPAT=true` 时启用。
 
 设置 `-base-pathname /owlmail`（或 `OWLMAIL_BASE_PATHNAME=/owlmail`）后，
 本节所有路径都应加上 `/owlmail` 前缀；同时接受兼容变量
 `MAILDEV_BASE_PATHNAME`。该设置只改变路由位置，不改变协议：
 `/owlmail/socket.io` 仍是原生 RFC 6455 WebSocket。
 
-OwlMail 的 `/socket.io` 是原生 RFC 6455 WebSocket。路径名称并不意味着兼容
-Socket.IO。
+REST facade 复用 OwlMail 的存储、认证、HTTPS 与 base path。只有 facade 的详情
+路由会将邮件标记已读，其 DTO 保留 MailDev 的数组、summary、信封、附件、修改与
+错误形状。OwlMail 的 `/socket.io` 仍是原生 RFC 6455 WebSocket；路径名称并不
+意味着兼容 Socket.IO，REST 开关也绝不会启用 Socket.IO。
 
 | 工作流 | 当前 MailDev | OwlMail |
 |---|---|---|
-| 邮件列表 | `GET /api/email` | `GET /email` 或 `GET /api/v1/emails` |
-| 精简列表 | `GET /api/email/summary` | `GET /email/preview` 或 `GET /api/v1/emails/preview` |
-| 获取详情 | `GET /api/email/:id`，同时标记已读 | `GET /email/:id` 或 `GET /api/v1/emails/:id`，无已读副作用 |
+| 邮件列表 | `GET /api/email` | 启用 facade 后路径与数组载荷相同；否则原生路由不同 |
+| 精简列表 | `GET /api/email/summary` | 启用 facade 后路径与 summary 信封相同 |
+| 获取详情 | `GET /api/email/:id`，同时标记已读 | 仅 facade 行为相同；原生详情无已读副作用 |
 | 标记单封已读 | 获取详情时隐式完成 | `PATCH /email/:id/read` 或 `PATCH /api/v1/emails/:id/read` |
-| 批量删除 | `POST /api/email/delete` | `POST /email/batch/delete` 或 `DELETE /api/v1/emails/batch` |
-| 重载目录 | `GET /api/reloadMailsFromDirectory` | `GET /reloadMailsFromDirectory` 或 `POST /api/v1/emails/reload` |
-| 配置信息 | `GET /api/config` | `GET /config` 或 `GET /api/v1/settings` |
-| 健康检查 | `GET /api/healthz` | `GET /healthz` 或 `GET /api/v1/health` |
+| 批量删除 | `POST /api/email/delete` | 启用 facade 后请求和结果形状相同 |
+| 重载目录 | `GET /api/reloadMailsFromDirectory` | 启用 facade 后路径相同 |
+| 配置信息 | `GET /api/config` | 启用 facade 后提供相同精简形状 |
+| 健康检查 | `GET /api/healthz` | 启用 facade 后提供相同公开 JSON 布尔值 |
 | 实时事件 | Socket.IO `newMail`、`deleteMail` | 原生 WS `{type:"new"}`、`{type:"delete"}` |
 
-集合响应也不同。OwlMail 返回分页信封，例如
-`{ "total": 3, "limit": 50, "offset": 0, "emails": [...] }`；客户端不能沿用
-MailDev 列表结构的假设。
+原生集合响应仍不同：`/api/v1` 返回分页信封，例如
+`{ "total": 3, "limit": 50, "offset": 0, "emails": [...] }`。可选 facade
+则返回 MailDev 的数组和 summary 信封形状。
 
 完整路由、载荷、状态行为、鉴权和 WebSocket 协议见
 [OwlMail API 参考](./API-Reference.md)。

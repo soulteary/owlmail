@@ -203,6 +203,7 @@ docker buildx build \
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 생성된 이메일 딥 링크에 사용할 브라우저 공개 HTTP(S) origin. 프록시 하위 경로는 `-base-pathname`으로 별도 설정 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` 같은 URL 경로 접두사. 기본값은 루트 경로 |
+| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade를 명시적으로 활성화하며 Socket.IO는 계속 호환되지 않음 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp`에서 읽기 전용 MCP Streamable HTTP 엔드포인트 활성화 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 유휴 MCP 세션 종료 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 종료 시 MCP 세션 정리 제한 시간 |
@@ -567,14 +568,16 @@ export MAILDEV_OUTGOING_HOST=smtp.gmail.com
 
 ### 2. API Compatibility
 
-API 경로와 페이로드는 다릅니다. 새 연동은 버전이 지정된 OwlMail API를 사용하고
-기존 클라이언트는 명시적으로 수정하세요:
+기존 REST 클라이언트는 기본적으로 비활성화된 MailDev facade를 명시적으로
+활성화할 수 있습니다. 새 연동은 버전이 지정된 OwlMail API를 사용해야 합니다.
+facade는 Socket.IO 호환성을 추가하지 않습니다:
 
 ```bash
-# 현재 MailDev API
+# 기존 MailDev REST 클라이언트
+OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
 curl http://localhost:1080/api/email
 
-# OwlMail API
+# 새 OwlMail 연동
 curl http://localhost:1080/api/v1/emails
 ```
 

@@ -182,9 +182,14 @@ function configRows(markdown) {
 
 function extractAPIRoutes() {
   const source = fs.readFileSync(path.join(root, "internal/api/api.go"), "utf8");
+  const mailDevCompatSource = fs.readFileSync(
+    path.join(root, "internal/api/api_maildev_compat.go"),
+    "utf8",
+  );
   const sections = [
     source.slice(source.indexOf("func (api *API) setupImprovedAPIRoutes"), source.indexOf("// Start starts the API server")),
     source.slice(source.indexOf("func (api *API) setupMailDevCompatibleRoutes")),
+    mailDevCompatSource.slice(mailDevCompatSource.indexOf("func (api *API) setupMailDevRESTCompatRoutes")),
   ];
   const routes = [];
 
