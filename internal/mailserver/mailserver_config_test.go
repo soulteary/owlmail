@@ -32,6 +32,9 @@ func TestNewMailServer(t *testing.T) {
 	if server.smtpServer.MaxMessageBytes != DefaultMaxMessageBytes {
 		t.Errorf("default MaxMessageBytes = %d, want %d", server.smtpServer.MaxMessageBytes, DefaultMaxMessageBytes)
 	}
+	if !server.smtpServer.EnableSMTPUTF8 {
+		t.Fatal("SMTP server should advertise SMTPUTF8 for internationalized messages")
+	}
 
 	// Test with custom values
 	server2, err := NewMailServer(2525, "127.0.0.1", tmpDir)
@@ -70,6 +73,9 @@ func TestNewMailServerWithCustomMessageLimit(t *testing.T) {
 	}
 	if server.smtpsServer == nil || server.smtpsServer.MaxMessageBytes != limit {
 		t.Fatalf("SMTPS MaxMessageBytes was not configured: %#v", server.smtpsServer)
+	}
+	if !server.smtpsServer.EnableSMTPUTF8 {
+		t.Fatal("SMTPS server should advertise SMTPUTF8 for internationalized messages")
 	}
 }
 

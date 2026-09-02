@@ -36,6 +36,11 @@ Welcome to the OwlMail documentation directory. This directory contains technica
     webhook capacity, backup/upgrade, shutdown boundaries, and failure diagnosis.
   - **Other languages**: [简体中文](../zh-CN/Operations.md)
 
+- **[Sendmail-compatible CLI](./Sendmail.md)**
+  - PHP `sendmail_path`, cron and legacy-program usage, SMTP/TLS/AUTH options,
+    envelope handling, stable exit statuses, and safety boundaries.
+  - **Other languages**: [简体中文](../zh-CN/Sendmail.md) | [Deutsch](../de/Sendmail.md) | [Français](../fr/Sendmail.md) | [Italiano](../it/Sendmail.md) | [日本語](../ja/Sendmail.md) | [한국어](../ko/Sendmail.md)
+
 - **[Webhook Forwarding](./Webhook-Forwarding.md)**
   - Use the embedded `/webhooks` configurator, or configure filtering, custom
     payload templates, HMAC signatures, retries, and integration with `soulteary/webhook` manually.

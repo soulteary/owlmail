@@ -134,6 +134,7 @@ func (ms *MailServer) setupSMTPServer() error {
 	s.WriteTimeout = 10 * time.Second
 	s.MaxMessageBytes = ms.maxMessageBytes
 	s.MaxRecipients = 50
+	s.EnableSMTPUTF8 = true
 
 	// Preserve the development-friendly default while allowing deployments to
 	// require an encrypted transport before PLAIN or LOGIN is accepted.
@@ -173,6 +174,7 @@ func (ms *MailServer) setupSMTPServer() error {
 		smtps.WriteTimeout = 10 * time.Second
 		smtps.MaxMessageBytes = ms.maxMessageBytes
 		smtps.MaxRecipients = 50
+		smtps.EnableSMTPUTF8 = true
 
 		smtps.AllowInsecureAuth = !ms.authRequireTLS
 

@@ -54,6 +54,7 @@ WebSocket 프로토콜은 OwlMail 고유 형식입니다. API 또는 Socket.IO �
 - 🆕 **Improved RESTful API** - More standardized API design (`/api/v1/*`)
 - 🆕 **내장 도움말** - 받은 편지함 또는 `/help`에서 여는 로컬 이중 언어 가이드
 - 🆕 **Webhook 구성 도구** - `/webhooks`에서 전달 규칙을 생성, 가져오기, 검증, 복사 및 다운로드하는 내장 로컬 편집기
+- 🆕 **sendmail 호환 CLI** - [`owlmail sendmail`](./docs/ko/Sendmail.md)은 PHP, Cron 및 기존 프로그램의 메일을 일반 SMTP 경계를 통해 전달
 
 ### Compatibility
 

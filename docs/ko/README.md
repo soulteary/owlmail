@@ -23,6 +23,8 @@ OwlMail 문서에 오신 것을 환영합니다. 문서는 언어별 디렉터�
   - 기계 판독 가능: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
 - **[운영 및 문제 해결](../en/Operations.md)** (English, [中文](../zh-CN/Operations.md))
   - 배포, 영속성, 보안, TLS, 용량 및 장애 진단.
+- **[sendmail 호환 CLI](./Sendmail.md)**
+  - PHP `sendmail_path`, Cron, SMTP/TLS/AUTH 및 안정적인 종료 코드.
 - **[Webhook 전달](../en/Webhook-Forwarding.md)** (English, [中文](../zh-CN/Webhook-Forwarding.md))
   - 필터, 사용자 지정 페이로드, HMAC 서명, 재시도 및 `soulteary/webhook` 연동.
 - **[실행 가능한 Webhook 예제](../../examples/webhooks/README.md)** (English, [中文](../../examples/webhooks/README.zh-CN.md))

@@ -55,6 +55,7 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 - 🆕 **改进的 RESTful API** - 更规范的 API 设计（`/api/v1/*`）
 - 🆕 **内置帮助** - 可从收件箱或 `/help` 打开本地中英文指南
 - 🆕 **Webhook 配置器** - 在 `/webhooks` 使用内置本地编辑器生成、导入、校验、复制和下载转发规则
+- 🆕 **Sendmail 兼容 CLI** - [`owlmail sendmail`](./docs/zh-CN/Sendmail.md) 让 PHP、Cron 和传统程序通过正常 SMTP 安全与容量边界投递
 
 ### 兼容性
 

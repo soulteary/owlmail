@@ -35,6 +35,11 @@
     备份升级、关闭边界和故障定位。
   - **其他语言**：[English](../en/Operations.md)
 
+- **[Sendmail 兼容 CLI](./Sendmail.md)**
+  - PHP `sendmail_path`、Cron 与传统程序用法，SMTP/TLS/AUTH 配置、信封处理、
+    稳定退出码和安全边界。
+  - **其他语言**：[English](../en/Sendmail.md) | [Deutsch](../de/Sendmail.md) | [Français](../fr/Sendmail.md) | [Italiano](../it/Sendmail.md) | [日本語](../ja/Sendmail.md) | [한국어](../ko/Sendmail.md)
+
 - **[Webhook 消息转发](./Webhook-Forwarding.md)**
   - 使用内置 `/webhooks` 配置器，或手动配置邮件过滤、自定义消息模板、HMAC
     签名、失败重试，以及与 `soulteary/webhook` 的对接。
