@@ -50,6 +50,10 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 	if err != nil || total != 0 || len(results) != 0 {
 		t.Fatalf("BCC display name query = %#v, total %d, err %v", results, total, err)
 	}
+	results, total, err = index.Query(EmailQuery{SortBy: "store", SortOrder: "desc", Limit: 10})
+	if err != nil || total != 2 || len(results) != 2 || results[0].ID != "two" || results[1].ID != "one" {
+		t.Fatalf("descending store query = %#v, total %d, err %v", results, total, err)
+	}
 	if err := index.Rebuild(records[1:]); err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +236,7 @@ func TestStartupPreservesSQLiteIndexInsideGeneratedIDDirectory(t *testing.T) {
 
 func TestStartupPreservesSQLiteIndexWithEMLSuffix(t *testing.T) {
 	directory := t.TempDir()
-	indexPath := filepath.Join(directory, "mailbox-index.eml")
+	indexPath := filepath.Join(directory, "Ab12Cd34.eml")
 	index, err := NewSQLiteMailboxIndex(indexPath)
 	if err != nil {
 		t.Fatal(err)
@@ -253,6 +257,12 @@ func TestStartupPreservesSQLiteIndexWithEMLSuffix(t *testing.T) {
 	status := server.GetEmailStats()["index"].(map[string]interface{})
 	if status["ready"] != true {
 		t.Fatalf("configured index was not ready after startup: %#v", status)
+	}
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatalf("delete-all treated the SQLite index as an email: %v", err)
+	}
+	if _, err := os.Stat(indexPath); err != nil {
+		t.Fatalf("delete-all removed the SQLite index: %v", err)
 	}
 }
 

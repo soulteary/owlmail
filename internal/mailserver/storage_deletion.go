@@ -137,6 +137,10 @@ func (ms *MailServer) deletionCandidates() ([]string, error) {
 		return nil, err
 	}
 	for _, entry := range entries {
+		entryPath := filepath.Join(ms.mailDir, entry.Name())
+		if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(entryPath) {
+			continue
+		}
 		if id, ok := deletionFenceID(entry.Name()); ok {
 			add(id)
 			continue

@@ -301,7 +301,7 @@ func sqliteMailboxOrder(sortBy, sortOrder string) string {
 	case "size":
 		return " ORDER BY size" + direction + ", store_position ASC"
 	case "store":
-		return " ORDER BY store_position ASC"
+		return " ORDER BY store_position" + direction
 	case "":
 		return " ORDER BY message_time DESC, store_position ASC"
 	default:
