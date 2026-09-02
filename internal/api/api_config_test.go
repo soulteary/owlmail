@@ -28,7 +28,6 @@ func TestAPIGetConfig(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
-	_ = body
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
@@ -139,7 +138,6 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 	}()
 
 	config := map[string]interface{}{
-		"host":     "smtp.example.com",
 		"host":     "smtp.example.com",
 		"port":     465,
 		"user":     "user",
@@ -844,4 +842,3 @@ func TestAPIPatchOutgoingConfigWithNonStringRules(t *testing.T) {
 		t.Errorf("Expected 1 deny rule (non-string filtered), got %d", len(denyRules))
 	}
 }
-
