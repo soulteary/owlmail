@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -841,11 +842,17 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		return err
 	}
 	common.InitLoggerOutput(parseLogLevel(cfg.LogLevel), stderr)
-	server, err := createMailServer(cfg)
+	if strings.TrimSpace(cfg.MailDir) == "" {
+		return fmt.Errorf("mcp-stdio requires -mail-directory or OWLMAIL_MAIL_DIR")
+	}
+	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{ReadOnly: true})
 	if err != nil {
 		return err
 	}
 	defer func() { _ = server.Close() }()
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		return fmt.Errorf("load read-only mailbox: %w", err)
+	}
 	sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
 	if err != nil || sessionTimeout <= 0 {
 		return fmt.Errorf("invalid MCP session timeout %q", cfg.MCPSessionTimeout)
@@ -865,6 +872,28 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		return err
 	}
 	defer func() { _ = service.Close() }()
+	watchContext, stopWatcher := context.WithCancel(ctx)
+	var watcher sync.WaitGroup
+	watcher.Add(1)
+	go func() {
+		defer watcher.Done()
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-watchContext.Done():
+				return
+			case <-ticker.C:
+				if err := server.RefreshReadOnlyMailbox(); err != nil {
+					common.Error("MCP stdio mailbox refresh failed: %v", err)
+				}
+			}
+		}
+	}()
+	defer func() {
+		stopWatcher()
+		watcher.Wait()
+	}()
 	return service.RunStdio(ctx)
 }
 
