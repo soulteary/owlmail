@@ -93,6 +93,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP message limit</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
                                 <tr><td>SMTP DATA concurrency</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td><code>8</code> per process; <code>0</code> is unlimited</td></tr>
                                 <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
+                                <tr><td>External Web origin</td><td><code>-web-external-url</code></td><td><code>OWLMAIL_WEB_EXTERNAL_URL</code></td><td>Unset; used for MCP email deep links</td></tr>
                                 <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
                                 <tr><td>Attachment storage</td><td><code>-s3-enabled</code> and S3 options</td><td><code>OWLMAIL_S3_ENABLED</code> and S3 variables</td><td>Local mail directory</td></tr>
                                 <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>, interval and timeout options</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> and health-check variables</td><td>Async checks every <code>30s</code>, <code>5s</code> timeout</td></tr>
@@ -232,6 +233,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP 邮件上限</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
                                 <tr><td>SMTP DATA 并发</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td>每进程 <code>8</code>；<code>0</code> 表示不限制</td></tr>
                                 <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
+                                <tr><td>Web 外部 origin</td><td><code>-web-external-url</code></td><td><code>OWLMAIL_WEB_EXTERNAL_URL</code></td><td>默认不设置；用于 MCP 邮件深链接</td></tr>
                                 <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
                                 <tr><td>附件存储</td><td><code>-s3-enabled</code> 及 S3 参数</td><td><code>OWLMAIL_S3_ENABLED</code> 及 S3 变量</td><td>本地邮件目录</td></tr>
                                 <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>、间隔和超时参数</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> 及健康探测变量</td><td>默认异步每 <code>30s</code> 探测，超时 <code>5s</code></td></tr>

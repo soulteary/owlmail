@@ -202,6 +202,7 @@ docker buildx build \
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Transactions DATA simultanées par processus pour SMTP, STARTTLS et SMTPS ; `0` signifie illimité ; la saturation renvoie l’erreur temporaire `451 4.3.2` |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
+| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Origine HTTP(S) visible par le navigateur pour les liens profonds ; configurez séparément le sous-chemin avec `-base-pathname` |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Préfixe de chemin URL tel que `/owlmail`; la racine reste la valeur par défaut |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Active explicitement la façade REST MailDev sous `/api` ; Socket.IO reste incompatible |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Active le point d'accès MCP Streamable HTTP en lecture seule sous `/mcp` |

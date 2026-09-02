@@ -8,6 +8,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- Read-only MCP testing workflows with compact latest-email lookup, bounded
+  event-driven delivery waits, Web UI deep links, inbox/statistics/email
+  resources, and verification/reset/delivery prompts. Waiters are limited per
+  session and process and are removed on cancellation, timeout, session close,
+  or shutdown; generated links support HTTPS, reverse-proxy base paths, and the
+  explicit `OWLMAIL_WEB_EXTERNAL_URL` origin.
 - An optional, default-off MailDev REST facade under `/api`, with independent
   MailDev-shaped full-email and summary DTOs, filtering and pagination,
   read-on-detail behavior, bulk deletion, content downloads, synchronous relay
