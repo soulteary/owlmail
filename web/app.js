@@ -56,6 +56,11 @@ const i18n = {
         emailPreviewTitle: '隔离的邮件 HTML 预览',
         emailViewportPresets: '预览宽度',
         emailViewportWidth: '邮件预览宽度：{width}',
+        contentHTML: 'HTML',
+        contentText: '纯文本',
+        contentHeaders: '邮件头',
+        contentSource: '源码',
+        sourceLoading: '正在加载源码…',
         // API Error Codes
         'EMAIL_NOT_FOUND': '邮件未找到',
         'EMAIL_FILE_NOT_FOUND': '邮件文件未找到',
@@ -137,6 +142,11 @@ const i18n = {
         emailPreviewTitle: 'Isolated email HTML preview',
         emailViewportPresets: 'Preview width',
         emailViewportWidth: 'Email preview width: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Plain text',
+        contentHeaders: 'Headers',
+        contentSource: 'Source',
+        sourceLoading: 'Loading source…',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email not found',
         'EMAIL_FILE_NOT_FOUND': 'Email file not found',
@@ -801,6 +811,7 @@ let emailDetailRequestSequence = 0;
 function clearEmailSelection(historyMode = 'push') {
     emailDetailRequestSequence += 1;
     remoteContentAllowedEmailID = null;
+    emailSourceCache.clear();
     state.currentEmail = null;
     renderEmailDetail();
     renderEmailList();
@@ -861,6 +872,8 @@ const EMAIL_VIEWPORT_PRESETS = Object.freeze([
     { key: '320', label: '320 px', width: '320px' }
 ]);
 let emailViewportPreset = '100%';
+let emailContentTab = 'html';
+const emailSourceCache = new Map();
 
 // Remote resources are enabled only for the currently rendered message after
 // an explicit user action. The choice is intentionally not persisted.
@@ -1148,6 +1161,11 @@ const API = {
         return await handleAPIResponse(response);
     },
 
+    async getEmailSource(id) {
+        const response = await fetch(`${API_BASE}/emails/${id}/source`);
+        return await handleAPIResponse(response);
+    },
+
     async deleteEmail(id) {
         const response = await fetch(`${API_BASE}/emails/${id}`, {
             method: 'DELETE'
@@ -1407,11 +1425,61 @@ function renderEmailDetail() {
                 <span>${time}</span>
             </div>
         </div>
-        <div class="email-detail-body">
-            ${email.html ? renderHTML(email.html, email.id, email.attachments || []) : renderText(email.text || '')}
-        </div>
+        ${renderEmailContentTabs(email)}
         ${attachments}
     `;
+}
+
+function renderEmailContentTabs(email) {
+    const availableTabs = ['html', 'text', 'headers', 'source'];
+    if (!availableTabs.includes(emailContentTab) || (emailContentTab === 'html' && !email.html)) {
+        emailContentTab = email.html ? 'html' : 'text';
+    }
+    const labels = { html: 'contentHTML', text: 'contentText', headers: 'contentHeaders', source: 'contentSource' };
+    return `
+        <div class="email-content-tabs" role="tablist" aria-label="${t('emailList')}">
+            ${availableTabs.map((tab) => `
+                <button type="button" role="tab" class="email-content-tab"
+                    aria-selected="${emailContentTab === tab}" ${tab === 'html' && !email.html ? 'disabled' : ''}
+                    onclick="setEmailContentTab('${tab}')">${t(labels[tab])}</button>
+            `).join('')}
+        </div>
+        <div class="email-detail-body" role="tabpanel">${renderEmailContentPanel(email)}</div>
+    `;
+}
+
+function renderEmailContentPanel(email) {
+    switch (emailContentTab) {
+    case 'html':
+        return renderHTML(email.html || '', email.id, email.attachments || []);
+    case 'headers':
+        return `<pre class="email-detail-source">${escapeHtml(JSON.stringify(email.headers || {}, null, 2))}</pre>`;
+    case 'source': {
+        const source = emailSourceCache.get(email.id);
+        return source === undefined
+            ? `<div class="loading">${t('sourceLoading')}</div>`
+            : `<pre class="email-detail-source">${escapeHtml(source)}</pre>`;
+    }
+    default:
+        return renderText(email.text || '');
+    }
+}
+
+async function setEmailContentTab(tab) {
+    const email = state.currentEmail;
+    if (!email || !['html', 'text', 'headers', 'source'].includes(tab)) return;
+    if (tab === 'html' && !email.html) return;
+    emailContentTab = tab;
+    renderEmailDetail();
+    if (tab !== 'source' || emailSourceCache.has(email.id)) return;
+    try {
+        const source = await API.getEmailSource(email.id);
+        emailSourceCache.set(email.id, source);
+        if (state.currentEmail && state.currentEmail.id === email.id && emailContentTab === 'source') renderEmailDetail();
+    } catch (error) {
+        console.error('Failed to load email source:', error);
+        alert(t('loadEmailDetailError', { error: parseAPIError(error) }));
+    }
 }
 
 function hasRemoteEmailResources(html) {
@@ -1619,6 +1687,8 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         if (requestSequence !== emailDetailRequestSequence) return;
         if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
         remoteContentAllowedEmailID = null;
+        emailSourceCache.clear();
+        emailContentTab = email.html ? 'html' : 'text';
         state.currentEmail = email;
         renderEmailDetail();
         renderEmailList(); // Update selected state
@@ -1968,4 +2038,5 @@ document.addEventListener('DOMContentLoaded', () => {
 window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
+window.setEmailContentTab = setEmailContentTab;
 window.t = t; // Make translation function available globally

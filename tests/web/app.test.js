@@ -353,6 +353,16 @@ test('HTML previews expose every responsive viewport preset', () => {
     assert.match(preview, /referrerpolicy="no-referrer"/);
 });
 
+test('email detail offers HTML, text, headers, and source tabs', () => {
+    const harness = createHarness();
+    const markup = harness.run(`renderEmailContentTabs({ id: 'mail-1', html: '<p>hello</p>', text: 'hello', headers: { subject: 'hello' }, attachments: [] })`);
+    for (const tab of ['HTML', 'Plain text', 'Headers', 'Source']) {
+        assert.equal(markup.includes(tab), true);
+    }
+    assert.match(markup, /role="tablist"/);
+    assert.match(markup, /role="tabpanel"/);
+});
+
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
     const harness = createHarness();
     const preview = harness.run(`renderHTML('<p>Keep me</p>', 'mail-42', [])`);
