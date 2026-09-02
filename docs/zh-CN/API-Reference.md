@@ -61,7 +61,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 - 启用可选 MailDev REST facade 后，只有 `GET /api/email/:id` 会复现
   MailDev 的“读取即标记已读”副作用。
 - 列表和预览端点默认 `limit=50`、`offset=0`，最大 `limit` 为 1000；非法值
-  会回退到默认值。
+  返回 `400`。
 - 时间由 Go `time.Time` 编码为 RFC 3339 格式。
 - 修改成功通常返回 `code`、`message` 和可选的 `data`；API 处理器产生的
   错误会返回对应 HTTP 状态码，以及 `code`、`error`、`message`。Basic
