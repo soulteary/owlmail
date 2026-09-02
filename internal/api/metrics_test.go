@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -53,7 +54,7 @@ func TestPrometheusMetricsAreOptIn(t *testing.T) {
 	for _, sample := range []string{
 		"owlmail_mailbox_messages{state=\"total\"} 1",
 		"owlmail_mailbox_messages{state=\"unread\"} 1",
-		"owlmail_emails_received_total",
+		"owlmail_emails_received_total 1",
 		"owlmail_websocket_connections 0",
 		"owlmail_storage_cleanup_runs_total",
 		"owlmail_uptime_seconds",
@@ -61,6 +62,37 @@ func TestPrometheusMetricsAreOptIn(t *testing.T) {
 		if !strings.Contains(string(body), sample) {
 			t.Errorf("metrics output missing %q:\n%s", sample, body)
 		}
+	}
+}
+
+func TestPrometheusMetricsCountMessagesStoredBeforeAPI(t *testing.T) {
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("close mail server: %v", err)
+		}
+	}()
+
+	email := &types.Email{ID: "before-api", Subject: "Before API"}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	api := NewAPI(server, 1080, "localhost")
+	api.SetMetricsEnabled(true)
+	req, _ := http.NewRequest(http.MethodGet, "/metrics", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if !strings.Contains(string(body), "owlmail_emails_received_total 1\n") {
+		t.Fatalf("pre-API receive was not counted:\n%s", body)
 	}
 }
 

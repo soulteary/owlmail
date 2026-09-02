@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/gofiber/fiber/v3"
@@ -12,7 +11,6 @@ import (
 
 type prometheusMetrics struct {
 	startedAt time.Time
-	received  atomic.Uint64
 }
 
 func newPrometheusMetrics() *prometheusMetrics {
@@ -33,7 +31,7 @@ func (api *API) prometheusMetrics(c fiber.Ctx) error {
 	fmt.Fprintf(&output, "owlmail_mailbox_messages{state=\"unread\"} %d\n", stats.Unread)
 	output.WriteString("# HELP owlmail_emails_received_total Messages received since this process started.\n")
 	output.WriteString("# TYPE owlmail_emails_received_total counter\n")
-	fmt.Fprintf(&output, "owlmail_emails_received_total %d\n", api.metrics.received.Load())
+	fmt.Fprintf(&output, "owlmail_emails_received_total %d\n", stats.ReceivedMessages)
 	output.WriteString("# HELP owlmail_emails_deleted_total Messages deleted since this process started.\n")
 	output.WriteString("# TYPE owlmail_emails_deleted_total counter\n")
 	fmt.Fprintf(&output, "owlmail_emails_deleted_total %d\n", stats.DeletedMessages)

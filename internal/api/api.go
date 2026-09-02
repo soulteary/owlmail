@@ -345,7 +345,6 @@ func (api *API) Start() error {
 // setupEventListeners sets up event listeners for WebSocket broadcasting
 func (api *API) setupEventListeners() {
 	api.mailServer.On("new", func(email *types.Email) {
-		api.metrics.received.Add(1)
 		api.broadcastMessage(fiber.Map{
 			"type":  "new",
 			"email": email,

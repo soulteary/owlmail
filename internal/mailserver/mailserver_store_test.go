@@ -375,6 +375,9 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	if got := server.GetMailboxMetrics().DeletedMessages; got != 2 {
 		t.Fatalf("deleted messages = %d, want 2", got)
 	}
+	if got := server.GetMailboxMetrics().ReceivedMessages; got != 2 {
+		t.Fatalf("received messages = %d, want 2", got)
+	}
 	select {
 	case <-deleteEvents:
 		t.Fatal("delete-all emitted per-message notifications")
