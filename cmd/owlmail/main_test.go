@@ -1017,6 +1017,35 @@ func TestSetupAttachmentHealthStrictAndCompatibleModes(t *testing.T) {
 	_ = monitor.Close()
 }
 
+func TestRunAttachmentMigrationDryRun(t *testing.T) {
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	directory := t.TempDir()
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	err := runAttachmentMigration(context.Background(), []string{
+		"-dry-run",
+		"-s3-enabled",
+		"-s3-region", "us-east-1",
+		"-s3-bucket", "owlmail-test",
+		"-mail-directory", directory,
+	}, &stdout, &stderr)
+	if err != nil {
+		t.Fatalf("runAttachmentMigration() error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `summary {"emailsScanned":0`) {
+		t.Fatalf("migration output = %q", stdout.String())
+	}
+}
+
+func TestRunAttachmentMigrationRequiresConfiguredS3(t *testing.T) {
+	err := runAttachmentMigration(context.Background(), []string{
+		"-dry-run", "-mail-directory", t.TempDir(),
+	}, io.Discard, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "requires -s3-enabled") {
+		t.Fatalf("runAttachmentMigration() error = %v", err)
+	}
+}
+
 func TestCreateMailServerRejectsNegativeMessageLimit(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.MailDir = t.TempDir()

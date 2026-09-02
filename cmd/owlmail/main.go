@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -22,6 +24,12 @@ import (
 )
 
 const generatedWebPasswordBytes = 24
+
+const (
+	defaultAttachmentMigrationRetries    = 3
+	defaultAttachmentMigrationTimeout    = 5 * time.Minute
+	defaultAttachmentMigrationRetryDelay = time.Second
+)
 
 type webAuthCompletion struct {
 	generatedPassword bool
@@ -193,6 +201,57 @@ func setupAttachmentHealth(store attachmentstore.Store, cfg *config.Config) (*at
 	}
 	monitor.Start(context.Background())
 	return monitor, nil
+}
+
+func runAttachmentMigration(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	fs := flag.NewFlagSet("migrate-attachments", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	refs := config.DefineFlags(fs)
+	dryRun := fs.Bool("dry-run", false, "Validate and report migration work without remote or local writes")
+	deleteLocal := fs.Bool("delete-local", false, "Delete each local attachment only after verified upload and metadata commit")
+	retries := fs.Int("retries", defaultAttachmentMigrationRetries, "Retry count after the initial attempt for each attachment")
+	attemptTimeout := fs.Duration("migration-attempt-timeout", defaultAttachmentMigrationTimeout, "Timeout for each upload and verification attempt")
+	retryDelay := fs.Duration("migration-retry-delay", defaultAttachmentMigrationRetryDelay, "Delay between migration attempts")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 0 {
+		return fmt.Errorf("unexpected migration arguments: %v", fs.Args())
+	}
+	cfg := config.ResolveConfig(fs, refs)
+	if !cfg.S3Enabled {
+		return fmt.Errorf("attachment migration requires -s3-enabled or OWLMAIL_S3_ENABLED=true")
+	}
+	if cfg.MailDir == "" {
+		return fmt.Errorf("attachment migration requires -mail-directory or OWLMAIL_MAIL_DIR")
+	}
+	store, err := setupAttachmentStore(cfg)
+	if err != nil {
+		return err
+	}
+	progressWriter := stdout
+	if progressWriter == nil {
+		progressWriter = io.Discard
+	}
+	summary, migrationErr := mailserver.MigrateLocalAttachments(ctx, cfg.MailDir, store, mailserver.AttachmentMigrationOptions{
+		DryRun:         *dryRun,
+		DeleteLocal:    *deleteLocal,
+		Retries:        *retries,
+		AttemptTimeout: *attemptTimeout,
+		RetryDelay:     *retryDelay,
+		Progress: func(progress mailserver.AttachmentMigrationProgress) {
+			if progress.Status == "retrying" {
+				_, _ = fmt.Fprintf(progressWriter, "%s %s/%s attempt=%d error=%v\n", progress.Status, progress.EmailID, progress.Filename, progress.Attempt, progress.Err)
+				return
+			}
+			_, _ = fmt.Fprintf(progressWriter, "%s %s/%s\n", progress.Status, progress.EmailID, progress.Filename)
+		},
+	})
+	encodedSummary, encodeErr := json.Marshal(summary)
+	if encodeErr == nil {
+		_, _ = fmt.Fprintf(progressWriter, "summary %s\n", encodedSummary)
+	}
+	return errors.Join(migrationErr, encodeErr)
 }
 
 func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
@@ -589,6 +648,16 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "migrate-attachments" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := runAttachmentMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)
+		stop()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Attachment migration failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	// Parse configuration using the config package
 	cfg := config.ParseFlags()
 

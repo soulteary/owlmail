@@ -16,7 +16,12 @@ import (
 
 const metadataDirectoryName = ".owlmail-meta"
 
-const currentMetadataVersion = 2
+const currentMetadataVersion = 3
+
+const (
+	attachmentStorageLocal = "local"
+	attachmentStorageS3    = "s3"
+)
 
 // StoragePolicy bounds the on-disk and in-memory mailbox.
 type StoragePolicy struct {
@@ -46,6 +51,8 @@ type emailMetadata struct {
 type attachmentMetadata struct {
 	GeneratedFileName string `json:"generatedFileName"`
 	Size              int64  `json:"size"`
+	ContentSHA256     string `json:"contentSha256,omitempty"`
+	Storage           string `json:"storage,omitempty"`
 }
 
 // ConfigureStoragePolicy applies limits immediately and starts periodic cleanup.
@@ -273,6 +280,8 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 		metadata.Attachments = append(metadata.Attachments, attachmentMetadata{
 			GeneratedFileName: attachment.GeneratedFileName,
 			Size:              attachment.Size,
+			ContentSHA256:     attachment.ContentSHA256,
+			Storage:           attachment.Storage,
 		})
 	}
 	encoded, err := json.Marshal(metadata)
@@ -311,12 +320,15 @@ func (ms *MailServer) loadEmailMetadata(id string) (emailMetadata, error) {
 	if err := json.Unmarshal(encoded, &metadata); err != nil {
 		return emailMetadata{}, err
 	}
-	if (metadata.Version != 1 && metadata.Version != currentMetadataVersion) || metadata.ID != id {
+	if (metadata.Version < 1 || metadata.Version > currentMetadataVersion) || metadata.ID != id {
 		return emailMetadata{}, fmt.Errorf("invalid metadata for %s", id)
 	}
 	for _, attachment := range metadata.Attachments {
 		if err := validateAttachmentFilename(attachment.GeneratedFileName); err != nil {
 			return emailMetadata{}, fmt.Errorf("invalid attachment metadata for %s: %w", id, err)
+		}
+		if attachment.Storage != "" && attachment.Storage != attachmentStorageLocal && attachment.Storage != attachmentStorageS3 {
+			return emailMetadata{}, fmt.Errorf("invalid attachment storage for %s", id)
 		}
 	}
 	return metadata, nil
@@ -335,6 +347,10 @@ func restoreAttachmentMetadata(email *Email, metadata emailMetadata) error {
 		}
 		email.Attachments[i].GeneratedFileName = saved.GeneratedFileName
 		email.Attachments[i].Size = saved.Size
+		if saved.ContentSHA256 != "" {
+			email.Attachments[i].ContentSHA256 = saved.ContentSHA256
+		}
+		email.Attachments[i].Storage = saved.Storage
 		email.Attachments[i].Transformed = true
 	}
 	return nil

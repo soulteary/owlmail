@@ -45,6 +45,7 @@ func (ms *MailServer) uploadAttachments(id, stagingDirectory string, attachments
 			cleanupErr := ms.deleteRemoteAttachments(id)
 			return errors.Join(statErr, err, closeErr, cleanupErr)
 		}
+		attachment.Storage = attachmentStorageS3
 	}
 	return nil
 }
