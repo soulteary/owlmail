@@ -9,19 +9,19 @@ import (
 )
 
 type IndexedEmail struct {
-	ID               string
-	MessageTime      time.Time
-	ReceivedAt       time.Time
-	Read             bool
-	SubjectSearch    string
-	TextSearch       string
-	HTMLSearch       string
-	FromSearch       string
+	ID                      string
+	MessageTime             time.Time
+	ReceivedAt              time.Time
+	Read                    bool
+	SubjectSearch           string
+	TextSearch              string
+	HTMLSearch              string
+	FromSearch              string
 	VisibleRecipientsSearch string
-	BCCAddressesSearch     string
-	FirstFrom        string
-	Size             int64
-	StorePosition    int
+	BCCAddressesSearch      string
+	FirstFrom               string
+	Size                    int64
+	StorePosition           int
 }
 
 type IndexedEmailResult struct {
