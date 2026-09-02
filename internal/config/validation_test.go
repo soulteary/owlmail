@@ -368,6 +368,85 @@ func TestValidateConfig(t *testing.T) {
 	})
 }
 
+func TestValidateOutgoingTLSConfig(t *testing.T) {
+	base := func() *Config {
+		config := DefaultConfig()
+		config.OutgoingHost = "smtp.example.test"
+		return config
+	}
+
+	tests := []struct {
+		name    string
+		mutate  func(*Config)
+		wantErr string
+	}{
+		{
+			name: "legacy secure means SMTPS",
+			mutate: func(config *Config) {
+				config.OutgoingSecure = true
+				config.OutgoingUser = "relay"
+				config.OutgoingPass = "secret"
+			},
+		},
+		{
+			name: "STARTTLS authentication",
+			mutate: func(config *Config) {
+				config.OutgoingTLSMode = "starttls"
+				config.OutgoingUser = "relay"
+				config.OutgoingPass = "secret"
+			},
+		},
+		{
+			name: "plain authentication rejected",
+			mutate: func(config *Config) {
+				config.OutgoingTLSMode = "plain"
+				config.OutgoingUser = "relay"
+				config.OutgoingPass = "secret"
+			},
+			wantErr: "requires starttls or smtps",
+		},
+		{
+			name: "partial credentials rejected",
+			mutate: func(config *Config) {
+				config.OutgoingTLSMode = "smtps"
+				config.OutgoingUser = "relay"
+			},
+			wantErr: "configured together",
+		},
+		{
+			name: "unknown mode rejected",
+			mutate: func(config *Config) {
+				config.OutgoingTLSMode = "opportunistic"
+			},
+			wantErr: "plain, starttls, or smtps",
+		},
+		{
+			name: "invalid phase timeout rejected",
+			mutate: func(config *Config) {
+				config.OutgoingDataTimeout = "0s"
+			},
+			wantErr: "DATA timeout",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			config := base()
+			test.mutate(config)
+			err := ValidateConfig(config)
+			if test.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateConfig() error = %v", err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("ValidateConfig() error = %v, want containing %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestNormalizeBasePathname(t *testing.T) {
 	tests := []struct {
 		input string

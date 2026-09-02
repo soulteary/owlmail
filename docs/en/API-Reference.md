@@ -237,11 +237,16 @@ build and smoke-test the version and commit. An ordinary local `go build` uses
 development defaults for values that were not injected.
 
 The outgoing settings body supports `host`, `port`, `user`, `password`,
-`secure`, `autoRelay`, `autoRelayAddr`, `allowRules`, and `denyRules`. `host` is
-required and `port` must be between 1 and 65535. Changes are in memory; they do
-not rewrite the process flags or environment. In PATCH requests, rule lists
-must be arrays when present; use an empty array to clear a list because `null`
-is not an update.
+`tlsMode` (`plain`, mandatory `starttls`, or implicit `smtps`),
+`insecureSkipVerify`, the six phase timeout fields, `autoRelay`,
+`autoRelayAddr`, `allowRules`, and `denyRules`. The legacy `secure=true` field
+selects `smtps` for MailDev compatibility. Certificates and hostnames are
+verified by default; `insecureSkipVerify` is an explicit unsafe opt-out.
+Credentials are rejected in `plain` mode, and `starttls` never falls back when
+the extension or handshake is unavailable. `host` is required and `port` must
+be between 1 and 65535. Changes are in memory; they do not rewrite process flags
+or environment. In PATCH requests, rule lists must be arrays when present; use
+an empty array to clear a list because `null` is not an update.
 
 The `smtpAuth` object returned by the settings endpoint is `null` in NO AUTH
 mode and reflects the configured username (never the password) when required
@@ -268,7 +273,13 @@ curl -u admin:secret \
     "port": 587,
     "user": "relay-user",
     "password": "relay-password",
-    "secure": true
+    "tlsMode": "starttls",
+    "connectTimeout": "10s",
+    "tlsHandshakeTimeout": "10s",
+    "authTimeout": "10s",
+    "envelopeTimeout": "10s",
+    "dataTimeout": "30s",
+    "quitTimeout": "5s"
   }'
 ```
 

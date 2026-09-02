@@ -86,7 +86,7 @@ func TestSendMailContextHonorsSecureSetting(t *testing.T) {
 		wantSTARTTLS bool
 	}{
 		{name: "plaintext", secure: false},
-		{name: "starttls", secure: true, wantErr: true, wantSTARTTLS: true},
+		{name: "implicit tls", secure: true, wantErr: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			addr, result := startSTARTTLSAdvertisedSMTP(t)

@@ -47,6 +47,13 @@ const DefaultWebhookShutdownTimeout = "15s"
 const DefaultMCPSessionTimeout = "30m"
 const DefaultMCPShutdownTimeout = "5s"
 
+const DefaultOutgoingConnectTimeout = "10s"
+const DefaultOutgoingTLSHandshakeTimeout = "10s"
+const DefaultOutgoingAuthTimeout = "10s"
+const DefaultOutgoingEnvelopeTimeout = "10s"
+const DefaultOutgoingDataTimeout = "30s"
+const DefaultOutgoingQuitTimeout = "5s"
+
 // EnvMapping defines the mapping from MailDev environment variables to OwlMail environment variables.
 // This maintains backward compatibility with MailDev deployments.
 var EnvMapping = map[string]string{
@@ -256,14 +263,22 @@ type Config struct {
 	HTTPSKeyFile  string
 
 	// Outgoing mail configuration
-	OutgoingHost   string
-	OutgoingPort   int
-	OutgoingUser   string
-	OutgoingPass   string
-	OutgoingSecure bool
-	AutoRelay      bool
-	AutoRelayAddr  string
-	AutoRelayRules string
+	OutgoingHost                string
+	OutgoingPort                int
+	OutgoingUser                string
+	OutgoingPass                string
+	OutgoingSecure              bool
+	OutgoingTLSMode             string
+	OutgoingInsecureSkipVerify  bool
+	OutgoingConnectTimeout      string
+	OutgoingTLSHandshakeTimeout string
+	OutgoingAuthTimeout         string
+	OutgoingEnvelopeTimeout     string
+	OutgoingDataTimeout         string
+	OutgoingQuitTimeout         string
+	AutoRelay                   bool
+	AutoRelayAddr               string
+	AutoRelayRules              string
 
 	// SMTP authentication
 	SMTPUser           string
@@ -307,132 +322,148 @@ type Config struct {
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
-		SMTPPort:               1025,
-		SMTPHost:               "localhost",
-		SMTPMaxMessageMB:       DefaultSMTPMaxMessageMB,
-		SMTPMaxConcurrency:     DefaultSMTPMaxConcurrency,
-		SMTPReadTimeout:        DefaultSMTPReadTimeout,
-		SMTPWriteTimeout:       DefaultSMTPWriteTimeout,
-		SMTPMaxRecipients:      DefaultSMTPMaxRecipients,
-		MailDir:                "",
-		MailRetentionDays:      0,
-		MailMaxMessages:        0,
-		MailMaxDiskMB:          0,
-		MailCleanupInterval:    DefaultMailCleanupInterval,
-		MailIndexPath:          "",
-		WebPort:                1080,
-		WebHost:                "localhost",
-		WebUser:                "",
-		WebPassword:            "",
-		WebExternalScheme:      "",
-		WebExternalURL:         "",
-		BasePathname:           "",
-		MailDevRESTCompat:      false,
-		MetricsEnabled:         false,
-		MCPEnabled:             false,
-		MCPSessionTimeout:      DefaultMCPSessionTimeout,
-		MCPShutdownTimeout:     DefaultMCPShutdownTimeout,
-		HTTPSEnabled:           false,
-		HTTPSCertFile:          "",
-		HTTPSKeyFile:           "",
-		OutgoingHost:           "",
-		OutgoingPort:           587,
-		OutgoingUser:           "",
-		OutgoingPass:           "",
-		OutgoingSecure:         false,
-		AutoRelay:              false,
-		AutoRelayAddr:          "",
-		AutoRelayRules:         "",
-		SMTPUser:               "",
-		SMTPPassword:           "",
-		SMTPAuthRequireTLS:     false,
-		TLSEnabled:             false,
-		TLSCertFile:            "",
-		TLSKeyFile:             "",
-		LogLevel:               "normal",
-		UseUUIDForEmailID:      false,
-		S3Enabled:              false,
-		S3Endpoint:             "",
-		S3Region:               DefaultS3Region,
-		S3Bucket:               "",
-		S3Prefix:               DefaultS3Prefix,
-		S3AccessKeyID:          "",
-		S3SecretAccessKey:      "",
-		S3SessionToken:         "",
-		S3UsePathStyle:         false,
-		S3StartupCheck:         false,
-		S3HealthInterval:       DefaultS3HealthCheckInterval,
-		S3HealthTimeout:        DefaultS3HealthCheckTimeout,
-		WebhookConfig:          "",
-		WebhookMaxConcurrency:  DefaultWebhookMaxConcurrency,
-		WebhookRedisURL:        "",
-		WebhookRedisPrefix:     DefaultWebhookRedisPrefix,
-		WebhookShutdownTimeout: DefaultWebhookShutdownTimeout,
+		SMTPPort:                    1025,
+		SMTPHost:                    "localhost",
+		SMTPMaxMessageMB:            DefaultSMTPMaxMessageMB,
+		SMTPMaxConcurrency:          DefaultSMTPMaxConcurrency,
+		SMTPReadTimeout:             DefaultSMTPReadTimeout,
+		SMTPWriteTimeout:            DefaultSMTPWriteTimeout,
+		SMTPMaxRecipients:           DefaultSMTPMaxRecipients,
+		MailDir:                     "",
+		MailRetentionDays:           0,
+		MailMaxMessages:             0,
+		MailMaxDiskMB:               0,
+		MailCleanupInterval:         DefaultMailCleanupInterval,
+		MailIndexPath:               "",
+		WebPort:                     1080,
+		WebHost:                     "localhost",
+		WebUser:                     "",
+		WebPassword:                 "",
+		WebExternalScheme:           "",
+		WebExternalURL:              "",
+		BasePathname:                "",
+		MailDevRESTCompat:           false,
+		MetricsEnabled:              false,
+		MCPEnabled:                  false,
+		MCPSessionTimeout:           DefaultMCPSessionTimeout,
+		MCPShutdownTimeout:          DefaultMCPShutdownTimeout,
+		HTTPSEnabled:                false,
+		HTTPSCertFile:               "",
+		HTTPSKeyFile:                "",
+		OutgoingHost:                "",
+		OutgoingPort:                587,
+		OutgoingUser:                "",
+		OutgoingPass:                "",
+		OutgoingSecure:              false,
+		OutgoingTLSMode:             "",
+		OutgoingInsecureSkipVerify:  false,
+		OutgoingConnectTimeout:      DefaultOutgoingConnectTimeout,
+		OutgoingTLSHandshakeTimeout: DefaultOutgoingTLSHandshakeTimeout,
+		OutgoingAuthTimeout:         DefaultOutgoingAuthTimeout,
+		OutgoingEnvelopeTimeout:     DefaultOutgoingEnvelopeTimeout,
+		OutgoingDataTimeout:         DefaultOutgoingDataTimeout,
+		OutgoingQuitTimeout:         DefaultOutgoingQuitTimeout,
+		AutoRelay:                   false,
+		AutoRelayAddr:               "",
+		AutoRelayRules:              "",
+		SMTPUser:                    "",
+		SMTPPassword:                "",
+		SMTPAuthRequireTLS:          false,
+		TLSEnabled:                  false,
+		TLSCertFile:                 "",
+		TLSKeyFile:                  "",
+		LogLevel:                    "normal",
+		UseUUIDForEmailID:           false,
+		S3Enabled:                   false,
+		S3Endpoint:                  "",
+		S3Region:                    DefaultS3Region,
+		S3Bucket:                    "",
+		S3Prefix:                    DefaultS3Prefix,
+		S3AccessKeyID:               "",
+		S3SecretAccessKey:           "",
+		S3SessionToken:              "",
+		S3UsePathStyle:              false,
+		S3StartupCheck:              false,
+		S3HealthInterval:            DefaultS3HealthCheckInterval,
+		S3HealthTimeout:             DefaultS3HealthCheckTimeout,
+		WebhookConfig:               "",
+		WebhookMaxConcurrency:       DefaultWebhookMaxConcurrency,
+		WebhookRedisURL:             "",
+		WebhookRedisPrefix:          DefaultWebhookRedisPrefix,
+		WebhookShutdownTimeout:      DefaultWebhookShutdownTimeout,
 	}
 }
 
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
-	SMTPPort               *int
-	SMTPHost               *string
-	SMTPMaxMessageMB       *int
-	SMTPMaxConcurrency     *int
-	SMTPReadTimeout        *string
-	SMTPWriteTimeout       *string
-	SMTPMaxRecipients      *int
-	MailDir                *string
-	MailRetentionDays      *int
-	MailMaxMessages        *int
-	MailMaxDiskMB          *int
-	MailCleanupInterval    *string
-	MailIndexPath          *string
-	WebPort                *int
-	WebHost                *string
-	WebUser                *string
-	WebPassword            *string
-	WebExternalURL         *string
-	BasePathname           *string
-	MailDevRESTCompat      *bool
-	MetricsEnabled         *bool
-	MCPEnabled             *bool
-	MCPSessionTimeout      *string
-	MCPShutdownTimeout     *string
-	HTTPSEnabled           *bool
-	HTTPSCertFile          *string
-	HTTPSKeyFile           *string
-	OutgoingHost           *string
-	OutgoingPort           *int
-	OutgoingUser           *string
-	OutgoingPass           *string
-	OutgoingSecure         *bool
-	AutoRelay              *bool
-	AutoRelayAddr          *string
-	AutoRelayRules         *string
-	SMTPUser               *string
-	SMTPPassword           *string
-	SMTPAuthRequireTLS     *bool
-	TLSEnabled             *bool
-	TLSCertFile            *string
-	TLSKeyFile             *string
-	LogLevel               *string
-	UseUUIDForEmailID      *bool
-	S3Enabled              *bool
-	S3Endpoint             *string
-	S3Region               *string
-	S3Bucket               *string
-	S3Prefix               *string
-	S3AccessKeyID          *string
-	S3SecretAccessKey      *string
-	S3SessionToken         *string
-	S3UsePathStyle         *bool
-	S3StartupCheck         *bool
-	S3HealthInterval       *string
-	S3HealthTimeout        *string
-	WebhookConfig          *string
-	WebhookMaxConcurrency  *int
-	WebhookRedisURL        *string
-	WebhookRedisPrefix     *string
-	WebhookShutdownTimeout *string
+	SMTPPort                    *int
+	SMTPHost                    *string
+	SMTPMaxMessageMB            *int
+	SMTPMaxConcurrency          *int
+	SMTPReadTimeout             *string
+	SMTPWriteTimeout            *string
+	SMTPMaxRecipients           *int
+	MailDir                     *string
+	MailRetentionDays           *int
+	MailMaxMessages             *int
+	MailMaxDiskMB               *int
+	MailCleanupInterval         *string
+	MailIndexPath               *string
+	WebPort                     *int
+	WebHost                     *string
+	WebUser                     *string
+	WebPassword                 *string
+	WebExternalURL              *string
+	BasePathname                *string
+	MailDevRESTCompat           *bool
+	MetricsEnabled              *bool
+	MCPEnabled                  *bool
+	MCPSessionTimeout           *string
+	MCPShutdownTimeout          *string
+	HTTPSEnabled                *bool
+	HTTPSCertFile               *string
+	HTTPSKeyFile                *string
+	OutgoingHost                *string
+	OutgoingPort                *int
+	OutgoingUser                *string
+	OutgoingPass                *string
+	OutgoingSecure              *bool
+	OutgoingTLSMode             *string
+	OutgoingInsecureSkipVerify  *bool
+	OutgoingConnectTimeout      *string
+	OutgoingTLSHandshakeTimeout *string
+	OutgoingAuthTimeout         *string
+	OutgoingEnvelopeTimeout     *string
+	OutgoingDataTimeout         *string
+	OutgoingQuitTimeout         *string
+	AutoRelay                   *bool
+	AutoRelayAddr               *string
+	AutoRelayRules              *string
+	SMTPUser                    *string
+	SMTPPassword                *string
+	SMTPAuthRequireTLS          *bool
+	TLSEnabled                  *bool
+	TLSCertFile                 *string
+	TLSKeyFile                  *string
+	LogLevel                    *string
+	UseUUIDForEmailID           *bool
+	S3Enabled                   *bool
+	S3Endpoint                  *string
+	S3Region                    *string
+	S3Bucket                    *string
+	S3Prefix                    *string
+	S3AccessKeyID               *string
+	S3SecretAccessKey           *string
+	S3SessionToken              *string
+	S3UsePathStyle              *bool
+	S3StartupCheck              *bool
+	S3HealthInterval            *string
+	S3HealthTimeout             *string
+	WebhookConfig               *string
+	WebhookMaxConcurrency       *int
+	WebhookRedisURL             *string
+	WebhookRedisPrefix          *string
+	WebhookShutdownTimeout      *string
 }
 
 // DefineFlags defines all configuration flags on the given FlagSet.
@@ -440,66 +471,74 @@ type FlagRefs struct {
 func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 	cfg := DefaultConfig()
 	return &FlagRefs{
-		SMTPPort:               fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
-		SMTPHost:               fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
-		SMTPMaxMessageMB:       fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
-		SMTPMaxConcurrency:     fs.Int("smtp-max-concurrency", cfg.SMTPMaxConcurrency, "Maximum concurrent SMTP DATA transactions per process (0 = unlimited)"),
-		SMTPReadTimeout:        fs.String("smtp-read-timeout", cfg.SMTPReadTimeout, "SMTP command and DATA read timeout"),
-		SMTPWriteTimeout:       fs.String("smtp-write-timeout", cfg.SMTPWriteTimeout, "SMTP response write timeout"),
-		SMTPMaxRecipients:      fs.Int("smtp-max-recipients", cfg.SMTPMaxRecipients, "Maximum recipients accepted per message"),
-		MailDir:                fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
-		MailRetentionDays:      fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
-		MailMaxMessages:        fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
-		MailMaxDiskMB:          fs.Int("mail-max-disk-mb", cfg.MailMaxDiskMB, "Maximum mailbox disk usage in MiB (0 = unlimited)"),
-		MailCleanupInterval:    fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
-		MailIndexPath:          fs.String("mail-index-path", cfg.MailIndexPath, "Optional SQLite mailbox index path"),
-		WebPort:                fs.Int("web", cfg.WebPort, "Web API port"),
-		WebHost:                fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
-		WebUser:                fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
-		WebPassword:            fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
-		WebExternalURL:         fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
-		BasePathname:           fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
-		MailDevRESTCompat:      fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
-		MetricsEnabled:         fs.Bool("metrics-enabled", cfg.MetricsEnabled, "Expose Prometheus metrics at /metrics"),
-		MCPEnabled:             fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
-		MCPSessionTimeout:      fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
-		MCPShutdownTimeout:     fs.String("mcp-shutdown-timeout", cfg.MCPShutdownTimeout, "Maximum time to close MCP sessions during shutdown"),
-		HTTPSEnabled:           fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
-		HTTPSCertFile:          fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
-		HTTPSKeyFile:           fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
-		OutgoingHost:           fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
-		OutgoingPort:           fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
-		OutgoingUser:           fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
-		OutgoingPass:           fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
-		OutgoingSecure:         fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use TLS for outgoing SMTP"),
-		AutoRelay:              fs.Bool("auto-relay", cfg.AutoRelay, "Automatically relay all emails"),
-		AutoRelayAddr:          fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
-		AutoRelayRules:         fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
-		SMTPUser:               fs.String("smtp-user", cfg.SMTPUser, "SMTP username; set with smtp-password to require authentication"),
-		SMTPPassword:           fs.String("smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
-		SMTPAuthRequireTLS:     fs.Bool("smtp-auth-require-tls", cfg.SMTPAuthRequireTLS, "Require TLS before accepting SMTP AUTH"),
-		TLSEnabled:             fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
-		TLSCertFile:            fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
-		TLSKeyFile:             fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
-		LogLevel:               fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
-		UseUUIDForEmailID:      fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
-		S3Enabled:              fs.Bool("s3-enabled", cfg.S3Enabled, "Store decoded attachments in S3-compatible object storage"),
-		S3Endpoint:             fs.String("s3-endpoint", cfg.S3Endpoint, "S3-compatible endpoint URL (empty uses AWS S3)"),
-		S3Region:               fs.String("s3-region", cfg.S3Region, "S3 region"),
-		S3Bucket:               fs.String("s3-bucket", cfg.S3Bucket, "S3 bucket for attachments"),
-		S3Prefix:               fs.String("s3-prefix", cfg.S3Prefix, "S3 object key prefix for attachments"),
-		S3AccessKeyID:          fs.String("s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
-		S3SecretAccessKey:      fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
-		S3SessionToken:         fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
-		S3UsePathStyle:         fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
-		S3StartupCheck:         fs.Bool("s3-startup-check", cfg.S3StartupCheck, "Fail startup when the initial S3 bucket check fails"),
-		S3HealthInterval:       fs.String("s3-health-check-interval", cfg.S3HealthInterval, "Background S3 health-check interval"),
-		S3HealthTimeout:        fs.String("s3-health-check-timeout", cfg.S3HealthTimeout, "Timeout for each S3 health check"),
-		WebhookConfig:          fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
-		WebhookMaxConcurrency:  fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
-		WebhookRedisURL:        fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
-		WebhookRedisPrefix:     fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
-		WebhookShutdownTimeout: fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
+		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
+		SMTPHost:                    fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
+		SMTPMaxMessageMB:            fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
+		SMTPMaxConcurrency:          fs.Int("smtp-max-concurrency", cfg.SMTPMaxConcurrency, "Maximum concurrent SMTP DATA transactions per process (0 = unlimited)"),
+		SMTPReadTimeout:             fs.String("smtp-read-timeout", cfg.SMTPReadTimeout, "SMTP command and DATA read timeout"),
+		SMTPWriteTimeout:            fs.String("smtp-write-timeout", cfg.SMTPWriteTimeout, "SMTP response write timeout"),
+		SMTPMaxRecipients:           fs.Int("smtp-max-recipients", cfg.SMTPMaxRecipients, "Maximum recipients accepted per message"),
+		MailDir:                     fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
+		MailRetentionDays:           fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
+		MailMaxMessages:             fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
+		MailMaxDiskMB:               fs.Int("mail-max-disk-mb", cfg.MailMaxDiskMB, "Maximum mailbox disk usage in MiB (0 = unlimited)"),
+		MailCleanupInterval:         fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
+		MailIndexPath:               fs.String("mail-index-path", cfg.MailIndexPath, "Optional SQLite mailbox index path"),
+		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port"),
+		WebHost:                     fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
+		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
+		WebPassword:                 fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		WebExternalURL:              fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
+		BasePathname:                fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
+		MailDevRESTCompat:           fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
+		MetricsEnabled:              fs.Bool("metrics-enabled", cfg.MetricsEnabled, "Expose Prometheus metrics at /metrics"),
+		MCPEnabled:                  fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
+		MCPSessionTimeout:           fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
+		MCPShutdownTimeout:          fs.String("mcp-shutdown-timeout", cfg.MCPShutdownTimeout, "Maximum time to close MCP sessions during shutdown"),
+		HTTPSEnabled:                fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
+		HTTPSCertFile:               fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
+		HTTPSKeyFile:                fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
+		OutgoingHost:                fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
+		OutgoingPort:                fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
+		OutgoingUser:                fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
+		OutgoingPass:                fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
+		OutgoingSecure:              fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use implicit TLS/SMTPS for outgoing SMTP (MailDev compatibility)"),
+		OutgoingTLSMode:             fs.String("outgoing-tls-mode", cfg.OutgoingTLSMode, "Outgoing SMTP transport: plain, starttls, or smtps"),
+		OutgoingInsecureSkipVerify:  fs.Bool("outgoing-insecure-skip-verify", cfg.OutgoingInsecureSkipVerify, "Skip outgoing SMTP certificate verification (unsafe)"),
+		OutgoingConnectTimeout:      fs.String("outgoing-connect-timeout", cfg.OutgoingConnectTimeout, "Outgoing SMTP connect and greeting timeout"),
+		OutgoingTLSHandshakeTimeout: fs.String("outgoing-tls-handshake-timeout", cfg.OutgoingTLSHandshakeTimeout, "Outgoing SMTP TLS handshake timeout"),
+		OutgoingAuthTimeout:         fs.String("outgoing-auth-timeout", cfg.OutgoingAuthTimeout, "Outgoing SMTP AUTH timeout"),
+		OutgoingEnvelopeTimeout:     fs.String("outgoing-envelope-timeout", cfg.OutgoingEnvelopeTimeout, "Outgoing SMTP MAIL/RCPT command timeout"),
+		OutgoingDataTimeout:         fs.String("outgoing-data-timeout", cfg.OutgoingDataTimeout, "Outgoing SMTP DATA timeout"),
+		OutgoingQuitTimeout:         fs.String("outgoing-quit-timeout", cfg.OutgoingQuitTimeout, "Outgoing SMTP QUIT timeout"),
+		AutoRelay:                   fs.Bool("auto-relay", cfg.AutoRelay, "Automatically relay all emails"),
+		AutoRelayAddr:               fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
+		AutoRelayRules:              fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
+		SMTPUser:                    fs.String("smtp-user", cfg.SMTPUser, "SMTP username; set with smtp-password to require authentication"),
+		SMTPPassword:                fs.String("smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
+		SMTPAuthRequireTLS:          fs.Bool("smtp-auth-require-tls", cfg.SMTPAuthRequireTLS, "Require TLS before accepting SMTP AUTH"),
+		TLSEnabled:                  fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
+		TLSCertFile:                 fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
+		TLSKeyFile:                  fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
+		LogLevel:                    fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
+		UseUUIDForEmailID:           fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
+		S3Enabled:                   fs.Bool("s3-enabled", cfg.S3Enabled, "Store decoded attachments in S3-compatible object storage"),
+		S3Endpoint:                  fs.String("s3-endpoint", cfg.S3Endpoint, "S3-compatible endpoint URL (empty uses AWS S3)"),
+		S3Region:                    fs.String("s3-region", cfg.S3Region, "S3 region"),
+		S3Bucket:                    fs.String("s3-bucket", cfg.S3Bucket, "S3 bucket for attachments"),
+		S3Prefix:                    fs.String("s3-prefix", cfg.S3Prefix, "S3 object key prefix for attachments"),
+		S3AccessKeyID:               fs.String("s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
+		S3SecretAccessKey:           fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
+		S3SessionToken:              fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
+		S3UsePathStyle:              fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
+		S3StartupCheck:              fs.Bool("s3-startup-check", cfg.S3StartupCheck, "Fail startup when the initial S3 bucket check fails"),
+		S3HealthInterval:            fs.String("s3-health-check-interval", cfg.S3HealthInterval, "Background S3 health-check interval"),
+		S3HealthTimeout:             fs.String("s3-health-check-timeout", cfg.S3HealthTimeout, "Timeout for each S3 health check"),
+		WebhookConfig:               fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
+		WebhookMaxConcurrency:       fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
+		WebhookRedisURL:             fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
+		WebhookRedisPrefix:          fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
+		WebhookShutdownTimeout:      fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
 	}
 }
 
@@ -539,14 +578,22 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),
 		HTTPSKeyFile:  resolveStringWithFlag(fs, "https-key", "OWLMAIL_HTTPS_KEY", *refs.HTTPSKeyFile),
 
-		OutgoingHost:   resolveStringWithFlag(fs, "outgoing-host", "OWLMAIL_OUTGOING_HOST", *refs.OutgoingHost),
-		OutgoingPort:   resolveIntWithFlag(fs, "outgoing-port", "OWLMAIL_OUTGOING_PORT", *refs.OutgoingPort),
-		OutgoingUser:   resolveStringWithFlag(fs, "outgoing-user", "OWLMAIL_OUTGOING_USER", *refs.OutgoingUser),
-		OutgoingPass:   resolveStringWithFlag(fs, "outgoing-pass", "OWLMAIL_OUTGOING_PASSWORD", *refs.OutgoingPass),
-		OutgoingSecure: resolveBoolWithFlag(fs, "outgoing-secure", "OWLMAIL_OUTGOING_SECURE", *refs.OutgoingSecure),
-		AutoRelay:      resolveBoolWithFlag(fs, "auto-relay", "OWLMAIL_AUTO_RELAY", *refs.AutoRelay),
-		AutoRelayAddr:  resolveStringWithFlag(fs, "auto-relay-addr", "OWLMAIL_AUTO_RELAY_ADDR", *refs.AutoRelayAddr),
-		AutoRelayRules: resolveStringWithFlag(fs, "auto-relay-rules", "OWLMAIL_AUTO_RELAY_RULES", *refs.AutoRelayRules),
+		OutgoingHost:                resolveStringWithFlag(fs, "outgoing-host", "OWLMAIL_OUTGOING_HOST", *refs.OutgoingHost),
+		OutgoingPort:                resolveIntWithFlag(fs, "outgoing-port", "OWLMAIL_OUTGOING_PORT", *refs.OutgoingPort),
+		OutgoingUser:                resolveStringWithFlag(fs, "outgoing-user", "OWLMAIL_OUTGOING_USER", *refs.OutgoingUser),
+		OutgoingPass:                resolveStringWithFlag(fs, "outgoing-pass", "OWLMAIL_OUTGOING_PASSWORD", *refs.OutgoingPass),
+		OutgoingSecure:              resolveBoolWithFlag(fs, "outgoing-secure", "OWLMAIL_OUTGOING_SECURE", *refs.OutgoingSecure),
+		OutgoingTLSMode:             resolveStringWithFlag(fs, "outgoing-tls-mode", "OWLMAIL_OUTGOING_TLS_MODE", *refs.OutgoingTLSMode),
+		OutgoingInsecureSkipVerify:  resolveBoolWithFlag(fs, "outgoing-insecure-skip-verify", "OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY", *refs.OutgoingInsecureSkipVerify),
+		OutgoingConnectTimeout:      resolveStringWithFlag(fs, "outgoing-connect-timeout", "OWLMAIL_OUTGOING_CONNECT_TIMEOUT", *refs.OutgoingConnectTimeout),
+		OutgoingTLSHandshakeTimeout: resolveStringWithFlag(fs, "outgoing-tls-handshake-timeout", "OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT", *refs.OutgoingTLSHandshakeTimeout),
+		OutgoingAuthTimeout:         resolveStringWithFlag(fs, "outgoing-auth-timeout", "OWLMAIL_OUTGOING_AUTH_TIMEOUT", *refs.OutgoingAuthTimeout),
+		OutgoingEnvelopeTimeout:     resolveStringWithFlag(fs, "outgoing-envelope-timeout", "OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT", *refs.OutgoingEnvelopeTimeout),
+		OutgoingDataTimeout:         resolveStringWithFlag(fs, "outgoing-data-timeout", "OWLMAIL_OUTGOING_DATA_TIMEOUT", *refs.OutgoingDataTimeout),
+		OutgoingQuitTimeout:         resolveStringWithFlag(fs, "outgoing-quit-timeout", "OWLMAIL_OUTGOING_QUIT_TIMEOUT", *refs.OutgoingQuitTimeout),
+		AutoRelay:                   resolveBoolWithFlag(fs, "auto-relay", "OWLMAIL_AUTO_RELAY", *refs.AutoRelay),
+		AutoRelayAddr:               resolveStringWithFlag(fs, "auto-relay-addr", "OWLMAIL_AUTO_RELAY_ADDR", *refs.AutoRelayAddr),
+		AutoRelayRules:              resolveStringWithFlag(fs, "auto-relay-rules", "OWLMAIL_AUTO_RELAY_RULES", *refs.AutoRelayRules),
 
 		SMTPUser:           resolveStringWithFlag(fs, "smtp-user", "OWLMAIL_SMTP_USER", *refs.SMTPUser),
 		SMTPPassword:       resolveStringWithFlag(fs, "smtp-password", "OWLMAIL_SMTP_PASSWORD", *refs.SMTPPassword),

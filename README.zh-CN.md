@@ -255,7 +255,15 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | 出站 SMTP 端口 |
 | `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | 出站 SMTP 用户名 |
 | `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | 出站 SMTP 密码 |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | 出站 SMTP TLS |
+| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev 兼容的隐式 TLS/SMTPS 开关 |
+| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | 传输模式：未设置时为 `plain`，也可选择强制 `starttls` 或隐式 `smtps` |
+| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | 跳过证书和主机名验证（不安全，必须显式开启） |
+| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | TCP 连接和 SMTP 问候超时 |
+| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS/STARTTLS 握手超时 |
+| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH 超时 |
+| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT 超时 |
+| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA 写入和确认超时 |
+| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT 超时 |
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | 启用自动中继 |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | 自动中继地址 |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | 自动中继规则文件 |
@@ -541,8 +549,12 @@ SMTP_PORT=1025
   -outgoing-port 587 \
   -outgoing-user your-email@gmail.com \
   -outgoing-pass your-password \
-  -outgoing-secure
+  -outgoing-tls-mode starttls
 ```
+
+`starttls` 模式在服务端未声明 STARTTLS、握手失败或证书/主机名验证失败时
+直接终止，不会降级到明文。隐式 TLS（通常为 465 端口）请使用 `smtps`，或使用
+兼容 MailDev 的旧参数 `-outgoing-secure`。`plain` 模式禁止出站 AUTH。
 
 ### 自动中继模式
 

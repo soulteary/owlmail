@@ -133,10 +133,11 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 	}()
 
 	config := map[string]interface{}{
-		"host":   "smtp.example.com",
-		"port":   587,
-		"user":   "user",
-		"secure": true,
+		"host":     "smtp.example.com",
+		"port":     465,
+		"user":     "user",
+		"password": "secret",
+		"secure":   true,
 	}
 	jsonBody, _ := json.Marshal(config)
 
@@ -153,6 +154,51 @@ func TestAPIUpdateOutgoingConfig(t *testing.T) {
 
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	}
+}
+
+func TestAPIOutgoingTLSModesAndPlainAuthRejection(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	}()
+
+	plainAuth := []byte(`{"host":"smtp.example.com","port":25,"tlsMode":"plain","user":"relay","password":"secret"}`)
+	req, _ := http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewReader(plainAuth))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("plain AUTH status = %d, want 400", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+
+	startTLS := []byte(`{"host":"smtp.example.com","port":587,"tlsMode":"starttls","user":"relay","password":"secret","insecureSkipVerify":false,"dataTimeout":"45s"}`)
+	req, _ = http.NewRequest("PUT", "/api/v1/settings/outgoing", bytes.NewReader(startTLS))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("STARTTLS config status = %d, body = %s", resp.StatusCode, body)
+	}
+	var result map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatal(err)
+	}
+	config := result["config"].(map[string]any)
+	if config["tlsMode"] != "starttls" || config["secure"] != false || config["dataTimeout"] != "45s" {
+		t.Fatalf("STARTTLS config response = %#v", config)
+	}
+	if _, ok := config["password"]; ok {
+		t.Fatal("outgoing config response exposed password")
 	}
 }
 
@@ -573,7 +619,6 @@ func TestAPIPatchOutgoingConfigWithExistingConfig(t *testing.T) {
 	config := map[string]interface{}{
 		"host": "smtp.example.com",
 		"port": 587,
-		"user": "user",
 	}
 	jsonBody, _ := json.Marshal(config)
 

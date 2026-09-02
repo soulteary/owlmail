@@ -6,6 +6,15 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- Outgoing SMTP relay now has explicit `plain`, mandatory `starttls`, and
+  implicit `smtps` transports. STARTTLS and certificate failures stop delivery
+  without plaintext fallback, `secure=true` retains MailDev-compatible SMTPS
+  semantics, credentials are rejected on plain connections, certificate and
+  hostname verification default to enabled, and connect, TLS, AUTH, envelope,
+  DATA, and QUIT phases have configurable deadlines.
+
 ### Added
 
 - A source-pinned three-way OwlMail, MailDev, and MailCatcher comparison that

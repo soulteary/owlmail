@@ -238,7 +238,15 @@ docker buildx build \
 | `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | Outgoing SMTP port |
 | `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | Outgoing SMTP username |
 | `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | Outgoing SMTP password |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | Outgoing SMTP TLS |
+| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev 호환 implicit TLS/SMTPS 별칭 |
+| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | 미설정 시 `plain`, 또는 필수 `starttls`/implicit `smtps` |
+| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | 인증서/호스트 이름 검증 비활성화(위험) |
+| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | 연결/인사 제한 시간 |
+| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS 핸드셰이크 제한 시간 |
+| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH 제한 시간 |
+| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT 제한 시간 |
+| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA 제한 시간 |
+| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT 제한 시간 |
 | `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Enable auto relay |
 | `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
 | `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
@@ -454,8 +462,12 @@ SMTP_PORT=1025
   -outgoing-port 587 \
   -outgoing-user your-email@gmail.com \
   -outgoing-pass your-password \
-  -outgoing-secure
+  -outgoing-tls-mode starttls
 ```
+
+`starttls`는 서버가 STARTTLS를 알리지 않거나 TLS/인증서 검증에 실패하면
+평문으로 다운그레이드하지 않고 실패합니다. `smtps`는 연결 시작부터 TLS를
+사용하며 `plain` 모드에서는 AUTH를 허용하지 않습니다.
 
 ### Auto Relay Mode
 
