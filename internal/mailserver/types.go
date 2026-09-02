@@ -52,13 +52,14 @@ type TLSConfig struct {
 // ServerOptions contains optional runtime integrations and SMTP behavior.
 // Zero MaxMessageBytes selects DefaultMaxMessageBytes.
 type ServerOptions struct {
-	OutgoingConfig  *outgoing.OutgoingConfig
-	AuthConfig      *SMTPAuthConfig
-	AuthRequireTLS  bool
-	TLSConfig       *TLSConfig
-	UseUUIDForID    bool
-	MaxMessageBytes int64
-	AttachmentStore attachmentstore.Store
+	OutgoingConfig   *outgoing.OutgoingConfig
+	AuthConfig       *SMTPAuthConfig
+	AuthRequireTLS   bool
+	TLSConfig        *TLSConfig
+	UseUUIDForID     bool
+	MaxMessageBytes  int64
+	AttachmentStore  attachmentstore.Store
+	AttachmentHealth attachmentstore.ReadinessProvider
 }
 
 // AttachmentReader describes an attachment opened for HTTP streaming.
@@ -86,6 +87,7 @@ type MailServer struct {
 	host                    string
 	maxMessageBytes         int64
 	attachmentStore         attachmentstore.Store
+	attachmentHealth        attachmentstore.ReadinessProvider
 	attachmentUploadTimeout time.Duration
 	attachmentOpenTimeout   time.Duration
 	attachmentDeleteTimeout time.Duration
@@ -143,6 +145,15 @@ func (ms *MailServer) GetMaxMessageBytes() int64 {
 // GetMailDir returns the mail directory path
 func (ms *MailServer) GetMailDir() string {
 	return ms.mailDir
+}
+
+// GetAttachmentHealth returns the latest cached attachment-store readiness.
+// A nil provider means external attachment storage is disabled.
+func (ms *MailServer) GetAttachmentHealth() (attachmentstore.HealthStatus, bool) {
+	if ms.attachmentHealth == nil {
+		return attachmentstore.HealthStatus{}, false
+	}
+	return ms.attachmentHealth.Snapshot(), true
 }
 
 // GetAuthConfig returns the SMTP authentication configuration

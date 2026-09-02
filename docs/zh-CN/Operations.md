@@ -36,7 +36,7 @@ EML 数据，避免再创建一个邮箱规模的内存缓冲区。
 原始邮件和附件写入当前进程专用的临时目录 `owlmail-<pid>`，解析后的状态保存在
 内存中；该目录不是持久归档。该档位适合可信机器上的单开发者场景。
 
-就绪检查：
+存活检查：
 
 ```bash
 curl --fail http://localhost:1080/healthz
@@ -92,6 +92,48 @@ OWLMAIL_S3_USE_PATH_STYLE=true \
 OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用 AWS S3。静态密钥
 可以不配置，此时使用 AWS SDK 默认凭据链，包括环境凭据、共享配置和工作负载角色。
 只有选定的 S3 兼容服务要求时，才开启路径式寻址。
+
+### Liveness、readiness 与 S3 启动策略
+
+`GET /healthz` 与 `GET /api/v1/health` 是进程 liveness 检查，不依赖 S3。
+因此对象存储暂时不可用时不会造成容器反复重启；镜像内置 Docker 健康检查也刻意
+使用 `/healthz`。
+
+`GET /readyz` 与 `GET /api/v1/ready` 是 readiness 检查。本地附件存储会立即
+返回 ready。启用 S3 后，OwlMail 在后台优先执行只读 `HeadBucket`；若最小权限策略
+拒绝 bucket 级操作，则回退到附件前缀下 `MaxKeys=1` 的 `ListObjectsV2`。最近结果会
+被缓存，默认每 30 秒刷新一次，单次探测最多等待 5 秒。HTTP readiness 请求只读取缓存，
+不会同步访问或等待 S3。
+
+```bash
+OWLMAIL_S3_STARTUP_CHECK=false \
+OWLMAIL_S3_HEALTH_CHECK_INTERVAL=30s \
+OWLMAIL_S3_HEALTH_CHECK_TIMEOUT=5s \
+./owlmail
+```
+
+默认 `OWLMAIL_S3_STARTUP_CHECK=false`，保持已有启动兼容性：readiness 起初为
+`checking` 并返回 HTTP `503`，首次探测成功后转为 ready。若希望 bucket、凭据、
+权限或网络路径错误立即阻止部署，可将其设置为 `true`。只有首次失败会终止启动；
+运行期间 S3 故障只让 readiness 返回 `503`，liveness 仍为 `200`，后台探测成功后
+自动恢复。
+
+readiness 响应只包含组件状态、探测时间和 `pending`、`permission`、
+`credentials`、`not_found`、`timeout`、`unavailable`、`unknown`、`closed` 之一；
+不会包含 SDK 原始错误、endpoint、access key、secret key 或 session token。
+
+Kubernetes 应分别配置重启判断和流量接入：
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 1080
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 1080
+```
 
 OwlMail 会把附件流式写入本地暂存文件并写入持久回滚标记，再把全部对象上传至
 `<prefix>/<email-id>/`，最后提交 `.eml` 标记。上传失败会拒绝 SMTP 事务并清理

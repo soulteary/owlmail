@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	_ "github.com/emersion/go-message/charset"
 	"github.com/gofiber/fiber/v3"
@@ -12,6 +13,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/health-kit/v2"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 	webassets "github.com/soulteary/owlmail/web"
@@ -114,7 +116,7 @@ func (api *API) setupRoutes() {
 
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/api/v1/health"))
+		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, "/healthz", "/readyz", "/api/v1/health", "/api/v1/ready"))
 	}
 
 	// Static files are embedded in the executable so the UI and help page work
@@ -153,6 +155,7 @@ func (api *API) setupRoutes() {
 		if strings.HasPrefix(path, "/email") ||
 			strings.HasPrefix(path, "/config") ||
 			strings.HasPrefix(path, "/healthz") ||
+			strings.HasPrefix(path, "/readyz") ||
 			strings.HasPrefix(path, "/socket.io") ||
 			strings.HasPrefix(path, "/api/") ||
 			strings.HasPrefix(path, "/style.css") ||
@@ -215,6 +218,7 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 
 	// Health check (adaptor for health-kit)
 	v1.Get("/health", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	v1.Get("/ready", api.readiness)
 	// Version info (adaptor for version-kit)
 	v1.Get("/version", adaptor.HTTPHandler(version.Handler()))
 	// WebSocket (adaptor for gorilla/websocket Upgrade)
@@ -290,7 +294,42 @@ func (api *API) setupMailDevCompatibleRoutes(app *fiber.App) {
 
 	// Health check route (MailDev compatible)
 	app.Get("/healthz", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
+	app.Get("/readyz", api.readiness)
 
 	// Reload mails from directory route (MailDev compatible)
 	app.Get("/reloadMailsFromDirectory", api.reloadMailsFromDirectory)
+}
+
+type readinessCheck struct {
+	Status        string                              `json:"status"`
+	ErrorCategory attachmentstore.HealthErrorCategory `json:"error_category,omitempty"`
+	CheckedAt     string                              `json:"checked_at,omitempty"`
+}
+
+type readinessResponse struct {
+	Status string                    `json:"status"`
+	Checks map[string]readinessCheck `json:"checks"`
+}
+
+func (api *API) readiness(c fiber.Ctx) error {
+	response := readinessResponse{
+		Status: "ready",
+		Checks: map[string]readinessCheck{
+			"attachment_store": {Status: "disabled"},
+		},
+	}
+	status, enabled := api.mailServer.GetAttachmentHealth()
+	if !enabled {
+		return c.Status(http.StatusOK).JSON(response)
+	}
+	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
+	if !status.CheckedAt.IsZero() {
+		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
+	}
+	response.Checks["attachment_store"] = check
+	if !status.Ready() {
+		response.Status = "unready"
+		return c.Status(http.StatusServiceUnavailable).JSON(response)
+	}
+	return c.Status(http.StatusOK).JSON(response)
 }

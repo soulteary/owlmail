@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -124,6 +125,53 @@ func TestAPIHealthCheck(t *testing.T) {
 	}
 	if response["service"] != "owlmail" {
 		t.Errorf("Expected service 'owlmail', got '%v'", response["service"])
+	}
+}
+
+type staticReadinessProvider struct {
+	status attachmentstore.HealthStatus
+}
+
+func (provider staticReadinessProvider) Snapshot() attachmentstore.HealthStatus {
+	return provider.status
+}
+
+func TestAPIReadinessUsesCachedStoreHealthWithoutAffectingLiveness(t *testing.T) {
+	server, err := mailserver.NewMailServerWithOptions(1025, "localhost", t.TempDir(), mailserver.ServerOptions{
+		AttachmentHealth: staticReadinessProvider{status: attachmentstore.HealthStatus{
+			State: attachmentstore.HealthUnready, ErrorCategory: attachmentstore.HealthErrorPermission,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPI(server, 1080, "localhost")
+
+	for _, path := range []string{"/readyz", "/api/v1/ready"} {
+		req, _ := http.NewRequest(http.MethodGet, path, nil)
+		resp, requestErr := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusServiceUnavailable {
+			t.Fatalf("%s status = %d, body = %s", path, resp.StatusCode, body)
+		}
+		if !strings.Contains(string(body), `"error_category":"permission"`) || strings.Contains(string(body), "secret") || strings.Contains(string(body), "endpoint") || strings.Contains(string(body), "token") {
+			t.Fatalf("unsafe or incomplete readiness response: %s", body)
+		}
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, "/healthz", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("liveness status = %d", resp.StatusCode)
 	}
 }
 

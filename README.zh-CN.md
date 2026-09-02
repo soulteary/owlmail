@@ -230,6 +230,9 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 可选静态秘密密钥 |
 | `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 可选静态凭据会话令牌 |
 | `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | 为兼容服务使用路径式存储桶寻址 |
+| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | 首次只读 S3 存储桶探测失败时终止启动 |
+| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | 后台刷新 S3 readiness 的间隔 |
+| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 5s | 单次 S3 readiness 探测超时 |
 | `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth 用户名 |
 | `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth 密码 |
 | `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | 启用 HTTPS |
@@ -309,6 +312,8 @@ export OWLMAIL_S3_PREFIX=owlmail/attachments
 export OWLMAIL_S3_ACCESS_KEY=replace-me
 export OWLMAIL_S3_SECRET_KEY=replace-me
 export OWLMAIL_S3_USE_PATH_STYLE=true
+# 可选：首次 HeadBucket 失败时终止启动
+export OWLMAIL_S3_STARTUP_CHECK=true
 ./owlmail -mail-directory ./owlmail-data
 ```
 
@@ -317,6 +322,14 @@ export OWLMAIL_S3_USE_PATH_STYLE=true
 `<prefix>/<email-id>/<generated-filename>`；删除邮件和执行保留策略时，会同步删除
 该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
 `OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
+
+OwlMail 优先使用只读 `HeadBucket` 探测 S3；若最小权限策略不允许 bucket 级探测，
+则回退到最多读取一个键、限定附件前缀的 `ListObjectsV2`。默认异步执行首次探测，以保持既有启动行为；
+在探测成功前，`GET /readyz` 与 `GET /api/v1/ready` 返回 `503`。设置
+`OWLMAIL_S3_STARTUP_CHECK=true` 后，仅首次探测失败会终止启动。运行期间 S3
+暂时不可用只会让 readiness 失败，不会使进程退出；后台探测恢复后 readiness
+自动恢复。readiness 请求只读取缓存，不会同步等待 S3。`/healthz` 和
+`/api/v1/health` 始终用于进程 liveness。
 
 ## 📡 API 文档
 
@@ -396,7 +409,8 @@ API 的精确等价实现；差异见 [API 参考](./docs/zh-CN/API-Reference.md
 #### 配置和系统
 
 - `GET /config` - 获取配置信息
-- `GET /healthz` - 健康检查
+- `GET /healthz` - 进程存活检查
+- `GET /readyz` - 缓存的依赖 readiness 检查
 - `GET /reloadMailsFromDirectory` - 重新加载邮件目录
 - `GET /socket.io` - WebSocket 连接（标准 WebSocket，非 Socket.IO）
 
@@ -444,7 +458,8 @@ OwlMail 提供了更规范的 RESTful API 设计：
 - `GET /api/v1/settings/outgoing` - 获取出站配置
 - `PUT /api/v1/settings/outgoing` - 更新出站配置
 - `PATCH /api/v1/settings/outgoing` - 部分更新出站配置
-- `GET /api/v1/health` - 健康检查
+- `GET /api/v1/health` - 进程存活检查
+- `GET /api/v1/ready` - 缓存的依赖 readiness 检查
 - `GET /api/v1/version` - 版本信息
 - `GET /api/v1/ws` - WebSocket 连接
 

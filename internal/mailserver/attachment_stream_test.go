@@ -355,6 +355,8 @@ type failSecondPutStore struct {
 	err   error
 }
 
+func (store *failSecondPutStore) CheckHealth(context.Context) error { return nil }
+
 func (store *failSecondPutStore) Put(ctx context.Context, emailID, filename, contentType string, body io.Reader, size int64) error {
 	store.calls++
 	if store.calls == 2 {

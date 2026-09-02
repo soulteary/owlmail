@@ -140,6 +140,7 @@ curl -u admin:secret http://localhost:1080/api/v1/emails
 | `PUT /api/v1/settings/outgoing` | 整体替换出站 SMTP 设置 |
 | `PATCH /api/v1/settings/outgoing` | 更新部分出站 SMTP 字段 |
 | `GET /api/v1/health` | 无需鉴权的存活检查 |
+| `GET /api/v1/ready` | 无需鉴权、读取缓存的依赖 readiness 检查 |
 | `GET /api/v1/version` | 构建/版本信息 |
 | `GET /api/v1/ws` | 原生 WebSocket 端点 |
 
@@ -215,6 +216,7 @@ curl -u admin:secret \
 | `PUT /config/outgoing` | `PUT /api/v1/settings/outgoing` |
 | `PATCH /config/outgoing` | `PATCH /api/v1/settings/outgoing` |
 | `GET /healthz` | `GET /api/v1/health` |
+| `GET /readyz` | `GET /api/v1/ready` |
 | `GET /reloadMailsFromDirectory` | 重新加载已配置邮件目录 |
 
 ## WebSocket 协议

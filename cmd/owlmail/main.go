@@ -165,6 +165,36 @@ func setupAttachmentStore(cfg *config.Config) (attachmentstore.Store, error) {
 	return store, nil
 }
 
+func setupAttachmentHealth(store attachmentstore.Store, cfg *config.Config) (*attachmentstore.HealthMonitor, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("config is nil")
+	}
+	if store == nil {
+		return nil, nil
+	}
+	interval, err := time.ParseDuration(cfg.S3HealthInterval)
+	if err != nil || interval <= 0 {
+		return nil, fmt.Errorf("invalid S3 health check interval")
+	}
+	timeout, err := time.ParseDuration(cfg.S3HealthTimeout)
+	if err != nil || timeout <= 0 {
+		return nil, fmt.Errorf("invalid S3 health check timeout")
+	}
+	monitor, err := attachmentstore.NewHealthMonitor(store, interval, timeout)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.S3StartupCheck {
+		status := monitor.ProbeNow(context.Background())
+		if !status.Ready() {
+			_ = monitor.Close()
+			return nil, fmt.Errorf("S3 startup check failed: %s", status.ErrorCategory)
+		}
+	}
+	monitor.Start(context.Background())
+	return monitor, nil
+}
+
 func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
 	if cfg == nil {
 		return mailserver.StoragePolicy{}, fmt.Errorf("config is nil")
@@ -434,6 +464,20 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	if err != nil {
 		return nil, err
 	}
+	attachmentHealth, err := setupAttachmentHealth(attachmentStore, cfg)
+	if err != nil {
+		return nil, err
+	}
+	healthOwned := attachmentHealth != nil
+	defer func() {
+		if healthOwned {
+			_ = attachmentHealth.Close()
+		}
+	}()
+	var healthProvider attachmentstore.ReadinessProvider
+	if attachmentHealth != nil {
+		healthProvider = attachmentHealth
+	}
 	maxMessageMB := cfg.SMTPMaxMessageMB
 	if maxMessageMB == 0 {
 		maxMessageMB = config.DefaultSMTPMaxMessageMB
@@ -448,17 +492,25 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
-		OutgoingConfig:  outgoingConfig,
-		AuthConfig:      authConfig,
-		AuthRequireTLS:  cfg.SMTPAuthRequireTLS,
-		TLSConfig:       tlsConfig,
-		UseUUIDForID:    cfg.UseUUIDForEmailID,
-		MaxMessageBytes: int64(maxMessageMB) << 20,
-		AttachmentStore: attachmentStore,
+		OutgoingConfig:   outgoingConfig,
+		AuthConfig:       authConfig,
+		AuthRequireTLS:   cfg.SMTPAuthRequireTLS,
+		TLSConfig:        tlsConfig,
+		UseUUIDForID:     cfg.UseUUIDForEmailID,
+		MaxMessageBytes:  int64(maxMessageMB) << 20,
+		AttachmentStore:  attachmentStore,
+		AttachmentHealth: healthProvider,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
 	}
+	if attachmentHealth != nil {
+		if err := server.AddCloser(attachmentHealth); err != nil {
+			_ = server.Close()
+			return nil, fmt.Errorf("register attachment health monitor: %w", err)
+		}
+	}
+	healthOwned = false
 	storagePolicy, err := setupStoragePolicy(cfg)
 	if err != nil {
 		_ = server.Close()
@@ -469,7 +521,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		return nil, fmt.Errorf("configure storage policy: %w", err)
 	}
 	if attachmentStore != nil {
-		common.Log("S3 attachment storage enabled for bucket %s with prefix %s", cfg.S3Bucket, cfg.S3Prefix)
+		common.Log("S3 attachment storage enabled for bucket %s with prefix %s (startup check: %t)", cfg.S3Bucket, cfg.S3Prefix, cfg.S3StartupCheck)
 	}
 
 	// Register event handlers

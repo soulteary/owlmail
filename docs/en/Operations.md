@@ -41,7 +41,7 @@ process-specific temporary directory `owlmail-<pid>` while parsed state is held
 in memory. That location is not a durable archive. This profile is intended for
 one developer on a trusted machine.
 
-Readiness check:
+Liveness check:
 
 ```bash
 curl --fail http://localhost:1080/healthz
@@ -112,6 +112,55 @@ endpoint empty for AWS S3. Static credentials are optional: when omitted, the
 AWS SDK default credential chain is used, including environment credentials,
 shared configuration, and workload roles. Use path-style addressing only when
 the selected S3-compatible service requires it.
+
+### Liveness, readiness, and S3 startup policy
+
+`GET /healthz` and `GET /api/v1/health` are process liveness checks. They do
+not depend on S3, so a temporary object-storage outage does not create a
+container restart loop. The image's built-in Docker healthcheck intentionally
+uses `/healthz` for this reason.
+
+`GET /readyz` and `GET /api/v1/ready` are readiness checks. With local
+attachment storage they return ready immediately. With S3 enabled, OwlMail
+runs a read-only `HeadBucket` probe in the background. If a least-privilege
+policy rejects the bucket-wide operation, it falls back to `ListObjectsV2`
+scoped to the attachment prefix and `MaxKeys=1`. OwlMail caches the latest result
+and refreshes it every 30 seconds by default. Each probe has a five-second
+deadline. An HTTP readiness request only reads that cache; it never performs or
+waits for a remote S3 request.
+
+```bash
+OWLMAIL_S3_STARTUP_CHECK=false \
+OWLMAIL_S3_HEALTH_CHECK_INTERVAL=30s \
+OWLMAIL_S3_HEALTH_CHECK_TIMEOUT=5s \
+./owlmail
+```
+
+The default `OWLMAIL_S3_STARTUP_CHECK=false` preserves existing startup
+behavior. Readiness initially reports `checking` and HTTP `503`, then becomes
+ready after a successful probe. Set the option to `true` when deployment should
+fail fast on an invalid bucket, credentials, permissions, or network path. Only
+the initial failure terminates startup; any later outage changes readiness to
+`503` while liveness stays `200`, and the process recovers automatically after
+a successful background probe.
+
+Readiness output contains only the component status, probe timestamp, and one
+of the bounded categories `pending`, `permission`, `credentials`, `not_found`,
+`timeout`, `unavailable`, `unknown`, or `closed`. It never includes an SDK error,
+endpoint, access key, secret key, or session token.
+
+For Kubernetes, route restart and traffic decisions separately:
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 1080
+readinessProbe:
+  httpGet:
+    path: /readyz
+    port: 1080
+```
 
 OwlMail streams attachments into local staging files, writes a durable rollback
 marker, uploads every object under `<prefix>/<email-id>/`, and only then commits

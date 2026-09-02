@@ -84,6 +84,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
 		attachmentStore:         options.AttachmentStore,
+		attachmentHealth:        options.AttachmentHealth,
 		attachmentUploadTimeout: defaultAttachmentUploadTimeout,
 		attachmentOpenTimeout:   defaultAttachmentOpenTimeout,
 		attachmentDeleteTimeout: defaultAttachmentDeleteTimeout,
