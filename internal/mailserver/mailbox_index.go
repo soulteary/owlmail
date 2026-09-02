@@ -76,20 +76,12 @@ func ValidateMailboxIndexPath(mailDir, indexPath string) error {
 }
 
 func rejectManagedMailboxIndexPath(mailRoot, indexPath string) error {
-	relative, err := filepath.Rel(mailRoot, indexPath)
+	relative, inside, err := relativePathWithinRoot(mailRoot, indexPath)
 	if err != nil {
 		return fmt.Errorf("compare mailbox index and mail paths: %w", err)
 	}
-	if pathIsOutsideRoot(relative) {
-		// filepath.Rel follows the host OS rules, but case sensitivity can also
-		// depend on the mounted filesystem. A folded second comparison reserves
-		// case aliases safely on insensitive filesystems (and conservatively on
-		// sensitive filesystems).
-		foldedRelative, foldedErr := filepath.Rel(strings.ToLower(mailRoot), strings.ToLower(indexPath))
-		if foldedErr != nil || pathIsOutsideRoot(foldedRelative) {
-			return nil
-		}
-		relative = foldedRelative
+	if !inside {
+		return nil
 	}
 	if relative == "." {
 		return fmt.Errorf("mailbox index path must not replace the mail directory")
@@ -106,6 +98,25 @@ func rejectManagedMailboxIndexPath(mailRoot, indexPath string) error {
 		return fmt.Errorf("mailbox index path must not use the OwlMail transaction artifact namespace")
 	}
 	return nil
+}
+
+// relativePathWithinRoot compares both the host's native spelling and a folded
+// spelling. The latter protects case-insensitive mounts even when the host path
+// package cannot infer the mount's case behavior; on sensitive filesystems it
+// conservatively reserves case aliases.
+func relativePathWithinRoot(root, path string) (string, bool, error) {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return "", false, err
+	}
+	if !pathIsOutsideRoot(relative) {
+		return relative, true, nil
+	}
+	foldedRelative, err := filepath.Rel(strings.ToLower(root), strings.ToLower(path))
+	if err != nil || pathIsOutsideRoot(foldedRelative) {
+		return "", false, nil
+	}
+	return foldedRelative, true, nil
 }
 
 func pathIsOutsideRoot(relative string) bool {

@@ -57,6 +57,7 @@ ON CONFLICT(id) DO UPDATE SET
 type SQLiteMailboxIndex struct {
 	db              *sql.DB
 	path            string
+	resolvedPath    string
 	afterQueryCount func()
 }
 
@@ -82,12 +83,16 @@ func NewSQLiteMailboxIndex(path string) (*SQLiteMailboxIndex, error) {
 	if err := file.Close(); err != nil {
 		return nil, fmt.Errorf("close SQLite mailbox index: %w", err)
 	}
+	resolvedPath, err := resolveExistingPathIdentity(absolute)
+	if err != nil {
+		return nil, fmt.Errorf("resolve SQLite mailbox index identity: %w", err)
+	}
 	db, err := sql.Open("sqlite", absolute)
 	if err != nil {
 		return nil, fmt.Errorf("open SQLite mailbox index: %w", err)
 	}
 	db.SetMaxOpenConns(1)
-	index := &SQLiteMailboxIndex{db: db, path: absolute}
+	index := &SQLiteMailboxIndex{db: db, path: absolute, resolvedPath: resolvedPath}
 	for _, statement := range []string{
 		"PRAGMA busy_timeout = 5000",
 		"PRAGMA journal_mode = WAL",
@@ -113,15 +118,27 @@ func (index *SQLiteMailboxIndex) OwnsPath(path string) bool {
 	if err != nil {
 		return false
 	}
-	for _, owned := range []string{index.path, index.path + "-wal", index.path + "-shm"} {
-		if absolute == owned {
+	if ownsSQLiteMailboxPath(absolute, index.path) {
+		return true
+	}
+	resolved, err := resolveExistingPathIdentity(absolute)
+	if err != nil {
+		return false
+	}
+	return ownsSQLiteMailboxPath(resolved, index.resolvedPath)
+}
+
+func ownsSQLiteMailboxPath(candidate, databasePath string) bool {
+	for _, owned := range []string{databasePath, databasePath + "-wal", databasePath + "-shm"} {
+		relative, inside, err := relativePathWithinRoot(candidate, owned)
+		if err != nil || !inside {
+			continue
+		}
+		if relative == "." {
 			return true
 		}
-		relative, err := filepath.Rel(absolute, owned)
-		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
-			if info, statErr := os.Stat(absolute); statErr == nil && info.IsDir() {
-				return true
-			}
+		if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+			return true
 		}
 	}
 	return false

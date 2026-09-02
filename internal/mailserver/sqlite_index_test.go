@@ -113,6 +113,34 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 	}
 }
 
+func TestSQLiteMailboxIndexOwnsFilesystemAliases(t *testing.T) {
+	mailDirectory := t.TempDir()
+	path := filepath.Join(mailDirectory, ".index", "mailbox.db")
+	index, err := NewSQLiteMailboxIndex(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = index.Close() }()
+
+	alias := filepath.Join(t.TempDir(), "mail-link")
+	if err := os.Symlink(mailDirectory, alias); err != nil {
+		t.Skipf("symlinks are unavailable: %v", err)
+	}
+	for _, owned := range []string{
+		filepath.Join(alias, ".index"),
+		filepath.Join(alias, ".index", "mailbox.db"),
+		filepath.Join(alias, ".index", "mailbox.db-wal"),
+		strings.ToUpper(path),
+	} {
+		if !index.OwnsPath(owned) {
+			t.Errorf("OwnsPath(%q) = false for filesystem alias", owned)
+		}
+	}
+	if index.OwnsPath(filepath.Join(alias, "other.db")) {
+		t.Fatal("OwnsPath accepted unrelated file through filesystem alias")
+	}
+}
+
 func TestSQLiteMailboxIndexPreservesWideMessageTimeRange(t *testing.T) {
 	index, err := NewSQLiteMailboxIndex(filepath.Join(t.TempDir(), "mailbox.db"))
 	if err != nil {
