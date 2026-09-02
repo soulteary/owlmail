@@ -220,6 +220,34 @@ func TestAttachmentMigrationUpgradesVersionTwoMetadata(t *testing.T) {
 	}
 }
 
+func TestAttachmentMigrationRestoresVersionOneMetadata(t *testing.T) {
+	directory := t.TempDir()
+	filename, _ := createLocalMigrationMessage(t, directory, "legacy-v1", multipartMessage())
+	metadata := migrationMetadata(t, directory, "legacy-v1")
+	metadata.Version = 1
+	metadata.Attachments = nil
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, metadataDirectoryName, "legacy-v1.json"), encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	store := newMigrationFakeStore()
+
+	if _, err := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions()); err != nil {
+		t.Fatal(err)
+	}
+	upgraded := migrationMetadata(t, directory, "legacy-v1")
+	if upgraded.Version != currentMetadataVersion || len(upgraded.Attachments) != 1 {
+		t.Fatalf("upgraded metadata = %#v", upgraded)
+	}
+	attachment := upgraded.Attachments[0]
+	if attachment.GeneratedFileName != filename || attachment.ContentSHA256 == "" || attachment.Storage != attachmentStorageS3 {
+		t.Fatalf("upgraded attachment metadata = %#v", attachment)
+	}
+}
+
 func TestAttachmentMigrationRecognizesVersionTwoRemoteObject(t *testing.T) {
 	directory := t.TempDir()
 	filename, path := createLocalMigrationMessage(t, directory, "legacy-remote", multipartMessage())

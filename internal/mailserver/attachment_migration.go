@@ -248,6 +248,20 @@ func preflightAttachmentMigration(mailDir string) ([]attachmentMigrationPlan, er
 		if metadataErr != nil {
 			return nil, fmt.Errorf("load attachment metadata for %s: %w", id, metadataErr)
 		}
+		if len(metadata.Attachments) == 0 && metadata.Version < currentMetadataVersion {
+			if err := reader.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); err != nil {
+				return nil, fmt.Errorf("ambiguous legacy attachment mapping for %s: %w", id, err)
+			}
+			metadata.Attachments = make([]attachmentMetadata, 0, len(email.Attachments))
+			for _, attachment := range email.Attachments {
+				metadata.Attachments = append(metadata.Attachments, attachmentMetadata{
+					GeneratedFileName: attachment.GeneratedFileName,
+					Size:              attachment.Size,
+					ContentSHA256:     attachment.ContentSHA256,
+					Storage:           attachmentStorageLocal,
+				})
+			}
+		}
 		if len(metadata.Attachments) != len(email.Attachments) {
 			return nil, fmt.Errorf("ambiguous attachment mapping for %s: metadata count %d does not match MIME count %d", id, len(metadata.Attachments), len(email.Attachments))
 		}
