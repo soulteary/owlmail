@@ -40,8 +40,8 @@ type emailSummary struct {
 	From          string    `json:"from"`
 	To            []string  `json:"to"`
 	Size          int64     `json:"size"`
-	SizeHuman     string    `json:"size_human"`
-	HasAttachment bool      `json:"has_attachment"`
+	SizeHuman     string    `json:"sizeHuman"`
+	HasAttachment bool      `json:"hasAttachment"`
 	Preview       string    `json:"preview"`
 	WebURL        string    `json:"web_url,omitempty"`
 }

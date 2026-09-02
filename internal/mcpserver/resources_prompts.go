@@ -116,16 +116,24 @@ func boundedUTF8(value string, maximum int) (string, error) {
 
 func utf8Start(value byte) bool { return value&0xc0 != 0x80 }
 
-func registerPrompts(server *mcp.Server) {
+func registerPrompts(server *mcp.Server, service *Service) {
+	maximum := service.maxWaitTimeout
+	if service.sessionTimeout < maximum {
+		maximum = service.sessionTimeout
+	}
+	timeoutDescription := fmt.Sprintf("Optional wait timeout from 1 to %d seconds", int(maximum/time.Second))
+	if maximum < time.Second {
+		timeoutDescription = "Omit to use the configured sub-second service timeout"
+	}
 	server.AddPrompt(&mcp.Prompt{
 		Name: "registration_verification_email", Title: "Inspect a registration verification email",
 		Description: "Wait for and inspect a registration or account-verification email without changing the inbox.",
 		Arguments: []*mcp.PromptArgument{
 			{Name: "recipient", Description: "Expected recipient email address", Required: true},
 			{Name: "subject", Description: "Optional expected subject substring"},
-			{Name: "timeout_seconds", Description: "Optional wait timeout up to 120 seconds"},
+			{Name: "timeout_seconds", Description: timeoutDescription},
 		},
-	}, verificationPrompt("registration or account-verification"))
+	}, verificationPrompt("registration or account-verification", maximum))
 
 	server.AddPrompt(&mcp.Prompt{
 		Name: "password_reset_email", Title: "Inspect a password reset email",
@@ -133,9 +141,9 @@ func registerPrompts(server *mcp.Server) {
 		Arguments: []*mcp.PromptArgument{
 			{Name: "recipient", Description: "Expected recipient email address", Required: true},
 			{Name: "subject", Description: "Optional expected subject substring"},
-			{Name: "timeout_seconds", Description: "Optional wait timeout up to 120 seconds"},
+			{Name: "timeout_seconds", Description: timeoutDescription},
 		},
-	}, verificationPrompt("password-reset"))
+	}, verificationPrompt("password-reset", maximum))
 
 	server.AddPrompt(&mcp.Prompt{
 		Name: "wait_for_delivery", Title: "Wait for email delivery",
@@ -144,48 +152,60 @@ func registerPrompts(server *mcp.Server) {
 			{Name: "recipient", Description: "Optional recipient substring"},
 			{Name: "subject", Description: "Optional subject substring"},
 			{Name: "text", Description: "Optional body-text substring"},
-			{Name: "timeout_seconds", Description: "Optional wait timeout up to 120 seconds"},
+			{Name: "timeout_seconds", Description: timeoutDescription},
 		},
 	}, func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		args := request.Params.Arguments
-		timeout, err := promptTimeout(args["timeout_seconds"])
+		timeout, err := promptTimeoutInstruction(args["timeout_seconds"], maximum)
 		if err != nil {
 			return nil, err
 		}
 		return promptResult("Wait for the next matching test email by calling wait_for_email with to=" +
 			strconv.Quote(args["recipient"]) + ", subject=" + strconv.Quote(args["subject"]) + ", text=" +
-			strconv.Quote(args["text"]) + ", and timeout_seconds=" + strconv.Itoa(timeout) +
+			strconv.Quote(args["text"]) + timeout +
 			". Report whether it matched and include the returned Web UI link. Do not modify, relay, or download attachment bytes."), nil
 	})
 }
 
-func verificationPrompt(kind string) mcp.PromptHandler {
+func verificationPrompt(kind string, maximum time.Duration) mcp.PromptHandler {
 	return func(_ context.Context, request *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 		args := request.Params.Arguments
 		recipient := strings.TrimSpace(args["recipient"])
 		if recipient == "" {
 			return nil, fmt.Errorf("recipient is required")
 		}
-		timeout, err := promptTimeout(args["timeout_seconds"])
+		timeout, err := promptTimeoutInstruction(args["timeout_seconds"], maximum)
 		if err != nil {
 			return nil, err
 		}
 		return promptResult("Wait for a new " + kind + " email by calling wait_for_email with to=" +
-			strconv.Quote(recipient) + ", subject=" + strconv.Quote(args["subject"]) + ", and timeout_seconds=" +
-			strconv.Itoa(timeout) + ". If it matches, call get_email with the returned ID and include_html=false; request sanitized HTML only if the plain text lacks the verification URL or code. Extract that value and include the Web UI link. Do not mark, delete, relay, or download attachment bytes."), nil
+			strconv.Quote(recipient) + ", subject=" + strconv.Quote(args["subject"]) + timeout +
+			". If it matches, call get_email with the returned ID and include_html=false; request sanitized HTML only if the plain text lacks the verification URL or code. Extract that value and include the Web UI link. Do not mark, delete, relay, or download attachment bytes."), nil
 	}
 }
 
-func promptTimeout(value string) (int, error) {
+func promptTimeoutInstruction(value string, maximum time.Duration) (string, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
-		return int(defaultWaitTimeout / time.Second), nil
+		selected := defaultWaitTimeout
+		if selected > maximum {
+			selected = maximum
+		}
+		seconds := int(selected / time.Second)
+		if seconds < 1 {
+			return ", omitting timeout_seconds so the service applies its configured maximum", nil
+		}
+		return ", and timeout_seconds=" + strconv.Itoa(seconds), nil
 	}
+	maximumSeconds := int(maximum / time.Second)
 	seconds, err := strconv.Atoi(value)
-	if err != nil || seconds < 1 || seconds > int(maximumWaitTimeout/time.Second) {
-		return 0, fmt.Errorf("timeout_seconds must be an integer between 1 and %d", int(maximumWaitTimeout/time.Second))
+	if err != nil || seconds < 1 || seconds > maximumSeconds {
+		if maximumSeconds < 1 {
+			return "", fmt.Errorf("timeout_seconds must be omitted because the configured maximum is below one second")
+		}
+		return "", fmt.Errorf("timeout_seconds must be an integer between 1 and %d", maximumSeconds)
 	}
-	return seconds, nil
+	return ", and timeout_seconds=" + strconv.Itoa(seconds), nil
 }
 
 func promptResult(text string) *mcp.GetPromptResult {

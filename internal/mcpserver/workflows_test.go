@@ -40,6 +40,11 @@ func TestLatestAndEventDrivenWaitReturnBoundedSummaries(t *testing.T) {
 			t.Fatalf("deep link = %q", email.WebURL)
 		}
 	}
+	encodedLatest, _ := json.Marshal(latest)
+	if !strings.Contains(string(encodedLatest), `"sizeHuman"`) || !strings.Contains(string(encodedLatest), `"hasAttachment"`) ||
+		strings.Contains(string(encodedLatest), `"size_human"`) || strings.Contains(string(encodedLatest), `"has_attachment"`) {
+		t.Fatalf("summary field compatibility changed: %s", encodedLatest)
+	}
 
 	type callResult struct {
 		result *mcp.CallToolResult
@@ -333,6 +338,38 @@ func TestReadOnlyResourcesAndPrompts(t *testing.T) {
 	})
 	if err != nil || len(prompt.Messages) != 1 || !strings.Contains(prompt.Messages[0].Content.(*mcp.TextContent).Text, "wait_for_email") {
 		t.Fatalf("verification prompt = %#v, %v", prompt, err)
+	}
+}
+
+func TestPromptTimeoutUsesEffectiveServiceMaximum(t *testing.T) {
+	mailbox := newTestMailbox(t)
+	service, err := New(mailbox, Options{
+		SessionTimeout: 2 * time.Second, ShutdownTimeout: time.Second,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	httpServer := httptest.NewServer(service)
+	t.Cleanup(httpServer.Close)
+	session := connectTestClient(t, httpServer.URL)
+	t.Cleanup(func() { _ = session.Close() })
+
+	prompt, err := session.GetPrompt(context.Background(), &mcp.GetPromptParams{
+		Name: "registration_verification_email", Arguments: map[string]string{"recipient": "new@example.test"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := prompt.Messages[0].Content.(*mcp.TextContent).Text
+	if !strings.Contains(text, "timeout_seconds=2") || strings.Contains(text, "timeout_seconds=30") {
+		t.Fatalf("prompt did not use effective timeout: %s", text)
+	}
+	if _, err := session.GetPrompt(context.Background(), &mcp.GetPromptParams{
+		Name:      "registration_verification_email",
+		Arguments: map[string]string{"recipient": "new@example.test", "timeout_seconds": "3"},
+	}); err == nil {
+		t.Fatal("prompt accepted timeout above the effective service maximum")
 	}
 }
 

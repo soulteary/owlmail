@@ -115,7 +115,7 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 	})
 	registerTools(server, mailbox, service)
 	registerResources(server, mailbox, service)
-	registerPrompts(server)
+	registerPrompts(server, service)
 	// One bounded dispatcher is enough: notify only snapshots the bounded waiter
 	// set, evaluates filters, and publishes an ID to buffered result channels.
 	if err := mailbox.OnWithConcurrency("new", 1, service.waiters.notify); err != nil {
