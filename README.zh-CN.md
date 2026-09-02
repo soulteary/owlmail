@@ -224,6 +224,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成邮件深链接时使用的浏览器可见 HTTP(S) origin；反向代理子路径仍通过 `-base-pathname` 配置 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | 显式启用 MailDev `/api` REST 兼容 facade；仍不支持 Socket.IO |
+| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | 在跟随基础路径的 `/metrics` 端点暴露 Prometheus 指标；配置 Web Basic Auth 后同样受其保护 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲 MCP 会话 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 会话的期限 |

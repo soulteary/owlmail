@@ -443,6 +443,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
+	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
 	}

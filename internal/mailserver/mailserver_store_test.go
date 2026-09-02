@@ -350,6 +350,13 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	if err := os.WriteFile(quarantinePath, []byte("recoverable"), 0600); err != nil {
 		t.Fatal(err)
 	}
+	deleteEvents := make(chan struct{}, 1)
+	server.On("delete", func(*Email) {
+		select {
+		case deleteEvents <- struct{}{}:
+		default:
+		}
+	})
 
 	// Delete all
 	err = server.DeleteAllEmail()
@@ -364,6 +371,17 @@ func TestMailServerDeleteAllEmail(t *testing.T) {
 	}
 	if content, err := os.ReadFile(quarantinePath); err != nil || string(content) != "recoverable" {
 		t.Fatalf("quarantine was removed by DeleteAllEmail: content=%q err=%v", content, err)
+	}
+	if got := server.GetMailboxMetrics().DeletedMessages; got != 2 {
+		t.Fatalf("deleted messages = %d, want 2", got)
+	}
+	if got := server.GetMailboxMetrics().ReceivedMessages; got != 2 {
+		t.Fatalf("received messages = %d, want 2", got)
+	}
+	select {
+	case <-deleteEvents:
+		t.Fatal("delete-all emitted per-message notifications")
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 

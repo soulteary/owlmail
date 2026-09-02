@@ -155,11 +155,16 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `GET /api/v1/emails/:id/attachments/:filename` | 使用附件元数据 Content-Type 返回解码字节 |
 | `POST /api/v1/emails/:id/actions/relay` | 按邮件原收件人中继 |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | 中继到一个明确地址 |
+| `GET /api/v1/relay-jobs/:jobID` | 查询异步中继任务状态 |
 
-中继路由要求先配置出站 SMTP。成功响应只表示 OwlMail 收到了进程内中继请求，并
-尝试将其交给出站工作器；**不保证**队列已经接受任务，也不表示下游 SMTP 已经投递
-邮件。API 在异步处理前不会对 `relayTo` 做完整邮箱地址语法校验；队列饱和以及 HTTP
-响应之后发生的下游错误只会记录到进程日志。
+原生 v1 中继路由要求先配置出站 SMTP，并返回 `202`、不透明任务 ID、跟随基础路径
+的 `statusUrl` 和当前状态。轮询该地址直到状态变为 `succeeded` 或 `failed`。
+失败任务只暴露受限的 `errorCategory`，不会返回下游原始错误。任务仅保存在当前
+进程中，完成记录会在 24 小时后过期。状态存储最多保存 1000 条；完成记录在完成后
+至少保护一分钟，此后可能因容量压力提前淘汰，执行中任务永不淘汰。如果所有槽位都
+在执行或仍处于保护期，新请求返回 `503` 和 `Retry-After: 1`。显式 `relayTo` 在
+创建状态记录前限制为 1024 个 UTF-8 字节。历史 `/email` 别名保持原响应行为；
+可选 MailDev facade 仍会等待中继尝试完成。
 
 ### 设置与系统
 
