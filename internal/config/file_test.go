@@ -49,9 +49,10 @@ func TestLoadJSONConfigAndRejectInvalidFiles(t *testing.T) {
 	}
 
 	for name, content := range map[string]string{
-		"unknown.yaml": "webb: 8080\n",
-		"nested.yaml":  "web:\n  port: 8080\n",
-		"null.yaml":    "web: null\n",
+		"unknown.yaml":  "webb: 8080\n",
+		"nested.yaml":   "web:\n  port: 8080\n",
+		"null.yaml":     "web: null\n",
+		"multiple.yaml": "web: 8080\n---\nmetrics-enabled: true\n",
 	} {
 		path := filepath.Join(directory, name)
 		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
@@ -71,5 +72,15 @@ func TestConfigFileFromArgs(t *testing.T) {
 	}
 	if _, err := configFileFromArgs([]string{"-config"}); err == nil || !strings.Contains(err.Error(), "requires a path") {
 		t.Fatalf("missing path error = %v", err)
+	}
+	for name, args := range map[string][]string{
+		"double dash":      {"--", "-config=ignored.yaml"},
+		"positional":       {"serve", "-config=ignored.yaml"},
+		"other flag value": {"-mail-directory", "-config=mail-directory-value"},
+	} {
+		path, err := configFileFromArgs(args)
+		if err != nil || path != "environment.yaml" {
+			t.Fatalf("%s: path = %q, err = %v", name, path, err)
+		}
 	}
 }

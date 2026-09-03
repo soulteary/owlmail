@@ -1,8 +1,10 @@
 package config
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -28,8 +30,16 @@ func LoadConfigFile(path string) (*Config, error) {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
 	var document yaml.Node
-	if err := yaml.Unmarshal(data, &document); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	if err := decoder.Decode(&document); err != nil {
 		return nil, fmt.Errorf("parse config file: %w", err)
+	}
+	var extra yaml.Node
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err != nil {
+			return nil, fmt.Errorf("parse additional config document: %w", err)
+		}
+		return nil, fmt.Errorf("config file must contain exactly one document")
 	}
 	if len(document.Content) != 1 || document.Content[0].Kind != yaml.MappingNode {
 		return nil, fmt.Errorf("config file must contain one flat object")
@@ -75,22 +85,44 @@ func LoadConfigFile(path string) (*Config, error) {
 
 func configFileFromArgs(args []string) (string, error) {
 	path := strings.TrimSpace(os.Getenv("OWLMAIL_CONFIG_FILE"))
+	fs := flag.NewFlagSet("config-file-scan", flag.ContinueOnError)
+	fs.SetOutput(io.Discard)
+	DefineFlags(fs)
 	for index := 0; index < len(args); index++ {
 		argument := args[index]
-		if argument == "-config" || argument == "--config" {
-			if index+1 >= len(args) || strings.HasPrefix(args[index+1], "-") {
-				return "", fmt.Errorf("%s requires a path", argument)
+		if argument == "--" || argument == "-" || !strings.HasPrefix(argument, "-") {
+			break
+		}
+		nameAndValue := strings.TrimPrefix(argument, "-")
+		if strings.HasPrefix(nameAndValue, "-") {
+			nameAndValue = strings.TrimPrefix(nameAndValue, "-")
+		}
+		name, value, hasValue := strings.Cut(nameAndValue, "=")
+		option := fs.Lookup(name)
+		if option == nil {
+			break
+		}
+		if name == "config" {
+			if !hasValue {
+				if index+1 >= len(args) {
+					return "", fmt.Errorf("%s requires a path", argument)
+				}
+				index++
+				value = args[index]
 			}
-			path = args[index+1]
-			index++
+			path = value
 			continue
 		}
-		if strings.HasPrefix(argument, "-config=") {
-			path = strings.TrimPrefix(argument, "-config=")
+		if hasValue {
+			continue
 		}
-		if strings.HasPrefix(argument, "--config=") {
-			path = strings.TrimPrefix(argument, "--config=")
+		if boolean, ok := option.Value.(interface{ IsBoolFlag() bool }); ok && boolean.IsBoolFlag() {
+			continue
 		}
+		if index+1 >= len(args) {
+			return "", fmt.Errorf("%s requires a value", argument)
+		}
+		index++
 	}
 	return strings.TrimSpace(path), nil
 }
