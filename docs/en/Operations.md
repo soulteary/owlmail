@@ -280,10 +280,10 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
-This guide pins the `0.6.0` release image. The `main` and `latest` tags move with
+This guide pins the `0.8.0` release image. The `main` and `latest` tags move with
 default-branch builds and should not be used for a repeatable deployment.
 
 The image configures OwlMail to listen on `0.0.0.0` inside the container. Bind
@@ -300,7 +300,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
 Configure both values for stable automation. A username alone causes OwlMail to
@@ -329,7 +329,7 @@ OwlMail and the proxy, and preserve WebSocket upgrade headers:
 ```yaml
 services:
   owlmail:
-    image: ghcr.io/soulteary/owlmail:0.6.0
+    image: ghcr.io/soulteary/owlmail:0.8.0
     environment:
       OWLMAIL_BASE_PATHNAME: /owlmail
       OWLMAIL_WEB_EXTERNAL_SCHEME: https
@@ -507,7 +507,7 @@ docker run -d \
   -e OWLMAIL_TLS_ENABLED=true \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
 Verify that the container runtime permits the non-root process to bind port 465.

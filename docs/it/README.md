@@ -34,7 +34,7 @@ lingua in directory separate.
 
 ### Release
 
-- **[Note di rilascio 0.6.0](../en/Release-0.6.0.md)** (English, [中文](../zh-CN/Release-0.6.0.md))
+- **[Note di rilascio 0.8.0](../en/Release-0.8.0.md)** (English, [中文](../zh-CN/Release-0.8.0.md))
 - **[Processo di rilascio](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
 ### Confronto e migrazione

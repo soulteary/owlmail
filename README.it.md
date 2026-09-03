@@ -119,8 +119,8 @@ export MAILDEV_WEB_PORT=1080
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
 
 ```bash
-# Scarica la release 0.6.0
-docker pull ghcr.io/soulteary/owlmail:0.6.0
+# Scarica la release 0.8.0
+docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # Scarica l'immagine di un commit esatto (esempio)
 docker pull ghcr.io/soulteary/owlmail:sha-b130f33
@@ -130,11 +130,11 @@ docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
 **Tag disponibili:**
-- `0.6.0` - Tag di release esatto; `0.6` e `0` avanzano con le release successive della serie
+- `0.8.0` - Tag di release esatto; `0.8` e `0` avanzano con le release successive della serie
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-b130f33`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Immagine mobile del branch predefinito, non un selettore di release stabile
@@ -681,7 +681,7 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 
 ## 📚 Documentazione Correlata
 
-- [Note di rilascio OwlMail 0.6.0](./docs/en/Release-0.6.0.md) ([中文](./docs/zh-CN/Release-0.6.0.md))
+- [Note di rilascio OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [Registro delle modifiche](./CHANGELOG.md)
 - [OwlMail × MailDev: Confronto Completo Funzionalità e API e White Paper di Migrazione](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [Riferimento API (English)](./docs/en/API-Reference.md)

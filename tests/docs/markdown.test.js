@@ -23,7 +23,7 @@ test("Webhook demo publishes host ports on loopback only", () => {
     assert.match(compose, new RegExp(`127\\.0\\.0\\.1:${port}:${port}`));
   }
   assert.doesNotMatch(compose, /^\s*-\s*["']?(?:9000|1025|1080):/m);
-  assert.ok(compose.includes("image: ghcr.io/soulteary/owlmail:0.6.0"));
+  assert.ok(compose.includes("image: ghcr.io/soulteary/owlmail:0.8.0"));
   assert.doesNotMatch(compose, /^\s*image:\s*soulteary\/owlmail/m);
 });
 
@@ -428,34 +428,34 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
   }
 });
 
-test("0.6.0 release documentation and workflow stay connected", () => {
+test("0.8.0 release documentation and workflow stay connected", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
-  const releaseStart = changelog.indexOf("## [0.6.0]");
-  const releaseEnd = changelog.indexOf("## [0.5.0]", releaseStart);
-  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.6.0 release section");
+  const releaseStart = changelog.indexOf("## [0.8.0]");
+  const releaseEnd = changelog.indexOf("## [0.7.0]", releaseStart);
+  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.8.0 release section");
   const releaseSection = changelog.slice(releaseStart, releaseEnd);
   for (const marker of [
-    "Mailbox governance",
-    "Redis Streams-backed webhook delivery",
-    "local webhook outbox",
-    "Service-worker browser notifications",
+    "Prometheus metrics",
+    "layered YAML and JSON configuration",
+    "MailCatcher REST facade",
+    "read-only MCP stdio bridge",
   ]) {
-    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.6.0 section is missing ${marker}`);
+    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.8.0 section is missing ${marker}`);
   }
-  assert.ok(changelog.includes("[0.6.0]:"), "CHANGELOG.md is missing the 0.6.0 comparison link");
+  assert.ok(changelog.includes("[0.8.0]:"), "CHANGELOG.md is missing the 0.8.0 comparison link");
   assert.ok(
-    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Mailbox governance"),
-    "CHANGELOG.md still classifies the 0.6.0 storage work as unreleased",
+    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Prometheus metrics"),
+    "CHANGELOG.md still classifies 0.8.0 operational work as unreleased",
   );
 
   const releaseNotes = [
     [
-      "docs/en/Release-0.6.0.md",
-      ["Atomic mailbox persistence and recovery", "Storage governance", "Durable webhook handoff and Redis delivery", "Known limitations", "owlmail-linux-amd64"],
+      "docs/en/Release-0.8.0.md",
+      ["Persistent relay jobs", "Layered configuration and indexing", "MCP stdio bridge", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
-      "docs/zh-CN/Release-0.6.0.md",
-      ["原子邮件持久化与恢复", "存储治理", "持久化 Webhook 交接与 Redis 投递", "已知限制", "owlmail-linux-amd64"],
+      "docs/zh-CN/Release-0.8.0.md",
+      ["持久化中继任务", "分层配置与索引", "MCP stdio 桥接", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
   for (const [releaseNote, markers] of releaseNotes) {
@@ -467,15 +467,15 @@ test("0.6.0 release documentation and workflow stay connected", () => {
 
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.6.0"), `${readme} does not pin the release image`);
-    assert.ok(markdown.includes("Release-0.6.0.md"), `${readme} does not link the release notes`);
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.8.0"), `${readme} does not pin the release image`);
+    assert.ok(markdown.includes("Release-0.8.0.md"), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
     assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);
   }
 
   for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {
     const markdown = fs.readFileSync(path.join(root, operations), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.6.0"), `${operations} does not pin 0.6.0`);
+    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.8.0"), `${operations} does not pin 0.8.0`);
     assert.ok(!markdown.includes("ghcr.io/soulteary/owlmail:latest"), `${operations} uses a moving image`);
   }
 
@@ -484,8 +484,8 @@ test("0.6.0 release documentation and workflow stay connected", () => {
     for (const field of ["version", "commit", "build_date", "branch", "go_version", "platform", "compiler"]) {
       assert.ok(markdown.includes(`"${field}"`), `${reference} is missing version field ${field}`);
     }
-    assert.ok(markdown.includes('"version": "0.6.0"'), `${reference} does not show the 0.6.0 version`);
-    assert.ok(markdown.includes('"branch": "v0.6.0"'), `${reference} does not show the 0.6.0 tag`);
+    assert.ok(markdown.includes('"version": "0.8.0"'), `${reference} does not show the 0.8.0 version`);
+    assert.ok(markdown.includes('"branch": "v0.8.0"'), `${reference} does not show the 0.8.0 tag`);
   }
 
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
@@ -530,8 +530,8 @@ test("0.6.0 release documentation and workflow stay connected", () => {
     "the release workflow must not overwrite default-branch sha aliases");
 
   for (const reference of [
-    "docs/en/Release-0.6.0.md",
-    "docs/zh-CN/Release-0.6.0.md",
+    "docs/en/Release-0.8.0.md",
+    "docs/zh-CN/Release-0.8.0.md",
     "docs/en/Operations.md",
     "docs/zh-CN/Operations.md",
   ]) {
@@ -587,7 +587,7 @@ test("release workflow preserves supply-chain evidence", () => {
       "gh attestation verify",
       "cosign verify-blob",
       "cosign verify",
-      "--ref v0.6.0",
+      "--ref v0.8.0",
     ]) {
       assert.ok(markdown.includes(marker), `${guide} is missing supply-chain marker ${marker}`);
     }

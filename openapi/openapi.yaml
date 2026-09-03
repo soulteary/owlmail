@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: OwlMail HTTP API
-  version: 0.6.0
+  version: 0.8.0
   summary: Versioned OwlMail mailbox, relay, settings, and operational API
   description: The contract for OwlMail's native `/api/v1` interface. Unversioned MailDev-style compatibility routes are intentionally
     excluded because their protocol behavior is not an exact MailDev contract. Configure `-base-pathname` (or `OWLMAIL_BASE_PATHNAME`)
@@ -948,10 +948,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Version'
               example:
-                version: 0.6.0
+                version: 0.8.0
                 commit: 0123456789abcdef
                 build_date: '2026-09-02T12:00:00Z'
-                branch: v0.6.0
+                branch: v0.8.0
                 go_version: go1.27.0
                 platform: linux/amd64
                 compiler: gc
