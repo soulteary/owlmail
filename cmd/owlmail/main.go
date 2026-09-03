@@ -969,6 +969,17 @@ func validateMCPStdioConfig(cfg *config.Config) error {
 	return nil
 }
 
+func reportMCPStdioResult(err error, stderr io.Writer) int {
+	if err == nil || errors.Is(err, flag.ErrHelp) || errors.Is(err, context.Canceled) {
+		return 0
+	}
+	var reported *reportedMCPStdioError
+	if !errors.As(err, &reported) {
+		_, _ = fmt.Fprintf(stderr, "MCP stdio bridge failed: %v\n", err)
+	}
+	return 1
+}
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
@@ -987,10 +998,8 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runMCPStdio(ctx, os.Args[2:], os.Stderr)
 		stop()
-		var reported *reportedMCPStdioError
-		if err != nil && !errors.Is(err, flag.ErrHelp) && !errors.Is(err, context.Canceled) && !errors.As(err, &reported) {
-			_, _ = fmt.Fprintf(os.Stderr, "MCP stdio bridge failed: %v\n", err)
-			os.Exit(1)
+		if exitCode := reportMCPStdioResult(err, os.Stderr); exitCode != 0 {
+			os.Exit(exitCode)
 		}
 		return
 	}
