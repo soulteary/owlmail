@@ -104,6 +104,58 @@ func TestRefreshReadOnlyMailboxRestoresPersistedEnvelopeRecipients(t *testing.T)
 	}
 }
 
+func TestRefreshReadOnlyMailboxDefersNewEventUntilEnvelopeMetadataIsReadable(t *testing.T) {
+	directory := t.TempDir()
+	const id = "deferred-envelope-metadata"
+	raw := "From: sender@example.test\r\nTo: visible@example.test\r\nSubject: deferred envelope\r\n\r\nbody"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, metadataDirectoryName), 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, metadataDirectoryName, id+".json"), []byte("invalid"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	observer, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = observer.Close() }()
+	notified := make(chan *Email, 1)
+	observer.On("new", func(email *Email) { notified <- email })
+	var partial *ReadOnlyRefreshPartialError
+	if err := observer.RefreshReadOnlyMailbox(); !errors.As(err, &partial) {
+		t.Fatalf("initial refresh error = %v, want ReadOnlyRefreshPartialError", err)
+	}
+	if _, err := observer.GetEmail(id); err == nil {
+		t.Fatal("email with uncertain envelope metadata was published")
+	}
+
+	metadata := emailMetadata{
+		Version: currentMetadataVersion, ID: id, Sequence: time.Now().UTC(),
+		Envelope: &Envelope{To: []string{"visible@example.test", "blind@example.test"}},
+	}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directory, metadataDirectoryName, id+".json"), encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := observer.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case email := <-notified:
+		if email.Envelope == nil || len(email.Envelope.To) != 2 || len(email.CalculatedBCC) != 1 || email.CalculatedBCC[0].Address != "blind@example.test" {
+			t.Fatalf("notified email = %#v", email)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("repaired envelope metadata did not emit a new event")
+	}
+}
+
 func TestRefreshReadOnlyMailboxRestoresLegacyAttachmentFilenameWithoutWritingMetadata(t *testing.T) {
 	directory := t.TempDir()
 	const id = "legacy-read-only-attachment"
