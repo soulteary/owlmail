@@ -26,6 +26,24 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	}
 	candidates := make(map[string]candidate)
 	var refreshErrors []error
+	blockedIDs := make(map[string]struct{})
+	for _, file := range files {
+		if id, ok := deletionFenceID(file.Name()); ok {
+			blockedIDs[id] = struct{}{}
+			continue
+		}
+		if id, ok := rollbackFenceID(file.Name()); ok {
+			state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, file.Name()))
+			if stateErr != nil {
+				blockedIDs[id] = struct{}{}
+				refreshErrors = append(refreshErrors, fmt.Errorf("read rollback fence for %s: %w", id, stateErr))
+				continue
+			}
+			if state != acceptedFenceState && state != localFenceState {
+				blockedIDs[id] = struct{}{}
+			}
+		}
+	}
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".eml") {
 			continue
@@ -33,6 +51,9 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		id := strings.TrimSuffix(file.Name(), ".eml")
 		if err := validateEmailID(id); err != nil {
 			refreshErrors = append(refreshErrors, fmt.Errorf("ignore invalid email filename %q: %w", file.Name(), err))
+			continue
+		}
+		if _, blocked := blockedIDs[id]; blocked {
 			continue
 		}
 		info, err := file.Info()

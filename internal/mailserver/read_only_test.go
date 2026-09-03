@@ -59,3 +59,47 @@ func TestReadOnlyConstructorRequiresExistingDirectory(t *testing.T) {
 		t.Fatalf("missing mailbox was created: %v", err)
 	}
 }
+
+func TestRefreshReadOnlyMailboxHidesTransactionFencedMail(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: fenced\r\n\r\nbody")
+	for _, id := range []string{"active-message", "deleted-message"} {
+		if err := os.WriteFile(filepath.Join(directory, id+".eml"), raw, 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(rollbackFencePath(directory, "active-message"), []byte(activeFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(deletionFencePath(directory, "deleted-message"), []byte(deletionFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"active-message", "deleted-message"} {
+		if _, err := server.GetEmail(id); err == nil {
+			t.Fatalf("transaction-fenced email %q became visible", id)
+		}
+	}
+
+	if err := os.WriteFile(rollbackFencePath(directory, "active-message"), []byte(acceptedFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	if email, err := server.GetEmail("active-message"); err != nil || email.Subject != "fenced" {
+		t.Fatalf("accepted email = %#v, %v", email, err)
+	}
+	if _, err := server.GetEmail("deleted-message"); err == nil {
+		t.Fatal("deletion-fenced email became visible")
+	}
+}
