@@ -58,7 +58,13 @@ func InitLogger(level LogLevel) {
 // InitLoggerOutput initializes the global console logger on a selected stream.
 // Stdio protocols use stderr so logs cannot corrupt protocol messages.
 func InitLoggerOutput(level LogLevel, output io.Writer) {
-	initLogger(level, "console", output)
+	InitLoggerOutputWithFormat(level, "console", output)
+}
+
+// InitLoggerOutputWithFormat initializes the global logger in console or JSON
+// form on a selected stream.
+func InitLoggerOutputWithFormat(level LogLevel, format string, output io.Writer) {
+	initLogger(level, format, output)
 }
 
 // InitLoggerWithFormat initializes the global logger in console or JSON form.

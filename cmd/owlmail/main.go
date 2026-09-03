@@ -850,23 +850,14 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		return err
 	}
 	cfg := config.ResolveConfig(fs, refs)
-	// The bridge is a read-only mailbox process. Ignore unrelated delivery and
-	// retention settings even if they are present in the parent environment.
-	cfg.OutgoingHost = ""
-	cfg.AutoRelay = false
-	cfg.WebhookConfig = ""
-	cfg.WebhookRedisURL = ""
-	cfg.MailRetentionDays = 0
-	cfg.MailMaxMessages = 0
-	cfg.MailMaxDiskMB = 0
-	if err := config.ValidateConfig(cfg); err != nil {
+	if err := validateMCPStdioConfig(cfg); err != nil {
 		return err
 	}
-	common.InitLoggerOutput(parseLogLevel(cfg.LogLevel), stderr)
+	common.InitLoggerOutputWithFormat(parseLogLevel(cfg.LogLevel), cfg.LogFormat, stderr)
 	if strings.TrimSpace(cfg.MailDir) == "" {
 		return fmt.Errorf("mcp-stdio requires -mail-directory or OWLMAIL_MAIL_DIR")
 	}
-	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{ReadOnly: true})
+	server, err := mailserver.NewMailServerWithOptions(0, "localhost", cfg.MailDir, mailserver.ServerOptions{ReadOnly: true})
 	if err != nil {
 		return err
 	}
@@ -928,6 +919,40 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		watcher.Wait()
 	}()
 	return service.RunStdio(ctx)
+}
+
+func validateMCPStdioConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if err := config.ValidateLogLevel(cfg.LogLevel); err != nil {
+		return err
+	}
+	if err := config.ValidateLogFormat(cfg.LogFormat); err != nil {
+		return err
+	}
+	if _, err := config.NormalizeBasePathname(cfg.BasePathname); err != nil {
+		return err
+	}
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return err
+	}
+	if externalURL == "" {
+		if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
+			return fmt.Errorf("web external scheme must be http or https")
+		}
+		if err := config.ValidatePort(cfg.WebPort, "Web port"); err != nil {
+			return err
+		}
+	}
+	if sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout); err != nil || sessionTimeout <= 0 {
+		return fmt.Errorf("MCP session timeout must be a positive duration")
+	}
+	if shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout); err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("MCP shutdown timeout must be a positive duration")
+	}
+	return nil
 }
 
 func main() {

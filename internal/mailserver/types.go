@@ -154,6 +154,7 @@ type MailServer struct {
 	beforeQuarantineMove       func(string) error
 	beforeEmailRollback        func(string) error
 	beforeEmailDelete          func(string) error
+	beforeReadOnlyPublish      func(string)
 	syncAcceptedFenceDirectory func(string) error
 
 	// DATA hooks are nil in production and provide deterministic synchronization
