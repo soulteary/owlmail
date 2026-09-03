@@ -370,14 +370,25 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 		}
 	} else {
 		mailQuery := mailserver.EmailQuery{Text: query, From: from, To: to, SortBy: "store", SortOrder: "desc", Limit: maxExportMessages + 1}
-		if value, err := time.Parse("2006-01-02", dateFrom); err == nil {
+		if dateFrom != "" {
+			value, err := time.Parse("2006-01-02", dateFrom)
+			if err != nil {
+				return invalidEmailQuery(c, fmt.Errorf("dateFrom must use YYYY-MM-DD"))
+			}
 			mailQuery.DateFrom = &value
 		}
-		if value, err := time.Parse("2006-01-02", dateTo); err == nil {
+		if dateTo != "" {
+			value, err := time.Parse("2006-01-02", dateTo)
+			if err != nil {
+				return invalidEmailQuery(c, fmt.Errorf("dateTo must use YYYY-MM-DD"))
+			}
 			value = value.Add(24 * time.Hour)
 			mailQuery.DateTo = &value
 		}
 		if read != "" {
+			if read != "true" && read != "false" {
+				return invalidEmailQuery(c, fmt.Errorf("read must be true or false"))
+			}
 			value := read == "true"
 			mailQuery.Read = &value
 		}

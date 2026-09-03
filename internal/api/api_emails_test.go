@@ -2734,6 +2734,32 @@ func TestAPIExportEmailsRejectsOversizedSourceBeforeStreaming(t *testing.T) {
 	}
 }
 
+func TestAPIExportEmailsRejectsInvalidFilters(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+
+	for _, rawQuery := range []string{
+		"dateFrom=yesterday",
+		"dateTo=tomorrow",
+		"read=1",
+		"read=TRUE",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/emails/export?"+rawQuery, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("export %q failed: %v", rawQuery, err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			t.Fatalf("read export %q response: %v", rawQuery, readErr)
+		}
+		if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "Invalid query") {
+			t.Fatalf("export %q returned %d %s, want strict query error", rawQuery, resp.StatusCode, body)
+		}
+	}
+}
+
 func TestApplyEmailSorting(t *testing.T) {
 	now := time.Now()
 	emails := []*types.Email{
