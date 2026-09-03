@@ -147,18 +147,32 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	}
 
 	// A writer in another process may start or complete deletion while this
-	// observer parses an EML from the initial directory snapshot. Recheck the
-	// durable transaction markers and source path immediately before publishing
-	// any parsed or previously known entry into the refreshed snapshot.
+	// observer parses an EML from the initial directory snapshot. Take one fresh
+	// directory snapshot immediately before publication: an in-progress delete
+	// has a fence, while a completed delete no longer has its source EML.
 	for id := range candidates {
-		visible, visibilityErr := ms.readOnlyEmailVisible(id)
-		if visibilityErr != nil {
-			uncertainIDs[id] = struct{}{}
-			refreshErrors = append(refreshErrors, fmt.Errorf("recheck email %s before publication: %w", id, visibilityErr))
+		if ms.beforeReadOnlyPublish != nil {
+			ms.beforeReadOnlyPublish(id)
 		}
-		if !visible {
+	}
+	visible, visibilityErrors, visibilityErr := ms.readOnlyVisibilitySnapshot()
+	if visibilityErr != nil {
+		refreshErrors = append(refreshErrors, fmt.Errorf("rescan mail directory before publication: %w", visibilityErr))
+		for id := range candidates {
+			uncertainIDs[id] = struct{}{}
 			delete(candidates, id)
 			delete(loaded, id)
+		}
+	} else {
+		for id := range candidates {
+			if itemErr := visibilityErrors[id]; itemErr != nil {
+				uncertainIDs[id] = struct{}{}
+				refreshErrors = append(refreshErrors, fmt.Errorf("recheck email %s before publication: %w", id, itemErr))
+			}
+			if !visible[id] {
+				delete(candidates, id)
+				delete(loaded, id)
+			}
 		}
 	}
 
@@ -223,37 +237,40 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	return nil
 }
 
-func (ms *MailServer) readOnlyEmailVisible(id string) (bool, error) {
-	info, err := os.Stat(filepath.Join(ms.mailDir, id+".eml"))
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
+func (ms *MailServer) readOnlyVisibilitySnapshot() (map[string]bool, map[string]error, error) {
+	entries, err := os.ReadDir(ms.mailDir)
 	if err != nil {
-		return false, err
+		return nil, nil, err
 	}
-	if info.IsDir() {
-		return false, nil
-	}
-
-	// Transaction fences are the final publication gate. In particular, the
-	// deletion fence is checked last so a deletion started after either the
-	// source stat or rollback-fence read wins over the stale source observation.
-	if ms.beforeReadOnlyPublish != nil {
-		ms.beforeReadOnlyPublish(id)
-	}
-	rollbackPath := rollbackFencePath(ms.mailDir, id)
-	if state, err := readRollbackFenceState(rollbackPath); err == nil {
-		if state != acceptedFenceState && state != localFenceState {
-			return false, nil
+	visible := make(map[string]bool)
+	visibilityErrors := make(map[string]error)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".eml") {
+			continue
 		}
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return false, err
+		id := strings.TrimSuffix(entry.Name(), ".eml")
+		if validateEmailID(id) == nil {
+			visible[id] = true
+		}
 	}
-	if _, err := os.Lstat(deletionFencePath(ms.mailDir, id)); err == nil {
-		return false, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return false, err
+	for _, entry := range entries {
+		if id, ok := deletionFenceID(entry.Name()); ok {
+			delete(visible, id)
+			continue
+		}
+		id, ok := rollbackFenceID(entry.Name())
+		if !ok {
+			continue
+		}
+		state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, entry.Name()))
+		if stateErr != nil {
+			delete(visible, id)
+			visibilityErrors[id] = stateErr
+			continue
+		}
+		if state != acceptedFenceState && state != localFenceState {
+			delete(visible, id)
+		}
 	}
-
-	return true, nil
+	return visible, visibilityErrors, nil
 }
