@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-message/mail"
 )
 
 func TestRefreshReadOnlyMailboxObservesNewMailWithoutMutatingArtifacts(t *testing.T) {
@@ -61,6 +63,79 @@ func TestReadOnlyConstructorRequiresExistingDirectory(t *testing.T) {
 	}
 	if _, err := os.Stat(missing); !os.IsNotExist(err) {
 		t.Fatalf("missing mailbox was created: %v", err)
+	}
+}
+
+func TestRefreshReadOnlyMailboxRestoresPersistedEnvelopeRecipients(t *testing.T) {
+	directory := t.TempDir()
+	writer, err := NewMailServer(1025, "localhost", directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const id = "persisted-envelope"
+	raw := "From: sender@example.test\r\nTo: visible@example.test\r\nSubject: envelope\r\n\r\nbody"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	envelope := &Envelope{From: "sender@example.test", To: []string{"visible@example.test", "blind@example.test"}}
+	email := &Email{To: []*mail.Address{{Address: "visible@example.test"}}, Subject: "envelope"}
+	if err := writer.SaveEmailToStore(id, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+	_ = writer.Close()
+
+	observer, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = observer.Close() }()
+	if err := observer.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := observer.GetEmail(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if observed.Envelope == nil || len(observed.Envelope.To) != 2 || observed.Envelope.To[1] != "blind@example.test" {
+		t.Fatalf("restored envelope = %#v", observed.Envelope)
+	}
+	if len(observed.CalculatedBCC) != 1 || observed.CalculatedBCC[0].Address != "blind@example.test" {
+		t.Fatalf("calculated BCC = %#v", observed.CalculatedBCC)
+	}
+}
+
+func TestRefreshReadOnlyMailboxRestoresLegacyAttachmentFilenameWithoutWritingMetadata(t *testing.T) {
+	directory := t.TempDir()
+	const id = "legacy-read-only-attachment"
+	const generatedFilename = "legacy-generated.txt"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), multipartMessage(), 0600); err != nil {
+		t.Fatal(err)
+	}
+	attachmentDirectory := filepath.Join(directory, id)
+	if err := os.MkdirAll(attachmentDirectory, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(attachmentDirectory, generatedFilename), []byte("data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	observer, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = observer.Close() }()
+	if err := observer.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := observer.GetEmail(id)
+	if err != nil || len(observed.Attachments) != 1 {
+		t.Fatalf("observed email = %#v, %v", observed, err)
+	}
+	if got := observed.Attachments[0].GeneratedFileName; got != generatedFilename {
+		t.Fatalf("restored attachment filename = %q, want %q", got, generatedFilename)
+	}
+	if _, err := os.Stat(filepath.Join(directory, metadataDirectoryName)); !os.IsNotExist(err) {
+		t.Fatalf("read-only legacy restoration created metadata: %v", err)
 	}
 }
 
