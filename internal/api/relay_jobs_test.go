@@ -101,6 +101,33 @@ func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	}
 }
 
+func TestNativeRelayRejectsInvalidRequestBody(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+
+	for name, payload := range map[string]string{
+		"malformed JSON":           `{"confirmedRecipients":[`,
+		"invalid recipient shape": `{"confirmedRecipients":"recipient@example.test"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/missing/actions/relay", strings.NewReader(payload))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), ErrorCodeInvalidRequest) {
+				t.Fatalf("invalid relay body status = %d, body = %s", resp.StatusCode, body)
+			}
+			if len(api.relayJobs.jobs) != 0 {
+				t.Fatalf("invalid relay body created %d job(s)", len(api.relayJobs.jobs))
+			}
+		})
+	}
+}
+
 func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 	directory := t.TempDir()
 	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{
