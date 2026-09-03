@@ -21,6 +21,7 @@ require (
 	github.com/soulteary/health-kit/v2 v2.1.0
 	github.com/soulteary/logger-kit/v2 v2.1.0
 	github.com/soulteary/version-kit/v2 v2.1.0
+	golang.org/x/net v0.58.0
 	go.yaml.in/yaml/v3 v3.0.5
 	modernc.org/sqlite v1.58.0
 )
@@ -70,7 +71,6 @@ require (
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
