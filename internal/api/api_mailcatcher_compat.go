@@ -153,9 +153,12 @@ func (api *API) mailCatcherEML(c fiber.Ctx) error {
 
 func (api *API) mailCatcherRaw(c fiber.Ctx, contentType string, download bool) error {
 	id := c.Params("id")
+	if _, err := api.mailServer.GetEmail(id); err != nil {
+		return c.Status(http.StatusNotFound).SendString("Message does not exist")
+	}
 	path, err := api.mailServer.GetRawEmail(id)
 	if err != nil {
-		return c.Status(http.StatusNotFound).SendString("Message does not exist")
+		return c.Status(http.StatusInternalServerError).SendString("Message source could not be read")
 	}
 	c.Set(fiber.HeaderContentType, contentType)
 	if download {

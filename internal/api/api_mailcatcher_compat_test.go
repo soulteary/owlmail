@@ -162,6 +162,21 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 		t.Fatalf("missing DELETE returned %d", resp.StatusCode)
 	}
 	_ = resp.Body.Close()
+	if err := os.Remove(filepath.Join(mailDir, "mail-2.eml")); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/messages/mail-2.source", "/messages/mail-2.eml"} {
+		resp = mailCatcherRequest(t, api, http.MethodGet, path)
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("GET %s with missing source returned %d, want 500", path, resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/missing.source")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing source returned %d, want 404", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
 }
 
 func mailCatcherRequest(t *testing.T, api *API, method, path string) *http.Response {
