@@ -123,6 +123,39 @@ func migrationMetadata(t *testing.T, directory, id string) emailMetadata {
 	return metadata
 }
 
+func TestPersistMigrationMetadataPreservesEnvelope(t *testing.T) {
+	directory := t.TempDir()
+	sequence := time.Now().UTC()
+	metadata := emailMetadata{
+		Version:  currentMetadataVersion,
+		ID:       "preserve-envelope",
+		Read:     true,
+		Sequence: sequence,
+		Envelope: &Envelope{
+			From:          "sender@example.test",
+			To:            []string{"visible@example.test", "blind@example.test"},
+			CC:            []string{"copy@example.test"},
+			BCC:           []string{"blind@example.test"},
+			CalculatedBCC: []string{"blind@example.test"},
+			Host:          "mx.example.test",
+			RemoteAddress: "192.0.2.1:2525",
+		},
+	}
+
+	if err := persistMigrationMetadata(directory, metadata); err != nil {
+		t.Fatal(err)
+	}
+	got := migrationMetadata(t, directory, metadata.ID)
+	if got.Envelope == nil || got.Envelope.From != metadata.Envelope.From ||
+		len(got.Envelope.To) != 2 || got.Envelope.To[1] != "blind@example.test" ||
+		len(got.Envelope.CC) != 1 || got.Envelope.CC[0] != "copy@example.test" ||
+		len(got.Envelope.BCC) != 1 || got.Envelope.BCC[0] != "blind@example.test" ||
+		len(got.Envelope.CalculatedBCC) != 1 || got.Envelope.CalculatedBCC[0] != "blind@example.test" ||
+		got.Envelope.Host != metadata.Envelope.Host || got.Envelope.RemoteAddress != metadata.Envelope.RemoteAddress {
+		t.Fatalf("persisted envelope = %#v, want %#v", got.Envelope, metadata.Envelope)
+	}
+}
+
 func TestAttachmentMigrationPreflightHonorsCancellation(t *testing.T) {
 	directory := t.TempDir()
 	_, path := createLocalMigrationMessage(t, directory, "preflight-canceled", multipartMessage())
