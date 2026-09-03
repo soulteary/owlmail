@@ -46,7 +46,7 @@ type API struct {
 	mcpHandler              http.Handler
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
-	relayRecoveryOnce        sync.Once
+	relayRecoveryOnce       sync.Once
 	relaySourceMutex        sync.Mutex
 	relaySourceReleases     map[string]func()
 }
