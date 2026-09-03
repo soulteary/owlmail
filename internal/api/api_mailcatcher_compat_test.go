@@ -37,7 +37,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	defer func() { _ = server.Close() }()
 	api.SetMailCatcherRESTCompat(true)
 	email := &types.Email{
-		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder/logo?theme#1@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test">`,
+		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder%2Flogo%3Ftheme%231@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test">`,
 		Time: time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC), Size: 123,
 		Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
 		Attachments: []*types.Attachment{
@@ -126,6 +126,9 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	_ = resp.Body.Close()
 	if err != nil || !strings.Contains(string(htmlBody), url.PathEscape("folder/logo?theme#1@example.test")) {
 		t.Fatalf("HTML CID rewrite = %q, %v", htmlBody, err)
+	}
+	if strings.Contains(string(htmlBody), "folder%252Flogo") {
+		t.Fatalf("HTML CID rewrite double-escaped the encoded reference: %s", htmlBody)
 	}
 	for _, path := range []string{"/messages/mail-1.plain", "/messages/mail-1.source", "/messages/mail-1.eml", "/messages/mail-1/parts/logo@example.test", "/messages/mail-1/parts/" + url.PathEscape("folder/logo?theme#1@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&bar@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&copy;@example.test")} {
 		resp = mailCatcherRequest(t, api, http.MethodGet, path)
