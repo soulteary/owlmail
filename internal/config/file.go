@@ -18,16 +18,24 @@ const maximumConfigFileBytes = 1 << 20
 // command-line option names. Unknown, duplicate, nested, and null values fail
 // closed so misspelled production settings cannot be silently ignored.
 func LoadConfigFile(path string) (*Config, error) {
-	info, err := os.Stat(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open config file: %w", err)
+	}
+	defer func() { _ = file.Close() }()
+	info, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("stat config file: %w", err)
 	}
 	if info.Size() > maximumConfigFileBytes {
 		return nil, fmt.Errorf("config file exceeds %d bytes", maximumConfigFileBytes)
 	}
-	data, err := os.ReadFile(path)
+	data, err := io.ReadAll(io.LimitReader(file, maximumConfigFileBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
+	}
+	if len(data) > maximumConfigFileBytes {
+		return nil, fmt.Errorf("config file exceeds %d bytes", maximumConfigFileBytes)
 	}
 	var document yaml.Node
 	decoder := yaml.NewDecoder(bytes.NewReader(data))

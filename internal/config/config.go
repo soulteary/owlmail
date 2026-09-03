@@ -522,7 +522,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port"),
 		WebHost:                     fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
-		WebPassword:                 fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		WebPassword:                 secretStringFlag(fs, "web-password", cfg.WebPassword, "HTTP Basic Auth password"),
 		WebExternalURL:              fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
 		BasePathname:                fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MailDevRESTCompat:           fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
@@ -536,7 +536,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		OutgoingHost:                fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
 		OutgoingPort:                fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
 		OutgoingUser:                fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
-		OutgoingPass:                fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
+		OutgoingPass:                secretStringFlag(fs, "outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
 		OutgoingSecure:              fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use implicit TLS/SMTPS for outgoing SMTP (MailDev compatibility)"),
 		OutgoingTLSMode:             fs.String("outgoing-tls-mode", cfg.OutgoingTLSMode, "Outgoing SMTP transport: plain, starttls, or smtps"),
 		OutgoingInsecureSkipVerify:  fs.Bool("outgoing-insecure-skip-verify", cfg.OutgoingInsecureSkipVerify, "Skip outgoing SMTP certificate verification (unsafe)"),
@@ -550,7 +550,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		AutoRelayAddr:               fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
 		AutoRelayRules:              fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
 		SMTPUser:                    fs.String("smtp-user", cfg.SMTPUser, "SMTP username; set with smtp-password to require authentication"),
-		SMTPPassword:                fs.String("smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
+		SMTPPassword:                secretStringFlag(fs, "smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
 		SMTPAuthRequireTLS:          fs.Bool("smtp-auth-require-tls", cfg.SMTPAuthRequireTLS, "Require TLS before accepting SMTP AUTH"),
 		TLSEnabled:                  fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
 		TLSCertFile:                 fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
@@ -562,9 +562,9 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		S3Region:                    fs.String("s3-region", cfg.S3Region, "S3 region"),
 		S3Bucket:                    fs.String("s3-bucket", cfg.S3Bucket, "S3 bucket for attachments"),
 		S3Prefix:                    fs.String("s3-prefix", cfg.S3Prefix, "S3 object key prefix for attachments"),
-		S3AccessKeyID:               fs.String("s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
-		S3SecretAccessKey:           fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
-		S3SessionToken:              fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
+		S3AccessKeyID:               secretStringFlag(fs, "s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
+		S3SecretAccessKey:           secretStringFlag(fs, "s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
+		S3SessionToken:              secretStringFlag(fs, "s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
 		S3UsePathStyle:              fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
 		S3StartupCheck:              fs.Bool("s3-startup-check", cfg.S3StartupCheck, "Fail startup when the initial S3 bucket check fails"),
 		S3HealthInterval:            fs.String("s3-health-check-interval", cfg.S3HealthInterval, "Background S3 health-check interval"),
@@ -575,6 +575,16 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		WebhookRedisPrefix:          fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
 		WebhookShutdownTimeout:      fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
 	}
+}
+
+// secretStringFlag retains a preloaded secret for resolution without exposing
+// it through flag.PrintDefaults on help or parse errors.
+func secretStringFlag(fs *flag.FlagSet, name, value, usage string) *string {
+	ref := fs.String(name, value, usage)
+	if option := fs.Lookup(name); option != nil {
+		option.DefValue = ""
+	}
+	return ref
 }
 
 // ResolveConfig resolves configuration from flag values and environment variables.

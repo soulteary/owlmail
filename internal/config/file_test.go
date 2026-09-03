@@ -1,9 +1,11 @@
 package config
 
 import (
+	"bytes"
 	"flag"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -34,6 +36,41 @@ func TestConfigFileLayering(t *testing.T) {
 	_ = fs.Parse([]string{"-web", "7070"})
 	if got := ResolveConfig(fs, refs).WebPort; got != 7070 {
 		t.Fatalf("CLI layer = %d, want 7070", got)
+	}
+}
+
+func TestConfigFileSecretsAreNotFlagDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "owlmail.yaml")
+	secrets := []string{"value-web-991", "value-outgoing-992", "value-smtp-993", "value-access-994", "value-private-995", "value-session-996"}
+	content := "web-password: value-web-991\noutgoing-pass: value-outgoing-992\nsmtp-password: value-smtp-993\ns3-access-key: value-access-994\ns3-secret-key: value-private-995\ns3-session-token: value-session-996\n"
+	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+		t.Fatal(err)
+	}
+	fileDefaults, err := LoadConfigFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fs := flag.NewFlagSet("redacted-help", flag.ContinueOnError)
+	var output bytes.Buffer
+	fs.SetOutput(&output)
+	refs := DefineFlagsWithDefaults(fs, fileDefaults)
+	fs.PrintDefaults()
+	for _, secret := range secrets {
+		if strings.Contains(output.String(), secret) {
+			t.Fatalf("flag defaults exposed %q: %s", secret, output.String())
+		}
+	}
+	if cfg := ResolveConfig(fs, refs); cfg.WebPassword != "value-web-991" || cfg.OutgoingPass != "value-outgoing-992" || cfg.SMTPPassword != "value-smtp-993" || cfg.S3SecretAccessKey != "value-private-995" {
+		t.Fatalf("redacting flag defaults changed resolution: %#v", cfg)
+	}
+}
+
+func TestConfigFileReadLimitCoversZeroSizedSources(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("/dev/zero is Unix-specific")
+	}
+	if _, err := LoadConfigFile("/dev/zero"); err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("unbounded zero-sized config source error = %v", err)
 	}
 }
 
