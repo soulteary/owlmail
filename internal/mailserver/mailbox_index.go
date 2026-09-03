@@ -284,6 +284,7 @@ func (ms *MailServer) queryIndexedEmailPage(query EmailQuery) ([]emailQueryEntry
 		}
 		entry := snapshotEmailQueryEntry(email, false, false)
 		entry.read = result.Read
+		entry.receivedAt = ms.receivedAtByID[result.ID]
 		entries = append(entries, entry)
 	}
 	return entries, total, true

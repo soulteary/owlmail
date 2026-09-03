@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -1135,6 +1137,54 @@ func TestRunAttachmentMigrationDryRun(t *testing.T) {
 	}
 	if !strings.Contains(stdout.String(), `summary {"emailsScanned":0`) {
 		t.Fatalf("migration output = %q", stdout.String())
+	}
+}
+
+func TestRunAttachmentMigrationLoadsConfigFileAfterSubcommandFlags(t *testing.T) {
+	t.Setenv("AWS_EC2_METADATA_DISABLED", "true")
+	directory := t.TempDir()
+	configPath := filepath.Join(t.TempDir(), "migration.yaml")
+	contents := fmt.Sprintf("s3-enabled: true\ns3-region: us-east-1\ns3-bucket: owlmail-test\nmail-directory: %q\n", directory)
+	if err := os.WriteFile(configPath, []byte(contents), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	if err := runAttachmentMigration(context.Background(), []string{"-dry-run", "-config", configPath}, &stdout, &stderr); err != nil {
+		t.Fatalf("runAttachmentMigration() error = %v, stderr = %s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), `summary {"emailsScanned":0`) {
+		t.Fatalf("migration output = %q", stdout.String())
+	}
+}
+
+func TestRunAttachmentMigrationHelpUsesVisibleParser(t *testing.T) {
+	t.Setenv("OWLMAIL_CONFIG_FILE", filepath.Join(t.TempDir(), "missing.yaml"))
+	var stderr bytes.Buffer
+	err := runAttachmentMigration(context.Background(), []string{"-help"}, io.Discard, &stderr)
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("runAttachmentMigration() error = %v, want flag.ErrHelp", err)
+	}
+	if !strings.Contains(stderr.String(), "Usage of migrate-attachments:") || !strings.Contains(stderr.String(), "-dry-run") {
+		t.Fatalf("migration help output = %q", stderr.String())
+	}
+}
+
+func TestAttachmentMigrationHelpTokenCanBeAFlagValue(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "migration.yaml")
+	if err := os.WriteFile(configPath, []byte("s3-enabled: true\ns3-bucket: loaded\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	defaults, err := attachmentMigrationConfigDefaults([]string{
+		"-config", configPath,
+		"-mail-directory", "-h",
+		"-dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !defaults.S3Enabled || defaults.S3Bucket != "loaded" {
+		t.Fatalf("configuration defaults were skipped: %#v", defaults)
 	}
 }
 

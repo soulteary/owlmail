@@ -40,6 +40,7 @@ type API struct {
 	externalScheme          string
 	basePathname            string
 	mailDevRESTCompat       bool
+	mailCatcherRESTCompat   bool
 	metricsEnabled          bool
 	metrics                 *prometheusMetrics
 	mcpHandler              http.Handler
@@ -137,6 +138,12 @@ func (api *API) SetMailDevRESTCompat(enabled bool) {
 	api.setupRoutes()
 }
 
+// SetMailCatcherRESTCompat enables or disables the opt-in MailCatcher facade.
+func (api *API) SetMailCatcherRESTCompat(enabled bool) {
+	api.mailCatcherRESTCompat = enabled
+	api.setupRoutes()
+}
+
 // SetMetricsEnabled controls the opt-in Prometheus endpoint. The endpoint
 // follows the configured base pathname and existing HTTP Basic Auth policy.
 func (api *API) SetMetricsEnabled(enabled bool) {
@@ -231,6 +238,9 @@ func (api *API) setupRoutes() {
 	if api.mailDevRESTCompat {
 		api.setupMailDevRESTCompatRoutes(app)
 	}
+	if api.mailCatcherRESTCompat {
+		api.setupMailCatcherRESTCompatRoutes(app)
+	}
 
 	// ============================================================================
 	// New improved RESTful API routes
@@ -265,6 +275,7 @@ func (api *API) setupRoutes() {
 			strings.HasPrefix(path, "/mcp") ||
 			strings.HasPrefix(path, "/metrics") ||
 			strings.HasPrefix(path, "/api/") ||
+			strings.HasPrefix(path, "/messages") ||
 			strings.HasPrefix(path, "/style.css") ||
 			strings.HasPrefix(path, "/app.js") ||
 			strings.HasPrefix(path, "/service-worker.js") ||

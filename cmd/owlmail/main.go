@@ -234,15 +234,53 @@ func setupAttachmentHealth(store attachmentstore.Store, cfg *config.Config) (*at
 	return monitor, nil
 }
 
+type attachmentMigrationFlagRefs struct {
+	dryRun         *bool
+	deleteLocal    *bool
+	retries        *int
+	attemptTimeout *time.Duration
+	retryDelay     *time.Duration
+}
+
+func defineAttachmentMigrationFlags(fs *flag.FlagSet) attachmentMigrationFlagRefs {
+	return attachmentMigrationFlagRefs{
+		dryRun:         fs.Bool("dry-run", false, "Validate and report migration work without remote or local writes"),
+		deleteLocal:    fs.Bool("delete-local", false, "Delete each local attachment only after verified upload and metadata commit"),
+		retries:        fs.Int("retries", defaultAttachmentMigrationRetries, "Retry count from 0 to 100 after the initial attempt for each attachment"),
+		attemptTimeout: fs.Duration("migration-attempt-timeout", defaultAttachmentMigrationTimeout, "Timeout for each upload and verification attempt"),
+		retryDelay:     fs.Duration("migration-retry-delay", defaultAttachmentMigrationRetryDelay, "Delay between migration attempts"),
+	}
+}
+
+func attachmentMigrationConfigDefaults(args []string) (*config.Config, error) {
+	scan := flag.NewFlagSet("migrate-attachments-config", flag.ContinueOnError)
+	scan.SetOutput(io.Discard)
+	refs := config.DefineFlags(scan)
+	defineAttachmentMigrationFlags(scan)
+	if config.HelpRequested(args, scan) {
+		// Let the real FlagSet below render usage to the caller-selected
+		// stderr stream. Configuration defaults do not affect help text.
+		return config.DefaultConfig(), nil
+	}
+	if err := scan.Parse(args); err != nil {
+		return nil, err
+	}
+	path := strings.TrimSpace(config.ResolveConfig(scan, refs).ConfigFile)
+	if path == "" {
+		return config.DefaultConfig(), nil
+	}
+	return config.LoadConfigFile(path)
+}
+
 func runAttachmentMigration(ctx context.Context, args []string, stdout, stderr io.Writer) error {
+	defaults, err := attachmentMigrationConfigDefaults(args)
+	if err != nil {
+		return err
+	}
 	fs := flag.NewFlagSet("migrate-attachments", flag.ContinueOnError)
 	fs.SetOutput(stderr)
-	refs := config.DefineFlags(fs)
-	dryRun := fs.Bool("dry-run", false, "Validate and report migration work without remote or local writes")
-	deleteLocal := fs.Bool("delete-local", false, "Delete each local attachment only after verified upload and metadata commit")
-	retries := fs.Int("retries", defaultAttachmentMigrationRetries, "Retry count from 0 to 100 after the initial attempt for each attachment")
-	attemptTimeout := fs.Duration("migration-attempt-timeout", defaultAttachmentMigrationTimeout, "Timeout for each upload and verification attempt")
-	retryDelay := fs.Duration("migration-retry-delay", defaultAttachmentMigrationRetryDelay, "Delay between migration attempts")
+	refs := config.DefineFlagsWithDefaults(fs, defaults)
+	migrationFlags := defineAttachmentMigrationFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -265,11 +303,11 @@ func runAttachmentMigration(ctx context.Context, args []string, stdout, stderr i
 		progressWriter = io.Discard
 	}
 	summary, migrationErr := mailserver.MigrateLocalAttachments(ctx, cfg.MailDir, store, mailserver.AttachmentMigrationOptions{
-		DryRun:         *dryRun,
-		DeleteLocal:    *deleteLocal,
-		Retries:        *retries,
-		AttemptTimeout: *attemptTimeout,
-		RetryDelay:     *retryDelay,
+		DryRun:         *migrationFlags.dryRun,
+		DeleteLocal:    *migrationFlags.deleteLocal,
+		Retries:        *migrationFlags.retries,
+		AttemptTimeout: *migrationFlags.attemptTimeout,
+		RetryDelay:     *migrationFlags.retryDelay,
 		Progress: func(progress mailserver.AttachmentMigrationProgress) {
 			if progress.Status == "retrying" {
 				_, _ = fmt.Fprintf(progressWriter, "%s %s/%s attempt=%d error=%v\n", progress.Status, progress.EmailID, progress.Filename, progress.Attempt, progress.Err)
@@ -468,6 +506,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 
 	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
+	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
 	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
 	if err := apiServer.SetBasePathname(cfg.BasePathname); err != nil {
 		return nil, err
@@ -517,6 +556,9 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 	if cfg.MailDevRESTCompat {
 		common.Log("MailDev REST compatibility facade enabled at %s://%s:%d%s/api", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
+	}
+	if cfg.MailCatcherRESTCompat {
+		common.Log("MailCatcher REST compatibility facade enabled at %s://%s:%d%s/messages", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
 	}
 	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
 	if cfg.WebUser != "" && cfg.WebPassword != "" {
@@ -848,6 +890,9 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runAttachmentMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)
 		stop()
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Attachment migration failed: %v\n", err)
 			os.Exit(1)
@@ -855,7 +900,11 @@ func main() {
 		return
 	}
 	// Parse configuration using the config package
-	cfg := config.ParseFlags()
+	cfg, err := config.ParseFlags()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to parse configuration: %v\n", err)
+		os.Exit(1)
+	}
 
 	// Initialize application
 	if err := initializeApplication(cfg); err != nil {

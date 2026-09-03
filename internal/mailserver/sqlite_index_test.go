@@ -69,9 +69,10 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 		}
 	}()
 	now := time.Now().UTC()
+	receivedAt := now.Truncate(time.Second)
 	records := []IndexedEmail{
-		{ID: "one", MessageTime: now.Add(-time.Hour), ReceivedAt: now, SubjectSearch: "alpha", TextSearch: "first body", FromSearch: "alice@example.test", VisibleRecipientsSearch: "team@example.test", BCCAddressesSearch: "secret@example.test", FirstFrom: "alice@example.test", StorePosition: 0},
-		{ID: "two", MessageTime: now, ReceivedAt: now, Read: true, SubjectSearch: "beta", TextSearch: "second body", FromSearch: "bob@example.test", VisibleRecipientsSearch: "team@example.test", FirstFrom: "bob@example.test", StorePosition: 1},
+		{ID: "one", MessageTime: now.Add(-time.Hour), ReceivedAt: receivedAt.Add(100 * time.Nanosecond), SubjectSearch: "alpha", TextSearch: "first body", FromSearch: "alice@example.test", VisibleRecipientsSearch: "team@example.test", BCCAddressesSearch: "secret@example.test", FirstFrom: "alice@example.test", StorePosition: 0},
+		{ID: "two", MessageTime: now, ReceivedAt: receivedAt.Add(200 * time.Nanosecond), Read: true, SubjectSearch: "beta", TextSearch: "second body", FromSearch: "bob@example.test", VisibleRecipientsSearch: "team@example.test", FirstFrom: "bob@example.test", StorePosition: 1},
 	}
 	if err := index.Rebuild(records); err != nil {
 		t.Fatal(err)
@@ -95,6 +96,10 @@ func TestSQLiteMailboxIndexQueryAndRebuild(t *testing.T) {
 	results, total, err = index.Query(EmailQuery{To: "hidden person", Limit: 10})
 	if err != nil || total != 0 || len(results) != 0 {
 		t.Fatalf("BCC display name query = %#v, total %d, err %v", results, total, err)
+	}
+	results, total, err = index.Query(EmailQuery{SortBy: "received", SortOrder: "desc", Limit: 10})
+	if err != nil || total != 2 || len(results) != 2 || results[0].ID != "two" || results[1].ID != "one" {
+		t.Fatalf("descending received query = %#v, total %d, err %v", results, total, err)
 	}
 	results, total, err = index.Query(EmailQuery{SortBy: "store", SortOrder: "desc", Limit: 10})
 	if err != nil || total != 2 || len(results) != 2 || results[0].ID != "two" || results[1].ID != "one" {

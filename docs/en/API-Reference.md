@@ -403,6 +403,27 @@ Server events are:
 Clients may send `{ "type": "ping" }` and receive `{ "type": "pong" }`.
 There is no Socket.IO framing, event negotiation, or fallback transport.
 
+## Optional MailCatcher REST facade
+
+Set `-mailcatcher-rest-compat` or `OWLMAIL_MAILCATCHER_REST_COMPAT=true` to
+expose MailCatcher-style message routes. The facade is disabled by default and
+follows OwlMail's base path and Web Basic Auth policy.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /messages` | list message metadata |
+| `DELETE /messages` | delete all messages |
+| `GET /messages/:id.json` | message metadata, formats, and attachments |
+| `GET /messages/:id.html` | HTML body with CID URLs rewritten |
+| `GET /messages/:id.plain` | plain-text body |
+| `GET /messages/:id.source` | RFC 822 source |
+| `GET /messages/:id.eml` | downloadable RFC 822 message |
+| `GET /messages/:id/parts/:cid` | attachment or inline MIME part by content ID |
+| `DELETE /messages/:id` | delete one message |
+
+This is a REST migration aid. It does not emulate MailCatcher's WebSocket bus
+or integer identifier allocation; clients must treat IDs as opaque strings.
+
 ## MailDev migration boundary
 
 Current MailDev documents its REST API under `/api`, provides
