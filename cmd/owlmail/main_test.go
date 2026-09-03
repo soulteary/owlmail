@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -1154,6 +1155,17 @@ func TestRunAttachmentMigrationLoadsConfigFileAfterSubcommandFlags(t *testing.T)
 	}
 	if !strings.Contains(stdout.String(), `summary {"emailsScanned":0`) {
 		t.Fatalf("migration output = %q", stdout.String())
+	}
+}
+
+func TestRunAttachmentMigrationHelpUsesVisibleParser(t *testing.T) {
+	var stderr bytes.Buffer
+	err := runAttachmentMigration(context.Background(), []string{"-help"}, io.Discard, &stderr)
+	if !errors.Is(err, flag.ErrHelp) {
+		t.Fatalf("runAttachmentMigration() error = %v, want flag.ErrHelp", err)
+	}
+	if !strings.Contains(stderr.String(), "Usage of migrate-attachments:") || !strings.Contains(stderr.String(), "-dry-run") {
+		t.Fatalf("migration help output = %q", stderr.String())
 	}
 }
 
