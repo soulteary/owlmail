@@ -473,7 +473,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer, service *
 		if maxBytes < 1 || maxBytes > maximumSourceMaxBytes {
 			return nil, getSourceOutput{}, fmt.Errorf("max_bytes must be between 1 and %d", maximumSourceMaxBytes)
 		}
-		content, size, truncated, err := mailbox.GetRawEmailContentLimit(input.ID, int64(maxBytes))
+		content, size, truncated, err := mailbox.GetVisibleRawEmailContentLimit(input.ID, int64(maxBytes))
 		if err != nil {
 			return nil, getSourceOutput{}, fmt.Errorf("email source was not found")
 		}
