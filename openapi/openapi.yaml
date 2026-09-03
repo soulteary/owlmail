@@ -338,6 +338,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          description: More than 1000 email IDs were supplied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /emails/batch/read:
     patch:
       tags:
@@ -373,6 +379,12 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '413':
+          description: More than 1000 email IDs were supplied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
   /emails/reload:
     post:
       tags:
@@ -1025,7 +1037,7 @@ components:
     Limit:
       name: limit
       in: query
-      description: Page size. Invalid values and values below 1 fall back to 50; values above 1000 are capped.
+      description: Page size. Values outside 1 through 1000 return 400.
       schema:
         type: integer
         minimum: 1
@@ -1035,7 +1047,7 @@ components:
     Offset:
       name: offset
       in: query
-      description: Zero-based number of matching records to skip. Invalid or negative values fall back to 0.
+      description: Zero-based number of matching records to skip. Invalid or negative values return 400.
       schema:
         type: integer
         minimum: 0
@@ -1065,7 +1077,7 @@ components:
     DateFrom:
       name: dateFrom
       in: query
-      description: Inclusive UTC-naive calendar date lower boundary. Invalid values are ignored.
+      description: Inclusive UTC-naive calendar date lower boundary. Invalid values return 400.
       schema:
         type: string
         format: date
@@ -1073,7 +1085,7 @@ components:
     DateTo:
       name: dateTo
       in: query
-      description: Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values are ignored.
+      description: Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values return 400.
       schema:
         type: string
         format: date
@@ -1081,14 +1093,14 @@ components:
     Read:
       name: read
       in: query
-      description: Read-state filter. Present values other than `true` are treated as false.
+      description: Read-state filter. Only the literal values `true` and `false` are accepted.
       schema:
         type: boolean
       example: false
     SortBy:
       name: sortBy
       in: query
-      description: Sort key. When omitted, results are sorted newest-first. Unsupported non-empty values preserve mailbox order.
+      description: Sort key. When omitted, results are sorted newest-first. Unsupported values return 400.
       schema:
         type: string
         enum:
@@ -1096,6 +1108,7 @@ components:
         - subject
         - from
         - size
+        - store
       example: time
     SortOrder:
       name: sortOrder
@@ -1384,6 +1397,7 @@ components:
         ids:
           type: array
           minItems: 1
+          maxItems: 1000
           items:
             type: string
       additionalProperties: false

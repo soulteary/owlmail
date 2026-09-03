@@ -587,6 +587,26 @@ func TestDefineAndResolveConfig(t *testing.T) {
 		if cfg.LogLevel != "normal" {
 			t.Errorf("ResolveConfig().LogLevel = %q, want %q", cfg.LogLevel, "normal")
 		}
+		if cfg.LogFormat != "console" {
+			t.Errorf("ResolveConfig().LogFormat = %q, want %q", cfg.LogFormat, "console")
+		}
+	})
+
+	t.Run("log format precedence", func(t *testing.T) {
+		t.Setenv("OWLMAIL_LOG_FORMAT", "json")
+		fs := flag.NewFlagSet("test-log-format-env", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		_ = fs.Parse(nil)
+		if got := ResolveConfig(fs, refs).LogFormat; got != "json" {
+			t.Fatalf("environment log format = %q", got)
+		}
+
+		fs = flag.NewFlagSet("test-log-format-cli", flag.ContinueOnError)
+		refs = DefineFlags(fs)
+		_ = fs.Parse([]string{"-log-format", "console"})
+		if got := ResolveConfig(fs, refs).LogFormat; got != "console" {
+			t.Fatalf("CLI log format = %q", got)
+		}
 	})
 
 	t.Run("CLI flags override defaults", func(t *testing.T) {

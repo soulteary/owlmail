@@ -263,6 +263,7 @@ docker buildx build \
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 시작 시 YAML 또는 JSON 파일 로드; CLI와 환경 변수가 우선 |
+| `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 로그 출력 형식: `console` 또는 `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
 
 When TLS terminates at a reverse proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME` to `https`.

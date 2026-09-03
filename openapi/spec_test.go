@@ -233,8 +233,8 @@ func validateQuerySemantics(t *testing.T, document map[string]any) {
 	components := document["components"].(map[string]any)
 	parameters := components["parameters"].(map[string]any)
 	wants := map[string]string{
-		"DateTo": "Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values are ignored.",
-		"SortBy": "Sort key. When omitted, results are sorted newest-first. Unsupported non-empty values preserve mailbox order.",
+		"DateTo": "Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values return 400.",
+		"SortBy": "Sort key. When omitted, results are sorted newest-first. Unsupported values return 400.",
 	}
 	for name, want := range wants {
 		parameter := parameters[name].(map[string]any)

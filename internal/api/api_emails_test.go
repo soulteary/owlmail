@@ -1282,8 +1282,8 @@ func TestAPIGetEmailPreviewsWithInvalidLimit(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1304,8 +1304,8 @@ func TestAPIGetEmailPreviewsWithInvalidOffset(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1326,16 +1326,8 @@ func TestAPIGetEmailPreviewsWithLimitTooLarge(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["limit"] != float64(1000) {
-		t.Errorf("Expected limit 1000 (max), got %v", response["limit"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1356,16 +1348,8 @@ func TestAPIGetEmailPreviewsWithNegativeOffset(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["offset"] != float64(0) {
-		t.Errorf("Expected offset 0 (min), got %v", response["offset"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1492,16 +1476,8 @@ func TestAPIGetAllEmailsWithLimitZero(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["limit"] != float64(50) {
-		t.Errorf("Expected limit 50 (default), got %v", response["limit"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1944,17 +1920,8 @@ func TestAPIGetAllEmailsInvalidLimit(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	// Should default to 50
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["limit"] != float64(50) {
-		t.Errorf("Expected default limit 50, got %v", response["limit"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -1975,17 +1942,8 @@ func TestAPIGetAllEmailsLargeLimit(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	// Should cap at 1000
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["limit"] != float64(1000) {
-		t.Errorf("Expected capped limit 1000, got %v", response["limit"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -2006,17 +1964,8 @@ func TestAPIGetAllEmailsInvalidOffset(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	// Should default to 0
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["offset"] != float64(0) {
-		t.Errorf("Expected default offset 0, got %v", response["offset"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -2037,17 +1986,8 @@ func TestAPIGetAllEmailsNegativeOffset(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	// Should default to 0
-	var response map[string]interface{}
-	if err := json.Unmarshal(body, &response); err != nil {
-		t.Fatalf("Failed to unmarshal response: %v", err)
-	}
-	if response["offset"] != float64(0) {
-		t.Errorf("Expected default offset 0, got %v", response["offset"])
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Expected status 400, got %d", resp.StatusCode)
 	}
 }
 
@@ -2791,6 +2731,35 @@ func TestAPIExportEmailsRejectsOversizedSourceBeforeStreaming(t *testing.T) {
 	}
 	if contentType := resp.Header.Get("Content-Type"); !strings.Contains(contentType, "application/json") {
 		t.Fatalf("Content-Type = %q, want JSON preflight error", contentType)
+	}
+}
+
+func TestAPIExportEmailsRejectsInvalidFilters(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+
+	for _, rawQuery := range []string{
+		"dateFrom=",
+		"dateTo",
+		"read=",
+		"dateFrom=yesterday",
+		"dateTo=tomorrow",
+		"read=1",
+		"read=TRUE",
+	} {
+		req, _ := http.NewRequest(http.MethodGet, "/api/v1/emails/export?"+rawQuery, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatalf("export %q failed: %v", rawQuery, err)
+		}
+		body, readErr := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if readErr != nil {
+			t.Fatalf("read export %q response: %v", rawQuery, readErr)
+		}
+		if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), "Invalid query") {
+			t.Fatalf("export %q returned %d %s, want strict query error", rawQuery, resp.StatusCode, body)
+		}
 	}
 }
 

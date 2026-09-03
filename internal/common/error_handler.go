@@ -2,7 +2,7 @@ package common
 
 import (
 	"fmt"
-	"log"
+	"os"
 )
 
 // ErrorHandler defines the error handling interface
@@ -13,12 +13,13 @@ type ErrorHandler interface {
 // DefaultErrorHandler is the default error handler for production environments
 type DefaultErrorHandler struct{}
 
+var exitProcess = os.Exit
+
 func (h *DefaultErrorHandler) Fatal(format string, v ...interface{}) error {
 	msg := fmt.Sprintf(format, v...)
-	Error("%s", msg)
-	log.Fatalf("[FATAL] %s", msg)
-	// This line will never execute, but satisfies the interface requirement
-	return fmt.Errorf("%s", msg)
+	exitProcess(1)
+	// Test substitutes may return; production os.Exit never does.
+	return fmt.Errorf("[FATAL] %s", msg)
 }
 
 // TestErrorHandler is a test error handler for testing environments

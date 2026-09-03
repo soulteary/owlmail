@@ -13,6 +13,17 @@ import (
 // ValidLogLevels defines the allowed log level values
 var ValidLogLevels = []string{"silent", "normal", "verbose"}
 
+// ValidLogFormats defines the supported output encodings.
+var ValidLogFormats = []string{"console", "json"}
+
+// ValidateLogFormat rejects unsupported logger encodings.
+func ValidateLogFormat(format string) error {
+	if err := validator.ValidateEnum(format, ValidLogFormats, false); err != nil {
+		return fmt.Errorf("invalid log format: %w", err)
+	}
+	return nil
+}
+
 // ValidateConfig validates all configuration values and returns an error if any are invalid.
 func ValidateConfig(cfg *Config) error {
 	if cfg == nil {
@@ -126,6 +137,9 @@ func ValidateConfig(cfg *Config) error {
 
 	// Validate log level
 	if err := ValidateLogLevel(cfg.LogLevel); err != nil {
+		return err
+	}
+	if err := ValidateLogFormat(cfg.LogFormat); err != nil {
 		return err
 	}
 
