@@ -250,6 +250,19 @@ func (ms *MailServer) GetEmail(id string) (*Email, error) {
 	return nil, ErrEmailNotFound
 }
 
+// GetEmailWithReceivedAt returns one consistent snapshot of both the message
+// and its server-assigned capture timestamp.
+func (ms *MailServer) GetEmailWithReceivedAt(id string) (*Email, time.Time, error) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+
+	email, exists := ms.storeByID[id]
+	if !exists {
+		return nil, time.Time{}, ErrEmailNotFound
+	}
+	return cloneEmail(email), ms.receivedAtByID[id], nil
+}
+
 // GetEmailReceivedAt returns OwlMail's capture timestamp for an email.
 func (ms *MailServer) GetEmailReceivedAt(id string) (time.Time, bool) {
 	ms.storeMutex.RLock()

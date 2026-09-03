@@ -84,6 +84,9 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	if detail["created_at"] == email.Time.Format(time.RFC3339) {
 		t.Fatalf("created_at used sender-controlled Date header: %#v", detail)
 	}
+	if detail["created_at"] == (time.Time{}).Format(time.RFC3339) {
+		t.Fatalf("created_at is zero: %#v", detail)
+	}
 
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.html")
 	htmlBody, err := io.ReadAll(resp.Body)
@@ -98,6 +101,14 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 		}
 		_ = resp.Body.Close()
 	}
+	if err := os.Remove(filepath.Join(mailDir, "mail-1", "safe-special.png")); err != nil {
+		t.Fatal(err)
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1/parts/"+url.PathEscape("folder/logo?theme#1@example.test"))
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("unreadable part returned %d, want 500", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
 	resp = mailCatcherRequest(t, api, http.MethodDelete, "/messages/mail-1")
 	if resp.StatusCode != http.StatusNoContent {
 		t.Fatalf("DELETE returned %d", resp.StatusCode)

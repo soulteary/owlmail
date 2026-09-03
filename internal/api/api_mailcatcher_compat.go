@@ -41,11 +41,10 @@ func (api *API) mailCatcherMessages(c fiber.Ctx) error {
 }
 
 func (api *API) mailCatcherMessage(c fiber.Ctx) error {
-	email, err := api.mailServer.GetEmail(c.Params("id"))
+	email, receivedAt, err := api.mailServer.GetEmailWithReceivedAt(c.Params("id"))
 	if err != nil {
 		return c.Status(http.StatusNotFound).SendString("Message does not exist")
 	}
-	receivedAt, _ := api.mailServer.GetEmailReceivedAt(email.ID)
 	return c.JSON(mailCatcherMessageDTO(email, receivedAt, true))
 }
 
@@ -180,7 +179,7 @@ func (api *API) mailCatcherPart(c fiber.Ctx) error {
 	}
 	reader, err := api.mailServer.OpenEmailAttachment(email.ID, selected.GeneratedFileName)
 	if err != nil {
-		return c.Status(http.StatusNotFound).SendString("Message part does not exist")
+		return c.Status(http.StatusInternalServerError).SendString("Message part could not be read")
 	}
 	contentType := reader.ContentType
 	if contentType == "" {
