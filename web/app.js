@@ -1551,18 +1551,19 @@ async function setEmailContentTab(tab, restoreFocus = false) {
     if (!email || !['html', 'text', 'headers', 'source'].includes(tab)) return;
     if (tab === 'html' && !email.html) return;
     emailContentTab = tab;
+    const shouldLoadSource = tab === 'source' && !emailSourceCache.has(email.id) && !emailSourceOversized.has(email.id);
+    if (shouldLoadSource) emailSourceErrors.delete(email.id);
     renderEmailDetail();
     if (restoreFocus) {
         document.getElementById(`email-content-tab-${tab}`)?.focus?.();
     }
-    if (tab !== 'source' || emailSourceCache.has(email.id) || emailSourceOversized.has(email.id)) return;
+    if (!shouldLoadSource) return;
     if (Number(email.size) > EMAIL_SOURCE_INLINE_MAX_BYTES) {
         emailSourceOversized.add(email.id);
         renderEmailDetail();
         if (restoreFocus) document.getElementById(`email-content-tab-${tab}`)?.focus?.();
         return;
     }
-    emailSourceErrors.delete(email.id);
     let request = emailSourceRequests.get(email.id);
     if (!request) {
         request = { restoreFocus: false };

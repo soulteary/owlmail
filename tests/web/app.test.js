@@ -400,6 +400,35 @@ test('source load failures replace the loading placeholder', async () => {
     assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), true);
 });
 
+test('source retry clears the prior error before rendering loading state', async () => {
+    let attempt = 0;
+    let resolveRetry;
+    const retryResponse = new Promise((resolve) => { resolveRetry = resolve; });
+    const harness = createHarness({
+        fetchImpl: async () => {
+            attempt++;
+            if (attempt === 1) {
+                return {
+                    ok: false,
+                    status: 500,
+                    headers: { get: () => 'application/json' },
+                    async json() { return { message: 'source unavailable' }; },
+                    async text() { return '{"message":"source unavailable"}'; }
+                };
+            }
+            return retryResponse;
+        }
+    });
+    harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+    await harness.run(`setEmailContentTab('source')`);
+
+    const retry = harness.run(`setEmailContentTab('source')`);
+    assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), false);
+    assert.equal(harness.emailDetail.innerHTML.includes('Loading source'), true);
+    resolveRetry({ ok: true, status: 200, body: null, headers: { get: () => null }, async text() { return 'source'; } });
+    await retry;
+});
+
 test('source requests are deduplicated and keyboard focus survives completion', async () => {
     let resolveFetch;
     const response = new Promise((resolve) => { resolveFetch = resolve; });
