@@ -41,16 +41,19 @@ func sendSMTPMessage(address, from string, recipients []string, message []byte, 
 	if err != nil {
 		return fmt.Errorf("connect to SMTP: %w", err)
 	}
-	defer connection.Close()
 	if err := connection.SetDeadline(time.Now().Add(timeout)); err != nil {
+		_ = connection.Close()
 		return fmt.Errorf("set SMTP deadline: %w", err)
 	}
 
 	client, err := smtp.NewClient(connection, host)
 	if err != nil {
+		_ = connection.Close()
 		return fmt.Errorf("read SMTP greeting: %w", err)
 	}
-	defer client.Close()
+	defer func() {
+		_ = client.Close()
+	}()
 	if err := client.Mail(from); err != nil {
 		return fmt.Errorf("send MAIL command: %w", err)
 	}
