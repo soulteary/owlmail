@@ -168,6 +168,7 @@ mailbox mutation occurs.
 | `GET /api/v1/emails/:id/source` | raw RFC 822 source, `text/plain; charset=utf-8` |
 | `GET /api/v1/emails/:id/raw` | downloadable EML, `message/rfc822` |
 | `GET /api/v1/emails/:id/attachments/:filename` | decoded bytes using the attachment metadata Content-Type |
+| `GET /api/v1/emails/:id/actions/relay/preflight` | preview the rule-filtered SMTP envelope recipients before manual relay |
 | `POST /api/v1/emails/:id/actions/relay` | relay using the message recipients |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | relay to one explicit address |
 | `GET /api/v1/relay-jobs/:jobID` | inspect an asynchronous relay job |
