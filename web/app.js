@@ -1584,8 +1584,10 @@ async function setEmailContentTab(tab, restoreFocus = false) {
             .finally(() => {
                 if (emailSourceRequests.get(email.id) === request) emailSourceRequests.delete(email.id);
                 if (state.currentEmail && state.currentEmail.id === email.id && emailContentTab === 'source') {
+					const sourceTab = document.getElementById('email-content-tab-source');
+					const shouldRestoreFocus = request.restoreFocus && document.activeElement === sourceTab;
                     renderEmailDetail();
-                    if (request.restoreFocus) document.getElementById('email-content-tab-source')?.focus?.();
+					if (shouldRestoreFocus) document.getElementById('email-content-tab-source')?.focus?.();
                 }
             });
         emailSourceRequests.set(email.id, request);

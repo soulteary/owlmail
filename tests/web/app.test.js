@@ -150,6 +150,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     };
     const document = {
         title: '',
+		activeElement: null,
         documentElement: { lang: '', dataset: {} },
         body: { classList: createClassList() },
         addEventListener(name, handler) { documentListeners.set(name, handler); },
@@ -162,6 +163,12 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         },
         createElement() { return createElement(); }
     };
+	for (const element of elements.values()) {
+		element.focus = function focus() {
+			this.focused = true;
+			document.activeElement = this;
+		};
+	}
     const navigator = { language: 'en-US' };
     if (serviceWorker) {
 		const activeRegistration = {
@@ -450,6 +457,28 @@ test('source requests are deduplicated and keyboard focus survives completion', 
     assert.equal(harness.run(`emailSourceCache.get('mail-1')`), 'Subject: hello\r\n\r\nbody');
     assert.equal(harness.run('emailSourceRequests.size'), 0);
     assert.equal(harness.emailSourceTab.focused, true);
+});
+
+test('source completion does not steal focus moved to another control', async () => {
+	let resolveFetch;
+	const response = new Promise((resolve) => { resolveFetch = resolve; });
+	const harness = createHarness({ fetchImpl: async () => response });
+	harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+
+	const loading = harness.run(`setEmailContentTab('source', true)`);
+	harness.emailSourceTab.focused = false;
+	harness.run(`document.activeElement = { id: 'another-control' }`);
+	resolveFetch({
+		ok: true,
+		status: 200,
+		body: null,
+		headers: { get: () => null },
+		async text() { return 'Subject: hello\r\n\r\nbody'; }
+	});
+	await loading;
+
+	assert.equal(harness.emailSourceTab.focused, false);
+	assert.equal(harness.run(`document.activeElement.id`), 'another-control');
 });
 
 test('large sources use the standalone view without an inline fetch', async () => {
