@@ -33,6 +33,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		entry      os.DirEntry
 		receivedAt time.Time
 		read       bool
+		metadata   *emailMetadata
 	}
 	candidates := make(map[string]candidate)
 	var refreshErrors []error
@@ -78,6 +79,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		if metadata, metadataErr := ms.loadEmailMetadata(id); metadataErr == nil {
 			item.read = metadata.Read
 			item.receivedAt = metadata.Sequence
+			item.metadata = &metadata
 		} else if !os.IsNotExist(metadataErr) {
 			refreshErrors = append(refreshErrors, fmt.Errorf("read metadata for %s: %w", id, metadataErr))
 		}
@@ -133,8 +135,8 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		if email.HTML != "" {
 			email.HTML = strings.TrimSpace(sanitizeHTML(email.HTML))
 		}
-		if metadata, metadataErr := ms.loadEmailMetadata(id); metadataErr == nil {
-			if err := restoreAttachmentMetadata(email, metadata); err != nil {
+		if item.metadata != nil {
+			if err := restoreAttachmentMetadata(email, *item.metadata); err != nil {
 				refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
 				continue
 			}
@@ -155,14 +157,21 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	}
 	for id, item := range candidates {
 		if email := ms.storeByID[id]; email != nil {
-			email.Read = item.read
+			updated := cloneEmail(email)
+			if item.metadata != nil {
+				if err := restoreAttachmentMetadata(updated, *item.metadata); err != nil {
+					refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
+					continue
+				}
+			}
+			updated.Read = item.read
+			ms.storeByID[id] = updated
 			ms.receivedAtByID[id] = item.receivedAt
 		}
 	}
 	for id, email := range loaded {
 		ms.storeByID[id] = cloneEmail(email)
 		ms.receivedAtByID[id] = candidates[id].receivedAt
-		newEmails = append(newEmails, cloneEmail(email))
 	}
 	ms.storeOrder = ms.storeOrder[:0]
 	for id := range ms.storeByID {
@@ -176,6 +185,11 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		}
 		return leftTime.Before(rightTime)
 	})
+	for _, id := range ms.storeOrder {
+		if email := loaded[id]; email != nil {
+			newEmails = append(newEmails, cloneEmail(email))
+		}
+	}
 	ms.resetMailboxStorePositionsLocked()
 	ms.storeMutex.Unlock()
 

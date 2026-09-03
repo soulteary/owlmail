@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -167,6 +168,8 @@ func TestRefreshReadOnlyMailboxUsesDeterministicOrderForEqualTimestamps(t *testi
 			t.Fatal(err)
 		}
 	}
+	notified := make(chan string, 2)
+	server.On("new", func(email *Email) { notified <- email.ID })
 	for iteration := 0; iteration < 5; iteration++ {
 		if err := server.RefreshReadOnlyMailbox(); err != nil {
 			t.Fatal(err)
@@ -175,5 +178,72 @@ func TestRefreshReadOnlyMailboxUsesDeterministicOrderForEqualTimestamps(t *testi
 		if len(emails) != 2 || emails[0].ID != "message-a" || emails[1].ID != "message-b" {
 			t.Fatalf("iteration %d order = %#v", iteration, emails)
 		}
+	}
+	if first, second := <-notified, <-notified; first != "message-a" || second != "message-b" {
+		t.Fatalf("notification order = %q, %q; want message-a, message-b", first, second)
+	}
+}
+
+func TestRefreshReadOnlyMailboxReappliesRepairedAttachmentMetadata(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "repaired-metadata"
+	raw := "From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: attachment\r\n" +
+		"Content-Type: multipart/mixed; boundary=boundary\r\n\r\n" +
+		"--boundary\r\nContent-Type: text/plain\r\n\r\nbody\r\n" +
+		"--boundary\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename=file.bin\r\n\r\ndata\r\n" +
+		"--boundary--\r\n"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), []byte(raw), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(directory, metadataDirectoryName), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(server.metadataPath(id), []byte("not-json"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	var partial *ReadOnlyRefreshPartialError
+	if err := server.RefreshReadOnlyMailbox(); !errors.As(err, &partial) {
+		t.Fatalf("initial refresh error = %v, want ReadOnlyRefreshPartialError", err)
+	}
+	before, err := server.GetEmail(id)
+	if err != nil || len(before.Attachments) != 1 {
+		t.Fatalf("initial email = %#v, %v", before, err)
+	}
+
+	metadata := emailMetadata{
+		Version:  currentMetadataVersion,
+		ID:       id,
+		Read:     true,
+		Sequence: time.Date(2026, 9, 3, 2, 0, 0, 0, time.UTC),
+		Attachments: []attachmentMetadata{{
+			GeneratedFileName: "restored.bin",
+			Size:              4,
+			ContentSHA256:     "0123456789abcdef",
+			Storage:           attachmentStorageLocal,
+		}},
+	}
+	encoded, err := json.Marshal(metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(server.metadataPath(id), encoded, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := server.GetEmail(id)
+	if err != nil || !after.Read || len(after.Attachments) != 1 {
+		t.Fatalf("refreshed email = %#v, %v", after, err)
+	}
+	attachment := after.Attachments[0]
+	if attachment.GeneratedFileName != "restored.bin" || attachment.ContentSHA256 != "0123456789abcdef" || attachment.Storage != attachmentStorageLocal {
+		t.Fatalf("repaired attachment metadata = %#v", attachment)
 	}
 }
