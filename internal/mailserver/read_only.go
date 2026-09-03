@@ -146,7 +146,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 				continue
 			}
 		}
-		if len(email.Attachments) > 0 && (item.metadata == nil || len(item.metadata.Attachments) == 0) {
+		if len(email.Attachments) > 0 && !item.metadataUncertain && (item.metadata == nil || len(item.metadata.Attachments) == 0) {
 			if err := ms.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); err != nil {
 				refreshErrors = append(refreshErrors, fmt.Errorf("restore legacy attachment metadata for %s: %w", id, err))
 				continue
