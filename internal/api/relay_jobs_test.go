@@ -106,7 +106,7 @@ func TestNativeRelayRejectsInvalidRequestBody(t *testing.T) {
 	defer func() { _ = server.Close() }()
 
 	for name, payload := range map[string]string{
-		"malformed JSON":           `{"confirmedRecipients":[`,
+		"malformed JSON":          `{"confirmedRecipients":[`,
 		"invalid recipient shape": `{"confirmedRecipients":"recipient@example.test"}`,
 	} {
 		t.Run(name, func(t *testing.T) {
