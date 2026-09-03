@@ -65,6 +65,49 @@ func TestRelayJobsReloadQueuedWork(t *testing.T) {
 	}
 }
 
+func TestRelayJobsLoadKeepsOnlyOneQueuedJobPerEmail(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdAt := time.Now().UTC().Add(-time.Minute)
+	first := relayJob{
+		ID: "00000000000000000000000000000001", EmailID: "duplicate-mail", Status: relayJobQueued,
+		CreatedAt: createdAt, UpdatedAt: createdAt,
+	}
+	second := relayJob{
+		ID: "00000000000000000000000000000002", EmailID: "duplicate-mail", Status: relayJobQueued,
+		CreatedAt: createdAt.Add(time.Second), UpdatedAt: createdAt.Add(time.Second),
+	}
+	for _, job := range []relayJob{first, second} {
+		if err := store.persistLocked(job); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reloaded, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queued := reloaded.queued()
+	if len(queued) != 1 || queued[0].ID != first.ID {
+		t.Fatalf("queued jobs = %#v, want only oldest job", queued)
+	}
+	superseded, ok := reloaded.get(second.ID)
+	if !ok || superseded.Status != relayJobFailed || superseded.CompletedAt == nil || superseded.ErrorCategory != "duplicate_pending" {
+		t.Fatalf("superseded duplicate = %#v, found %t", superseded, ok)
+	}
+
+	reloadedAgain, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queued := reloadedAgain.queued(); len(queued) != 1 || queued[0].ID != first.ID {
+		t.Fatalf("durably deduplicated queued jobs = %#v", queued)
+	}
+}
+
 func TestRelayJobsRejectConfirmedRecipientsThatCannotRemainLoadable(t *testing.T) {
 	mailDirectory := t.TempDir()
 	store, err := newPersistentRelayJobStore(mailDirectory)
