@@ -22,6 +22,10 @@ import (
 
 const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
+// relayJobMetadataDirectoryName is owned by the API relay job store. Mailbox
+// deletion removes per-message metadata but must preserve durable job state.
+const relayJobMetadataDirectoryName = "relay-jobs"
+
 const attachmentCopyBufferSize = 32 * 1024
 
 // ErrEmailSourceInUse is returned when deletion would remove the source of an
@@ -408,6 +412,26 @@ func (ms *MailServer) DeleteAllEmail() error {
 				continue
 			}
 			path := filepath.Join(ms.mailDir, file.Name())
+			if file.IsDir() && file.Name() == metadataDirectoryName {
+				metadataEntries, readErr := os.ReadDir(path)
+				if readErr != nil {
+					deletionErrors = append(deletionErrors, fmt.Errorf("read metadata directory: %w", readErr))
+					continue
+				}
+				for _, metadataEntry := range metadataEntries {
+					if metadataEntry.IsDir() && metadataEntry.Name() == relayJobMetadataDirectoryName {
+						continue
+					}
+					metadataPath := filepath.Join(path, metadataEntry.Name())
+					if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(metadataPath) {
+						continue
+					}
+					if err := os.RemoveAll(metadataPath); err != nil {
+						deletionErrors = append(deletionErrors, fmt.Errorf("remove metadata %s: %w", metadataEntry.Name(), err))
+					}
+				}
+				continue
+			}
 			if ms.mailboxIndex != nil && ms.mailboxIndex.OwnsPath(path) {
 				continue
 			}

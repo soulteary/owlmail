@@ -144,8 +144,9 @@ WebSocket integration.
 - The native WebSocket endpoint is not Socket.IO.
 - There is no public stable Go embedding SDK or general application config file.
 - SMTP read/write timeouts and the recipient count are still fixed defaults.
-- Native relay acceptance is asynchronous and does not expose durable delivery
-  status.
+- Native relay acceptance is asynchronous; with a persistent mail directory,
+  status survives restarts with documented at-least-once recovery rather than
+  exactly-once delivery.
 - The Web inbox does not yet provide complete browser-history and keyboard
   navigation semantics.
 - The mailbox index remains in memory even when EML files are durable.

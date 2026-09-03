@@ -321,3 +321,102 @@ func TestDeleteEndpointsRejectMessagesWithPendingRelayJobs(t *testing.T) {
 		t.Fatalf("pending relay source was deleted: %v", err)
 	}
 }
+
+func TestNativeRelayReturnsServiceUnavailableForRuntimePersistenceFailure(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-persistence-mail", Subject: "Relay persistence", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	realSync := api.relayJobs.syncDirectory
+	syncCalls := 0
+	api.relayJobs.syncDirectory = func(path string) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("injected runtime sync failure")
+		}
+		return realSync(path)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "1" {
+		t.Fatalf("runtime persistence status = %d, Retry-After = %q, body = %s", resp.StatusCode, resp.Header.Get("Retry-After"), body)
+	}
+	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+		t.Fatal("rejected persistence failure left a latent relay job")
+	}
+}
+
+func TestNativeRelayRetainsJobWhenSynchronousRejectionCannotBeDurablyRemoved(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-retained-rejection", Subject: "Retained rejection", Time: time.Now()}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+
+	realSync := api.relayJobs.syncDirectory
+	syncCalls := 0
+	api.relayJobs.syncDirectory = func(path string) error {
+		syncCalls++
+		if syncCalls == 3 {
+			return errors.New("injected rejection sync failure")
+		}
+		return realSync(path)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"status":"failed"`) {
+		t.Fatalf("retained rejection status = %d, body = %s", resp.StatusCode, body)
+	}
+	if len(api.relayJobs.jobs) != 1 {
+		t.Fatalf("retained jobs = %d, want 1", len(api.relayJobs.jobs))
+	}
+}
+
+func TestNativeRelayRejectsSynchronousDisabledCallback(t *testing.T) {
+	directory := t.TempDir()
+	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "disabled-relay", Subject: "Disabled relay", Time: time.Now()}
+	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: Disabled relay\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(server, 1080, "localhost")
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("disabled relay status = %d, body = %s", resp.StatusCode, body)
+	}
+	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+		t.Fatalf("disabled relay retained a job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	}
+}

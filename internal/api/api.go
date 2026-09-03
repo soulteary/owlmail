@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/health-kit/v2"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
+	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
@@ -24,25 +25,28 @@ import (
 
 // API represents the REST API server
 type API struct {
-	mailServer        *mailserver.MailServer
-	app               *fiber.App
-	port              int
-	host              string
-	wsUpgrader        websocket.Upgrader
-	wsClients         map[*websocket.Conn]*sync.Mutex
-	wsClientsLock     sync.RWMutex
-	authUser          string
-	authPassword      string
-	httpsEnabled      bool
-	httpsCertFile     string
-	httpsKeyFile      string
-	externalScheme    string
-	basePathname      string
-	mailDevRESTCompat bool
-	metricsEnabled    bool
-	metrics           *prometheusMetrics
-	mcpHandler        http.Handler
-	relayJobs         *relayJobStore
+	mailServer              *mailserver.MailServer
+	app                     *fiber.App
+	port                    int
+	host                    string
+	wsUpgrader              websocket.Upgrader
+	wsClients               map[*websocket.Conn]*sync.Mutex
+	wsClientsLock           sync.RWMutex
+	authUser                string
+	authPassword            string
+	httpsEnabled            bool
+	httpsCertFile           string
+	httpsKeyFile            string
+	externalScheme          string
+	basePathname            string
+	mailDevRESTCompat       bool
+	metricsEnabled          bool
+	metrics                 *prometheusMetrics
+	mcpHandler              http.Handler
+	relayJobs               *relayJobStore
+	relayJobsPersistenceErr error
+	relaySourceMutex        sync.Mutex
+	relaySourceReleases     map[string]func()
 }
 
 // NewAPI creates a new API server instance
@@ -58,25 +62,37 @@ func NewAPIWithAuth(mailServer *mailserver.MailServer, port int, host, user, pas
 // NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
 func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	authEnabled := user != "" && password != ""
+	relayJobs, err := newPersistentRelayJobStore(mailServer.GetMailDir())
+	persistenceErr := err
+	if err != nil {
+		common.Error("Load persisted relay jobs: %v; relay status will be process-local", err)
+		relayJobs = newRelayJobStore()
+	}
 	api := &API{
-		mailServer:    mailServer,
-		port:          port,
-		host:          host,
-		wsClients:     make(map[*websocket.Conn]*sync.Mutex),
-		metrics:       newPrometheusMetrics(),
-		authUser:      user,
-		authPassword:  password,
-		httpsEnabled:  httpsEnabled,
-		httpsCertFile: certFile,
-		httpsKeyFile:  keyFile,
-		wsUpgrader:    websocket.Upgrader{},
-		relayJobs:     newRelayJobStore(),
+		mailServer:              mailServer,
+		port:                    port,
+		host:                    host,
+		wsClients:               make(map[*websocket.Conn]*sync.Mutex),
+		metrics:                 newPrometheusMetrics(),
+		authUser:                user,
+		authPassword:            password,
+		httpsEnabled:            httpsEnabled,
+		httpsCertFile:           certFile,
+		httpsKeyFile:            keyFile,
+		wsUpgrader:              websocket.Upgrader{},
+		relayJobs:               relayJobs,
+		relayJobsPersistenceErr: persistenceErr,
+		relaySourceReleases:     make(map[string]func()),
 	}
 	api.wsUpgrader.CheckOrigin = func(r *http.Request) bool {
 		return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, api.requestScheme())
 	}
 	api.setupRoutes()
 	api.setupEventListeners()
+	if api.relayJobs.hasQueued() {
+		api.protectQueuedRelaySources()
+		go api.recoverRelayJobs()
+	}
 	return api
 }
 
