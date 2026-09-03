@@ -1,9 +1,11 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"mime"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -25,7 +27,7 @@ func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 	messages.Get("/:id.plain", api.mailCatcherPlain)
 	messages.Get("/:id.source", api.mailCatcherSource)
 	messages.Get("/:id.eml", api.mailCatcherEML)
-	messages.Get("/:id/parts/:cid", api.mailCatcherPart)
+	messages.Get("/:id/parts/*", api.mailCatcherPart)
 	messages.Delete("/:id", api.mailCatcherDelete)
 }
 
@@ -119,7 +121,9 @@ func (api *API) mailCatcherHTML(c fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).SendString("Message format does not exist")
 	}
 	prefix := api.route("/messages/" + email.ID + "/parts/")
-	body := mailCatcherCIDReference.ReplaceAllString(email.HTML, prefix+"$1")
+	body := mailCatcherCIDReference.ReplaceAllStringFunc(email.HTML, func(reference string) string {
+		return prefix + url.PathEscape(reference[len("cid:"):])
+	})
 	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
 	return c.SendString(body)
 }
@@ -159,7 +163,11 @@ func (api *API) mailCatcherPart(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusNotFound).SendString("Message does not exist")
 	}
-	cid := strings.Trim(c.Params("cid"), "<>")
+	cid := c.Params("*")
+	if decoded, decodeErr := url.PathUnescape(cid); decodeErr == nil {
+		cid = decoded
+	}
+	cid = strings.Trim(cid, "<>")
 	var selected *types.Attachment
 	for _, attachment := range email.Attachments {
 		if attachment != nil && strings.Trim(attachment.ContentID, "<>") == cid {
@@ -195,6 +203,9 @@ func (api *API) mailCatcherDelete(c fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).SendString("Message does not exist")
 	}
 	if err := api.mailServer.DeleteEmail(c.Params("id")); err != nil {
+		if errors.Is(err, mailserver.ErrEmailNotFound) {
+			return c.Status(http.StatusNotFound).SendString("Message does not exist")
+		}
 		return c.Status(http.StatusInternalServerError).SendString("Message deletion failed")
 	}
 	return c.SendStatus(http.StatusNoContent)

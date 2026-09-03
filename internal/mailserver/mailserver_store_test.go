@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1127,8 +1128,8 @@ func TestDeleteEmailNotFound(t *testing.T) {
 
 	// Try to delete non-existent email
 	err = server.DeleteEmail("nonexistent-id")
-	if err == nil {
-		t.Error("Expected error for non-existent email")
+	if !errors.Is(err, ErrEmailNotFound) {
+		t.Errorf("DeleteEmail() error = %v, want ErrEmailNotFound", err)
 	}
 }
 
