@@ -856,16 +856,6 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		return fmt.Errorf("config is nil")
 	}
 
-	// Create and start API server with HTTPS support
-	go func() {
-		if _, err := startAPIServer(server, cfg); err != nil {
-			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
-				// In test environments, this will return an error instead of exiting
-				return
-			}
-		}
-	}()
-
 	// Handle graceful shutdown
 	setupGracefulShutdown(server)
 
@@ -876,7 +866,29 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		common.Log("TLS enabled for SMTP server")
 		common.Verbose("TLS certificate: %s, Key: %s", cfg.TLSCertFile, cfg.TLSKeyFile)
 	}
-	if err := server.Listen(); err != nil {
+	smtpReady := make(chan struct{})
+	smtpResult := make(chan error, 1)
+	go func() {
+		smtpResult <- server.ListenWithReady(func() { close(smtpReady) })
+	}()
+	select {
+	case <-smtpReady:
+	case err := <-smtpResult:
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	// Start the API only after inbound SMTP has bound successfully. Relay
+	// recovery is then triggered by startAPIServer after the API also binds.
+	go func() {
+		if _, err := startAPIServer(server, cfg); err != nil {
+			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
+				// In test environments, this will return an error instead of exiting
+				return
+			}
+		}
+	}()
+
+	if err := <-smtpResult; err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 
