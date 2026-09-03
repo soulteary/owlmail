@@ -1,8 +1,15 @@
 package api
 
 import (
+	"net/http"
 	"testing"
 )
+
+type headerRecorder http.Header
+
+func (headers headerRecorder) Set(key, value string) {
+	http.Header(headers).Set(key, value)
+}
 
 func TestSanitizeFilename(t *testing.T) {
 	tests := []struct {
@@ -82,6 +89,39 @@ func TestSanitizeFilename(t *testing.T) {
 				}
 			} else if result != tt.expected {
 				t.Errorf("Expected %q, got %q", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestSetAttachmentResponseHeaders(t *testing.T) {
+	tests := []struct {
+		name            string
+		contentType     string
+		filename        string
+		wantType        string
+		wantDisposition bool
+	}{
+		{name: "svg is downloaded", contentType: "image/svg+xml", filename: "diagram.svg", wantType: "image/svg+xml", wantDisposition: true},
+		{name: "structured XML is downloaded", contentType: "application/atom+xml", filename: "feed.xml", wantType: "application/atom+xml", wantDisposition: true},
+		{name: "legacy JavaScript is downloaded", contentType: "application/x-javascript", filename: "payload.js", wantType: "application/x-javascript", wantDisposition: true},
+		{name: "ECMAScript is downloaded", contentType: "text/ecmascript", filename: "payload.es", wantType: "text/ecmascript", wantDisposition: true},
+		{name: "html parameters are recognized", contentType: "text/html; charset=utf-8", filename: "page.html", wantType: "text/html; charset=utf-8", wantDisposition: true},
+		{name: "png stays inline", contentType: "image/png", filename: "pixel.png", wantType: "image/png"},
+		{name: "empty type is safe", filename: "blob.bin", wantType: "application/octet-stream"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			headers := make(http.Header)
+			setAttachmentResponseHeaders(headerRecorder(headers), test.contentType, test.filename)
+			if got := headers.Get("Content-Type"); got != test.wantType {
+				t.Fatalf("Content-Type = %q, want %q", got, test.wantType)
+			}
+			if got := headers.Get("X-Content-Type-Options"); got != "nosniff" {
+				t.Fatalf("X-Content-Type-Options = %q", got)
+			}
+			if got := headers.Get("Content-Disposition"); (got != "") != test.wantDisposition {
+				t.Fatalf("Content-Disposition = %q, want present %t", got, test.wantDisposition)
 			}
 		})
 	}

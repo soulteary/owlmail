@@ -61,7 +61,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 - 启用可选 MailDev REST facade 后，只有 `GET /api/email/:id` 会复现
   MailDev 的“读取即标记已读”副作用。
 - 列表和预览端点默认 `limit=50`、`offset=0`，最大 `limit` 为 1000；非法值
-  会回退到默认值。
+  返回 `400`。
 - 时间由 Go `time.Time` 编码为 RFC 3339 格式。
 - 修改成功通常返回 `code`、`message` 和可选的 `data`；API 处理器产生的
   错误会返回对应 HTTP 状态码，以及 `code`、`error`、`message`。Basic
@@ -112,8 +112,10 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `dateFrom` | `YYYY-MM-DD` 格式的包含式起始日期 |
 | `dateTo` | `YYYY-MM-DD` 格式的包含式结束日期 |
 | `read` | `true` 或 `false` |
-| `sortBy` | `time`、`subject`、`from` 或 `size`；省略时默认按时间倒序 |
+| `sortBy` | `time`、`subject`、`from`、`size` 或 `store`；省略时默认按时间倒序 |
 | `sortOrder` | `asc` 或 `desc` |
+
+格式错误、负数、超出范围或未知的查询值会返回 `400`，不再被静默替换为默认值。
 
 导出路由支持相同筛选条件。设置 `ids=id1,id2` 时优先按给定 ID 导出。
 
@@ -141,6 +143,8 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 ```json
 { "ids": ["aB3dEfGh", "550e8400-e29b-41d4-a716-446655440000"] }
 ```
+
+每次批量请求最多接收 1000 个 ID；更大的请求会在修改邮箱前返回 `413`。
 
 ### 单封邮件
 
