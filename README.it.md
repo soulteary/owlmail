@@ -262,6 +262,7 @@ docker buildx build \
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | File certificato TLS SMTP |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | File chiave privata TLS SMTP |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
+| `-config` | `OWLMAIL_CONFIG_FILE` | - | Carica un file YAML o JSON all’avvio; CLI e ambiente hanno priorità |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | Formato dei log: `console` o `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Usa UUID per ID email (predefinito: stringa casuale di 8 caratteri) |
 

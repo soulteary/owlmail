@@ -279,6 +279,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
+| `-config` | `OWLMAIL_CONFIG_FILE` | - | 启动时读取 YAML 或 JSON 配置文件；命令行和环境变量优先 |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 日志输出格式：`console` 或 `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | 使用 UUID 作为邮件 ID（默认使用 8 字符随机字符串） |
 
