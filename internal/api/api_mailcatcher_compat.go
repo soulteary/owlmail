@@ -22,7 +22,6 @@ var mailCatcherURIAttributes = map[string]struct{}{
 	"href": {}, "poster": {}, "src": {},
 }
 
-
 func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 	messages := app.Group(api.route("/messages"))
 	messages.Get("", api.mailCatcherMessages)
