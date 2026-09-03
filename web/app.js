@@ -838,7 +838,6 @@ let state = {
     ws: null
 };
 let relayEnabled = false;
-let relayConfig = null;
 const relayPending = new Set();
 
 function syncRelayMutationControls() {
@@ -1294,13 +1293,21 @@ const API = {
         return await handleAPIResponse(response);
     },
 
-    async relayEmail(id, relayTo = '') {
+    async getRelayPreflight(id) {
+        const response = await fetch(`${API_BASE}/emails/${id}/actions/relay/preflight`);
+        return await handleAPIResponse(response);
+    },
+
+    async relayEmail(id, relayTo = '', confirmedRecipients = null) {
         const url = relayTo 
             ? `${API_BASE}/emails/${id}/actions/relay/${encodeURIComponent(relayTo)}`
             : `${API_BASE}/emails/${id}/actions/relay`;
-        const response = await fetch(url, {
-            method: 'POST'
-        });
+        const options = { method: 'POST' };
+        if (confirmedRecipients !== null) {
+            options.headers = { 'Content-Type': 'application/json' };
+            options.body = JSON.stringify({ confirmedRecipients });
+        }
+        const response = await fetch(url, options);
         return await handleAPIResponse(response);
     },
 
@@ -1858,40 +1865,11 @@ async function loadRelayAvailability() {
     try {
         const outgoing = await API.getOutgoingConfig();
         relayEnabled = outgoing && outgoing.enabled === true;
-        relayConfig = relayEnabled ? outgoing : null;
         if (state.currentEmail) renderEmailDetail();
     } catch (error) {
         relayEnabled = false;
-        relayConfig = null;
         console.warn('Unable to inspect outgoing relay configuration:', error);
     }
-}
-
-function relayRuleMatches(address, rule) {
-    const normalizedAddress = String(address).toLowerCase();
-    const normalizedRule = String(rule).toLowerCase();
-    if (normalizedRule === normalizedAddress) return true;
-    if (!normalizedRule.includes('*')) return false;
-    const parts = normalizedRule.split('*');
-    return parts.length === 2
-        && normalizedAddress.startsWith(parts[0])
-        && normalizedAddress.endsWith(parts[1]);
-}
-
-function effectiveRelayRecipients(recipients) {
-    const allowRules = relayConfig && Array.isArray(relayConfig.allowRules) ? relayConfig.allowRules : [];
-    const denyRules = relayConfig && Array.isArray(relayConfig.denyRules) ? relayConfig.denyRules : [];
-    if (allowRules.length === 0 && denyRules.length === 0) return recipients;
-    return recipients.filter((recipient) => {
-        let allowed = allowRules.length === 0;
-        for (const rule of denyRules) {
-            if (relayRuleMatches(recipient, rule)) allowed = false;
-        }
-        for (const rule of allowRules) {
-            if (relayRuleMatches(recipient, rule)) allowed = true;
-        }
-        return allowed;
-    });
 }
 
 async function relayCurrentEmail(id, askForRecipient = false) {
@@ -1902,6 +1880,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         if (!relayTo) return;
     }
     let recipient = relayTo;
+    let confirmedRecipients = null;
     if (!askForRecipient) {
         const envelopeRecipients = state.currentEmail && state.currentEmail.id === id
             && state.currentEmail.envelope && Array.isArray(state.currentEmail.envelope.to)
@@ -1911,12 +1890,21 @@ async function relayCurrentEmail(id, askForRecipient = false) {
             alert(t('relayNoOriginalRecipients'));
             return;
         }
-        const effectiveRecipients = effectiveRelayRecipients(envelopeRecipients);
-        if (effectiveRecipients.length === 0) {
+        let preflight;
+        try {
+            preflight = await API.getRelayPreflight(id);
+        } catch (error) {
+            alert(t('relayError', { error: parseAPIError(error) }));
+            return;
+        }
+        confirmedRecipients = preflight && preflight.data && Array.isArray(preflight.data.recipients)
+            ? preflight.data.recipients
+            : [];
+        if (confirmedRecipients.length === 0) {
             alert(t('relayNoEffectiveRecipients'));
             return;
         }
-        recipient = effectiveRecipients.join(', ');
+        recipient = confirmedRecipients.join(', ');
     }
     if (!confirm(t('relayConfirm', { recipient }))) return;
 
@@ -1925,7 +1913,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
     renderEmailDetail();
     let releasePending = true;
     try {
-        const result = await API.relayEmail(id, relayTo);
+        const result = await API.relayEmail(id, relayTo, confirmedRecipients);
         const data = result && result.data;
         const job = data && data.job;
         alert(t('relayQueued', { id: job && job.id ? job.id : t('unknown') }));

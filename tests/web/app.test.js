@@ -385,6 +385,9 @@ test('manual relay confirms envelope recipients and stays pending until completi
     const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
     const harness = createHarness({
         fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['hidden@example.test', 'redirect@example.test'] } });
+            }
             if (options && options.method === 'POST') {
                 return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
             }
@@ -403,9 +406,9 @@ test('manual relay confirms envelope recipients and stays pending until completi
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.match(harness.confirmations[0], /hidden@example\.test, redirect@example\.test/);
     assert.equal(harness.run(`relayPending.has('mail-1')`), true);
-    assert.equal(harness.fetchRequests.length, 2);
+    assert.equal(harness.fetchRequests.length, 3);
     await harness.run(`relayCurrentEmail('mail-1')`);
-    assert.equal(harness.fetchRequests.length, 2);
+    assert.equal(harness.fetchRequests.length, 3);
 
     resolveStatus(jsonResponse({ data: { id: 'job-1', status: 'succeeded' } }));
     await relay;
@@ -423,14 +426,20 @@ test('manual relay refuses an unknown original envelope', async () => {
 });
 
 test('manual relay confirms only recipients allowed by outgoing rules', async () => {
+    let preflightAttempts = 0;
     const harness = createHarness({
-        fetchImpl: async (url, options) => options && options.method === 'POST'
-            ? jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } })
-            : jsonResponse({ data: { id: 'job-1', status: 'succeeded' } })
+        fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                preflightAttempts++;
+                return jsonResponse({ data: { recipients: preflightAttempts === 1 ? ['allowed@example.test'] : [] } });
+            }
+            return options && options.method === 'POST'
+                ? jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } })
+                : jsonResponse({ data: { id: 'job-1', status: 'succeeded' } });
+        }
     });
     harness.run(`
         relayEnabled = true;
-        relayConfig = { allowRules: ['allowed@example.test'], denyRules: ['*@example.test'] };
         state.currentEmail = {
             id: 'mail-1',
             envelope: { to: ['allowed@example.test', 'blocked@example.test'] }
@@ -441,11 +450,11 @@ test('manual relay confirms only recipients allowed by outgoing rules', async ()
 
     assert.match(harness.confirmations[0], /allowed@example\.test/);
     assert.doesNotMatch(harness.confirmations[0], /blocked@example\.test/);
-    assert.equal(harness.fetchRequests.length, 2);
+    assert.equal(harness.fetchRequests.length, 3);
+    assert.deepEqual(JSON.parse(harness.fetchRequests[1].options.body).confirmedRecipients, ['allowed@example.test']);
 
-    harness.run(`relayConfig = { allowRules: ['nobody@example.test'], denyRules: [] }`);
     await harness.run(`relayCurrentEmail('mail-1')`);
-    assert.equal(harness.fetchRequests.length, 2);
+    assert.equal(harness.fetchRequests.length, 4);
     assert.match(harness.alerts.at(-1), /relay rules exclude every/);
 });
 
@@ -453,6 +462,9 @@ test('manual relay retries transient status failures', async () => {
     let statusAttempts = 0;
     const harness = createHarness({
         fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['recipient@example.test'] } });
+            }
             if (options && options.method === 'POST') {
                 return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
             }
@@ -484,6 +496,9 @@ test('delete controls stay disabled while relay delivery is pending', async () =
     const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
     const harness = createHarness({
         fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['recipient@example.test'] } });
+            }
             if (options && options.method === 'POST') {
                 return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
             }

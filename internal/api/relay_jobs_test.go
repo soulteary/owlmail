@@ -171,6 +171,56 @@ func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 	}
 }
 
+func TestRelayPreflightBindsConfirmedRecipientsToEnqueueSnapshot(t *testing.T) {
+	directory := t.TempDir()
+	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{
+		Host: "127.0.0.1", Port: 1, AllowRules: []string{"allowed@example.test"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "confirmed-relay", Subject: "Confirmed relay", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"allowed@example.test", "blocked@example.test"}}
+	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: Confirmed relay\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(server, 1080, "localhost")
+
+	preflightRequest, _ := http.NewRequest(http.MethodGet, "/api/v1/emails/"+email.ID+"/actions/relay/preflight", nil)
+	preflightResponse, err := api.app.Test(preflightRequest, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightBody, _ := io.ReadAll(preflightResponse.Body)
+	_ = preflightResponse.Body.Close()
+	if preflightResponse.StatusCode != http.StatusOK || !strings.Contains(string(preflightBody), `"recipients":["allowed@example.test"]`) {
+		t.Fatalf("preflight status = %d, body = %s", preflightResponse.StatusCode, preflightBody)
+	}
+
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: 1, AllowRules: []string{"*"}}); err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.NewReader(`{"confirmedRecipients":["allowed@example.test"]}`)
+	relayRequest, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", payload)
+	relayRequest.Header.Set("Content-Type", "application/json")
+	relayResponse, err := api.app.Test(relayRequest, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	relayBody, _ := io.ReadAll(relayResponse.Body)
+	_ = relayResponse.Body.Close()
+	if relayResponse.StatusCode != http.StatusBadRequest || !strings.Contains(string(relayBody), "configuration changed") {
+		t.Fatalf("changed-config relay status = %d, body = %s", relayResponse.StatusCode, relayBody)
+	}
+	if len(api.relayJobs.jobs) != 0 {
+		t.Fatalf("changed-config relay retained %d job(s)", len(api.relayJobs.jobs))
+	}
+}
+
 func TestRelayJobNotFound(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {

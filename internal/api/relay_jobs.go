@@ -45,6 +45,8 @@ type relayJob struct {
 	ID            string     `json:"id"`
 	EmailID       string     `json:"emailId"`
 	RelayTo       string     `json:"relayTo,omitempty"`
+	Recipients    []string   `json:"confirmedRecipients,omitempty"`
+	Confirmed     bool       `json:"recipientsConfirmed,omitempty"`
 	Status        string     `json:"status"`
 	ErrorCategory string     `json:"errorCategory,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
@@ -114,6 +116,10 @@ func randomRelayJobID() (string, error) {
 }
 
 func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
+	return store.createConfirmed(emailID, relayTo, nil)
+}
+
+func (store *relayJobStore) createConfirmed(emailID, relayTo string, recipients []string) (relayJob, error) {
 	if len(relayTo) > defaultRelayRecipientMaxBytes {
 		return relayJob{}, errRelayRecipientTooLong
 	}
@@ -123,6 +129,10 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	}
 	now := store.now().UTC()
 	job := relayJob{ID: id, EmailID: emailID, RelayTo: relayTo, Status: relayJobQueued, CreatedAt: now, UpdatedAt: now}
+	if recipients != nil {
+		job.Recipients = append([]string(nil), recipients...)
+		job.Confirmed = true
+	}
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.pruneLocked(now)
@@ -322,6 +332,8 @@ func relayFailureCategory(err error) string {
 		return "queue_full"
 	case strings.Contains(message, "not configured"):
 		return "not_configured"
+	case errors.Is(err, outgoing.ErrConfigChanged):
+		return "configuration_changed"
 	case strings.Contains(message, "no recipients"):
 		return "no_recipients"
 	case strings.Contains(message, "authentication") || strings.Contains(message, "auth"):
@@ -341,15 +353,20 @@ func relayFailureCategory(err error) string {
 
 func (api *API) relayEmailAsync(c fiber.Ctx) error {
 	relayTo := c.Query("relayTo")
+	var confirmedRecipients []string
 	if relayTo == "" {
 		var body struct {
-			RelayTo string `json:"relayTo"`
+			RelayTo             string    `json:"relayTo"`
+			ConfirmedRecipients *[]string `json:"confirmedRecipients"`
 		}
 		if err := c.Bind().Body(&body); err == nil {
 			relayTo = body.RelayTo
+			if body.ConfirmedRecipients != nil {
+				confirmedRecipients = *body.ConfirmedRecipients
+			}
 		}
 	}
-	return api.enqueueRelayJob(c, relayTo)
+	return api.enqueueRelayJob(c, relayTo, confirmedRecipients)
 }
 
 func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
@@ -357,20 +374,35 @@ func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
 	if relayTo == "" {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Invalid email address provided"))
 	}
-	return api.enqueueRelayJob(c, relayTo)
+	return api.enqueueRelayJob(c, relayTo, nil)
 }
 
-func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
+func (api *API) relayEmailPreflight(c fiber.Ctx) error {
+	email, err := api.mailServer.GetEmail(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
+	}
+	recipients, err := api.mailServer.EffectiveRelayRecipients(email)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+	}
+	return c.JSON(SuccessResponse("RELAY_PREFLIGHT", "Effective relay recipients", fiber.Map{"recipients": recipients}))
+}
+
+func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string, confirmedRecipients []string) error {
 	if api.relayJobsPersistenceErr != nil {
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is unavailable"))
 	}
 	id := c.Params("id")
+	if confirmedRecipients != nil && len(confirmedRecipients) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, "Confirmed relay recipients cannot be empty"))
+	}
 	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
-	job, err := api.relayJobs.create(id, relayTo)
+	job, err := api.relayJobs.createConfirmed(id, relayTo, confirmedRecipients)
 	retained := errors.Is(err, errRelayJobRetained)
 	if errors.Is(err, errRelayRecipientTooLong) {
 		releaseSource()
@@ -505,6 +537,8 @@ func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool)
 	}
 	if job.RelayTo != "" {
 		err = api.mailServer.RelayMailTo(message, job.RelayTo, callback)
+	} else if job.Confirmed {
+		err = api.mailServer.RelayMailConfirmed(message, job.Recipients, callback)
 	} else {
 		err = api.mailServer.RelayMail(message, false, callback)
 	}

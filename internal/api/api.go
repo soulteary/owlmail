@@ -323,6 +323,7 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	emailsGroup.Get("/:id/source", api.getEmailSource)
 	emailsGroup.Get("/:id/raw", api.downloadEmail)
 	emailsGroup.Get("/:id/attachments/:filename", api.getAttachment)
+	emailsGroup.Get("/:id/actions/relay/preflight", api.relayEmailPreflight)
 	emailsGroup.Post("/:id/actions/relay", api.relayEmailAsync)
 	emailsGroup.Post("/:id/actions/relay/:relayTo", api.relayEmailWithParamAsync)
 	v1.Get("/relay-jobs/:jobID", api.getRelayJob)

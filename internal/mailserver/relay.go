@@ -42,6 +42,39 @@ func (ms *MailServer) RelayMailTo(email *Email, relayTo string, callback func(er
 	return outgoingRelay.RelayMail(email, emlPath, relayTo, false, callback)
 }
 
+// EffectiveRelayRecipients returns the outgoing rule-filtered recipient list
+// used by a manual relay to the original SMTP envelope.
+func (ms *MailServer) EffectiveRelayRecipients(email *Email) ([]string, error) {
+	ms.outgoingMutex.RLock()
+	outgoingRelay := ms.outgoing
+	closed := ms.outgoingClosed
+	ms.outgoingMutex.RUnlock()
+	if closed {
+		return nil, outgoing.ErrClosed
+	}
+	if outgoingRelay == nil {
+		return nil, outgoing.ErrNotConfigured
+	}
+	return outgoingRelay.EffectiveRecipients(email)
+}
+
+// RelayMailConfirmed relays only when the current rule-filtered recipients
+// match the list confirmed by the operator.
+func (ms *MailServer) RelayMailConfirmed(email *Email, recipients []string, callback func(error)) error {
+	ms.outgoingMutex.RLock()
+	outgoingRelay := ms.outgoing
+	closed := ms.outgoingClosed
+	ms.outgoingMutex.RUnlock()
+	if closed {
+		return outgoing.ErrClosed
+	}
+	if outgoingRelay == nil {
+		return outgoing.ErrNotConfigured
+	}
+	emlPath := filepath.Join(ms.mailDir, email.ID+".eml")
+	return outgoingRelay.RelayMailConfirmed(email, emlPath, recipients, callback)
+}
+
 // RelayMailAndWait relays one message and waits for the outgoing worker's
 // result. OwlMail's native API intentionally keeps its asynchronous enqueue
 // semantics; the MailDev REST facade uses this method because MailDev only
