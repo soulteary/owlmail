@@ -36,7 +36,7 @@ func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 }
 
 func (api *API) mailCatcherMessages(c fiber.Ctx) error {
-	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "time", SortOrder: "desc", Limit: int(^uint(0) >> 1)})
+	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "received", SortOrder: "desc", Limit: int(^uint(0) >> 1)})
 	result := make([]fiber.Map, 0, len(summaries))
 	for _, summary := range summaries {
 		result = append(result, mailCatcherSummaryDTO(summary))
