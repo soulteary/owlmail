@@ -6,9 +6,9 @@ We currently provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
-| Latest  | ✅ Yes             |
-| Previous major version | ✅ Yes |
-| Older versions | ❌ No |
+| 0.8.x | ✅ Yes |
+| 0.7.x | ✅ Yes |
+| 0.6.x and older | ❌ No |
 
 ## Reporting a Vulnerability
 

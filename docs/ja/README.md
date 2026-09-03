@@ -18,6 +18,12 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 
 ### 運用リファレンス
 
+- **テストと Agent** (English、[中文](../zh-CN/Integration-Testing.md))：
+  [統合テスト](../en/Integration-Testing.md)、[CI](../en/CI-Quickstart.md)、
+  [AI Agent](../en/AI-Agent-Testing.md)、[MCP](../en/MCP-Reference.md)、
+  [レシピ](../en/Testing-Recipes.md)、[アーキテクチャ](../en/Architecture.md)、
+  [セキュリティモデル](../en/Security-Model.md)。
+- **[実行可能な JavaScript、Go、Python、Compose 例](../../examples/testing/README.md)**
 - **[API リファレンス](../en/API-Reference.md)** (English、[中文](../zh-CN/API-Reference.md))
   - ルート、認証、レスポンス形式、WebSocket イベント、および MailDev との相違点。
   - 機械可読：[OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
@@ -32,14 +38,15 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 ### リリース
 
 - **[0.8.0 リリースノート](../en/Release-0.8.0.md)** (English、[中文](../zh-CN/Release-0.8.0.md))
+- **[0.7.0 リリースノート](../en/Release-0.7.0.md)** (English、[中文](../zh-CN/Release-0.7.0.md))
 - **[リリース手順](../en/Releasing.md)** (English、[中文](../zh-CN/Releasing.md))
 
 ### 比較と移行
 
-- **[OwlMail × MailDev – 比較・移行ガイド](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+- **[OwlMail × MailDev – 比較・移行ガイド](./Comparison-and-Migration.md)**
   - この翻訳は未完成です。完全な内容は
-    [英語版](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-    または[中国語版](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)を参照してください。
+    [英語版](../en/Comparison-and-Migration.md)
+    または[中国語版](../zh-CN/Comparison-and-Migration.md)を参照してください。
 
 ### 過去の内部資料
 

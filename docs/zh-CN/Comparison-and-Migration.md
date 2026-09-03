@@ -49,7 +49,7 @@ facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议�
 | UI | 轻量多语言收件箱，包含安全 HTML 隔离、响应式宽度、标签页、历史和键盘导航 | React UI、源码/Header 与响应式预览 | 简单 HTML/纯文本/源码视图及键盘导航 |
 | MCP | 默认关闭的 Streamable HTTP 与 stdio，含七个只读工具、资源和 Prompts | HTTP 与 stdio，更丰富的工具、资源和 Prompts | 无内置 MCP |
 | Webhook | 过滤、模板、HMAC、重试、本地 outbox、可选 Redis Streams | 无等价通用持久 Webhook 管道 | 无内置通用 Webhook |
-| Relay | 持久异步任务、流式 DATA、明确 TLS 模式和有界重试 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
+| Relay | 原生 v1 路由使用持久异步任务、流式 DATA、明确 TLS 模式和有界重试；历史与兼容路由保留原有的非任务行为 | 手动与自动出站 SMTP 中继 | 无可比的出站中继流程 |
 | sendmail 替代 | `owlmail sendmail` | 未记录内置等价命令 | `catchmail` |
 | 可观测性 | 公共 liveness/readiness、可选 Prometheus 指标、console 或 JSON 日志 | 健康端点与应用日志 | 基础应用日志 |
 | 嵌入能力 | 无稳定公共 Go SDK，internal 不是公共接口 | 公共 Node API | 主要作为独立 Ruby 命令 |
@@ -128,7 +128,7 @@ HTTP 与 WebSocket 集成逐项适配。
 
 - 原生 WebSocket 不是 Socket.IO。
 - 没有稳定公共 Go 嵌入 SDK；`internal/` 包不是受支持的嵌入接口。
-- 原生 Relay 仍为异步；配置持久邮件目录后状态可跨重启恢复，语义为“至少一次”而非
+- 原生 v1 Relay 仍为异步；配置持久邮件目录后状态可跨重启恢复，语义为“至少一次”而非
   “恰好一次”。
 - 邮箱、SQLite 索引、Webhook outbox 和 Relay 任务状态都属于单个 OwlMail
   实例；不提供共享的多实例邮箱数据库。

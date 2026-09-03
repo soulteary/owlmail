@@ -56,7 +56,7 @@ live-update protocol.
 | UI | Lightweight multilingual inbox with secure HTML isolation, responsive widths, tabs, history, and keyboard navigation | Rich React UI, source/header views, and responsive preview | Simple HTML/plain/source UI with keyboard navigation |
 | MCP | Default-off Streamable HTTP and stdio with seven read-only tools, resources, and prompts | HTTP and stdio MCP with broader tools, resources, and prompts | No built-in MCP |
 | Webhooks | Generic filters, templates, HMAC, retry, local outbox, and optional Redis Streams | No equivalent generic durable webhook pipeline | No built-in generic webhook pipeline |
-| Relay | Persistent asynchronous jobs, streaming DATA, explicit TLS modes, and bounded retry | Manual and automatic outgoing SMTP relay | No comparable outgoing relay workflow |
+| Relay | Native v1 routes use persistent asynchronous jobs with streaming DATA, explicit TLS modes, and bounded retry; historical and compatibility routes retain their existing non-job behavior | Manual and automatic outgoing SMTP relay | No comparable outgoing relay workflow |
 | sendmail analogue | `owlmail sendmail` | No bundled equivalent documented | `catchmail` |
 | Observability | Public liveness/readiness, optional Prometheus metrics, and console or JSON logs | Health endpoint and application logging | Basic application logging |
 | Embedding | No stable Go library surface; internal packages remain internal | Public Node API | Primarily a standalone Ruby command |
@@ -152,7 +152,7 @@ WebSocket integration.
 - The native WebSocket endpoint is not Socket.IO.
 - There is no public stable Go embedding SDK; `internal/` packages are not a
   supported embedding surface.
-- Native relay acceptance is asynchronous; with a persistent mail directory,
+- Native v1 relay acceptance is asynchronous; with a persistent mail directory,
   status survives restarts with documented at-least-once recovery rather than
   exactly-once delivery.
 - The mailbox, SQLite index, Webhook outbox, and Relay job state are local to

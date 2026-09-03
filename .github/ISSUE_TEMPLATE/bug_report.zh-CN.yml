@@ -7,6 +7,7 @@ body:
     attributes:
       value: |
         感谢您报告 bug！请填写以下信息以帮助我们更好地理解和修复问题。
+        请勿提交密码、SMTP AUTH、S3 Key、Webhook Secret、访问 Token 或完整敏感邮件内容；提交前请对日志和配置脱敏。
 
   - type: textarea
     id: description
@@ -63,9 +64,44 @@ body:
       description: 请提供您的环境信息
       placeholder: |
         - 操作系统: [例如 macOS 14.0, Linux Ubuntu 22.04, Windows 11]
-        - Go 版本: [例如 go1.24.0]
-        - OwlMail 版本: [例如 v1.0.0 或 commit hash]
-        - 安装方式: [例如 源码编译、go install]
+        - Go 版本（仅源码构建）: [例如 go1.27.0]
+        - OwlMail 版本: [例如 v0.8.0 或 commit hash]
+        - 容器镜像或二进制校验和（如有）:
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: 部署方式
+      description: OwlMail 如何运行？
+      options:
+        - Docker 或兼容容器运行时
+        - 下载的发布二进制
+        - go install
+        - 从源码构建
+        - 其他
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: 受影响组件
+      description: 选择最接近的系统边界。
+      options:
+        - SMTP 捕获、STARTTLS 或 SMTPS
+        - Web UI、HTML 预览或 BasePath
+        - 原生 REST API 或 WebSocket
+        - MailDev 或 MailCatcher 兼容层
+        - MCP HTTP 或 stdio
+        - 邮件存储、SQLite、附件或 S3
+        - Webhook 自动化
+        - 出站 Relay
+        - Metrics、Readiness 或日志
+        - Sendmail CLI
+        - 配置或启动
+        - 其他
     validations:
       required: true
 
@@ -73,7 +109,7 @@ body:
     id: config
     attributes:
       label: 配置信息
-      description: 相关的配置信息（请隐藏敏感信息）
+      description: 相关配置，包括 BasePath、TLS、本地/S3 存储、MCP、REST 或 Webhook 设置；必须移除所有 Secret
       placeholder: |
         命令行参数或环境变量配置...
       render: shell
@@ -96,4 +132,3 @@ body:
           required: false
         - label: 我可以提供复现步骤
           required: true
-

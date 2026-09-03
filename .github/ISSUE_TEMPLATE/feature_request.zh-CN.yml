@@ -39,9 +39,15 @@ body:
       label: 功能类别
       description: 这个功能属于哪个类别？
       options:
-        - 核心功能（SMTP 服务器、邮件存储等）
+        - 集成测试
+        - MCP / AI Agent
+        - Webhook 自动化
+        - 存储与持久化
+        - 可观测性
+        - 安全
+        - 核心 SMTP 与 Relay
         - Web 界面
-        - API 功能
+        - API 与兼容层
         - 配置和部署
         - 性能和优化
         - 文档和示例
@@ -64,12 +70,12 @@ body:
   - type: textarea
     id: compatibility
     attributes:
-      label: MailDev 兼容性
-      description: 这个功能是否会影响 MailDev 兼容性？
+      label: 兼容性与迁移影响
+      description: 说明对原生 API、MailDev/MailCatcher Facade、配置、存量数据与升级的影响
       placeholder: |
-        - 是否与 MailDev 兼容？
-        - 是否需要保持向后兼容？
-        - 是否需要新的配置选项？
+        - 原生 API 或兼容 Facade 是否变化？
+        - 是否需要新配置或迁移？
+        - 升级后已有邮件如何处理？
 
   - type: textarea
     id: additional
@@ -89,4 +95,3 @@ body:
           required: false
         - label: 我愿意帮助实现这个功能（如果需要）
           required: false
-

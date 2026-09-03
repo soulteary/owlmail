@@ -4,9 +4,9 @@
 
 > ⚠️ **Documento in fase di traduzione**
 > 
-> Questa traduzione è in corso. Per ora, si prega di consultare la [versione inglese](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) o altre versioni disponibili:
-> - [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-> - [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+> Questa traduzione è in corso. Per ora, si prega di consultare la [versione inglese](../en/Comparison-and-Migration.md) o altre versioni disponibili:
+> - [English](../en/Comparison-and-Migration.md)
+> - [简体中文](../zh-CN/Comparison-and-Migration.md)
 > 
 > **Contributi benvenuti**: Se desideri contribuire a questa traduzione, consulta la [guida al contributo](../../.github/CONTRIBUTING.md).
 
@@ -32,7 +32,7 @@ Se desideri aiutare a tradurre questo documento:
 
 1. Fai un fork del repository
 2. Crea un branch per la tua traduzione
-3. Traduci il contenuto da [OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+3. Traduci il contenuto da [Comparison-and-Migration.md](../en/Comparison-and-Migration.md)
 4. Invia una Pull Request
 
 Per ulteriori informazioni, consulta la [guida al contributo](../../.github/CONTRIBUTING.md).

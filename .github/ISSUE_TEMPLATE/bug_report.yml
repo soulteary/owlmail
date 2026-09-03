@@ -7,6 +7,7 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug! Please fill in the information below to help us better understand and fix the issue.
+        Do not include passwords, SMTP AUTH values, S3 keys, Webhook secrets, access tokens, or complete sensitive email content. Redact logs and configuration before submitting.
 
   - type: textarea
     id: description
@@ -63,9 +64,44 @@ body:
       description: Please provide your environment information
       placeholder: |
         - OS: [e.g., macOS 14.0, Linux Ubuntu 22.04, Windows 11]
-        - Go Version: [e.g., go1.24.0]
-        - OwlMail Version: [e.g., v1.0.0 or commit hash]
-        - Installation Method: [e.g., build from source, go install]
+        - Go Version (source builds only): [e.g., go1.27.0]
+        - OwlMail Version: [e.g., v0.8.0 or commit hash]
+        - Container image or binary checksum (if available):
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Mode
+      description: How is OwlMail running?
+      options:
+        - Docker or compatible container runtime
+        - Downloaded release binary
+        - go install
+        - Built from source
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Select the closest system boundary.
+      options:
+        - SMTP capture, STARTTLS, or SMTPS
+        - Web UI, HTML preview, or BasePath
+        - Native REST API or WebSocket
+        - MailDev or MailCatcher compatibility
+        - MCP over HTTP or stdio
+        - Mail storage, SQLite, attachments, or S3
+        - Webhook automation
+        - Outgoing Relay
+        - Metrics, readiness, or logging
+        - Sendmail CLI
+        - Configuration or startup
+        - Other
     validations:
       required: true
 
@@ -73,7 +109,7 @@ body:
     id: config
     attributes:
       label: Configuration Information
-      description: Relevant configuration information (please hide sensitive information)
+      description: Relevant configuration, including BasePath, TLS, local/S3 storage, MCP, REST, or Webhook settings. Remove every secret.
       placeholder: |
         Command line arguments or environment variables...
       render: shell

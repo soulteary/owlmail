@@ -18,6 +18,12 @@ OwlMail 문서에 오신 것을 환영합니다. 문서는 언어별 디렉터�
 
 ### 운영 참조
 
+- **테스트 및 Agent** (English, [中文](../zh-CN/Integration-Testing.md)):
+  [통합 테스트](../en/Integration-Testing.md), [CI](../en/CI-Quickstart.md),
+  [AI Agent](../en/AI-Agent-Testing.md), [MCP](../en/MCP-Reference.md),
+  [레시피](../en/Testing-Recipes.md), [아키텍처](../en/Architecture.md),
+  [보안 모델](../en/Security-Model.md).
+- **[실행 가능한 JavaScript, Go, Python 및 Compose 예제](../../examples/testing/README.md)**
 - **[API 참조](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - 경로, 인증, 응답 형식, WebSocket 이벤트 및 MailDev와의 차이점.
   - 기계 판독 가능: [OpenAPI 3.1 JSON](../../openapi/openapi.json) | [YAML](../../openapi/openapi.yaml)
@@ -32,14 +38,15 @@ OwlMail 문서에 오신 것을 환영합니다. 문서는 언어별 디렉터�
 ### 릴리스
 
 - **[0.8.0 릴리스 노트](../en/Release-0.8.0.md)** (English, [中文](../zh-CN/Release-0.8.0.md))
+- **[0.7.0 릴리스 노트](../en/Release-0.7.0.md)** (English, [中文](../zh-CN/Release-0.7.0.md))
 - **[릴리스 절차](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
 ### 비교 및 마이그레이션
 
-- **[OwlMail × MailDev – 비교 및 마이그레이션 가이드](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+- **[OwlMail × MailDev – 비교 및 마이그레이션 가이드](./Comparison-and-Migration.md)**
   - 이 번역은 미완성입니다. 전체 내용은
-    [영어](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-    또는 [중국어](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) 버전을 참조하세요.
+    [영어](../en/Comparison-and-Migration.md)
+    또는 [중국어](../zh-CN/Comparison-and-Migration.md) 버전을 참조하세요.
 
 ### 과거 내부 문서
 

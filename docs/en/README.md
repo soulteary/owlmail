@@ -20,10 +20,32 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[Integration Testing](./Integration-Testing.md)**
+  - Deterministic SMTP capture, REST assertions, parallel isolation, and failure diagnosis.
+  - **Runnable examples**: [JavaScript, Go, Python, and Compose](../../examples/testing/README.md)
+  - **Other languages**: [简体中文](../zh-CN/Integration-Testing.md)
+
+- **[CI Quickstart](./CI-Quickstart.md)**
+  - Disposable sidecar lifecycle, readiness, log artifacts, timeouts, and digest pinning.
+  - **Other languages**: [简体中文](../zh-CN/CI-Quickstart.md)
+
+- **[AI Agent Testing](./AI-Agent-Testing.md)** and **[MCP Reference](./MCP-Reference.md)**
+  - Streamable HTTP and stdio setup, reliable wait-before-trigger workflows, exact tools and limits.
+  - **Other languages**: [AI Agent 测试](../zh-CN/AI-Agent-Testing.md) | [MCP 参考](../zh-CN/MCP-Reference.md)
+
+- **[Testing Recipes](./Testing-Recipes.md)**
+  - Registration, password reset, attachments, MIME source, negative delivery, recovery, webhook, and Relay recipes.
+  - **Other languages**: [简体中文](../zh-CN/Testing-Recipes.md)
+
+- **[Architecture](./Architecture.md)** and **[Security Model](./Security-Model.md)**
+  - Component ownership, data flow, single-instance boundaries, trust model, and deployment checklist.
+  - **Other languages**: [架构](../zh-CN/Architecture.md) | [安全模型](../zh-CN/Security-Model.md)
+
 - **[OwlMail 0.8.0 Release Notes](./Release-0.8.0.md)**
   - Highlights, upgrade-sensitive behavior, installation commands, asset names,
     known limitations, and links to the detailed references.
   - **Other languages**: [简体中文](../zh-CN/Release-0.8.0.md)
+  - **Previous release**: [0.7.0](./Release-0.7.0.md) ([简体中文](../zh-CN/Release-0.7.0.md))
 
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
@@ -47,10 +69,10 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - **Runnable examples**: [minimal, filtered, custom, multi-target, plain text, and Compose](../../examples/webhooks/README.md)
   - **Other languages**: [简体中文](../zh-CN/Webhook-Forwarding.md)
 
-- **[OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+- **[OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./Comparison-and-Migration.md)**
   - A source-checked comparison of capability differences, API incompatibilities,
     and the migration checklist.
-  - **Other languages**: [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Deutsch](../de/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Français](../fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Italiano](../it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [日本語](../ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [한국어](../ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+  - **Other languages**: [简体中文](../zh-CN/Comparison-and-Migration.md) | [Deutsch](../de/Comparison-and-Migration.md) | [Français](../fr/Comparison-and-Migration.md) | [Italiano](../it/Comparison-and-Migration.md) | [日本語](../ja/Comparison-and-Migration.md) | [한국어](../ko/Comparison-and-Migration.md)
 
 ### Historical Internal Documentation
 

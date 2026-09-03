@@ -6,6 +6,8 @@ governance, durable webhook queue handoffs, Redis lease protection, and
 mobile-compatible browser notifications. It also hardens authenticated origin
 checks and the release supply chain.
 
+OwlMail 0.6.0 was published on 2026-09-01.
+
 Commands that reference `v0.6.0` or the `0.6.0` container tag work only after
 the release tag has been published.
 
@@ -83,7 +85,7 @@ memory queue.
 | Delivery semantics | Redis delivery is at least once | Deduplicate the stable delivery ID at receivers |
 | Reverse proxy | Authenticated browser origins include the scheme | Set `OWLMAIL_WEB_EXTERNAL_SCHEME=https` when trusted TLS termination is external |
 
-## Installation after publication
+## Installation
 
 ### Release binaries
 

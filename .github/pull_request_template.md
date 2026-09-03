@@ -1,43 +1,43 @@
-## Pull Request Description
+## Pull Request Description / 变更描述
 
-<!-- Clearly and concisely describe what this PR does -->
+<!-- Clearly describe what and why. / 清晰说明改了什么以及原因。 -->
 
-## Type of Change
+## Type of Change / 变更类型
 
 <!-- Please check the applicable options -->
 
-- [ ] 🐛 Bug fix (fixes an issue without breaking existing functionality)
-- [ ] ✨ New feature (adds functionality without breaking existing functionality)
-- [ ] 💥 Breaking change (fix or feature that would cause existing functionality to not work as expected)
-- [ ] 📝 Documentation update (documentation changes only)
-- [ ] 🎨 Code style (formatting, missing semicolons, etc., no code change)
-- [ ] ♻️ Code refactoring (code changes that neither fix a bug nor add a feature)
-- [ ] ⚡ Performance improvement (code changes that improve performance)
-- [ ] ✅ Tests (adding or correcting tests)
-- [ ] 🔧 Build/tool changes (changes that affect the build system or external dependencies)
-- [ ] 🔄 Other (please describe)
+- [ ] 🐛 Bug fix / Bug 修复
+- [ ] ✨ New feature / 新功能
+- [ ] 💥 Breaking change / 破坏性变更
+- [ ] 📝 Documentation / 文档
+- [ ] 🎨 Code style / 代码风格
+- [ ] ♻️ Refactoring / 重构
+- [ ] ⚡ Performance / 性能
+- [ ] ✅ Tests / 测试
+- [ ] 🔧 Build or tooling / 构建或工具
+- [ ] 🔄 Other / 其他
 
-## Related Issue
+## Related Issue / 相关 Issue
 
 <!-- If this PR addresses an issue, please reference it here -->
 <!-- Use format "Fixes #123" or "Closes #123" -->
 
 Fixes #
 
-## Change Details
+## Change Details / 变更详情
 
 <!-- Describe your changes in detail -->
 
-### New Features
+### New Features / 新功能
 - 
 
-### Bug Fixes
+### Bug Fixes / Bug 修复
 - 
 
-### Breaking Changes
+### Breaking Changes / 破坏性变更
 - 
 
-## Testing
+## Testing / 测试
 
 <!-- Describe the tests you ran to verify your changes -->
 
@@ -47,30 +47,35 @@ Fixes #
 
 ### Test Commands
 ```bash
-# Please provide commands to run tests
-go test ./...
+go test -race ./...
+go vet ./...
+bun build ./web/*.js --target=browser --outdir=./.bun-check
+bun test ./tests/web ./tests/docs
 ```
 
-### Test Results
-<!-- Paste test output or screenshots -->
+### Test Results / 测试结果
+<!-- Paste test output or screenshots. / 粘贴测试输出或截图。 -->
 
-## Checklist
+## Compatibility and Migration / 兼容性与迁移
+
+<!-- Describe native API, MailDev/MailCatcher facade, configuration, stored data,
+and upgrade impact, or write "None". / 说明原生 API、兼容层、配置、存量数据与升级影响，
+没有影响请写 None。 -->
+
+## Checklist / 检查清单
 
 <!-- Please ensure all items are completed -->
 
-- [ ] My code follows the project's code style
-- [ ] I have performed a self-review of my code
-- [ ] I have commented my code, particularly in hard-to-understand areas
-- [ ] I have updated the relevant documentation
-- [ ] My changes generate no new warnings
-- [ ] I have added tests that prove my fix is effective or that my feature works
-- [ ] New and existing unit tests pass locally
-- [ ] Any dependent changes have been committed and pushed to the respective modules
+- [ ] Code style and self-review completed / 已完成代码风格检查与自审
+- [ ] Relevant tests and documentation updated / 已更新相关测试与文档
+- [ ] New and existing tests pass without new warnings / 新旧测试通过且没有新增警告
+- [ ] Dependent changes are identified and available / 已说明并提交依赖变更
+- [ ] No passwords, SMTP/S3 credentials, Webhook secrets, tokens, or sensitive email content / 不含密码、SMTP/S3 凭据、Webhook Secret、Token 或敏感邮件内容
 
-## Screenshots (if applicable)
+## Screenshots / 截图（如适用）
 
 <!-- If your changes involve UI, please add screenshots -->
 
-## Additional Information
+## Additional Information / 附加信息
 
 <!-- Any other relevant information such as dependencies, migration steps, etc. -->

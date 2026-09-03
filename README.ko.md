@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ko/Comparison-and-Migration.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
@@ -571,7 +571,7 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 OwlMail은 일반적인 MailDev 워크플로를 다루지만 현재 클라이언트에는 명시적인
 수정이 필요할 수 있습니다.
-[마이그레이션 가이드](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)를 따르세요.
+[마이그레이션 가이드](./docs/ko/Comparison-and-Migration.md)를 따르세요.
 
 ### 1. Environment Variable Compatibility
 
@@ -620,7 +620,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/Comparison-and-Migration.md)
 
 ## 🧪 Testing
 
@@ -683,8 +683,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [OwlMail 0.8.0 릴리스 노트](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [통합 테스트, CI 및 AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
+- [MCP 참조](./docs/en/MCP-Reference.md), [아키텍처](./docs/en/Architecture.md), [보안 모델](./docs/en/Security-Model.md)
+- [실행 가능한 테스트 예제](./examples/testing/README.md)
+- [OwlMail 0.7.0 릴리스 노트](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
 - [변경 기록](./CHANGELOG.md)
-- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/Comparison-and-Migration.md)
 - [API 참조 (English)](./docs/en/API-Reference.md)
 - [운영 및 문제 해결 (English)](./docs/en/Operations.md)
 - [Webhook 전달 (English)](./docs/en/Webhook-Forwarding.md)

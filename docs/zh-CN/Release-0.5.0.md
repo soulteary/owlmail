@@ -5,7 +5,8 @@ OwlMail 0.5.0 在保持单一二进制部署方式的同时，把本地收件箱
 按需浏览器通知、明确的 Webhook 容量控制，并改进了 Web Basic Auth 只配置一项
 凭据时的行为。
 
-只有在发布 `v0.5.0` 标签后，引用 `v0.5.0` 或容器标签 `0.5.0` 的命令才会生效。
+OwlMail 0.5.0 已于 2026-08-30 发布。以下命令使用已发布的 `v0.5.0` 标签与
+`0.5.0` 容器镜像。
 
 ## 主要更新
 
@@ -70,7 +71,7 @@ Web Basic Auth 只配置一项时不再静默关闭鉴权：
 
 更换版本前应备份完整邮件目录；重要归档应先使用副本验证。
 
-## 发布后的安装方式
+## 安装方式
 
 ### 发布二进制
 
@@ -138,5 +139,5 @@ docker run -d \
 - [Webhook 场景示例](../../examples/webhooks/README.zh-CN.md)
 - [API 参考](./API-Reference.md)
 - [运维与排障](./Operations.md)
-- [MailDev 对比与迁移指南](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [MailDev 对比与迁移指南](./Comparison-and-Migration.md)
 - [完整变更日志](../../CHANGELOG.md)

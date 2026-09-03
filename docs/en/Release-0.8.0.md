@@ -6,7 +6,8 @@ observable relay delivery, layered configuration, an optional SQLite mailbox
 index, a read-only MCP stdio bridge, an opt-in MailCatcher REST facade, and a
 safer, faster inbox workflow.
 
-The commands below become valid after the `v0.8.0` tag is published.
+OwlMail 0.8.0 was published on 2026-09-03. The commands below use the released
+`v0.8.0` tag and `0.8.0` container image.
 
 ## Highlights
 

@@ -6,9 +6,9 @@ Wir bieten derzeit Sicherheitsupdates für die folgenden Versionen:
 
 | Version | Unterstützt |
 |---------|-------------|
-| Neueste | ✅ Ja |
-| Vorherige Hauptversion | ✅ Ja |
-| Ältere Versionen | ❌ Nein |
+| 0.8.x | ✅ Ja |
+| 0.7.x | ✅ Ja |
+| 0.6.x und älter | ❌ Nein |
 
 ## Meldung einer Sicherheitslücke
 
@@ -57,6 +57,18 @@ Während wir derzeit kein formelles Bug-Bounty-Programm haben, nehmen wir Sicher
 - **Zugriffskontrolle**: Konfigurieren Sie angemessene Authentifizierung und Autorisierung
 - **Umgebungsisolation**: Setzen Sie keine ungeschützten Instanzen in öffentlichen Netzwerken aus
 - **Sensible Informationen**: Speichern Sie keine Passwörter oder Schlüssel im Code oder in der Konfiguration
+
+### Isolation der HTML-E-Mail-Vorschau
+
+OwlMail behandelt erfasste HTML-E-Mails als nicht vertrauenswürdig. Der Server
+bereinigt aktive Inhalte; die Weboberfläche rendert das Ergebnis in einem
+`srcdoc`-iframe ohne Sandbox-Berechtigungen, mit
+`referrerpolicy="no-referrer"` und einer restriktiven CSP.
+
+Externe Bilder, Schriftarten, Stylesheets und Medien sind standardmäßig
+blockiert. **Externe Inhalte laden** gilt nur für die aktuelle Nachricht und
+kann Absender-Infrastruktur kontaktieren sowie IP-Adresse und Tracking-Kennung
+offenlegen. CID-Bilder bleiben lokale OwlMail-Anhänge.
 
 ### Für Entwickler
 

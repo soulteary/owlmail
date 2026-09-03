@@ -4,9 +4,9 @@
 
 > ⚠️ **翻訳中**
 > 
-> この翻訳は進行中です。現在は、[英語版](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)または他の利用可能なバージョンを参照してください：
-> - [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-> - [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+> この翻訳は進行中です。現在は、[英語版](../en/Comparison-and-Migration.md)または他の利用可能なバージョンを参照してください：
+> - [English](../en/Comparison-and-Migration.md)
+> - [简体中文](../zh-CN/Comparison-and-Migration.md)
 > 
 > **貢献を歓迎します**：この翻訳に貢献したい場合は、[貢献ガイド](../../.github/CONTRIBUTING.md)を参照してください。
 
@@ -32,7 +32,7 @@ OwlMail 0.8.0 は、既定で無効の読み取り専用 MCP インターフェ�
 
 1. リポジトリをフォーク
 2. 翻訳用のブランチを作成
-3. [OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) の内容を翻訳
+3. [Comparison-and-Migration.md](../en/Comparison-and-Migration.md) の内容を翻訳
 4. プルリクエストを送信
 
 詳細については、[貢献ガイド](../../.github/CONTRIBUTING.md)を参照してください。
