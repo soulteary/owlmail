@@ -1,10 +1,16 @@
 import assert from "node:assert/strict";
 import net from "node:net";
+import {
+  cleanupCapturedEmail,
+  findMatchingMessages,
+  normalizeAPIBase,
+  requestJSON,
+} from "./api.mjs";
 import { withCleanup } from "./cleanup.mjs";
 
 const smtpHost = process.env.TEST_SMTP_HOST || "127.0.0.1";
 const smtpPort = Number(process.env.TEST_SMTP_PORT || "1025");
-const apiBase = (process.env.TEST_MAIL_API || "http://127.0.0.1:1080").replace(/\/$/, "");
+const apiBase = normalizeAPIBase(process.env.TEST_MAIL_API || "http://127.0.0.1:1080");
 const runID = `${Date.now()}-${process.pid}`;
 const recipient = `signup+${runID}@example.test`;
 const subject = `OwlMail integration ${runID}`;
@@ -46,37 +52,7 @@ function lineReader(socket) {
   });
 }
 
-async function requestJSON(path, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(new Error(`HTTP request exceeded ${ioTimeoutMs} ms`)),
-    ioTimeoutMs,
-  );
-  try {
-    const response = await fetch(`${apiBase}${path}`, { ...options, signal: controller.signal });
-    const body = response.ok ? await response.json() : null;
-    return { response, body };
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function requestStatus(path, options = {}) {
-  const controller = new AbortController();
-  const timer = setTimeout(
-    () => controller.abort(new Error(`HTTP request exceeded ${ioTimeoutMs} ms`)),
-    ioTimeoutMs,
-  );
-  try {
-    const response = await fetch(`${apiBase}${path}`, { ...options, signal: controller.signal });
-    await response.arrayBuffer();
-    return response;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function sendMessage() {
+async function sendMessage(onAccepted) {
   const socket = net.createConnection({ host: smtpHost, port: smtpPort });
   const abortSMTP = () => {
     socket.destroy(new Error(`SMTP operation exceeded ${ioTimeoutMs} ms`));
@@ -118,6 +94,7 @@ async function sendMessage() {
       "",
     ].join("\r\n"));
     await reply(250);
+    onAccepted();
     await command("QUIT", 221);
   } finally {
     clearTimeout(deadline);
@@ -128,29 +105,32 @@ async function sendMessage() {
 async function waitForMessage() {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
-    const query = new URLSearchParams({ to: recipient, limit: "10" });
-    const { response, body: page } = await requestJSON(`/api/v1/emails?${query}`);
-    assert.equal(response.ok, true, `list failed: ${response.status}`);
-    const match = page.emails.find((email) => email.subject === subject);
+    const match = (await findMatchingMessages(apiBase, recipient, subject))[0];
     if (match) return match;
     await new Promise((resolve) => setTimeout(resolve, 200));
   }
   throw new Error(`timed out waiting for ${recipient}`);
 }
 
-await sendMessage();
-const summary = await waitForMessage();
-const messagePath = `/api/v1/emails/${encodeURIComponent(summary.id)}`;
+let accepted = false;
+let messageID = "";
 await withCleanup(
   async () => {
-    const { response: detailResponse, body: detail } = await requestJSON(messagePath);
+    await sendMessage(() => {
+      accepted = true;
+    });
+    const summary = await waitForMessage();
+    messageID = summary.id;
+    const messagePath = `/api/v1/emails/${encodeURIComponent(messageID)}`;
+    const { response: detailResponse, body: detail } = await requestJSON(apiBase, messagePath);
     assert.equal(detailResponse.ok, true, `detail failed: ${detailResponse.status}`);
     assert.equal(detail.subject, subject);
     assert.match(detail.text, new RegExp(token));
-    console.log(`verified OwlMail message ${summary.id}`);
+    console.log(`verified OwlMail message ${messageID}`);
   },
   async () => {
-    const deleteResponse = await requestStatus(messagePath, { method: "DELETE" });
-    assert.equal(deleteResponse.ok, true, `cleanup failed: ${deleteResponse.status}`);
+    if (accepted) {
+      await cleanupCapturedEmail(apiBase, recipient, subject, messageID);
+    }
   },
 );

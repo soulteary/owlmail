@@ -41,6 +41,9 @@ node examples/testing/javascript/email-test.mjs
 
 The examples intentionally avoid clearing the mailbox. Each creates a unique
 recipient, filters by the complete address, and removes only the returned ID.
+If SMTP accepted the message but polling failed before returning its ID,
+cleanup searches again using that unique recipient and exact subject rather
+than deleting unrelated messages.
 See [Integration testing](../../docs/en/Integration-Testing.md) and the
 [testing recipes](../../docs/en/Testing-Recipes.md) for production test-suite
 patterns.

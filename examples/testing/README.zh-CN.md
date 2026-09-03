@@ -38,6 +38,8 @@ node examples/testing/javascript/email-test.mjs
 ```
 
 示例不会清空邮箱。每次运行都会创建唯一收件人、按完整地址过滤，并只删除返回 ID。
+如果 SMTP 已接受邮件，但轮询请求在返回 ID 前失败，清理逻辑会使用该唯一收件人和精确
+主题重新查询，而不会删除无关邮件。
 完整模式见[集成测试](../../docs/zh-CN/Integration-Testing.md)与
 [测试配方](../../docs/zh-CN/Testing-Recipes.md)。
 

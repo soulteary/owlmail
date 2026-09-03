@@ -876,7 +876,8 @@ test("0.8.0 examples are pinned, private by default, persistent, and bounded", (
 
   const javascript = fs.readFileSync(path.join(root, "examples/testing/javascript/email-test.mjs"), "utf8");
   assert.ok(javascript.includes("socket.setTimeout"));
-  assert.ok(javascript.includes("AbortController"));
+  const javascriptAPI = fs.readFileSync(path.join(root, "examples/testing/javascript/api.mjs"), "utf8");
+  assert.ok(javascriptAPI.includes("AbortController"));
   const goExample = fs.readFileSync(path.join(root, "examples/testing/go/email_test.go"), "utf8");
   assert.ok(goExample.includes("net.Dialer{Timeout:"));
   assert.ok(goExample.includes("SetDeadline"));

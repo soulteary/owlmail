@@ -38,7 +38,7 @@ func joinSMTPAddress(host, port string) string {
 	return net.JoinHostPort(host, port)
 }
 
-func sendSMTPMessage(address, from string, recipients []string, message []byte, timeout time.Duration) error {
+func sendSMTPMessage(address, from string, recipients []string, message []byte, timeout time.Duration, onAccepted func()) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
 		return fmt.Errorf("parse SMTP address: %w", err)
@@ -78,6 +78,7 @@ func sendSMTPMessage(address, from string, recipients []string, message []byte, 
 	if err := writer.Close(); err != nil {
 		return fmt.Errorf("finish SMTP DATA: %w", err)
 	}
+	onAccepted()
 	if err := client.Quit(); err != nil {
 		return fmt.Errorf("quit SMTP session: %w", err)
 	}
@@ -98,6 +99,9 @@ func deleteEmail(client *http.Client, messageURL string) (err error) {
 		return fmt.Errorf("delete email: %w", err)
 	}
 	defer func() {
+		if _, drainErr := io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10)); drainErr != nil {
+			err = errors.Join(err, fmt.Errorf("drain cleanup response: %w", drainErr))
+		}
 		if closeErr := response.Body.Close(); closeErr != nil {
 			err = errors.Join(err, fmt.Errorf("close cleanup response: %w", closeErr))
 		}
@@ -106,6 +110,57 @@ func deleteEmail(client *http.Client, messageURL string) (err error) {
 		return fmt.Errorf("delete email: unexpected status %d", response.StatusCode)
 	}
 	return nil
+}
+
+func findMatchingEmailIDs(client *http.Client, apiBase, recipient, subject string) (ids []string, err error) {
+	endpoint := apiBase + "/api/v1/emails?to=" + url.QueryEscape(recipient) + "&limit=10"
+	response, err := client.Get(endpoint)
+	if err != nil {
+		return nil, fmt.Errorf("list emails: %w", err)
+	}
+	defer func() {
+		if _, drainErr := io.Copy(io.Discard, io.LimitReader(response.Body, 64<<10)); drainErr != nil {
+			err = errors.Join(err, fmt.Errorf("drain email list response: %w", drainErr))
+		}
+		if closeErr := response.Body.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("close email list response: %w", closeErr))
+		}
+	}()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("list emails: unexpected status %d", response.StatusCode)
+	}
+	var page emailPage
+	if err := json.NewDecoder(response.Body).Decode(&page); err != nil {
+		return nil, fmt.Errorf("decode email list: %w", err)
+	}
+	for _, item := range page.Emails {
+		if item.Subject == subject {
+			ids = append(ids, item.ID)
+		}
+	}
+	return ids, nil
+}
+
+func cleanupCapturedEmail(client *http.Client, apiBase, recipient, subject, knownID string) error {
+	ids := []string{knownID}
+	if knownID == "" {
+		var err error
+		ids, err = findMatchingEmailIDs(client, apiBase, recipient, subject)
+		if err != nil {
+			return err
+		}
+	}
+	if len(ids) == 0 {
+		return fmt.Errorf("cleanup could not locate the accepted message for %s", recipient)
+	}
+	var cleanupErr error
+	for _, id := range ids {
+		messageURL := apiBase + "/api/v1/emails/" + url.PathEscape(id)
+		if err := deleteEmail(client, messageURL); err != nil {
+			cleanupErr = errors.Join(cleanupErr, err)
+		}
+	}
+	return cleanupErr
 }
 
 func TestCapturedEmail(t *testing.T) {
@@ -122,6 +177,17 @@ func TestCapturedEmail(t *testing.T) {
 	recipient := "signup+" + runID + "@example.test"
 	subject := "OwlMail integration " + runID
 	token := "token-" + runID
+	client := &http.Client{Timeout: 5 * time.Second}
+	accepted := false
+	var id string
+	t.Cleanup(func() {
+		if !accepted {
+			return
+		}
+		if err := cleanupCapturedEmail(client, apiBase, recipient, subject, id); err != nil {
+			t.Errorf("cleanup captured email: %v", err)
+		}
+	})
 	message := strings.Join([]string{
 		"From: sender@example.test",
 		"To: " + recipient,
@@ -136,34 +202,19 @@ func TestCapturedEmail(t *testing.T) {
 		[]string{recipient},
 		[]byte(message),
 		5*time.Second,
+		func() { accepted = true },
 	); err != nil {
 		t.Fatalf("send test email: %v", err)
 	}
 
-	client := &http.Client{Timeout: 5 * time.Second}
 	deadline := time.Now().Add(15 * time.Second)
-	var id string
 	for time.Now().Before(deadline) {
-		endpoint := apiBase + "/api/v1/emails?to=" + url.QueryEscape(recipient) + "&limit=10"
-		response, err := client.Get(endpoint)
+		ids, err := findMatchingEmailIDs(client, apiBase, recipient, subject)
 		if err != nil {
-			t.Fatalf("list emails: %v", err)
+			t.Fatalf("find email: %v", err)
 		}
-		var page emailPage
-		err = json.NewDecoder(response.Body).Decode(&page)
-		if closeErr := response.Body.Close(); closeErr != nil {
-			t.Fatalf("close email list response: %v", closeErr)
-		}
-		if err != nil || response.StatusCode != http.StatusOK {
-			t.Fatalf("decode email list: status=%d err=%v", response.StatusCode, err)
-		}
-		for _, item := range page.Emails {
-			if item.Subject == subject {
-				id = item.ID
-				break
-			}
-		}
-		if id != "" {
+		if len(ids) != 0 {
+			id = ids[0]
 			break
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -173,11 +224,6 @@ func TestCapturedEmail(t *testing.T) {
 	}
 
 	messageURL := apiBase + "/api/v1/emails/" + url.PathEscape(id)
-	t.Cleanup(func() {
-		if err := deleteEmail(client, messageURL); err != nil {
-			t.Errorf("cleanup captured email: %v", err)
-		}
-	})
 	response, err := client.Get(messageURL)
 	if err != nil {
 		t.Fatalf("get email: %v", err)
@@ -224,6 +270,18 @@ type closeErrorBody struct{}
 
 func (closeErrorBody) Read([]byte) (int, error) { return 0, io.EOF }
 func (closeErrorBody) Close() error             { return errors.New("close failed") }
+
+type trackingBody struct {
+	reader *strings.Reader
+	reads  int
+}
+
+func (body *trackingBody) Read(buffer []byte) (int, error) {
+	body.reads++
+	return body.reader.Read(buffer)
+}
+
+func (*trackingBody) Close() error { return nil }
 
 func TestDeleteEmailReportsCleanupFailures(t *testing.T) {
 	tests := map[string]struct {
@@ -304,5 +362,51 @@ func TestDeleteEmailReportsCleanupFailures(t *testing.T) {
 				t.Fatalf("deleteEmail() error = %v, want substring %q", err, test.wantError)
 			}
 		})
+	}
+}
+
+func TestDeleteEmailDrainsNonSuccessResponse(t *testing.T) {
+	body := &trackingBody{reader: strings.NewReader("cleanup failure details")}
+	client := &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusInternalServerError, Body: body}, nil
+	})}
+
+	err := deleteEmail(client, "http://owlmail.test/api/v1/emails/id")
+	if err == nil || !strings.Contains(err.Error(), "unexpected status 500") {
+		t.Fatalf("deleteEmail() error = %v", err)
+	}
+	if body.reads == 0 || body.reader.Len() != 0 {
+		t.Fatalf("error response body was not drained: reads=%d remaining=%d", body.reads, body.reader.Len())
+	}
+}
+
+func TestCleanupCapturedEmailFindsUnknownID(t *testing.T) {
+	var deletedPath string
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		switch request.Method {
+		case http.MethodGet:
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(strings.NewReader(`{"emails":[{"id":"other-id","subject":"other"},{"id":"captured-id","subject":"subject"}]}`)),
+			}, nil
+		case http.MethodDelete:
+			deletedPath = request.URL.Path
+			return &http.Response{StatusCode: http.StatusNoContent, Body: http.NoBody}, nil
+		default:
+			return nil, fmt.Errorf("unexpected method %s", request.Method)
+		}
+	})}
+
+	if err := cleanupCapturedEmail(
+		client,
+		"http://owlmail.test",
+		"recipient@example.test",
+		"subject",
+		"",
+	); err != nil {
+		t.Fatalf("cleanupCapturedEmail() error = %v", err)
+	}
+	if deletedPath != "/api/v1/emails/captured-id" {
+		t.Fatalf("deleted path = %q", deletedPath)
 	}
 }
