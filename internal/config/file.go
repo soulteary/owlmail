@@ -94,9 +94,7 @@ func configFileFromArgs(args []string) (string, error) {
 			break
 		}
 		nameAndValue := strings.TrimPrefix(argument, "-")
-		if strings.HasPrefix(nameAndValue, "-") {
-			nameAndValue = strings.TrimPrefix(nameAndValue, "-")
-		}
+		nameAndValue = strings.TrimPrefix(nameAndValue, "-")
 		name, value, hasValue := strings.Cut(nameAndValue, "=")
 		option := fs.Lookup(name)
 		if option == nil {
