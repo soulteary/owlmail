@@ -46,6 +46,7 @@ type API struct {
 	mcpHandler              http.Handler
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
+	relayRecoveryOnce        sync.Once
 	relaySourceMutex        sync.Mutex
 	relaySourceReleases     map[string]func()
 }
@@ -62,6 +63,14 @@ func NewAPIWithAuth(mailServer *mailserver.MailServer, port int, host, user, pas
 
 // NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
 func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
+	api := NewAPIWithHTTPSDeferredRecovery(mailServer, port, host, user, password, httpsEnabled, certFile, keyFile)
+	api.StartRelayRecovery()
+	return api
+}
+
+// NewAPIWithHTTPSDeferredRecovery loads and protects durable relay jobs but
+// leaves delivery recovery paused until StartRelayRecovery is called.
+func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	authEnabled := user != "" && password != ""
 	relayJobs, err := newPersistentRelayJobStore(mailServer.GetMailDir())
 	persistenceErr := err
@@ -92,9 +101,17 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 	api.setupEventListeners()
 	if api.relayJobs.hasQueued() {
 		api.protectQueuedRelaySources()
-		go api.recoverRelayJobs()
 	}
 	return api
+}
+
+// StartRelayRecovery starts queued durable work at most once.
+func (api *API) StartRelayRecovery() {
+	api.relayRecoveryOnce.Do(func() {
+		if api.relayJobs.hasQueued() {
+			go api.recoverRelayJobs()
+		}
+	})
 }
 
 func (api *API) requestScheme() string {
