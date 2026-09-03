@@ -19,7 +19,7 @@ func (api *API) relayEmail(c fiber.Ctx) error {
 		}
 	}
 
-	email, err := api.mailServer.GetEmail(id)
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
@@ -27,12 +27,14 @@ func (api *API) relayEmail(c fiber.Ctx) error {
 	var relayErr error
 	if relayTo != "" {
 		relayErr = api.mailServer.RelayMailTo(email, relayTo, func(err error) {
+			releaseSource()
 			if err != nil {
 				common.Error("Error relaying email %s to %s: %v", id, relayTo, err)
 			}
 		})
 	} else {
 		relayErr = api.mailServer.RelayMail(email, false, func(err error) {
+			releaseSource()
 			if err != nil {
 				common.Error("Error relaying email %s: %v", id, err)
 			}
@@ -40,6 +42,7 @@ func (api *API) relayEmail(c fiber.Ctx) error {
 	}
 
 	if relayErr != nil {
+		releaseSource()
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, relayErr.Error()))
 	}
 
@@ -55,18 +58,20 @@ func (api *API) relayEmailWithParam(c fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Invalid email address provided"))
 	}
 
-	email, err := api.mailServer.GetEmail(id)
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
 
 	relayErr := api.mailServer.RelayMailTo(email, relayTo, func(err error) {
+		releaseSource()
 		if err != nil {
 			common.Error("Error relaying email %s to %s: %v", id, relayTo, err)
 		}
 	})
 
 	if relayErr != nil {
+		releaseSource()
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, relayErr.Error()))
 	}
 
