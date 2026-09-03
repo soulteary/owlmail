@@ -1,8 +1,9 @@
 # OwlMail
 
-> 🦉 一个用 Go 实现的邮件开发测试服务，支持常见 MailDev 工作流并提供 OwlMail 专属 API
+> 🦉 面向开发者、CI 流水线、自动化系统与 AI Agent 的自托管 AI 原生邮件测试网关。
 
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
@@ -13,10 +14,20 @@
 
 ---
 
-OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持常见
-[MailDev](https://github.com/maildev/maildev) 工作流，并提供自己的版本化 API、
-原生 WebSocket、Webhook 和浏览器通知。迁移 API 或 Socket.IO 客户端前，请先
-核对文档中的兼容边界。
+OwlMail 在应用邮件进入真实邮箱前将其捕获，并转换为确定、可检查的测试数据。
+开发者可以通过 Web UI 查看邮件，测试套件可以使用版本化 REST API 和 OpenAPI
+合约，自动化系统可以消费持久事件，AI Agent 则可以通过有明确边界的只读 MCP
+等待并检查邮件投递。
+
+只需捕获一次，即可通过适合不同工作流的接口验证同一封已完整提交的邮件：
+
+| 使用者 | 接口 | 典型工作流 |
+|---|---|---|
+| 开发者 | Web UI、浏览器通知 | 检查 HTML、纯文本、Header、源码、链接与附件 |
+| 测试套件与 CI | REST API、OpenAPI 3.1、WebSocket | 验证注册、密码重置和通知邮件 |
+| 自动化系统 | 签名 Webhook、可选 Redis Streams | 将已提交邮件转换为可跨重启恢复的下游事件 |
+| AI 编码 Agent | 基于 Streamable HTTP 或 stdio 的只读 MCP | 搜索、获取和等待邮件，不开放破坏性操作 |
+| SMTP 运维方 | 手动与自动 Relay | 按明确的 TLS 与重试策略转发选定测试邮件 |
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -28,50 +39,39 @@ OwlMail 是面向开发和测试环境的 SMTP 服务器与 Web 界面，支持�
 
 ![演示视频](.github/assets/realtime.gif)
 
-## ✨ 特性
+## ✨ 为什么选择 OwlMail
 
-### 核心功能
+- **确定性捕获** —— EML、元数据和附件先进入 staging，原子提交后才会对 API
+  与事件消费者可见。
+- **面向集成测试** —— 提供版本化 `/api/v1`、OpenAPI 3.1、原生 WebSocket、
+  健康与就绪检查、搜索、过滤及导出。
+- **AI 原生但不依赖 AI** —— 默认关闭的 MCP 提供七个封闭集合的只读工具、
+  有界 Resources、Prompts 和事件驱动的 `wait_for_email`；运行 OwlMail 不需要 LLM。
+- **持久化自动化** —— 本地 Webhook outbox、可选 Redis Streams、HMAC 签名、
+  稳定投递 ID、有限重试和优雅排空。
+- **明确的运维边界** —— SMTP 容量限制、持久化、可选 S3 附件、SQLite 索引、
+  Prometheus Metrics、JSON 日志与故障恢复。
+- **受控投递** —— 持久化异步 Relay 任务使用不可变配置快照、流式 DATA、
+  明确 TLS 模式与状态查询。
+- **清晰迁移路径** —— 默认关闭的 MailDev 与 MailCatcher REST facade 支持
+  部分现有工作流，但不宣称 Socket.IO 或完全等价兼容。
 
-- ✅ **SMTP 服务器** - 接收和存储所有发送的邮件（默认端口 1025）
-- ✅ **Web 界面** - 通过浏览器查看和管理邮件（默认端口 1080）
-- ✅ **邮件持久化** - 邮件保存为 `.eml` 文件，支持从目录加载
-- ✅ **S3 兼容附件存储** - 可选使用对象存储保存解析后的附件，默认仍为本地存储
-- ✅ **邮件转发** - 支持将邮件转发到真实的 SMTP 服务器
-- ✅ **自动中继** - 支持自动转发所有邮件，带规则过滤
-- ✅ **Webhook 消息转发** - 按规则把新邮件转换为自定义消息并发送到通用 HTTP Webhook
-- ✅ **入站 SMTP 认证** - 支持强制 PLAIN/LOGIN 认证，并保留零配置的 NO AUTH 测试模式
-- ✅ **TLS/STARTTLS** - 支持加密连接
-- ✅ **SMTPS** - 启用 SMTP TLS 时支持端口 465 的直接 TLS 连接
+- **本地工具** —— 使用内嵌的 `/webhooks` 编辑器生成 Webhook 规则，并通过\n  [sendmail 指南](./docs/zh-CN/Sendmail.md)接入传统程序。源码和浏览器测试使用 Bun；\n  部署后的二进制不需要 Go、Bun 或 Node.js 运行时。\n\n## 🆕 OwlMail 0.8.0
 
-### 增强功能
+`v0.8.0` 是当前稳定版本，新增持久化 Relay 任务、分层 YAML/JSON 配置、可选
+SQLite 索引、Prometheus Metrics、结构化日志、MailCatcher REST facade、MCP
+stdio 桥接、更完整的 Web 收件箱导航、更严格的 API 校验、SMTP 容量控制及附件
+下载安全加固。
 
-- 🆕 **批量操作** - 批量删除、批量标记已读
-- 🆕 **浏览器通知** - 可按需开启新邮件实时通知
-- 🆕 **邮件统计** - 获取邮件统计信息
-- 🆕 **邮件预览** - 轻量级邮件预览 API
-- 🆕 **邮件导出** - 导出邮件为 ZIP 文件
-- 🆕 **配置管理 API** - 完整的配置管理（GET/PUT/PATCH）
-- 🆕 **强大的搜索** - 全文搜索、日期范围过滤、排序
-- 🆕 **改进的 RESTful API** - 更规范的 API 设计（`/api/v1/*`）
-- 🆕 **内置帮助** - 可从收件箱或 `/help` 打开本地中英文指南
-- 🆕 **Webhook 配置器** - 在 `/webhooks` 使用内置本地编辑器生成、导入、校验、复制和下载转发规则
-- 🆕 **Sendmail 兼容 CLI** - [`owlmail sendmail`](./docs/zh-CN/Sendmail.md) 让 PHP、Cron 和传统程序通过正常 SMTP 安全与容量边界投递
+以下安装示例统一固定为 `ghcr.io/soulteary/owlmail:0.8.0`。需要可重复的 CI
+或接近生产的测试环境时，应使用完整版本号或
+`ghcr.io/soulteary/owlmail@sha256:<digest>`，不要依赖移动标签。
+完整内容参阅 [0.8.0 发布说明](./docs/zh-CN/Release-0.8.0.md)和
+[CHANGELOG.md](./CHANGELOG.md)。
 
-### 兼容性
-
-- ✅ **MailDev 风格工作流路由** - 覆盖常用邮件、转发、配置与健康检查流程
-- ✅ **部分 MailDev 环境变量别名** - 支持范围以配置表中的 `MAILDEV_*` 为准
-- ✅ **自动中继规则** - 支持 MailDev 风格 JSON allow/deny 规则
-- ⚠️ **明确记录差异** - API 前缀与载荷、已读副作用、实时协议并不相同
-
-### 部署特性
-
-- ⚡ **单一二进制** - UI 与帮助资源均内嵌到可执行文件
-- ⚡ **无需语言运行时** - 部署后的二进制不依赖 Go、Bun 或 Node.js
-- ⚡ **明确的并发控制** - Webhook 投递可设置上限，也可显式使用无限并发
-
-仓库目前没有发布可复现的跨项目基准。请按实际邮件量、存储、TLS 和 Webhook
-目标测量启动时间、内存与吞吐，不应直接把实现语言当作容量结论。
+> [!IMPORTANT]
+> OwlMail 面向开发、测试、CI 与可信内部网络，不是公网生产 MTA、
+> exactly-once 消息队列或多租户邮件服务。
 
 ## 🚀 快速开始
 
@@ -800,4 +800,4 @@ OwlMail/
 
 ---
 
-**OwlMail** - 用 Go 实现、提供明确 MailDev 迁移路径的邮件开发测试服务 🦉
+**OwlMail** —— 为开发者、CI、自动化系统与 AI Agent 提供统一的自托管邮件测试网关。🦉
