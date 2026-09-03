@@ -305,10 +305,11 @@ func (api *API) mailDevRelayEmail(c fiber.Ctx) error {
 	if outgoing := api.mailServer.GetOutgoingConfig(); outgoing == nil || outgoing.Host == "" {
 		return mailDevError(c, http.StatusInternalServerError, "Outgoing mail not configured")
 	}
-	email, err := api.mailServer.GetEmail(id)
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return mailDevError(c, http.StatusInternalServerError, "Email was not found")
 	}
+	defer releaseSource()
 	if relayTo != "" && !mailDevRelayAddress.MatchString(relayTo) {
 		return mailDevError(c, http.StatusBadRequest, fmt.Sprintf("Incorrect email address provided: %s", relayTo))
 	}
