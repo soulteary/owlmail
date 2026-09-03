@@ -6,11 +6,13 @@ on:
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+      - '.github/goreportcard.svg'
   pull_request:
     branches: [ main ]
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
+      - '.github/goreportcard.svg'
   workflow_dispatch:
 
 concurrency:
