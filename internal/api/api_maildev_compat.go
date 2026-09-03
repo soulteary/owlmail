@@ -291,7 +291,7 @@ func (api *API) mailDevAttachment(c fiber.Ctx) error {
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
-	c.Set(fiber.HeaderContentType, contentType)
+	setAttachmentResponseHeaders(c, contentType, c.Params("filename"))
 	maxInt := int64(^uint(0) >> 1)
 	if attachment.Size >= 0 && attachment.Size <= maxInt {
 		return c.SendStream(attachment.Body, int(attachment.Size))

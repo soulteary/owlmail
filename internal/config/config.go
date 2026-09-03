@@ -314,7 +314,8 @@ type Config struct {
 	TLSKeyFile  string
 
 	// Logging configuration
-	LogLevel string
+	LogLevel  string
+	LogFormat string
 
 	// Email ID configuration
 	UseUUIDForEmailID bool
@@ -396,6 +397,7 @@ func DefaultConfig() *Config {
 		TLSCertFile:                 "",
 		TLSKeyFile:                  "",
 		LogLevel:                    "normal",
+		LogFormat:                   "console",
 		UseUUIDForEmailID:           false,
 		S3Enabled:                   false,
 		S3Endpoint:                  "",
@@ -469,6 +471,7 @@ type FlagRefs struct {
 	TLSCertFile                 *string
 	TLSKeyFile                  *string
 	LogLevel                    *string
+	LogFormat                   *string
 	UseUUIDForEmailID           *bool
 	S3Enabled                   *bool
 	S3Endpoint                  *string
@@ -544,6 +547,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		TLSCertFile:                 fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
 		TLSKeyFile:                  fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
 		LogLevel:                    fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
+		LogFormat:                   fs.String("log-format", cfg.LogFormat, "Log format: console or json"),
 		UseUUIDForEmailID:           fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
 		S3Enabled:                   fs.Bool("s3-enabled", cfg.S3Enabled, "Store decoded attachments in S3-compatible object storage"),
 		S3Endpoint:                  fs.String("s3-endpoint", cfg.S3Endpoint, "S3-compatible endpoint URL (empty uses AWS S3)"),
@@ -627,7 +631,8 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		TLSCertFile: resolveStringWithFlag(fs, "tls-cert", "OWLMAIL_TLS_CERT", *refs.TLSCertFile),
 		TLSKeyFile:  resolveStringWithFlag(fs, "tls-key", "OWLMAIL_TLS_KEY", *refs.TLSKeyFile),
 
-		LogLevel: resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
+		LogLevel:  resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
+		LogFormat: resolveStringWithFlag(fs, "log-format", "OWLMAIL_LOG_FORMAT", *refs.LogFormat),
 
 		UseUUIDForEmailID:      resolveBoolWithFlag(fs, "use-uuid-for-email-id", "OWLMAIL_USE_UUID_FOR_EMAIL_ID", *refs.UseUUIDForEmailID),
 		S3Enabled:              resolveBoolWithFlag(fs, "s3-enabled", "OWLMAIL_S3_ENABLED", *refs.S3Enabled),
