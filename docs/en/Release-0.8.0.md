@@ -12,9 +12,12 @@ The commands below become valid after the `v0.8.0` tag is published.
 
 ### Persistent relay jobs
 
-Manual and API-triggered relay requests now return an asynchronous job ID.
-Accepted jobs are persisted under the mail directory, restored after restart,
-and retried for bounded transient failures with safe status categories.
+Manual relay requests from the inbox and requests to the native
+`/api/v1/emails/:id/actions/relay` endpoints now return an asynchronous job
+ID. The retained unversioned `/email/:id/relay` compatibility routes keep
+their historical HTTP 200 response and do not return a job ID. Accepted native
+jobs are persisted under the mail directory, restored after restart, and
+retried for bounded transient failures with safe status categories.
 Source EML files remain protected while a relay job still needs them, and
 startup orders SMTP, the Web API, storage cleanup, and relay recovery so queued
 work is not exposed or deleted prematurely.
