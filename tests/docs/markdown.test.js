@@ -854,8 +854,11 @@ test("0.8.0 examples are pinned, private by default, persistent, and bounded", (
 
     const ci = fs.readFileSync(path.join(root, `docs/${locale}/CI-Quickstart.md`), "utf8");
     const workflow = fencedBlocks(ci, ["yaml", "yml"])[0]?.body || "";
-    const actionPins = [...workflow.matchAll(/uses:\s+actions\/(checkout|setup-go|upload-artifact)@([0-9a-f]{40})/g)];
-    assert.deepEqual(actionPins.map((match) => match[1]).sort(), ["checkout", "setup-go", "upload-artifact"]);
+    const actionRefs = [...workflow.matchAll(/uses:\s+actions\/(checkout|setup-go|upload-artifact)@(\S+)/g)];
+    assert.deepEqual(actionRefs.map((match) => match[1]).sort(), ["checkout", "setup-go", "upload-artifact"]);
+    for (const [, action, ref] of actionRefs) {
+      assert.match(ref, /^[0-9a-f]{40}$/, `actions/${action} is not pinned to a full commit SHA`);
+    }
     assert.match(workflow, /for attempt in \$\(seq 1 30\); do/);
     assert.match(workflow, /curl .*--connect-timeout 2 --max-time 3/);
     assert.match(workflow, /OWLMAIL_RUN_INTEGRATION_TEST=1 go test \.\/examples\/testing\/go -v/);
