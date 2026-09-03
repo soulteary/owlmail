@@ -832,7 +832,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [AI Agent Testing](./docs/en/AI-Agent-Testing.md) and [MCP Reference](./docs/en/MCP-Reference.md)
 - [Testing Recipes and Runnable Examples](./docs/en/Testing-Recipes.md)
 - [Architecture](./docs/en/Architecture.md) and [Security Model](./docs/en/Security-Model.md)
-- [OwlMail 0.7.0 Release Notes](./docs/en/Release-0.7.0.md)
+- [OwlMail 0.8.0 Release Notes](./docs/en/Release-0.8.0.md)
 - [Changelog](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/Comparison-and-Migration.md)
 - [API Reference](./docs/en/API-Reference.md)

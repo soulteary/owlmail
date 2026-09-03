@@ -41,7 +41,7 @@ langue dans des répertoires distincts.
 ### Versions
 
 - **[Notes de version 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
-- **[Notes de version 0.7.0](../en/Release-0.7.0.md)** (English, [中文](../zh-CN/Release-0.7.0.md))
+- **[Notes de version 0.8.0](../en/Release-0.8.0.md)** (English, [中文](../zh-CN/Release-0.8.0.md))
 - **[Processus de publication](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
 ### Comparaison et migration

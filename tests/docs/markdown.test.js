@@ -548,6 +548,25 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
     }
   }
 
+  const previousRelease = changelog.slice(releaseEnd).match(/^## \[(\d+\.\d+\.\d+)\]/m);
+  assert.ok(previousRelease, "CHANGELOG.md does not identify the previous release");
+  const previousReleaseNote = `Release-${previousRelease[1]}.md`;
+  for (const navigation of [
+    ...translatedReadmes,
+    "docs/README.md",
+    "docs/en/README.md",
+    "docs/zh-CN/README.md",
+    "docs/de/README.md",
+    "docs/fr/README.md",
+    "docs/it/README.md",
+    "docs/ja/README.md",
+    "docs/ko/README.md",
+  ]) {
+    const markdown = fs.readFileSync(path.join(root, navigation), "utf8");
+    assert.ok(markdown.includes(currentReleaseNote), `${navigation} does not link the current release`);
+    assert.ok(markdown.includes(previousReleaseNote), `${navigation} skips the previous release`);
+  }
+
   const comparison = fs.readFileSync(path.join(root, "docs/en/Comparison-and-Migration.md"), "utf8");
   const releaseBaseline = comparison.match(
     new RegExp(`OwlMail: ${currentVersionPattern} release baseline at\\s+([0-9a-f]{40})`),
@@ -810,10 +829,15 @@ test("release history and generated reports avoid stale documentation", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   assert.ok(changelog.includes("## [0.6.0] - 2026-09-01"));
   assert.ok(changelog.includes("## [0.5.0] - 2026-08-30"));
+  const releaseVersions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map(
+    (match) => match[1],
+  );
+  assert.equal(releaseVersions[0], currentVersion, "current release is not first in CHANGELOG.md");
   for (const locale of ["en", "zh-CN"]) {
-    const release = `docs/${locale}/Release-0.7.0.md`;
-    assert.ok(fs.existsSync(path.join(root, release)), `missing ${release}`);
-    assert.ok(fs.readFileSync(path.join(root, `docs/${locale}/README.md`), "utf8").includes("Release-0.7.0.md"));
+    for (const version of releaseVersions.filter((version) => version !== "0.4.0")) {
+      const release = `docs/${locale}/Release-${version}.md`;
+      assert.ok(fs.existsSync(path.join(root, release)), `missing ${release}`);
+    }
   }
 
   for (const locale of ["en", "zh-CN", "de", "fr", "it", "ja", "ko"]) {

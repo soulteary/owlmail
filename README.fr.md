@@ -694,7 +694,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Intégration, CI et agents IA](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Référence MCP](./docs/en/MCP-Reference.md), [architecture](./docs/en/Architecture.md) et [modèle de sécurité](./docs/en/Security-Model.md)
 - [Exemples de test exécutables](./examples/testing/README.md)
-- [Notes de version OwlMail 0.7.0](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
+- [Notes de version OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [Journal des modifications](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/fr/Comparison-and-Migration.md)
 - [Référence API (English)](./docs/en/API-Reference.md)

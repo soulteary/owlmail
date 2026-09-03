@@ -45,7 +45,7 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - Highlights, upgrade-sensitive behavior, installation commands, asset names,
     known limitations, and links to the detailed references.
   - **Other languages**: [简体中文](../zh-CN/Release-0.9.0.md)
-  - **Previous release**: [0.7.0](./Release-0.7.0.md) ([简体中文](../zh-CN/Release-0.7.0.md))
+  - **Previous release**: [0.8.0](./Release-0.8.0.md) ([简体中文](../zh-CN/Release-0.8.0.md))
 
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,

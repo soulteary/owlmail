@@ -690,7 +690,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [통합 테스트, CI 및 AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP 참조](./docs/en/MCP-Reference.md), [아키텍처](./docs/en/Architecture.md), [보안 모델](./docs/en/Security-Model.md)
 - [실행 가능한 테스트 예제](./examples/testing/README.md)
-- [OwlMail 0.7.0 릴리스 노트](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
+- [OwlMail 0.8.0 릴리스 노트](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [변경 기록](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ko/Comparison-and-Migration.md)
 - [API 참조 (English)](./docs/en/API-Reference.md)

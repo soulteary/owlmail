@@ -791,7 +791,7 @@ OwlMail/
 - [AI Agent 测试](./docs/zh-CN/AI-Agent-Testing.md)与 [MCP 参考](./docs/zh-CN/MCP-Reference.md)
 - [测试配方与可运行示例](./docs/zh-CN/Testing-Recipes.md)
 - [架构](./docs/zh-CN/Architecture.md)与[安全模型](./docs/zh-CN/Security-Model.md)
-- [OwlMail 0.7.0 发布说明](./docs/zh-CN/Release-0.7.0.md)
+- [OwlMail 0.8.0 发布说明](./docs/zh-CN/Release-0.8.0.md)
 - [变更日志](./CHANGELOG.md)
 - [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/Comparison-and-Migration.md)
 - [API 参考](./docs/zh-CN/API-Reference.md)

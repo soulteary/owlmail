@@ -44,7 +44,7 @@
 - **[OwlMail 0.9.0 发布说明](./Release-0.9.0.md)**
   - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
   - **其他语言**：[English](../en/Release-0.9.0.md)
-  - **上一版本**：[0.7.0](./Release-0.7.0.md)（[English](../en/Release-0.7.0.md)）
+  - **上一版本**：[0.8.0](./Release-0.8.0.md)（[English](../en/Release-0.8.0.md)）
 
 - **[API 参考](./API-Reference.md)**
   - 完整路由清单、请求与响应约定、鉴权、原生 WebSocket 事件、curl 示例，以及
