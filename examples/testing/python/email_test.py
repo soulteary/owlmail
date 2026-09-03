@@ -10,12 +10,38 @@ from email.message import EmailMessage
 
 
 def delete_email(api_base, email_id):
+    encoded_id = urllib.parse.quote(email_id, safe="")
     cleanup = urllib.request.Request(
-        f"{api_base}/api/v1/emails/{email_id}", method="DELETE"
+        f"{api_base}/api/v1/emails/{encoded_id}", method="DELETE"
     )
     with urllib.request.urlopen(cleanup, timeout=5) as response:
         if response.status >= 300:
             raise RuntimeError(f"cleanup failed with HTTP status {response.status}")
+
+
+def find_matching_email_ids(api_base, recipient, subject):
+    query = urllib.parse.urlencode({"to": recipient, "limit": 10})
+    with urllib.request.urlopen(
+        f"{api_base}/api/v1/emails?{query}", timeout=5
+    ) as response:
+        if response.status >= 300:
+            raise RuntimeError(f"list failed with HTTP status {response.status}")
+        page = json.load(response)
+    return [
+        item["id"] for item in page["emails"] if item["subject"] == subject
+    ]
+
+
+def cleanup_captured_email(api_base, recipient, subject, state):
+    email_ids = [state["id"]] if state["id"] else find_matching_email_ids(
+        api_base, recipient, subject
+    )
+    if not email_ids:
+        raise RuntimeError(
+            f"cleanup could not locate the accepted message for {recipient}"
+        )
+    for email_id in email_ids:
+        delete_email(api_base, email_id)
 
 
 class OwlMailIntegrationTest(unittest.TestCase):
@@ -33,8 +59,16 @@ class OwlMailIntegrationTest(unittest.TestCase):
         message["To"] = recipient
         message["Subject"] = subject
         message.set_content(f"Verification token: {token}")
+        cleanup_state = {"id": None}
         with smtplib.SMTP(smtp_host, smtp_port, timeout=5) as client:
             client.send_message(message)
+            self.addCleanup(
+                cleanup_captured_email,
+                api_base,
+                recipient,
+                subject,
+                cleanup_state,
+            )
 
         query = urllib.parse.urlencode({"to": recipient, "limit": 10})
         deadline = time.monotonic() + 15
@@ -52,8 +86,8 @@ class OwlMailIntegrationTest(unittest.TestCase):
             time.sleep(0.2)
         self.assertIsNotNone(found, f"timed out waiting for {recipient}")
 
+        cleanup_state["id"] = found["id"]
         email_id = urllib.parse.quote(found["id"], safe="")
-        self.addCleanup(delete_email, api_base, email_id)
         with urllib.request.urlopen(
             f"{api_base}/api/v1/emails/{email_id}", timeout=5
         ) as response:
