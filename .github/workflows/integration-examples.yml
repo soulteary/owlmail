@@ -3,8 +3,21 @@ name: Integration Examples
 on:
   push:
     branches: [ main, develop ]
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'examples/testing/**'
+      - '.github/workflows/integration-examples.yml'
   pull_request:
     branches: [ main, develop ]
+    paths:
+      - '**/*.go'
+      - 'go.mod'
+      - 'go.sum'
+      - 'examples/testing/**'
+      - '.github/workflows/integration-examples.yml'
+  workflow_dispatch:
 
 permissions:
   contents: read

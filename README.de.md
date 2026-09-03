@@ -127,7 +127,7 @@ Der einfachste Weg, OwlMail zu verwenden, ist das Abrufen des vorgefertigten Ima
 docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # Image für einen exakten Commit abrufen (Beispiel)
-docker pull ghcr.io/soulteary/owlmail:sha-b130f33
+docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
 
 # Container ausführen
 docker run -d \
@@ -140,7 +140,7 @@ docker run -d \
 
 **Verfügbare Tags:**
 - `0.8.0` - Exaktes Release-Tag; `0.8` und `0` werden mit späteren Releases der Reihe aktualisiert
-- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-b130f33`)
+- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-e3d2cfc`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderliches Standard-Branch-Image, kein stabiles Release-Tag
 

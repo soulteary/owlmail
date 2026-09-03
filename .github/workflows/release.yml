@@ -65,6 +65,15 @@ jobs:
           fi
 
           git checkout --detach "${VERSION}"
+          if [ ! -f VERSION ]; then
+            echo "::error::Missing VERSION file at ${VERSION}"
+            exit 1
+          fi
+          DOCUMENTED_VERSION="$(tr -d '\r\n' < VERSION)"
+          if [ "${DOCUMENTED_VERSION}" != "${VERSION#v}" ]; then
+            echo "::error::VERSION contains ${DOCUMENTED_VERSION}, expected ${VERSION#v}"
+            exit 1
+          fi
           NOTES="docs/en/Release-${VERSION#v}.md"
           if [ ! -f "${NOTES}" ]; then
             echo "::error::Missing curated release notes: ${NOTES}"

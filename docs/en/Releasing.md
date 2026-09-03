@@ -6,6 +6,8 @@ container images must be built from that same tag.
 
 ## Sources of truth
 
+- `VERSION` records the current stable documentation version without the `v`
+  prefix. A release tag must match this value.
 - `CHANGELOG.md` records user-visible changes.
 - `docs/en/Release-X.Y.Z.md` is the curated English release body.
 - `docs/zh-CN/Release-X.Y.Z.md` is the corresponding Chinese release note.
@@ -22,6 +24,7 @@ file.
 ## Pre-release checklist
 
 - [ ] All feature, fix, dependency, report-card, and release-documentation PRs are merged.
+- [ ] `VERSION` matches the version being tagged and the current README examples.
 - [ ] `CHANGELOG.md` and both language release notes describe the final diff from the previous tag.
 - [ ] No release note contains unresolved placeholders or unsupported compatibility claims.
 - [ ] Required checks on the exact `main` commit are green.

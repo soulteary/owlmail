@@ -6,11 +6,37 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- A live CI job now builds OwlMail and runs the dependency-free JavaScript,
+  Python, and Go integration examples against the same server, including their
+  mailbox cleanup paths.
+- Documentation contract tests now cover every registered machine-facing API
+  route, concrete MCP HTTP methods, complete MCP prompt arguments, executable
+  command structure, and pinned GitHub Actions references.
+
+### Changed
+
+- The seven root READMEs and the English and Chinese documentation indexes now
+  present OwlMail as an AI-native integration-testing gateway while keeping
+  MCP default-off, bounded, read-only, and non-essential to the core server.
+- `VERSION` is the single source for the current documentation release. The
+  release workflow rejects a tag that does not match it, and documentation
+  tests derive release paths, image tags, examples, and expected metadata from
+  that value.
+- The live integration-example workflow now runs only when Go sources,
+  dependencies, runnable examples, or the workflow itself change; maintainers
+  can still start it manually.
+
 ### Fixed
 
 - Documentation examples now bind Docker ports to loopback, persist the default
-  mail directory, pin the 0.8.0 source and Go installs, and use executable CI
-  commands with bounded network waits.
+  mail directory, pin the current release source, Go install, and source-commit
+  image, and use executable CI commands with bounded network waits.
+- Integration examples now preserve primary and cleanup failures, report
+  cleanup errors, support IPv6 SMTP hosts, reject cleanup redirects, avoid
+  buffering cleanup response bodies, drain bounded Go responses, and recover
+  the captured message ID after SMTP acceptance when the initial lookup fails.
 - The Go Report Card workflow no longer replaces its stable documentation page
   with line-number output. The CI push trigger explicitly excludes the generated
   badge so future token changes cannot repeat the full test, lint, vet, and build

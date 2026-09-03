@@ -4,6 +4,10 @@ const path = require("node:path");
 const { test } = require("bun:test");
 
 const root = path.resolve(__dirname, "../..");
+const currentVersion = fs.readFileSync(path.join(root, "VERSION"), "utf8").trim();
+const currentTag = `v${currentVersion}`;
+const currentReleaseNote = `Release-${currentVersion}.md`;
+const currentVersionPattern = currentVersion.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const translatedReadmes = [
   "README.md",
   "README.zh-CN.md",
@@ -14,6 +18,13 @@ const translatedReadmes = [
   "README.ko.md",
 ];
 
+test("current documentation version is a semantic version", () => {
+  assert.match(
+    currentVersion,
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/,
+  );
+});
+
 test("Webhook demo publishes host ports on loopback only", () => {
   const compose = fs.readFileSync(
     path.join(root, "examples/webhooks/soulteary-webhook/compose.yaml"),
@@ -23,7 +34,7 @@ test("Webhook demo publishes host ports on loopback only", () => {
     assert.match(compose, new RegExp(`127\\.0\\.0\\.1:${port}:${port}`));
   }
   assert.doesNotMatch(compose, /^\s*-\s*["']?(?:9000|1025|1080):/m);
-  assert.ok(compose.includes("image: ghcr.io/soulteary/owlmail:0.8.0"));
+  assert.ok(compose.includes(`image: ghcr.io/soulteary/owlmail:${currentVersion}`));
   assert.doesNotMatch(compose, /^\s*image:\s*soulteary\/owlmail/m);
 });
 
@@ -443,7 +454,7 @@ test("OpenAPI contract is linked from every translated README", () => {
   }
 });
 
-test("three-way comparison stays source-pinned and reflects the 0.8.0 contract", () => {
+test(`three-way comparison stays source-pinned and reflects the ${currentVersion} contract`, () => {
   for (const document of [
     "docs/en/Comparison-and-Migration.md",
     "docs/zh-CN/Comparison-and-Migration.md",
@@ -453,7 +464,7 @@ test("three-way comparison stays source-pinned and reflects the 0.8.0 contract",
       "OwlMail × MailDev × MailCatcher",
       "2026-09-03",
       "e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9",
-      "0.8.0",
+      currentVersion,
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
       "0.11.0",
@@ -492,17 +503,19 @@ test("three-way comparison stays source-pinned and reflects the 0.8.0 contract",
       path.join(root, `docs/${locale}/Comparison-and-Migration.md`),
       "utf8",
     );
-    assert.ok(stub.includes("0.8.0"), `${locale} comparison does not identify the stable release`);
+    assert.ok(stub.includes(currentVersion), `${locale} comparison does not identify the stable release`);
     assert.ok(stub.includes("stdio"), `${locale} comparison does not identify both MCP transports`);
     assert.ok(!stub.includes("v0.6.0"), `${locale} comparison still presents MCP as a post-0.6.0 main-only feature`);
   }
 });
 
-test("0.8.0 release documentation and workflow stay connected", () => {
+test(`${currentVersion} release documentation and workflow stay connected`, () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
-  const releaseStart = changelog.indexOf("## [0.8.0]");
-  const releaseEnd = changelog.indexOf("## [0.7.0]", releaseStart);
-  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, "CHANGELOG.md is missing the 0.8.0 release section");
+  const releaseHeading = `## [${currentVersion}]`;
+  const releaseStart = changelog.indexOf(releaseHeading);
+  const nextRelease = changelog.indexOf("\n## [", releaseStart + releaseHeading.length);
+  const releaseEnd = nextRelease === -1 ? changelog.length : nextRelease;
+  assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, `CHANGELOG.md is missing the ${currentVersion} release section`);
   const releaseSection = changelog.slice(releaseStart, releaseEnd);
   for (const marker of [
     "Prometheus metrics",
@@ -510,21 +523,21 @@ test("0.8.0 release documentation and workflow stay connected", () => {
     "MailCatcher REST facade",
     "read-only MCP stdio bridge",
   ]) {
-    assert.ok(releaseSection.includes(marker), `CHANGELOG.md 0.8.0 section is missing ${marker}`);
+    assert.ok(releaseSection.includes(marker), `CHANGELOG.md ${currentVersion} section is missing ${marker}`);
   }
-  assert.ok(changelog.includes("[0.8.0]:"), "CHANGELOG.md is missing the 0.8.0 comparison link");
+  assert.ok(changelog.includes(`[${currentVersion}]:`), `CHANGELOG.md is missing the ${currentVersion} comparison link`);
   assert.ok(
     !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Prometheus metrics"),
-    "CHANGELOG.md still classifies 0.8.0 operational work as unreleased",
+    `CHANGELOG.md still classifies ${currentVersion} operational work as unreleased`,
   );
 
   const releaseNotes = [
     [
-      "docs/en/Release-0.8.0.md",
+      `docs/en/${currentReleaseNote}`,
       ["Persistent relay jobs", "Layered configuration and indexing", "MCP stdio bridge", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
-      "docs/zh-CN/Release-0.8.0.md",
+      `docs/zh-CN/${currentReleaseNote}`,
       ["持久化中继任务", "分层配置与索引", "MCP stdio 桥接", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
@@ -535,17 +548,25 @@ test("0.8.0 release documentation and workflow stay connected", () => {
     }
   }
 
+  const comparison = fs.readFileSync(path.join(root, "docs/en/Comparison-and-Migration.md"), "utf8");
+  const releaseCommit = comparison.match(
+    new RegExp(`OwlMail: release ${currentVersionPattern} at\\s+([0-9a-f]{40})`),
+  );
+  assert.ok(releaseCommit, "comparison guide does not identify the current release commit");
+  const releaseCommitImage = `sha-${releaseCommit[1].slice(0, 7)}`;
+
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.8.0"), `${readme} does not pin the release image`);
-    assert.ok(markdown.includes("Release-0.8.0.md"), `${readme} does not link the release notes`);
+    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${currentVersion}`), `${readme} does not pin the release image`);
+    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${releaseCommitImage}`), `${readme} does not use the current release commit image`);
+    assert.ok(markdown.includes(currentReleaseNote), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
     assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);
   }
 
   for (const operations of ["docs/en/Operations.md", "docs/zh-CN/Operations.md"]) {
     const markdown = fs.readFileSync(path.join(root, operations), "utf8");
-    assert.ok(markdown.includes("ghcr.io/soulteary/owlmail:0.8.0"), `${operations} does not pin 0.8.0`);
+    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${currentVersion}`), `${operations} does not pin ${currentVersion}`);
     assert.ok(!markdown.includes("ghcr.io/soulteary/owlmail:latest"), `${operations} uses a moving image`);
   }
 
@@ -554,14 +575,15 @@ test("0.8.0 release documentation and workflow stay connected", () => {
     for (const field of ["version", "commit", "build_date", "branch", "go_version", "platform", "compiler"]) {
       assert.ok(markdown.includes(`"${field}"`), `${reference} is missing version field ${field}`);
     }
-    assert.ok(markdown.includes('"version": "0.8.0"'), `${reference} does not show the 0.8.0 version`);
-    assert.ok(markdown.includes('"branch": "v0.8.0"'), `${reference} does not show the 0.8.0 tag`);
+    assert.ok(markdown.includes(`"version": "${currentVersion}"`), `${reference} does not show the ${currentVersion} version`);
+    assert.ok(markdown.includes(`"branch": "${currentTag}"`), `${reference} does not show the ${currentTag} tag`);
   }
 
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/release.yml"), "utf8");
   for (const marker of [
     "git rev-parse --verify",
     "git checkout --detach",
+    'DOCUMENTED_VERSION="$(tr -d \'\\r\\n\' < VERSION)"',
     'NOTES="docs/en/Release-${VERSION#v}.md"',
     "github.com/soulteary/version-kit/v2.Version",
     "Verify embedded release metadata",
@@ -600,8 +622,8 @@ test("0.8.0 release documentation and workflow stay connected", () => {
     "the release workflow must not overwrite default-branch sha aliases");
 
   for (const reference of [
-    "docs/en/Release-0.8.0.md",
-    "docs/zh-CN/Release-0.8.0.md",
+    `docs/en/${currentReleaseNote}`,
+    `docs/zh-CN/${currentReleaseNote}`,
     "docs/en/Operations.md",
     "docs/zh-CN/Operations.md",
   ]) {
@@ -653,11 +675,12 @@ test("release workflow preserves supply-chain evidence", () => {
   for (const guide of ["docs/en/Releasing.md", "docs/zh-CN/Releasing.md"]) {
     const markdown = fs.readFileSync(path.join(root, guide), "utf8");
     for (const marker of [
+      "`VERSION`",
       "checksums.txt.sigstore.json",
       "gh attestation verify",
       "cosign verify-blob",
       "cosign verify",
-      "--ref v0.8.0",
+      `--ref ${currentTag}`,
     ]) {
       assert.ok(markdown.includes(marker), `${guide} is missing supply-chain marker ${marker}`);
     }
@@ -699,7 +722,7 @@ test("integration and AI-first guides are complete, bilingual, and runnable", ()
     assert.ok(fs.existsSync(path.join(root, example)), `missing ${example}`);
   }
   const compose = fs.readFileSync(path.join(root, "examples/testing/compose.yaml"), "utf8");
-  assert.ok(compose.includes("ghcr.io/soulteary/owlmail:0.8.0"));
+  assert.ok(compose.includes(`ghcr.io/soulteary/owlmail:${currentVersion}`));
   assert.match(compose, /127\.0\.0\.1:1025:1025/);
   assert.match(compose, /127\.0\.0\.1:1080:1080/);
 
@@ -737,7 +760,7 @@ test("GitHub community files match repository features and supported conventions
 
   for (const template of ["bug_report.yml", "bug_report.zh-CN.yml"]) {
     const source = fs.readFileSync(path.join(root, `.github/ISSUE_TEMPLATE/${template}`), "utf8");
-    for (const marker of ["v0.8.0", "deployment", "component", "S3", "Webhook", "MCP"]) {
+    for (const marker of [currentTag, "deployment", "component", "S3", "Webhook", "MCP"]) {
       assert.ok(source.includes(marker), `${template} is missing ${marker}`);
     }
     assert.ok(!source.includes("v1.0.0"), `${template} retains a future example version`);
@@ -822,19 +845,19 @@ test("release history and generated reports avoid stale documentation", () => {
   assert.ok(!pullRequestTrigger.includes("paths-ignore:"));
 });
 
-test("0.8.0 examples are pinned, private by default, persistent, and bounded", () => {
+test(`${currentVersion} examples are pinned, private by default, persistent, and bounded`, () => {
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
     const commands = shellCommands(markdown);
     const clone = commands.find((command) => command.startsWith("git clone "));
     assert.ok(clone, `${readme} has no source clone command`);
-    assert.match(clone, /(?:^|\s)--branch\s+v0\.8\.0(?:\s|$)/, `${readme} does not pin the source tag`);
+    assert.match(clone, new RegExp(`(?:^|\\s)--branch\\s+v${currentVersionPattern}(?:\\s|$)`), `${readme} does not pin the source tag`);
     assert.match(clone, /(?:^|\s)--depth\s+1(?:\s|$)/, `${readme} does not use a shallow release clone`);
 
     const installs = commands.filter((command) => command.startsWith("go install "));
     assert.deepEqual(
       installs,
-      ["go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0"],
+      [`go install github.com/soulteary/owlmail/cmd/owlmail@${currentTag}`],
       `${readme} must contain exactly one release-pinned Go install`,
     );
 
@@ -851,7 +874,7 @@ test("0.8.0 examples are pinned, private by default, persistent, and bounded", (
   }
 
   for (const locale of ["en", "zh-CN"]) {
-    const release = fs.readFileSync(path.join(root, `docs/${locale}/Release-0.8.0.md`), "utf8");
+    const release = fs.readFileSync(path.join(root, `docs/${locale}/${currentReleaseNote}`), "utf8");
     const releaseCommands = shellCommands(release);
     const downloads = releaseCommands
       .filter((command) => command.startsWith("curl "))
