@@ -12,7 +12,9 @@ All notable changes to OwlMail are documented in this file. The format follows
   mail directory, pin the 0.8.0 source and Go installs, and use executable CI
   commands with bounded network waits.
 - The Go Report Card workflow no longer replaces its stable documentation page
-  with line-number output or suppresses CI on badge-only commits.
+  with line-number output. The CI push trigger explicitly excludes the generated
+  badge so future token changes cannot repeat the full test, lint, vet, and build
+  jobs, while pull request validation remains unchanged.
 - Relay persistence documentation now states that it requires a configured mail
   directory and applies to native asynchronous relay jobs.
 

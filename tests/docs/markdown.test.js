@@ -813,6 +813,13 @@ test("release history and generated reports avoid stale documentation", () => {
   assert.ok(workflow.includes('version: "v1.0.0"'));
   assert.ok(workflow.includes("git add .github/goreportcard.svg"));
   assert.ok(!workflow.includes("[skip ci]"));
+
+  const ciWorkflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  const pushTrigger = ciWorkflow.slice(ciWorkflow.indexOf("  push:"), ciWorkflow.indexOf("  pull_request:"));
+  const pullRequestTrigger = ciWorkflow.slice(ciWorkflow.indexOf("  pull_request:"), ciWorkflow.indexOf("\nconcurrency:"));
+  assert.ok(pushTrigger.includes("paths-ignore:"));
+  assert.ok(pushTrigger.includes("'.github/goreportcard.svg'"));
+  assert.ok(!pullRequestTrigger.includes("paths-ignore:"));
 });
 
 test("0.8.0 examples are pinned, private by default, persistent, and bounded", () => {
