@@ -3,8 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -40,5 +42,24 @@ func TestValidateMCPStdioConfigIgnoresUnusedServerSettings(t *testing.T) {
 	cfg.LogFormat = "invalid"
 	if err := validateMCPStdioConfig(cfg); err == nil {
 		t.Fatal("stdio validation accepted an invalid active log format")
+	}
+}
+
+func TestRunMCPStdioFormatsTerminalErrorsAsJSON(t *testing.T) {
+	var stderr bytes.Buffer
+	err := runMCPStdio(context.Background(), []string{
+		"-log-format", "json",
+		"-mail-directory", filepath.Join(t.TempDir(), "missing"),
+	}, &stderr)
+	var reported *reportedMCPStdioError
+	if !errors.As(err, &reported) {
+		t.Fatalf("runMCPStdio() error = %v, want reportedMCPStdioError", err)
+	}
+	var entry map[string]interface{}
+	if decodeErr := json.Unmarshal(bytes.TrimSpace(stderr.Bytes()), &entry); decodeErr != nil {
+		t.Fatalf("terminal stderr is not JSON: %q: %v", stderr.String(), decodeErr)
+	}
+	if entry["level"] != "error" || !strings.Contains(entry["message"].(string), "MCP stdio bridge failed") {
+		t.Fatalf("terminal JSON entry = %#v", entry)
 	}
 }

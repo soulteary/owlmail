@@ -842,7 +842,20 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	return nil
 }
 
-func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
+type reportedMCPStdioError struct{ err error }
+
+func (err *reportedMCPStdioError) Error() string { return err.err.Error() }
+func (err *reportedMCPStdioError) Unwrap() error { return err.err }
+
+func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) (resultErr error) {
+	loggerReady := false
+	defer func() {
+		if resultErr == nil || !loggerReady || errors.Is(resultErr, flag.ErrHelp) || errors.Is(resultErr, context.Canceled) {
+			return
+		}
+		common.Error("MCP stdio bridge failed: %v", resultErr)
+		resultErr = &reportedMCPStdioError{err: resultErr}
+	}()
 	fs := flag.NewFlagSet("mcp-stdio", flag.ContinueOnError)
 	fs.SetOutput(stderr)
 	refs := config.DefineFlags(fs)
@@ -854,6 +867,7 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		return err
 	}
 	common.InitLoggerOutputWithFormat(parseLogLevel(cfg.LogLevel), cfg.LogFormat, stderr)
+	loggerReady = true
 	if strings.TrimSpace(cfg.MailDir) == "" {
 		return fmt.Errorf("mcp-stdio requires -mail-directory or OWLMAIL_MAIL_DIR")
 	}
@@ -973,7 +987,8 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runMCPStdio(ctx, os.Args[2:], os.Stderr)
 		stop()
-		if err != nil && !errors.Is(err, flag.ErrHelp) && !errors.Is(err, context.Canceled) {
+		var reported *reportedMCPStdioError
+		if err != nil && !errors.Is(err, flag.ErrHelp) && !errors.Is(err, context.Canceled) && !errors.As(err, &reported) {
 			_, _ = fmt.Fprintf(os.Stderr, "MCP stdio bridge failed: %v\n", err)
 			os.Exit(1)
 		}
