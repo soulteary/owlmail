@@ -20,6 +20,7 @@ import (
 const (
 	maxExportMessages = 1000
 	maxExportBytes    = 256 << 20
+	maxBatchEmailIDs  = 1000
 )
 
 // EmailPreview represents a lightweight email preview.
@@ -27,7 +28,10 @@ type EmailPreview = mailserver.EmailPreview
 
 // getAllEmails handles GET /api/v1/emails
 func (api *API) getAllEmails(c fiber.Ctx) error {
-	query := parseEmailQuery(c)
+	query, err := parseEmailQuery(c)
+	if err != nil {
+		return invalidEmailQuery(c, err)
+	}
 	emails, total := api.mailServer.QueryEmails(query)
 
 	return c.JSON(fiber.Map{
@@ -165,7 +169,10 @@ func (api *API) reloadMailsFromDirectory(c fiber.Ctx) error {
 
 // getEmailPreviews handles GET /api/v1/emails/preview
 func (api *API) getEmailPreviews(c fiber.Ctx) error {
-	query := parseEmailQuery(c)
+	query, err := parseEmailQuery(c)
+	if err != nil {
+		return invalidEmailQuery(c, err)
+	}
 	previews, total := api.mailServer.QueryEmailPreviews(query)
 
 	return c.JSON(fiber.Map{
@@ -176,43 +183,65 @@ func (api *API) getEmailPreviews(c fiber.Ctx) error {
 	})
 }
 
-func parseEmailQuery(c fiber.Ctx) mailserver.EmailQuery {
+func parseEmailQuery(c fiber.Ctx) (mailserver.EmailQuery, error) {
 	limitStr := c.Query("limit", "50")
 	offsetStr := c.Query("offset", "0")
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 50
-	}
-	if limit > 1000 {
-		limit = 1000
+	if err != nil || limit < 1 || limit > 1000 {
+		return mailserver.EmailQuery{}, fmt.Errorf("limit must be an integer between 1 and 1000")
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
 	if err != nil || offset < 0 {
-		offset = 0
+		return mailserver.EmailQuery{}, fmt.Errorf("offset must be a non-negative integer")
+	}
+	sortBy := c.Query("sortBy", "")
+	switch sortBy {
+	case "", "time", "subject", "from", "size", "store":
+	default:
+		return mailserver.EmailQuery{}, fmt.Errorf("sortBy must be one of time, subject, from, size, or store")
+	}
+	sortOrder := c.Query("sortOrder", "desc")
+	if sortOrder != "asc" && sortOrder != "desc" {
+		return mailserver.EmailQuery{}, fmt.Errorf("sortOrder must be asc or desc")
 	}
 
 	query := mailserver.EmailQuery{
 		Text:      c.Query("q"),
 		From:      c.Query("from"),
 		To:        c.Query("to"),
-		SortBy:    c.Query("sortBy", ""),
-		SortOrder: c.Query("sortOrder", "desc"),
+		SortBy:    sortBy,
+		SortOrder: sortOrder,
 		Offset:    offset,
 		Limit:     limit,
 	}
-	if dateFrom, err := time.Parse("2006-01-02", c.Query("dateFrom")); err == nil {
+	if value := c.Query("dateFrom"); c.Request().URI().QueryArgs().Has("dateFrom") {
+		dateFrom, err := time.Parse("2006-01-02", value)
+		if err != nil {
+			return mailserver.EmailQuery{}, fmt.Errorf("dateFrom must use YYYY-MM-DD")
+		}
 		query.DateFrom = &dateFrom
 	}
-	if dateTo, err := time.Parse("2006-01-02", c.Query("dateTo")); err == nil {
+	if value := c.Query("dateTo"); c.Request().URI().QueryArgs().Has("dateTo") {
+		dateTo, err := time.Parse("2006-01-02", value)
+		if err != nil {
+			return mailserver.EmailQuery{}, fmt.Errorf("dateTo must use YYYY-MM-DD")
+		}
 		dateTo = dateTo.Add(24 * time.Hour)
 		query.DateTo = &dateTo
 	}
-	if read := c.Query("read"); read != "" {
+	if read := c.Query("read"); c.Request().URI().QueryArgs().Has("read") {
+		if read != "true" && read != "false" {
+			return mailserver.EmailQuery{}, fmt.Errorf("read must be true or false")
+		}
 		readValue := read == "true"
 		query.Read = &readValue
 	}
-	return query
+	return query, nil
+}
+
+func invalidEmailQuery(c fiber.Ctx, err error) error {
+	return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid query: "+err.Error()))
 }
 
 // batchDeleteEmails handles DELETE /api/v1/emails/batch
@@ -227,6 +256,9 @@ func (api *API) batchDeleteEmails(c fiber.Ctx) error {
 
 	if len(request.IDs) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailIDsProvided, "No email IDs provided"))
+	}
+	if len(request.IDs) > maxBatchEmailIDs {
+		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Batch is limited to %d email IDs", maxBatchEmailIDs)))
 	}
 
 	successCount := 0
@@ -264,6 +296,9 @@ func (api *API) batchReadEmails(c fiber.Ctx) error {
 
 	if len(request.IDs) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailIDsProvided, "No email IDs provided"))
+	}
+	if len(request.IDs) > maxBatchEmailIDs {
+		return c.Status(fiber.StatusRequestEntityTooLarge).JSON(ErrorResponse(ErrorCodeInvalidRequest, fmt.Sprintf("Batch is limited to %d email IDs", maxBatchEmailIDs)))
 	}
 
 	successCount := 0
@@ -335,14 +370,25 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 		}
 	} else {
 		mailQuery := mailserver.EmailQuery{Text: query, From: from, To: to, SortBy: "store", SortOrder: "desc", Limit: maxExportMessages + 1}
-		if value, err := time.Parse("2006-01-02", dateFrom); err == nil {
+		if c.Request().URI().QueryArgs().Has("dateFrom") {
+			value, err := time.Parse("2006-01-02", dateFrom)
+			if err != nil {
+				return invalidEmailQuery(c, fmt.Errorf("dateFrom must use YYYY-MM-DD"))
+			}
 			mailQuery.DateFrom = &value
 		}
-		if value, err := time.Parse("2006-01-02", dateTo); err == nil {
+		if c.Request().URI().QueryArgs().Has("dateTo") {
+			value, err := time.Parse("2006-01-02", dateTo)
+			if err != nil {
+				return invalidEmailQuery(c, fmt.Errorf("dateTo must use YYYY-MM-DD"))
+			}
 			value = value.Add(24 * time.Hour)
 			mailQuery.DateTo = &value
 		}
-		if read != "" {
+		if c.Request().URI().QueryArgs().Has("read") {
+			if read != "true" && read != "false" {
+				return invalidEmailQuery(c, fmt.Errorf("read must be true or false"))
+			}
 			value := read == "true"
 			mailQuery.Read = &value
 		}
