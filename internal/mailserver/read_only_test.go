@@ -148,3 +148,32 @@ func TestRefreshReadOnlyMailboxPreservesExistingMailWhenFenceIsUnreadable(t *tes
 	case <-time.After(50 * time.Millisecond):
 	}
 }
+
+func TestRefreshReadOnlyMailboxUsesDeterministicOrderForEqualTimestamps(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	timestamp := time.Date(2026, 9, 3, 1, 0, 0, 0, time.UTC)
+	for _, id := range []string{"message-b", "message-a"} {
+		path := filepath.Join(directory, id+".eml")
+		if err := os.WriteFile(path, []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: "+id+"\r\n\r\nbody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chtimes(path, timestamp, timestamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for iteration := 0; iteration < 5; iteration++ {
+		if err := server.RefreshReadOnlyMailbox(); err != nil {
+			t.Fatal(err)
+		}
+		emails := server.GetAllEmail()
+		if len(emails) != 2 || emails[0].ID != "message-a" || emails[1].ID != "message-b" {
+			t.Fatalf("iteration %d order = %#v", iteration, emails)
+		}
+	}
+}

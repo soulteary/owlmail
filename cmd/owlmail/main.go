@@ -31,6 +31,7 @@ import (
 )
 
 const generatedWebPasswordBytes = 24
+const mcpRefreshErrorLogInterval = time.Minute
 
 const (
 	defaultAttachmentMigrationRetries    = 3
@@ -850,12 +851,14 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 		return err
 	}
 	defer func() { _ = server.Close() }()
+	var lastRefreshErrorReport time.Time
 	if err := server.RefreshReadOnlyMailbox(); err != nil {
 		var partial *mailserver.ReadOnlyRefreshPartialError
 		if !errors.As(err, &partial) {
 			return fmt.Errorf("load read-only mailbox: %w", err)
 		}
 		common.Error("MCP stdio mailbox loaded with skipped entries: %v", err)
+		lastRefreshErrorReport = time.Now()
 	}
 	sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
 	if err != nil || sessionTimeout <= 0 {
@@ -889,7 +892,13 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 				return
 			case <-ticker.C:
 				if err := server.RefreshReadOnlyMailbox(); err != nil {
-					common.Error("MCP stdio mailbox refresh failed: %v", err)
+					now := time.Now()
+					if lastRefreshErrorReport.IsZero() || now.Sub(lastRefreshErrorReport) >= mcpRefreshErrorLogInterval {
+						common.Error("MCP stdio mailbox refresh failed: %v", err)
+						lastRefreshErrorReport = now
+					}
+				} else {
+					lastRefreshErrorReport = time.Time{}
 				}
 			}
 		}

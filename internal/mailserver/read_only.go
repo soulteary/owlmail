@@ -169,7 +169,12 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		ms.storeOrder = append(ms.storeOrder, id)
 	}
 	sort.SliceStable(ms.storeOrder, func(i, j int) bool {
-		return ms.receivedAtByID[ms.storeOrder[i]].Before(ms.receivedAtByID[ms.storeOrder[j]])
+		left, right := ms.storeOrder[i], ms.storeOrder[j]
+		leftTime, rightTime := ms.receivedAtByID[left], ms.receivedAtByID[right]
+		if leftTime.Equal(rightTime) {
+			return left < right
+		}
+		return leftTime.Before(rightTime)
 	})
 	ms.resetMailboxStorePositionsLocked()
 	ms.storeMutex.Unlock()
