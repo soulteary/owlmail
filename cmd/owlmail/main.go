@@ -515,7 +515,6 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
 		return nil, fmt.Errorf("configure storage policy: %w", err)
 	}
-	apiServer.StartRelayRecovery()
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
 	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
 	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
@@ -583,7 +582,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		}
 	}
 
-	if err := apiServer.Start(); err != nil {
+	if err := apiServer.StartWithReady(apiServer.StartRelayRecovery); err != nil {
 		return nil, fmt.Errorf("failed to start API server: %w", err)
 	}
 
