@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import net from "node:net";
+import { withCleanup } from "./cleanup.mjs";
 
 const smtpHost = process.env.TEST_SMTP_HOST || "127.0.0.1";
 const smtpPort = Number(process.env.TEST_SMTP_PORT || "1025");
@@ -140,13 +141,16 @@ async function waitForMessage() {
 await sendMessage();
 const summary = await waitForMessage();
 const messagePath = `/api/v1/emails/${encodeURIComponent(summary.id)}`;
-try {
-  const { response: detailResponse, body: detail } = await requestJSON(messagePath);
-  assert.equal(detailResponse.ok, true, `detail failed: ${detailResponse.status}`);
-  assert.equal(detail.subject, subject);
-  assert.match(detail.text, new RegExp(token));
-  console.log(`verified OwlMail message ${summary.id}`);
-} finally {
-  const deleteResponse = await requestStatus(messagePath, { method: "DELETE" });
-  assert.equal(deleteResponse.ok, true, `cleanup failed: ${deleteResponse.status}`);
-}
+await withCleanup(
+  async () => {
+    const { response: detailResponse, body: detail } = await requestJSON(messagePath);
+    assert.equal(detailResponse.ok, true, `detail failed: ${detailResponse.status}`);
+    assert.equal(detail.subject, subject);
+    assert.match(detail.text, new RegExp(token));
+    console.log(`verified OwlMail message ${summary.id}`);
+  },
+  async () => {
+    const deleteResponse = await requestStatus(messagePath, { method: "DELETE" });
+    assert.equal(deleteResponse.ok, true, `cleanup failed: ${deleteResponse.status}`);
+  },
+);
