@@ -236,6 +236,9 @@ function extractAPIRoutes() {
     source.slice(source.indexOf("api.setupImprovedAPIRoutes(app)"), source.indexOf("// Browser UI and local help.")),
   ];
   const routes = [];
+  const allMethodContracts = new Map([
+    ["/mcp", ["GET", "POST", "DELETE"]],
+  ]);
 
   for (const section of sections) {
     const prefixes = new Map([["app", ""]]);
@@ -247,7 +250,10 @@ function extractAPIRoutes() {
     for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete|All)\((?:api\.route\()?"([^"]*)"/g)) {
       const [, group, method, route] = match;
       assert.ok(prefixes.has(group), `unknown API route group ${group}`);
-      routes.push(`${method.toUpperCase()} ${prefixes.get(group)}${route}`);
+      const fullRoute = `${prefixes.get(group)}${route}`;
+      const methods = method === "All" ? allMethodContracts.get(fullRoute) : [method.toUpperCase()];
+      assert.ok(methods, `missing public HTTP method contract for All ${fullRoute}`);
+      for (const publicMethod of methods) routes.push(`${publicMethod} ${fullRoute}`);
     }
   }
 
