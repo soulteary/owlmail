@@ -2739,6 +2739,9 @@ func TestAPIExportEmailsRejectsInvalidFilters(t *testing.T) {
 	defer func() { _ = server.Close() }()
 
 	for _, rawQuery := range []string{
+		"dateFrom=",
+		"dateTo",
+		"read=",
 		"dateFrom=yesterday",
 		"dateTo=tomorrow",
 		"read=1",

@@ -215,14 +215,14 @@ func parseEmailQuery(c fiber.Ctx) (mailserver.EmailQuery, error) {
 		Offset:    offset,
 		Limit:     limit,
 	}
-	if value := c.Query("dateFrom"); value != "" {
+	if value := c.Query("dateFrom"); c.Request().URI().QueryArgs().Has("dateFrom") {
 		dateFrom, err := time.Parse("2006-01-02", value)
 		if err != nil {
 			return mailserver.EmailQuery{}, fmt.Errorf("dateFrom must use YYYY-MM-DD")
 		}
 		query.DateFrom = &dateFrom
 	}
-	if value := c.Query("dateTo"); value != "" {
+	if value := c.Query("dateTo"); c.Request().URI().QueryArgs().Has("dateTo") {
 		dateTo, err := time.Parse("2006-01-02", value)
 		if err != nil {
 			return mailserver.EmailQuery{}, fmt.Errorf("dateTo must use YYYY-MM-DD")
@@ -230,7 +230,7 @@ func parseEmailQuery(c fiber.Ctx) (mailserver.EmailQuery, error) {
 		dateTo = dateTo.Add(24 * time.Hour)
 		query.DateTo = &dateTo
 	}
-	if read := c.Query("read"); read != "" {
+	if read := c.Query("read"); c.Request().URI().QueryArgs().Has("read") {
 		if read != "true" && read != "false" {
 			return mailserver.EmailQuery{}, fmt.Errorf("read must be true or false")
 		}
@@ -370,14 +370,14 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 		}
 	} else {
 		mailQuery := mailserver.EmailQuery{Text: query, From: from, To: to, SortBy: "store", SortOrder: "desc", Limit: maxExportMessages + 1}
-		if dateFrom != "" {
+		if c.Request().URI().QueryArgs().Has("dateFrom") {
 			value, err := time.Parse("2006-01-02", dateFrom)
 			if err != nil {
 				return invalidEmailQuery(c, fmt.Errorf("dateFrom must use YYYY-MM-DD"))
 			}
 			mailQuery.DateFrom = &value
 		}
-		if dateTo != "" {
+		if c.Request().URI().QueryArgs().Has("dateTo") {
 			value, err := time.Parse("2006-01-02", dateTo)
 			if err != nil {
 				return invalidEmailQuery(c, fmt.Errorf("dateTo must use YYYY-MM-DD"))
@@ -385,7 +385,7 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 			value = value.Add(24 * time.Hour)
 			mailQuery.DateTo = &value
 		}
-		if read != "" {
+		if c.Request().URI().QueryArgs().Has("read") {
 			if read != "true" && read != "false" {
 				return invalidEmailQuery(c, fmt.Errorf("read must be true or false"))
 			}

@@ -14,6 +14,9 @@ func TestEmailQueryRejectsInvalidValues(t *testing.T) {
 	defer func() { _ = server.Close() }()
 
 	paths := []string{
+		"/api/v1/emails?dateFrom=",
+		"/api/v1/emails?dateTo",
+		"/api/v1/emails?read=",
 		"/api/v1/emails?dateFrom=yesterday",
 		"/api/v1/emails?dateTo=2026-99-99",
 		"/api/v1/emails?read=maybe",
@@ -21,6 +24,9 @@ func TestEmailQueryRejectsInvalidValues(t *testing.T) {
 		"/api/v1/emails?read=TRUE",
 		"/api/v1/emails?sortBy=unknown",
 		"/api/v1/emails/preview?sortOrder=sideways",
+		"/api/v1/emails/preview?dateFrom",
+		"/api/v1/emails/preview?dateTo=",
+		"/api/v1/emails/preview?read",
 	}
 	for _, path := range paths {
 		req, _ := http.NewRequest(http.MethodGet, path, nil)
