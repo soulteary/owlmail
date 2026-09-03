@@ -83,6 +83,54 @@ func TestRelayJobsRemovePersistedRecordDurably(t *testing.T) {
 	}
 }
 
+func TestRelayJobCreateRollsBackAfterDirectorySyncFailure(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.newID = func() (string, error) { return "11223344556677889900aabbccddeeff", nil }
+	realSync := store.syncDirectory
+	syncCalls := 0
+	store.syncDirectory = func(path string) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("injected sync failure")
+		}
+		return realSync(path)
+	}
+
+	_, err = store.create("mail-sync-failure", "")
+	if !errors.Is(err, errRelayJobPersistence) {
+		t.Fatalf("create error = %v, want persistence error", err)
+	}
+	if len(store.jobs) != 0 || len(store.order) != 0 {
+		t.Fatal("failed create remained in memory")
+	}
+	path := filepath.Join(store.directory, "11223344556677889900aabbccddeeff.json")
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("failed create remained on disk: %v", statErr)
+	}
+}
+
+func TestRelayJobCreateRetainsQueryableStateWhenCleanupIsIndeterminate(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.newID = func() (string, error) { return "22334455667788990011aabbccddeeff", nil }
+	store.syncDirectory = func(string) error { return errors.New("injected sync failure") }
+
+	job, err := store.create("mail-retained", "")
+	if !errors.Is(err, errRelayJobRetained) {
+		t.Fatalf("create error = %v, want retained error", err)
+	}
+	if got, ok := store.get(job.ID); !ok || got.EmailID != "mail-retained" {
+		t.Fatalf("retained job = %#v, found %t", got, ok)
+	}
+}
+
 func TestRelayJobsEnforceAttemptLimitAtPersistenceBoundary(t *testing.T) {
 	store := newRelayJobStore()
 	store.newID = func() (string, error) { return "ffeeddccbbaa99887766554433221100", nil }
@@ -162,7 +210,7 @@ func TestNewAPIRecoversPersistedQueuedJob(t *testing.T) {
 	}
 
 	restarted := NewAPI(server, 0, "localhost")
-	got, ok := restarted.relayJobs.get(job.ID)
+	got, ok := waitForTerminalRelayJob(t, restarted.relayJobs, job.ID)
 	if !ok || got.Status != relayJobFailed || got.CompletedAt == nil {
 		t.Fatalf("recovered job = %#v, found %t", got, ok)
 	}
@@ -182,8 +230,23 @@ func TestNewAPIStopsRecoveringExhaustedRelayJob(t *testing.T) {
 	}
 
 	restarted := NewAPI(server, 0, "localhost")
-	got, ok := restarted.relayJobs.get(job.ID)
+	got, ok := waitForTerminalRelayJob(t, restarted.relayJobs, job.ID)
 	if !ok || got.Status != relayJobFailed || got.CompletedAt == nil || got.Attempts != defaultRelayMaxAttempts {
 		t.Fatalf("recovered exhausted job = %#v, found %t", got, ok)
+	}
+}
+
+func waitForTerminalRelayJob(t *testing.T, store *relayJobStore, id string) (relayJob, bool) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		job, ok := store.get(id)
+		if !ok || job.CompletedAt != nil {
+			return job, ok
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("relay job %s did not finish recovery", id)
+		}
+		time.Sleep(time.Millisecond)
 	}
 }

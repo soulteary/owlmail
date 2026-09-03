@@ -21,6 +21,8 @@ var (
 	errRelayJobCapacity       = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong  = errors.New("relay recipient exceeds size limit")
 	errRelayAttemptsExhausted = errors.New("relay job attempt limit reached")
+	errRelayJobPersistence    = errors.New("relay job persistence unavailable")
+	errRelayJobRetained       = errors.New("relay job retained after an indeterminate persistence failure")
 )
 
 const (
@@ -60,6 +62,7 @@ type relayJobStore struct {
 	limit            int
 	minimumRetention time.Duration
 	directory        string
+	syncDirectory    func(string) error
 }
 
 func newRelayJobStore() *relayJobStore {
@@ -70,6 +73,7 @@ func newRelayJobStore() *relayJobStore {
 		ttl:              defaultRelayJobTTL,
 		limit:            defaultRelayJobLimit,
 		minimumRetention: defaultRelayJobMinimumRetention,
+		syncDirectory:    syncRelayJobDirectory,
 	}
 }
 
@@ -100,9 +104,12 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	store.jobs[id] = job
 	store.order = append(store.order, id)
 	if err := store.persistLocked(job); err != nil {
+		if cleanupErr := store.removePersistedLocked(id); cleanupErr != nil {
+			return job, fmt.Errorf("%w: persist: %v; cleanup: %v", errRelayJobRetained, err, cleanupErr)
+		}
 		delete(store.jobs, id)
 		store.order = store.order[:len(store.order)-1]
-		return relayJob{}, err
+		return relayJob{}, fmt.Errorf("%w: %v", errRelayJobPersistence, err)
 	}
 	return job, nil
 }
@@ -143,7 +150,7 @@ func (store *relayJobStore) beginAttempt(id string) (relayJob, error) {
 	job.UpdatedAt = store.now().UTC()
 	job.NextAttemptAt = nil
 	if err := store.persistLocked(job); err != nil {
-		return relayJob{}, err
+		return relayJob{}, fmt.Errorf("%w: %v", errRelayJobPersistence, err)
 	}
 	store.jobs[id] = job
 	return job, nil
@@ -174,7 +181,7 @@ func (store *relayJobStore) remove(id string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if err := store.removePersistedLocked(id); err != nil {
-		return err
+		return fmt.Errorf("%w: %v", errRelayJobPersistence, err)
 	}
 	delete(store.jobs, id)
 	for index, item := range store.order {
@@ -289,6 +296,7 @@ func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
 
 func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	if api.relayJobsPersistenceErr != nil {
+		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is unavailable"))
 	}
 	id := c.Params("id")
@@ -297,6 +305,7 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
 	job, err := api.relayJobs.create(id, relayTo)
+	retained := errors.Is(err, errRelayJobRetained)
 	if errors.Is(err, errRelayRecipientTooLong) {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
 	}
@@ -304,15 +313,37 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))
 	}
+	if errors.Is(err, errRelayJobPersistence) {
+		c.Set("Retry-After", "1")
+		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is temporarily unavailable"))
+	}
+	if retained {
+		common.Error("Relay job %s was accepted after an indeterminate persistence failure: %v", job.ID, err)
+		err = nil
+	}
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
-	err, handled := api.submitRelayJob(job, email)
-	if err != nil && !handled {
-		if removeErr := api.relayJobs.remove(job.ID); removeErr != nil {
-			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to durably reject relay job"))
+	if retained {
+		time.AfterFunc(defaultRelayRetryBaseDelay, func() { api.retryRelayJob(job.ID) })
+	} else {
+		err, handled := api.submitRelayJob(job, email)
+		if err != nil && !handled {
+			if errors.Is(err, errRelayJobPersistence) {
+				if removeErr := api.relayJobs.remove(job.ID); removeErr == nil {
+					c.Set("Retry-After", "1")
+					return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is temporarily unavailable"))
+				}
+				common.Error("Relay job %s remains accepted after its attempt could not be persisted or durably removed: %v", job.ID, err)
+				time.AfterFunc(defaultRelayRetryBaseDelay, func() { api.retryRelayJob(job.ID) })
+			} else {
+				if removeErr := api.relayJobs.remove(job.ID); removeErr != nil {
+					c.Set("Retry-After", "1")
+					return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to durably reject relay job"))
+				}
+				return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+			}
 		}
-		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 	}
 	current, _ := api.relayJobs.get(job.ID)
 	statusURL := api.route("/api/v1/relay-jobs/" + job.ID)

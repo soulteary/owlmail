@@ -86,7 +86,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 	}
 	api.setupRoutes()
 	api.setupEventListeners()
-	api.recoverRelayJobs()
+	go api.recoverRelayJobs()
 	return api
 }
 

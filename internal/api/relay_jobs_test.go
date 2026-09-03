@@ -273,3 +273,36 @@ func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 		t.Fatalf("relay capacity response = %s", body)
 	}
 }
+
+func TestNativeRelayReturnsServiceUnavailableForRuntimePersistenceFailure(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-persistence-mail", Subject: "Relay persistence", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+
+	realSync := api.relayJobs.syncDirectory
+	syncCalls := 0
+	api.relayJobs.syncDirectory = func(path string) error {
+		syncCalls++
+		if syncCalls == 1 {
+			return errors.New("injected runtime sync failure")
+		}
+		return realSync(path)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "1" {
+		t.Fatalf("runtime persistence status = %d, Retry-After = %q, body = %s", resp.StatusCode, resp.Header.Get("Retry-After"), body)
+	}
+	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+		t.Fatal("rejected persistence failure left a latent relay job")
+	}
+}

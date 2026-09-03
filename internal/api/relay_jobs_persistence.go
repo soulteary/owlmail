@@ -19,13 +19,43 @@ func newPersistentRelayJobStore(mailDirectory string) (*relayJobStore, error) {
 		return store, nil
 	}
 	store.directory = filepath.Join(mailDirectory, ".owlmail-meta", "relay-jobs")
+	metadataDirectory := filepath.Dir(store.directory)
+	metadataMissing, err := pathDoesNotExist(metadataDirectory)
+	if err != nil {
+		return nil, fmt.Errorf("inspect relay metadata directory: %w", err)
+	}
+	jobsMissing, err := pathDoesNotExist(store.directory)
+	if err != nil {
+		return nil, fmt.Errorf("inspect relay job directory: %w", err)
+	}
 	if err := os.MkdirAll(store.directory, 0700); err != nil {
 		return nil, fmt.Errorf("create relay job directory: %w", err)
+	}
+	if jobsMissing {
+		if err := store.syncDirectory(metadataDirectory); err != nil {
+			return nil, fmt.Errorf("sync relay job directory creation: %w", err)
+		}
+	}
+	if metadataMissing {
+		if err := store.syncDirectory(mailDirectory); err != nil {
+			return nil, fmt.Errorf("sync relay metadata directory creation: %w", err)
+		}
 	}
 	if err := store.load(); err != nil {
 		return nil, err
 	}
 	return store, nil
+}
+
+func pathDoesNotExist(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return false, nil
+	}
+	if os.IsNotExist(err) {
+		return true, nil
+	}
+	return false, err
 }
 
 func (store *relayJobStore) load() error {
@@ -138,7 +168,7 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	if err := os.Rename(temporaryPath, filepath.Join(store.directory, job.ID+".json")); err != nil {
 		return fmt.Errorf("commit relay job: %w", err)
 	}
-	return syncRelayJobDirectory(store.directory)
+	return store.syncDirectory(store.directory)
 }
 
 func syncRelayJobDirectory(path string) error {
@@ -169,7 +199,7 @@ func (store *relayJobStore) removePersistedLocked(id string) error {
 		}
 		return fmt.Errorf("remove relay job: %w", err)
 	}
-	if err := syncRelayJobDirectory(store.directory); err != nil {
+	if err := store.syncDirectory(store.directory); err != nil {
 		return fmt.Errorf("sync relay job removal: %w", err)
 	}
 	return nil
