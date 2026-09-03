@@ -1,8 +1,10 @@
 package api
 
 import (
+	"crypto/tls"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -374,20 +376,42 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 
 // Start starts the API server
 func (api *API) Start() error {
+	return api.StartWithReady(nil)
+}
+
+// StartWithReady binds the API listener, then calls ready immediately before
+// serving. A bind or TLS configuration failure is returned without calling it.
+func (api *API) StartWithReady(ready func()) error {
 	addr := fmt.Sprintf("%s:%d", api.host, api.port)
 
+	var listener net.Listener
+	var err error
 	if api.httpsEnabled {
 		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
 			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
 		}
-		return api.app.Listen(addr, fiber.ListenConfig{
-			DisableStartupMessage: true,
-			CertFile:              api.httpsCertFile,
-			CertKeyFile:           api.httpsKeyFile,
-		})
+		certificate, err := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
+		if err != nil {
+			return fmt.Errorf("load HTTPS certificate: %w", err)
+		}
+		listener, err = net.Listen("tcp", addr)
+		if err == nil {
+			listener = tls.NewListener(listener, &tls.Config{
+				MinVersion:   tls.VersionTLS12,
+				Certificates: []tls.Certificate{certificate},
+			})
+		}
+	} else {
+		listener, err = net.Listen("tcp", addr)
 	}
-
-	return api.app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listener.Close() }()
+	if ready != nil {
+		ready()
+	}
+	return api.app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
 }
 
 // setupEventListeners sets up event listeners for WebSocket broadcasting
