@@ -71,14 +71,28 @@ func reportWebAuthCompletion(cfg *config.Config, completion webAuthCompletion, o
 		if output == nil {
 			return fmt.Errorf("print generated HTTP Basic Auth password: output is nil")
 		}
-		if _, err := fmt.Fprintf(output, "OwlMail generated a temporary HTTP Basic Auth password for user %q: %s (set -web-password or OWLMAIL_WEB_PASSWORD for a stable password)\n", cfg.WebUser, cfg.WebPassword); err != nil {
+		message := fmt.Sprintf("OwlMail generated a temporary HTTP Basic Auth password for user %q: %s (set -web-password or OWLMAIL_WEB_PASSWORD for a stable password)", cfg.WebUser, cfg.WebPassword)
+		if err := writeStartupNotice(output, cfg.LogFormat, message); err != nil {
 			return fmt.Errorf("print generated HTTP Basic Auth password: %w", err)
 		}
 	}
 	if completion.defaultedUsername && output != nil {
-		_, _ = fmt.Fprintln(output, "OwlMail defaulted the HTTP Basic Auth username to \"admin\" because only a password was configured")
+		_ = writeStartupNotice(output, cfg.LogFormat, "OwlMail defaulted the HTTP Basic Auth username to \"admin\" because only a password was configured")
 	}
 	return nil
+}
+
+func writeStartupNotice(output io.Writer, format, message string) error {
+	if strings.EqualFold(strings.TrimSpace(format), "json") {
+		encoded, err := json.Marshal(map[string]string{"level": "info", "service": "owlmail", "message": message})
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintln(output, string(encoded))
+		return err
+	}
+	_, err := fmt.Fprintln(output, message)
+	return err
 }
 
 // parseLogLevel parses log level string and returns LogLevel
