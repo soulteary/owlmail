@@ -341,6 +341,45 @@ func TestNewAPIProtectsPersistedRetrySourceBeforeBackgroundRecovery(t *testing.T
 	}
 }
 
+func TestDeferredAPILoadsAndProtectsQueuedWorkBeforeStartingRecovery(t *testing.T) {
+	first, server, mailDirectory := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "deferred-recovery-source", Subject: "deferred recovery"}
+	if err := os.WriteFile(filepath.Join(mailDirectory, email.ID+".eml"), []byte("Subject: deferred recovery\r\n\r\nbody\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	job, err := first.relayJobs.create(email.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := NewAPIWithHTTPSDeferredRecovery(server, 0, "localhost", "", "", false, "", "")
+	defer restarted.releaseRelaySource(job.ID)
+	if err := server.DeleteEmail(email.ID); !errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		t.Fatalf("DeleteEmail() before recovery error = %v, want ErrEmailSourceInUse", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if queued, ok := restarted.relayJobs.get(job.ID); !ok || queued.Attempts != 0 || queued.CompletedAt != nil {
+		t.Fatalf("deferred job started before StartRelayRecovery: %#v, found %t", queued, ok)
+	}
+
+	restarted.StartRelayRecovery()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		started, ok := restarted.relayJobs.get(job.ID)
+		if !ok || started.Attempts > 0 || started.CompletedAt != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("deferred relay recovery did not start")
+		}
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func waitForTerminalRelayJob(t *testing.T, store *relayJobStore, id string) (relayJob, bool) {
 	t.Helper()
 	deadline := time.Now().Add(2 * time.Second)
