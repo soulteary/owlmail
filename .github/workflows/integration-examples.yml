@@ -1,0 +1,90 @@
+name: Integration Examples
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: integration-examples-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  examples:
+    name: Go, Python, and JavaScript
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build OwlMail
+        run: go build -o "${RUNNER_TEMP}/owlmail" ./cmd/owlmail
+
+      - name: Run every integration example
+        shell: bash
+        run: |
+          set -euo pipefail
+          log_file="${RUNNER_TEMP}/owlmail-integration.log"
+          mail_dir="${RUNNER_TEMP}/owlmail-example-mail"
+          mkdir -p "$mail_dir"
+          owlmail_pid=""
+          cleanup() {
+            status=$?
+            if [ -n "$owlmail_pid" ]; then
+              kill "$owlmail_pid" 2>/dev/null || true
+              wait "$owlmail_pid" 2>/dev/null || true
+            fi
+            if [ "$status" -ne 0 ]; then
+              cat "$log_file"
+            fi
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          "${RUNNER_TEMP}/owlmail" \
+            -smtp 1025 \
+            -web 1080 \
+            -web-ip 127.0.0.1 \
+            -mail-directory "$mail_dir" >"$log_file" 2>&1 &
+          owlmail_pid=$!
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --connect-timeout 2 --max-time 3 \
+              http://127.0.0.1:1080/readyz >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "OwlMail did not become ready" >&2
+            exit 1
+          fi
+
+          node --version
+          node examples/testing/javascript/email-test.mjs
+          python3 --version
+          python3 examples/testing/python/email_test.py
+          OWLMAIL_RUN_INTEGRATION_TEST=1 go test -count=1 ./examples/testing/go -v
+
+      - name: Upload OwlMail log on failure
+        if: failure()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: integration-example-log
+          retention-days: 7
+          path: ${{ runner.temp }}/owlmail-integration.log
+          if-no-files-found: error
