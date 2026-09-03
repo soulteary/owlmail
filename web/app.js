@@ -1506,7 +1506,7 @@ function renderEmailContentTabs(email) {
                     id="email-content-tab-${tab}" aria-controls="email-content-panel"
                     aria-selected="${emailContentTab === tab}" tabindex="${emailContentTab === tab ? '0' : '-1'}"
                     ${tab === 'html' && !email.html ? 'disabled' : ''}
-                    onclick="setEmailContentTab('${tab}')"
+                    onclick="setEmailContentTab('${tab}', true)"
                     onkeydown="handleEmailContentTabKeydown(event, '${tab}')">${t(labels[tab])}</button>
             `).join('')}
         </div>

@@ -367,6 +367,7 @@ test('email detail offers HTML, text, headers, and source tabs', () => {
     assert.match(markup, /role="tablist"/);
     assert.match(markup, /role="tabpanel"/);
     assert.match(markup, /tabindex="0"/);
+    assert.match(markup, /onclick="setEmailContentTab\('source', true\)"/);
     for (const locale of ['zh-CN', 'en', 'de', 'it', 'fr', 'ko', 'ja']) {
         assert.equal(harness.run(`Boolean(i18n[${JSON.stringify(locale)}].contentSource)`), true);
     }
