@@ -140,7 +140,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		if email.HTML != "" {
 			email.HTML = strings.TrimSpace(sanitizeHTML(email.HTML))
 		}
-		if item.metadataUncertain && len(email.Attachments) > 0 {
+		if item.metadataUncertain {
 			continue
 		}
 		if item.metadata != nil {
