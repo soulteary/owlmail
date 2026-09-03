@@ -210,6 +210,16 @@ MailDev facade continues to wait for its relay attempt.
 | `GET /api/v1/openapi.json` | base-path-aware OpenAPI 3.1 JSON contract |
 | `GET /api/v1/openapi.yaml` | base-path-aware OpenAPI 3.1 YAML contract |
 
+### Optional service endpoints
+
+These endpoints are registered only when their corresponding feature is
+enabled. They follow the configured base pathname and Web Basic Auth policy.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /metrics` | Prometheus metrics when `-metrics-enabled` is set |
+| `ALL /mcp` | Streamable HTTP MCP transport when `-mcp-enabled` is set; the transport validates the allowed HTTP methods |
+
 Malformed WebSocket upgrade headers or handshake keys return a plain-text
 `400` response before a WebSocket connection is established.
 
@@ -418,7 +428,7 @@ follows OwlMail's base path and Web Basic Auth policy.
 | `GET /messages/:id.plain` | plain-text body |
 | `GET /messages/:id.source` | RFC 822 source |
 | `GET /messages/:id.eml` | downloadable RFC 822 message |
-| `GET /messages/:id/parts/:cid` | attachment or inline MIME part by content ID |
+| `GET /messages/:id/parts/*` | attachment or inline MIME part selected by the wildcard content ID path |
 | `DELETE /messages/:id` | delete one message |
 
 This is a REST migration aid. It does not emulate MailCatcher's WebSocket bus
