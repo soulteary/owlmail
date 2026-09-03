@@ -354,12 +354,15 @@ func relayFailureCategory(err error) string {
 func (api *API) relayEmailAsync(c fiber.Ctx) error {
 	relayTo := c.Query("relayTo")
 	var confirmedRecipients []string
-	if relayTo == "" {
+	if len(c.Request().Body()) > 0 {
 		var body struct {
 			RelayTo             string    `json:"relayTo"`
 			ConfirmedRecipients *[]string `json:"confirmedRecipients"`
 		}
-		if err := c.Bind().Body(&body); err == nil {
+		if err := c.Bind().Body(&body); err != nil {
+			return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid relay request body"))
+		}
+		if relayTo == "" {
 			relayTo = body.RelayTo
 			if body.ConfirmedRecipients != nil {
 				confirmedRecipients = *body.ConfirmedRecipients
