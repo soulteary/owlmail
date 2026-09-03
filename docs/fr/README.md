@@ -19,6 +19,12 @@ langue dans des répertoires distincts.
 
 ### Références opérationnelles
 
+- **Tests et agents** (English, [中文](../zh-CN/Integration-Testing.md)) :
+  [intégration](../en/Integration-Testing.md), [CI](../en/CI-Quickstart.md),
+  [agents IA](../en/AI-Agent-Testing.md), [MCP](../en/MCP-Reference.md),
+  [recettes](../en/Testing-Recipes.md), [architecture](../en/Architecture.md) et
+  [modèle de sécurité](../en/Security-Model.md).
+- **[Exemples JavaScript, Go, Python et Compose exécutables](../../examples/testing/README.md)**
 - **[Référence API](../en/API-Reference.md)** (English, [中文](../zh-CN/API-Reference.md))
   - Routes, authentification, formats de réponse, événements WebSocket et
     différences documentées avec MailDev.
@@ -35,14 +41,15 @@ langue dans des répertoires distincts.
 ### Versions
 
 - **[Notes de version 0.8.0](../en/Release-0.8.0.md)** (English, [中文](../zh-CN/Release-0.8.0.md))
+- **[Notes de version 0.7.0](../en/Release-0.7.0.md)** (English, [中文](../zh-CN/Release-0.7.0.md))
 - **[Processus de publication](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
 ### Comparaison et migration
 
-- **[OwlMail × MailDev – Comparaison et guide de migration](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+- **[OwlMail × MailDev – Comparaison et guide de migration](./Comparison-and-Migration.md)**
   - Cette traduction est incomplète. Consultez la version complète en
-    [anglais](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-    ou en [chinois](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
+    [anglais](../en/Comparison-and-Migration.md)
+    ou en [chinois](../zh-CN/Comparison-and-Migration.md).
 
 ### Documentation interne historique
 

@@ -398,4 +398,4 @@ ID 视为不透明字符串。
 5. 在预发布环境验证删除、中继、附件、鉴权和错误路径。
 
 更完整的功能比较见
-[迁移白皮书](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)。
+[迁移白皮书](./Comparison-and-Migration.md)。

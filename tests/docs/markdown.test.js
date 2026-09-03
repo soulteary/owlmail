@@ -393,21 +393,24 @@ test("OpenAPI contract is linked from every translated README", () => {
   }
 });
 
-test("three-way comparison stays source-pinned and reflects MCP support", () => {
+test("three-way comparison stays source-pinned and reflects the 0.8.0 contract", () => {
   for (const document of [
-    "docs/en/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
-    "docs/zh-CN/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
+    "docs/en/Comparison-and-Migration.md",
+    "docs/zh-CN/Comparison-and-Migration.md",
   ]) {
     const markdown = fs.readFileSync(path.join(root, document), "utf8");
     for (const marker of [
       "OwlMail × MailDev × MailCatcher",
-      "2026-09-02",
-      "279571b62a5e4891f0a204837d8553b131b89b20",
+      "2026-09-03",
+      "e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9",
+      "0.8.0",
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
       "0.11.0",
       "MCP",
       "MailCatcher",
+      "Prometheus",
+      "SQLite",
     ]) {
       assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
     }
@@ -415,16 +418,33 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
     assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
     assert.ok(!markdown.includes("with five closed-world"));
     assert.ok(!markdown.includes("只包含五个封闭只读能力"));
+    for (const obsolete of [
+      "release 0.6.0",
+      "正式版 0.6.0",
+      "general application config file",
+      "通用应用配置文件",
+      "SMTP read/write timeouts and the recipient count are still fixed defaults",
+      "SMTP 读写超时和收件人数仍使用固定默认值",
+      "does not yet provide complete browser-history",
+      "尚未提供完整浏览器历史",
+      "The mailbox index remains in memory",
+      "邮箱索引仍主要位于内存",
+      "There is no Prometheus metrics endpoint",
+      "没有 Prometheus 指标端点",
+    ]) {
+      assert.ok(!markdown.includes(obsolete), `${document} retains obsolete 0.6.0 claim ${obsolete}`);
+    }
     assert.ok(markdown.includes("<base-pathname>/mcp"));
   }
 
   for (const locale of ["de", "fr", "it", "ja", "ko"]) {
     const stub = fs.readFileSync(
-      path.join(root, `docs/${locale}/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md`),
+      path.join(root, `docs/${locale}/Comparison-and-Migration.md`),
       "utf8",
     );
-    assert.ok(stub.includes("main"), `${locale} comparison does not qualify the MCP branch`);
-    assert.ok(stub.includes("v0.6.0"), `${locale} comparison does not qualify the stable release`);
+    assert.ok(stub.includes("0.8.0"), `${locale} comparison does not identify the stable release`);
+    assert.ok(stub.includes("stdio"), `${locale} comparison does not identify both MCP transports`);
+    assert.ok(!stub.includes("v0.6.0"), `${locale} comparison still presents MCP as a post-0.6.0 main-only feature`);
   }
 });
 
@@ -592,6 +612,152 @@ test("release workflow preserves supply-chain evidence", () => {
       assert.ok(markdown.includes(marker), `${guide} is missing supply-chain marker ${marker}`);
     }
   }
+});
+
+test("integration and AI-first guides are complete, bilingual, and runnable", () => {
+  const guideNames = [
+    "Integration-Testing.md",
+    "CI-Quickstart.md",
+    "AI-Agent-Testing.md",
+    "MCP-Reference.md",
+    "Testing-Recipes.md",
+    "Architecture.md",
+    "Security-Model.md",
+  ];
+  for (const locale of ["en", "zh-CN"]) {
+    const index = fs.readFileSync(path.join(root, `docs/${locale}/README.md`), "utf8");
+    for (const name of guideNames) {
+      const document = `docs/${locale}/${name}`;
+      assert.ok(fs.existsSync(path.join(root, document)), `missing ${document}`);
+      assert.ok(index.includes(name), `docs/${locale}/README.md does not link ${name}`);
+    }
+  }
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    for (const marker of ["Integration-Testing.md", "MCP-Reference.md", "Security-Model.md"]) {
+      assert.ok(markdown.includes(marker), `${readme} does not link ${marker}`);
+    }
+  }
+
+  for (const example of [
+    "examples/testing/compose.yaml",
+    "examples/testing/javascript/email-test.mjs",
+    "examples/testing/go/email_test.go",
+    "examples/testing/python/email_test.py",
+  ]) {
+    assert.ok(fs.existsSync(path.join(root, example)), `missing ${example}`);
+  }
+  const compose = fs.readFileSync(path.join(root, "examples/testing/compose.yaml"), "utf8");
+  assert.ok(compose.includes("ghcr.io/soulteary/owlmail:0.8.0"));
+  assert.match(compose, /127\.0\.0\.1:1025:1025/);
+  assert.match(compose, /127\.0\.0\.1:1080:1080/);
+
+  const goExample = fs.readFileSync(path.join(root, "examples/testing/go/email_test.go"), "utf8");
+  assert.ok(goExample.includes('os.Getenv("OWLMAIL_RUN_INTEGRATION_TEST") != "1"'));
+  for (const readme of ["examples/testing/README.md", "examples/testing/README.zh-CN.md"]) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("OWLMAIL_RUN_INTEGRATION_TEST=1 go test"));
+  }
+
+  const mcp = fs.readFileSync(path.join(root, "docs/en/MCP-Reference.md"), "utf8");
+  for (const marker of [
+    "list_emails",
+    "search_emails",
+    "get_email",
+    "get_email_source",
+    "list_attachments",
+    "get_latest_email",
+    "wait_for_email",
+    "owlmail://inbox",
+    "owlmail://stats",
+    "owlmail://email/{id}",
+  ]) {
+    assert.ok(mcp.includes(marker), `MCP reference is missing ${marker}`);
+  }
+});
+
+test("GitHub community files match repository features and supported conventions", () => {
+  assert.ok(!fs.existsSync(path.join(root, ".github/ISSUE_TEMPLATE/config.zh-CN.yml")));
+  assert.ok(!fs.existsSync(path.join(root, ".github/pull_request_template.zh-CN.md")));
+
+  const issueConfig = fs.readFileSync(path.join(root, ".github/ISSUE_TEMPLATE/config.yml"), "utf8");
+  assert.ok(!issueConfig.includes("/discussions"));
+  assert.ok(issueConfig.includes("Question / 使用问题"));
+
+  for (const template of ["bug_report.yml", "bug_report.zh-CN.yml"]) {
+    const source = fs.readFileSync(path.join(root, `.github/ISSUE_TEMPLATE/${template}`), "utf8");
+    for (const marker of ["v0.8.0", "deployment", "component", "S3", "Webhook", "MCP"]) {
+      assert.ok(source.includes(marker), `${template} is missing ${marker}`);
+    }
+    assert.ok(!source.includes("v1.0.0"), `${template} retains a future example version`);
+    assert.ok(!source.includes("go1.24.0"), `${template} retains an obsolete Go example`);
+  }
+
+  for (const template of ["feature_request.yml", "feature_request.zh-CN.yml"]) {
+    const source = fs.readFileSync(path.join(root, `.github/ISSUE_TEMPLATE/${template}`), "utf8");
+    for (const marker of ["MCP / AI Agent", "Webhook", "Security", "Compatibility", "Migration"]) {
+      assert.ok(source.includes(marker) || source.includes({ Security: "安全", Compatibility: "兼容性", Migration: "迁移" }[marker]),
+        `${template} is missing ${marker}`);
+    }
+  }
+
+  const pullRequest = fs.readFileSync(path.join(root, ".github/pull_request_template.md"), "utf8");
+  for (const command of [
+    "go test -race ./...",
+    "go vet ./...",
+    "bun build ./web/*.js --target=browser --outdir=./.bun-check",
+    "bun test ./tests/web ./tests/docs",
+  ]) {
+    assert.ok(pullRequest.includes(command), `pull request template is missing ${command}`);
+  }
+
+  for (const locale of ["de", "fr", "it", "ja", "ko"]) {
+    const contributing = fs.readFileSync(path.join(root, `.github/CONTRIBUTING.${locale}.md`), "utf8");
+    const conduct = fs.readFileSync(path.join(root, `.github/CODE_OF_CONDUCT.${locale}.md`), "utf8");
+    assert.notEqual(contributing, fs.readFileSync(path.join(root, ".github/CONTRIBUTING.md"), "utf8"));
+    assert.notEqual(conduct, fs.readFileSync(path.join(root, ".github/CODE_OF_CONDUCT.md"), "utf8"));
+    assert.ok(contributing.includes("CONTRIBUTING.md"), `${locale} contribution summary lacks canonical link`);
+    assert.ok(conduct.includes("CODE_OF_CONDUCT.md"), `${locale} conduct summary lacks canonical link`);
+
+    const security = fs.readFileSync(path.join(root, `SECURITY.${locale}.md`), "utf8");
+    for (const marker of ["0.8.x", "0.7.x", "0.6.x", "srcdoc", 'referrerpolicy="no-referrer"', "CSP", "CID"]) {
+      assert.ok(security.includes(marker), `SECURITY.${locale}.md is missing ${marker}`);
+    }
+  }
+  for (const security of ["SECURITY.md", "SECURITY.zh-CN.md"]) {
+    const markdown = fs.readFileSync(path.join(root, security), "utf8");
+    for (const marker of ["0.8.x", "0.7.x", "0.6.x"]) {
+      assert.ok(markdown.includes(marker), `${security} is missing ${marker}`);
+    }
+  }
+});
+
+test("release history and generated reports avoid stale documentation", () => {
+  const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
+  assert.ok(changelog.includes("## [0.6.0] - 2026-09-01"));
+  assert.ok(changelog.includes("## [0.5.0] - 2026-08-30"));
+  for (const locale of ["en", "zh-CN"]) {
+    const release = `docs/${locale}/Release-0.7.0.md`;
+    assert.ok(fs.existsSync(path.join(root, release)), `missing ${release}`);
+    assert.ok(fs.readFileSync(path.join(root, `docs/${locale}/README.md`), "utf8").includes("Release-0.7.0.md"));
+  }
+
+  for (const locale of ["en", "zh-CN", "de", "fr", "it", "ja", "ko"]) {
+    assert.ok(fs.existsSync(path.join(root, `docs/${locale}/Comparison-and-Migration.md`)));
+  }
+  assert.deepEqual(
+    walkMarkdown(path.join(root, "docs")).filter((file) => path.basename(file).includes("Full Feature & API")),
+    [],
+  );
+
+  const report = fs.readFileSync(path.join(root, ".github/goreportcard-report.md"), "utf8");
+  assert.ok(!report.includes("Line 1034"), "Go Report Card keeps stale source line numbers");
+  assert.ok(report.includes("exact analyzed commit"));
+  const workflow = fs.readFileSync(path.join(root, ".github/workflows/go-reportcard.yml"), "utf8");
+  assert.ok(workflow.includes("branches:"));
+  assert.ok(workflow.includes("- main"));
+  assert.ok(workflow.includes("'**/*.go'"));
 });
 
 test("browser and documentation tests use the pinned Bun runner", () => {

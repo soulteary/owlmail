@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ja/Comparison-and-Migration.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
@@ -571,7 +571,7 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 OwlMail は一般的な MailDev ワークフローを扱いますが、現在のクライアントには
 明示的な修正が必要な場合があります。
-[移行ガイド](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)に従ってください。
+[移行ガイド](./docs/ja/Comparison-and-Migration.md)に従ってください。
 
 ### 1. Environment Variable Compatibility
 
@@ -620,7 +620,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/Comparison-and-Migration.md)
 
 ## 🧪 Testing
 
@@ -683,8 +683,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [OwlMail 0.8.0 リリースノート](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [統合テスト、CI、AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
+- [MCP リファレンス](./docs/en/MCP-Reference.md)、[アーキテクチャ](./docs/en/Architecture.md)、[セキュリティモデル](./docs/en/Security-Model.md)
+- [実行可能なテスト例](./examples/testing/README.md)
+- [OwlMail 0.7.0 リリースノート](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
 - [変更履歴](./CHANGELOG.md)
-- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/Comparison-and-Migration.md)
 - [API リファレンス (English)](./docs/en/API-Reference.md)
 - [運用・トラブルシューティング (English)](./docs/en/Operations.md)
 - [Webhook 転送 (English)](./docs/en/Webhook-Forwarding.md)

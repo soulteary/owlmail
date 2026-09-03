@@ -39,9 +39,15 @@ body:
       label: Feature Category
       description: Which category does this feature belong to?
       options:
-        - Core Features (SMTP server, email storage, etc.)
+        - Integration Testing
+        - MCP / AI Agent
+        - Webhook Automation
+        - Storage and Persistence
+        - Observability
+        - Security
+        - Core SMTP and Relay
         - Web Interface
-        - API Features
+        - API and Compatibility
         - Configuration and Deployment
         - Performance and Optimization
         - Documentation and Examples
@@ -64,12 +70,12 @@ body:
   - type: textarea
     id: compatibility
     attributes:
-      label: MailDev Compatibility
-      description: Will this feature affect MailDev compatibility?
+      label: Compatibility and Migration Impact
+      description: Describe effects on native API, MailDev/MailCatcher facades, configuration, stored data, and upgrades.
       placeholder: |
-        - Is it compatible with MailDev?
-        - Does it need to maintain backward compatibility?
-        - Does it require new configuration options?
+        - Does the native API or a compatibility facade change?
+        - Are new configuration options or migrations required?
+        - What happens when upgrading existing stored mail?
 
   - type: textarea
     id: additional

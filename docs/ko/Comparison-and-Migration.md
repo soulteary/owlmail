@@ -4,9 +4,9 @@
 
 > ⚠️ **번역 진행 중**
 > 
-> 이 번역은 진행 중입니다. 현재는 [영어 버전](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) 또는 다른 사용 가능한 버전을 참조하세요:
-> - [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
-> - [简体中文](../zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+> 이 번역은 진행 중입니다. 현재는 [영어 버전](../en/Comparison-and-Migration.md) 또는 다른 사용 가능한 버전을 참조하세요:
+> - [English](../en/Comparison-and-Migration.md)
+> - [简体中文](../zh-CN/Comparison-and-Migration.md)
 > 
 > **기여를 환영합니다**: 이 번역에 기여하고 싶으시다면 [기여 가이드](../../.github/CONTRIBUTING.md)를 참조하세요.
 
@@ -19,7 +19,7 @@ OwlMail, MailDev 및 MailCatcher는 기본 개발 워크플로를 공유하지�
 실시간 프로토콜이 다릅니다. 현재 범위는
 [API 참조](../en/API-Reference.md)를 확인하세요.
 
-OwlMail은 검토된 main 브랜치에서만(v0.6.0에는 포함되지 않음) 기본적으로 비활성화된 읽기 전용 MCP 엔드포인트를 제공합니다. MailDev 3의 MCP 범위는 더 넓고 MailCatcher에는 내장 MCP가 없습니다. 기본적으로 비활성화된 `-maildev-rest-compat` 옵션은 현재 MailDev REST 경로를
+OwlMail 0.8.0은 기본적으로 비활성화된 읽기 전용 MCP 인터페이스를 Streamable HTTP와 stdio로 제공합니다. MailDev 3의 MCP 범위는 더 넓고 MailCatcher에는 내장 MCP가 없습니다. 기본적으로 비활성화된 `-maildev-rest-compat` 옵션은 현재 MailDev REST 경로를
 `/api` 아래에 제공합니다. Socket.IO 호환성은 제공하지 않습니다.
 
 > **참고**: 번역이 완료되면 전체 내용을 사용할 수 있습니다. 그동안 전체 세부사항은 영어 버전을 참조하세요.
@@ -32,7 +32,7 @@ OwlMail은 검토된 main 브랜치에서만(v0.6.0에는 포함되지 않음) �
 
 1. 저장소 포크
 2. 번역용 브랜치 생성
-3. [OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)의 내용 번역
+3. [Comparison-and-Migration.md](../en/Comparison-and-Migration.md)의 내용 번역
 4. Pull Request 제출
 
 자세한 내용은 [기여 가이드](../../.github/CONTRIBUTING.md)를 참조하세요.

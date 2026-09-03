@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/Comparison-and-Migration.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
@@ -675,7 +675,7 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 ## 🔄 从 MailDev 迁移
 
 OwlMail 覆盖常见 MailDev 工作流，但当前 MailDev 客户端可能需要少量明确适配。
-请遵循[迁移指南](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)。
+请遵循[迁移指南](./docs/zh-CN/Comparison-and-Migration.md)。
 
 ### 1. 环境变量兼容
 
@@ -722,7 +722,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/Comparison-and-Migration.md)
 
 ## 🧪 测试
 
@@ -785,8 +785,13 @@ OwlMail/
 ## 📚 相关文档
 
 - [OwlMail 0.8.0 发布说明](./docs/zh-CN/Release-0.8.0.md)
+- [集成测试](./docs/zh-CN/Integration-Testing.md)与 [CI 快速入门](./docs/zh-CN/CI-Quickstart.md)
+- [AI Agent 测试](./docs/zh-CN/AI-Agent-Testing.md)与 [MCP 参考](./docs/zh-CN/MCP-Reference.md)
+- [测试配方与可运行示例](./docs/zh-CN/Testing-Recipes.md)
+- [架构](./docs/zh-CN/Architecture.md)与[安全模型](./docs/zh-CN/Security-Model.md)
+- [OwlMail 0.7.0 发布说明](./docs/zh-CN/Release-0.7.0.md)
 - [变更日志](./CHANGELOG.md)
-- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/Comparison-and-Migration.md)
 - [API 参考](./docs/zh-CN/API-Reference.md)
 - [运维与排障](./docs/zh-CN/Operations.md)
 - [Webhook 消息转发](./docs/zh-CN/Webhook-Forwarding.md)

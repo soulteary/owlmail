@@ -6,9 +6,9 @@ Nous fournissons actuellement des mises à jour de sécurité pour les versions 
 
 | Version | Prise en charge |
 |---------|-----------------|
-| Dernière | ✅ Oui |
-| Version majeure précédente | ✅ Oui |
-| Versions plus anciennes | ❌ Non |
+| 0.8.x | ✅ Oui |
+| 0.7.x | ✅ Oui |
+| 0.6.x et antérieures | ❌ Non |
 
 ## Signaler une Vulnérabilité
 
@@ -57,6 +57,17 @@ Bien que nous n'ayons pas actuellement de programme formel de bug bounty, nous p
 - **Contrôle d'Accès** : Configurez une authentification et une autorisation appropriées
 - **Isolation de l'Environnement** : N'exposez pas d'instances non protégées sur des réseaux publics
 - **Informations Sensibles** : Ne codez pas en dur les mots de passe ou les clés dans le code ou la configuration
+
+### Isolation de l'aperçu HTML
+
+OwlMail considère tout e-mail HTML capturé comme non fiable. Le serveur retire
+le contenu actif ; l'interface affiche le résultat dans un iframe `srcdoc` sans
+permission de sandbox, avec `referrerpolicy="no-referrer"` et une CSP stricte.
+
+Les images, polices, feuilles de style et médias distants sont bloqués par
+défaut. **Charger le contenu distant** ne vaut que pour le message courant et
+peut contacter l'infrastructure choisie par l'expéditeur, révélant l'adresse IP
+et un identifiant de suivi. Les images CID restent des pièces jointes locales.
 
 ### Pour les Développeurs
 

@@ -145,7 +145,7 @@ All notable changes to OwlMail are documented in this file. The format follows
   `-smtp-max-message-mb` / `OWLMAIL_SMTP_MAX_MESSAGE_MB` and now defaults to
   100 MiB instead of 1 MiB.
 
-## [0.6.0] - 2026-08-31
+## [0.6.0] - 2026-09-01
 
 ### Added
 
@@ -203,7 +203,7 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Browser notifications wait for an active service worker and preserve the
   selected email when focusing or opening an inbox window.
 
-## [0.5.0]
+## [0.5.0] - 2026-08-30
 
 ### Added
 

@@ -174,10 +174,14 @@ OwlMail/
 │   └── owlmail/          # Main program entry
 ├── internal/
 │   ├── api/              # Web API implementation
+│   ├── attachmentstore/  # Local and S3 attachment storage
 │   ├── common/           # Common utilities (logging, error handling)
+│   ├── config/           # Layered configuration and validation
 │   ├── maildev/          # MailDev compatibility layer
 │   ├── mailserver/       # SMTP server implementation
+│   ├── mcpserver/        # Read-only MCP transports and workflows
 │   ├── outgoing/         # Email relay implementation
+│   ├── sendmail/         # Sendmail-compatible client
 │   ├── types/            # Type definitions
 │   └── webhook/          # Webhook filtering and delivery
 ├── docs/                 # User-facing and historical documentation
@@ -204,8 +208,8 @@ We welcome the following types of contributions:
 If you encounter any issues during contribution, please:
 
 1. Check existing [Issues](https://github.com/soulteary/owlmail/issues)
-2. Ask questions in [Discussions](https://github.com/soulteary/owlmail/discussions)
-3. Create a new Issue describing your problem
+2. Search the [documentation](../docs/README.md)
+3. Create a new Issue describing your question or problem
 
 ## Code of Conduct
 

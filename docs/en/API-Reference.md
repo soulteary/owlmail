@@ -452,4 +452,4 @@ Before migrating an automated client:
    staging environment.
 
 For the broader comparison, see the
-[migration white paper](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
+[migration white paper](./Comparison-and-Migration.md).

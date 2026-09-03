@@ -1,0 +1,12 @@
+services:
+  owlmail:
+    image: ghcr.io/soulteary/owlmail:0.8.0
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:1080:1080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:1080/readyz"]
+      interval: 1s
+      timeout: 1s
+      retries: 30
+    restart: "no"

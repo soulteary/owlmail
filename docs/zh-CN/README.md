@@ -20,9 +20,31 @@
 
 ### 主要文档
 
+- **[集成测试](./Integration-Testing.md)**
+  - 确定性 SMTP 捕获、REST 断言、并行隔离与故障定位。
+  - **可运行示例**：[JavaScript、Go、Python 与 Compose](../../examples/testing/README.zh-CN.md)
+  - **其他语言**：[English](../en/Integration-Testing.md)
+
+- **[CI 快速入门](./CI-Quickstart.md)**
+  - 一次性 Sidecar 生命周期、Readiness、日志制品、超时与 Digest 固定。
+  - **其他语言**：[English](../en/CI-Quickstart.md)
+
+- **[AI Agent 测试](./AI-Agent-Testing.md)**与 **[MCP 参考](./MCP-Reference.md)**
+  - Streamable HTTP/stdio 接入、先等待后触发的可靠流程，以及准确工具与限制。
+  - **其他语言**：[AI Agent Testing](../en/AI-Agent-Testing.md) | [MCP Reference](../en/MCP-Reference.md)
+
+- **[测试配方](./Testing-Recipes.md)**
+  - 注册、密码重置、附件、MIME Source、负向投递、恢复、Webhook 与 Relay 配方。
+  - **其他语言**：[English](../en/Testing-Recipes.md)
+
+- **[架构](./Architecture.md)**与 **[安全模型](./Security-Model.md)**
+  - 组件职责、数据流、单实例边界、信任模型与部署清单。
+  - **其他语言**：[Architecture](../en/Architecture.md) | [Security Model](../en/Security-Model.md)
+
 - **[OwlMail 0.8.0 发布说明](./Release-0.8.0.md)**
   - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
   - **其他语言**：[English](../en/Release-0.8.0.md)
+  - **上一版本**：[0.7.0](./Release-0.7.0.md)（[English](../en/Release-0.7.0.md)）
 
 - **[API 参考](./API-Reference.md)**
   - 完整路由清单、请求与响应约定、鉴权、原生 WebSocket 事件、curl 示例，以及
@@ -46,9 +68,9 @@
   - **可运行示例**：[最小、过滤、自定义、多目标、纯文本与 Compose 联动](../../examples/webhooks/README.zh-CN.md)
   - **其他语言**：[English](../en/Webhook-Forwarding.md)
 
-- **[OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)**
+- **[OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./Comparison-and-Migration.md)**
   - 基于源码核对两者的能力差异、API 不兼容项与迁移检查清单。
-  - **其他语言**: [English](../en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Deutsch](../de/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Français](../fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [Italiano](../it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [日本語](../ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md) | [한국어](../ko/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+  - **其他语言**: [English](../en/Comparison-and-Migration.md) | [Deutsch](../de/Comparison-and-Migration.md) | [Français](../fr/Comparison-and-Migration.md) | [Italiano](../it/Comparison-and-Migration.md) | [日本語](../ja/Comparison-and-Migration.md) | [한국어](../ko/Comparison-and-Migration.md)
 
 ### 历史内部文档
 

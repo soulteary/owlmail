@@ -174,10 +174,14 @@ OwlMail/
 │   └── owlmail/          # 主程序入口
 ├── internal/
 │   ├── api/              # Web API 实现
+│   ├── attachmentstore/  # 本地与 S3 附件存储
 │   ├── common/           # 通用工具（日志、错误处理）
+│   ├── config/           # 分层配置与校验
 │   ├── maildev/          # MailDev 兼容层
 │   ├── mailserver/       # SMTP 服务器实现
+│   ├── mcpserver/        # 只读 MCP Transport 与工作流
 │   ├── outgoing/         # 邮件转发实现
+│   ├── sendmail/         # Sendmail 兼容客户端
 │   ├── types/            # 类型定义
 │   └── webhook/          # Webhook 过滤与投递
 ├── docs/                 # 用户文档与历史记录
@@ -204,7 +208,7 @@ OwlMail/
 如果您在贡献过程中遇到任何问题，请：
 
 1. 查看现有的 [Issues](https://github.com/soulteary/owlmail/issues)
-2. 在 [Discussions](https://github.com/soulteary/owlmail/discussions) 中提问
+2. 搜索[项目文档](../docs/README.md)
 3. 创建新的 Issue 描述您的问题
 
 ## 行为准则

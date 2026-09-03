@@ -6,8 +6,8 @@ release adds configurable outgoing webhooks, an embedded webhook configurator,
 embedded help, opt-in browser notifications, explicit webhook capacity
 controls, and safer partial Web Basic Auth behavior.
 
-Commands that reference `v0.5.0` or the `0.5.0` container tag work only after
-the release tag has been published.
+OwlMail 0.5.0 was published on 2026-08-30. The commands below use the released
+`v0.5.0` tag and `0.5.0` container image.
 
 ## Highlights
 
@@ -80,7 +80,7 @@ HTTPS.
 Back up the complete mail directory before changing versions. Test an important
 archive against a copy first.
 
-## Installation after publication
+## Installation
 
 ### Release binaries
 
@@ -153,5 +153,5 @@ not stable-release selectors. `0.5.0` selects this release, while
 - [Webhook scenarios](../../examples/webhooks/README.md)
 - [API reference](./API-Reference.md)
 - [Operations and troubleshooting](./Operations.md)
-- [MailDev comparison and migration guide](./OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [MailDev comparison and migration guide](./Comparison-and-Migration.md)
 - [Full changelog](../../CHANGELOG.md)

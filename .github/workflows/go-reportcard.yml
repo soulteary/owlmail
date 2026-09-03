@@ -2,6 +2,14 @@ name: Go Report Card
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '**/*.go'
+      - go.mod
+      - go.sum
+      - .github/workflows/go-reportcard.yml
 
 permissions:
   contents: write

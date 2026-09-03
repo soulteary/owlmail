@@ -5,7 +5,7 @@
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/fr/Comparison-and-Migration.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
@@ -575,7 +575,7 @@ export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
 
 OwlMail couvre des workflows courants de MailDev, mais les clients actuels
 peuvent nécessiter des adaptations explicites. Suivez le
-[guide de migration](./docs/fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md).
+[guide de migration](./docs/fr/Comparison-and-Migration.md).
 
 ### 1. Environment Variable Compatibility
 
@@ -624,7 +624,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/fr/Comparison-and-Migration.md)
 
 ## 🧪 Testing
 
@@ -687,8 +687,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📚 Related Documentation
 
 - [Notes de version OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [Intégration, CI et agents IA](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
+- [Référence MCP](./docs/en/MCP-Reference.md), [architecture](./docs/en/Architecture.md) et [modèle de sécurité](./docs/en/Security-Model.md)
+- [Exemples de test exécutables](./examples/testing/README.md)
+- [Notes de version OwlMail 0.7.0](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
 - [Journal des modifications](./CHANGELOG.md)
-- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/fr/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
+- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/fr/Comparison-and-Migration.md)
 - [Référence API (English)](./docs/en/API-Reference.md)
 - [Exploitation et dépannage (English)](./docs/en/Operations.md)
 - [Transmission Webhook (English)](./docs/en/Webhook-Forwarding.md)
