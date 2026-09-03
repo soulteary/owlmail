@@ -125,6 +125,9 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			email.Time = item.receivedAt
 		}
 		email.Read = item.read
+		if item.metadata != nil && item.metadata.Envelope != nil {
+			envelope = cloneEnvelope(item.metadata.Envelope)
+		}
 		email.Envelope = envelope
 		email.Source = path
 		if info, statErr := item.entry.Info(); statErr == nil {
@@ -141,6 +144,11 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			if err := restoreAttachmentMetadata(email, *item.metadata); err != nil {
 				refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
 				continue
+			}
+		}
+		if len(email.Attachments) > 0 && (item.metadata == nil || len(item.metadata.Attachments) == 0) {
+			if err := ms.restoreLegacyLocalAttachmentMetadata(id, email.Attachments); err != nil {
+				refreshErrors = append(refreshErrors, fmt.Errorf("restore legacy attachment metadata for %s: %w", id, err))
 			}
 		}
 		loaded[id] = email
@@ -197,6 +205,10 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 				if err := restoreAttachmentMetadata(updated, *item.metadata); err != nil {
 					refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
 					continue
+				}
+				if item.metadata.Envelope != nil {
+					updated.Envelope = cloneEnvelope(item.metadata.Envelope)
+					updated.CalculatedBCC = calculateBCC(append([]string(nil), updated.Envelope.To...), addressListToStrings(updated.To), addressListToStrings(updated.CC))
 				}
 			}
 			updated.Read = item.read
