@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 const maximumRelayJobFileBytes = 64 << 10
@@ -136,6 +137,28 @@ func validPersistedRelayJob(job relayJob) bool {
 	}
 }
 
+func validateRelayJobPersistenceBudget(job relayJob) error {
+	// Reserve enough space for every field that may be added as the job moves
+	// through retry and terminal states. This prevents a successfully accepted
+	// job from outgrowing the loader's fixed safety limit later in its lifecycle.
+	worstTimestamp := time.Date(9999, time.December, 31, 23, 59, 59, 999999999, time.UTC)
+	worst := job
+	worst.Status = relayJobFailed
+	worst.ErrorCategory = "configuration_changed"
+	worst.UpdatedAt = worstTimestamp
+	worst.CompletedAt = &worstTimestamp
+	worst.NextAttemptAt = &worstTimestamp
+	worst.Attempts = defaultRelayMaxAttempts
+	data, err := json.Marshal(worst)
+	if err != nil {
+		return fmt.Errorf("%w: encode relay job: %v", errRelayJobTooLarge, err)
+	}
+	if len(data) > maximumRelayJobFileBytes {
+		return fmt.Errorf("%w: encoded lifecycle state is %d bytes", errRelayJobTooLarge, len(data))
+	}
+	return nil
+}
+
 func (store *relayJobStore) persistLocked(job relayJob) error {
 	if store.directory == "" {
 		return nil
@@ -143,6 +166,9 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	data, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("encode relay job: %w", err)
+	}
+	if len(data) > maximumRelayJobFileBytes {
+		return fmt.Errorf("encoded relay job exceeds %d bytes", maximumRelayJobFileBytes)
 	}
 	temporary, err := os.CreateTemp(store.directory, ".relay-job-*")
 	if err != nil {
