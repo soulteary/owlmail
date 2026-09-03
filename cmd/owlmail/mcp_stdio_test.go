@@ -63,3 +63,30 @@ func TestRunMCPStdioFormatsTerminalErrorsAsJSON(t *testing.T) {
 		t.Fatalf("terminal JSON entry = %#v", entry)
 	}
 }
+
+
+func TestReportMCPStdioResult(t *testing.T) {
+	reportedCause := errors.New("already logged")
+	for _, test := range []struct {
+		name       string
+		err        error
+		wantCode   int
+		wantOutput bool
+	}{
+		{name: "success", wantCode: 0},
+		{name: "help", err: flag.ErrHelp, wantCode: 0},
+		{name: "canceled", err: context.Canceled, wantCode: 0},
+		{name: "unreported failure", err: errors.New("transport failed"), wantCode: 1, wantOutput: true},
+		{name: "reported failure", err: &reportedMCPStdioError{err: reportedCause}, wantCode: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			if code := reportMCPStdioResult(test.err, &stderr); code != test.wantCode {
+				t.Fatalf("exit code = %d, want %d", code, test.wantCode)
+			}
+			if got := stderr.Len() > 0; got != test.wantOutput {
+				t.Fatalf("stderr present = %t, want %t: %q", got, test.wantOutput, stderr.String())
+			}
+		})
+	}
+}
