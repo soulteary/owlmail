@@ -1,8 +1,9 @@
 # OwlMail
 
-> 🦉 Un server Go per lo sviluppo e il test delle email, con workflow in stile MailDev e API specifiche di OwlMail
+> 🦉 Un gateway self-hosted e AI-native per test email, CI, automazione e coding agent.
 
 [![Go Version](https://img.shields.io/badge/Go-1.27.0+-00ADD8?style=flat&logo=go)](https://go.dev/)
+[![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/it/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
@@ -13,10 +14,18 @@
 
 ---
 
-OwlMail è un server SMTP con interfaccia web per ambienti di sviluppo e test.
-Supporta workflow comuni di [MailDev](https://github.com/maildev/maildev), ma usa
-risposte API e un protocollo WebSocket propri. Verifica le differenze documentate
-prima di migrare client API o Socket.IO.
+OwlMail intercetta le email dell’applicazione prima che raggiungano una casella
+reale e le trasforma in dati di test deterministici e ispezionabili. Gli
+sviluppatori usano la Web UI, i test la REST API versionata e OpenAPI, le
+automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
+
+| Utente | Interfaccia | Workflow tipico |
+|---|---|---|
+| Sviluppatori | Web UI e notifiche browser | Ispezionare HTML, testo, header, sorgente, link e allegati |
+| Test e CI | REST API, OpenAPI 3.1 e WebSocket | Verificare email di registrazione, reset e notifica |
+| Automazione | Webhook firmati e Redis Streams opzionale | Convertire email confermate in eventi recuperabili |
+| Coding agent AI | MCP in sola lettura via Streamable HTTP o stdio | Cercare, recuperare e attendere email senza accesso distruttivo |
+| Operazioni SMTP | Relay manuale e automatico | Inoltrare email di test con policy TLS esplicite |
 
 ![](.github/assets/owlmail-banner.jpg)
 
@@ -28,49 +37,43 @@ prima di migrare client API o Socket.IO.
 
 ![Video dimostrativo](.github/assets/realtime.gif)
 
-## ✨ Funzionalità
+## ✨ Perché OwlMail
 
-### Funzionalità Core
+- **Acquisizione deterministica** — EML, metadati e allegati sono preparati
+  prima che un commit atomico renda visibile il messaggio.
+- **Pronto per test di integrazione** — `/api/v1`, OpenAPI 3.1, WebSocket nativo,
+  health/readiness, ricerca, filtri ed esportazione.
+- **AI-native senza dipendere dall’AI** — MCP, disattivato per impostazione
+  predefinita, offre sette tool di sola lettura, risorse limitate, prompt e
+  `wait_for_email` event-driven; OwlMail non richiede un LLM.
+- **Automazione durevole** — Outbox Webhook locale, Redis Streams opzionale,
+  HMAC, ID stabili, retry limitati e arresto controllato.
+- **Operazioni esplicite** — Limiti SMTP, persistenza, allegati S3 opzionali,
+  indice SQLite, metriche Prometheus e log JSON.
+- **Consegna controllata** — I job Relay persistenti usano snapshot immutabili,
+  DATA in streaming e modalità TLS esplicite.
+- **Migrazione chiara** — Facade REST MailDev e MailCatcher opzionali, senza
+  promettere Socket.IO o equivalenza completa.
 
-- ✅ **Server SMTP** - Riceve e memorizza tutte le email inviate (porta predefinita 1025)
-- ✅ **Interfaccia Web** - Visualizza e gestisci le email tramite un browser (porta predefinita 1080)
-- ✅ **Persistenza Email** - Le email vengono salvate come file `.eml`, supporta il caricamento da directory
-- ✅ **Inoltro Email** - Supporta l'inoltro di email a server SMTP reali
-- ✅ **Inoltro Automatico** - Supporta l'inoltro automatico di tutte le email con filtri basati su regole
-- ✅ **Inoltro Webhook** - Invia le nuove email corrispondenti a webhook HTTP con modelli di messaggio personalizzati
-- ✅ **Autenticazione SMTP in ingresso** - Autenticazione PLAIN/LOGIN obbligatoria con modalità di test NO AUTH senza configurazione
-- ✅ **TLS/STARTTLS** - Supporta connessioni crittografate
-- ✅ **SMTPS** - Supporta la connessione TLS diretta sulla porta 465 quando SMTP TLS è abilitato
+- **Strumenti locali** — Crea regole nell’editor `/webhooks` integrato e usa la
+  [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente
+  e browser usano Bun; il binario distribuito non richiede runtime.
 
-### Funzionalità Avanzate
+## 🆕 OwlMail 0.8.0
 
-- 🆕 **Operazioni Batch** - Eliminazione batch, segnatura batch come lette
-- 🆕 **Notifiche browser** - Notifiche live opzionali per le nuove email
-- 🆕 **Statistiche Email** - Ottieni statistiche sulle email
-- 🆕 **Anteprima Email** - API leggera per l'anteprima delle email
-- 🆕 **Esportazione Email** - Esporta email come file ZIP
-- 🆕 **API di Gestione Configurazione** - Gestione completa della configurazione (GET/PUT/PATCH)
-- 🆕 **Ricerca Potente** - Ricerca full-text, filtri per intervallo di date, ordinamento
-- 🆕 **API RESTful Migliorata** - Design API più standardizzato (`/api/v1/*`)
-- 🆕 **Guida integrata** - Guida locale bilingue dalla casella di posta o su `/help`
-- 🆕 **Configuratore Webhook** - Editor locale integrato in `/webhooks` per creare, importare, validare, copiare e scaricare le regole di inoltro
-- 🆕 **CLI compatibile con sendmail** - [`owlmail sendmail`](./docs/it/Sendmail.md) consegna i messaggi di PHP, Cron e programmi legacy tramite il normale confine SMTP
+`v0.8.0` è la versione stabile corrente. Aggiunge job Relay persistenti,
+configurazione YAML/JSON a livelli, indice SQLite opzionale, metriche
+Prometheus, log strutturati, facade MailCatcher REST, bridge MCP stdio e
+validazioni più rigorose.
 
-### Compatibilità
+Tutti gli esempi usano `ghcr.io/soulteary/owlmail:0.8.0`.
+Per una CI riproducibile usa la versione completa o
+`ghcr.io/soulteary/owlmail@sha256:<digest>`.
+Consulta le [note di rilascio 0.8.0](./docs/en/Release-0.8.0.md).
 
-- ✅ **Route per workflow in stile MailDev** - Flussi comuni per email, relay, configurazione e health check
-- ✅ **Alias selezionati per variabili MailDev** - I nomi `MAILDEV_*` supportati sono nella tabella di configurazione
-- ✅ **Regole di inoltro automatico** - Regole JSON allow/deny in stile MailDev
-- ⚠️ **Differenze documentate** - Prefissi API, payload, stato di lettura e protocollo live non sono identici
-
-### Caratteristiche di distribuzione
-
-- ⚡ **Binario singolo** - Interfaccia e guida sono incorporate
-- ⚡ **Nessun runtime del linguaggio** - Il binario non richiede Go, Bun o Node.js
-- ⚡ **Concorrenza esplicita** - I Webhook possono essere limitati o intenzionalmente illimitati
-
-Il repository non pubblica benchmark comparativi riproducibili. Misura avvio,
-memoria e throughput con il tuo carico reale.
+> [!IMPORTANT]
+> OwlMail è destinato a sviluppo, test, CI e reti interne affidabili; non è un
+> MTA pubblico di produzione né un servizio email multi-tenant.
 
 ## 🚀 Quick Start
 
@@ -700,4 +703,4 @@ Se questo progetto ti aiuta, per favore dagli una Star ⭐!
 
 ---
 
-**OwlMail** - Un server Go per test email con percorsi di migrazione MailDev documentati 🦉
+**OwlMail** — un gateway email self-hosted per sviluppo, CI, automazione e agenti AI. 🦉
