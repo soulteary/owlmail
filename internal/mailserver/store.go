@@ -436,6 +436,19 @@ func (ms *MailServer) GetRawEmailContentLimit(id string, maxBytes int64) ([]byte
 	return content, stat.Size(), stat.Size() > int64(len(content)), nil
 }
 
+// GetVisibleRawEmailContentLimit reads source only while the message belongs to
+// the current mailbox snapshot. Holding the read lock through the file read
+// prevents a concurrent read-only refresh from hiding the message after the
+// visibility check but before the source is returned.
+func (ms *MailServer) GetVisibleRawEmailContentLimit(id string, maxBytes int64) ([]byte, int64, bool, error) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	if _, visible := ms.storeByID[id]; !visible {
+		return nil, 0, false, fmt.Errorf("email is not visible")
+	}
+	return ms.GetRawEmailContentLimit(id, maxBytes)
+}
+
 // GetEmailHTML returns the HTML content of an email
 func (ms *MailServer) GetEmailHTML(id string) (string, error) {
 	email, err := ms.GetEmail(id)
