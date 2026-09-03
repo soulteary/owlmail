@@ -151,9 +151,6 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	// durable transaction markers and source path immediately before publishing
 	// any parsed or previously known entry into the refreshed snapshot.
 	for id := range candidates {
-		if ms.beforeReadOnlyPublish != nil {
-			ms.beforeReadOnlyPublish(id)
-		}
 		visible, visibilityErr := ms.readOnlyEmailVisible(id)
 		if visibilityErr != nil {
 			uncertainIDs[id] = struct{}{}
@@ -227,6 +224,24 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 }
 
 func (ms *MailServer) readOnlyEmailVisible(id string) (bool, error) {
+	info, err := os.Stat(filepath.Join(ms.mailDir, id+".eml"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.IsDir() {
+		return false, nil
+	}
+
+	// Transaction fences are the final publication gate. In particular, a
+	// deletion started after the source stat must win over this stale source
+	// observation because writers commit the deletion fence before unlinking
+	// the EML.
+	if ms.beforeReadOnlyPublish != nil {
+		ms.beforeReadOnlyPublish(id)
+	}
 	if _, err := os.Lstat(deletionFencePath(ms.mailDir, id)); err == nil {
 		return false, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -242,12 +257,5 @@ func (ms *MailServer) readOnlyEmailVisible(id string) (bool, error) {
 		return false, err
 	}
 
-	info, err := os.Stat(filepath.Join(ms.mailDir, id+".eml"))
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return !info.IsDir(), nil
+	return true, nil
 }
