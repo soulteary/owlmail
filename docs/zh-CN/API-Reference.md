@@ -199,7 +199,9 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | 方法与路径 | 用途 |
 |---|---|
 | `GET /metrics` | 设置 `-metrics-enabled` 后提供 Prometheus 指标 |
-| `ALL /mcp` | 设置 `-mcp-enabled` 后提供 Streamable HTTP MCP Transport；由 Transport 校验允许的 HTTP 方法 |
+| `GET /mcp` | 打开 MCP Streamable HTTP Transport 可选的独立 SSE 流 |
+| `POST /mcp` | 通过 Streamable HTTP Transport 发送 MCP JSON-RPC 消息 |
+| `DELETE /mcp` | 终止 MCP Streamable HTTP 会话 |
 
 WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 连接前返回
 纯文本 `400`。
