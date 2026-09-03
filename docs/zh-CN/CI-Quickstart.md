@@ -13,7 +13,10 @@ jobs:
   email:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
       - name: Start OwlMail 0.8.0
         run: |
           docker run -d --name owlmail-ci \
@@ -21,7 +24,8 @@ jobs:
             -p 127.0.0.1:1080:1080 \
             ghcr.io/soulteary/owlmail:0.8.0
           for attempt in $(seq 1 30); do
-            curl --fail --silent http://127.0.0.1:1080/readyz && exit 0
+            curl --fail --silent --connect-timeout 2 --max-time 3 \
+              http://127.0.0.1:1080/readyz && exit 0
             sleep 1
           done
           docker logs owlmail-ci
@@ -31,11 +35,11 @@ jobs:
           TEST_SMTP_HOST: 127.0.0.1
           TEST_SMTP_PORT: "1025"
           TEST_MAIL_API: http://127.0.0.1:1080
-        run: ./scripts/test-integration
+        run: OWLMAIL_RUN_INTEGRATION_TEST=1 go test ./examples/testing/go -v
       - name: Preserve OwlMail logs
         if: failure()
         run: docker logs owlmail-ci > owlmail.log 2>&1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         if: failure()
         with:
           name: owlmail-log

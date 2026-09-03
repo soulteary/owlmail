@@ -8,9 +8,11 @@ const runID = `${Date.now()}-${process.pid}`;
 const recipient = `signup+${runID}@example.test`;
 const subject = `OwlMail integration ${runID}`;
 const token = `token-${runID}`;
+const ioTimeoutMs = 5_000;
 
 function lineReader(socket) {
   let buffered = "";
+  let terminalError;
   const waiting = [];
   socket.setEncoding("utf8");
   socket.on("data", (chunk) => {
@@ -22,11 +24,17 @@ function lineReader(socket) {
       waiting.shift().resolve(line);
     }
   });
-  socket.on("error", (error) => {
+  function fail(error) {
+    terminalError ||= error;
     while (waiting.length) waiting.shift().reject(error);
-  });
+  }
+  socket.on("error", fail);
+  socket.on("end", () => fail(new Error("SMTP server ended the connection")));
+  socket.on("close", () => fail(new Error("SMTP connection closed")));
   return () => new Promise((resolve, reject) => {
-    if (buffered.includes("\n")) {
+    if (terminalError) {
+      reject(terminalError);
+    } else if (buffered.includes("\n")) {
       const index = buffered.indexOf("\n");
       const line = buffered.slice(0, index + 1);
       buffered = buffered.slice(index + 1);
@@ -37,53 +45,91 @@ function lineReader(socket) {
   });
 }
 
+async function requestJSON(path, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error(`HTTP request exceeded ${ioTimeoutMs} ms`)),
+    ioTimeoutMs,
+  );
+  try {
+    const response = await fetch(`${apiBase}${path}`, { ...options, signal: controller.signal });
+    const body = response.ok ? await response.json() : null;
+    return { response, body };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function requestStatus(path, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(
+    () => controller.abort(new Error(`HTTP request exceeded ${ioTimeoutMs} ms`)),
+    ioTimeoutMs,
+  );
+  try {
+    const response = await fetch(`${apiBase}${path}`, { ...options, signal: controller.signal });
+    await response.arrayBuffer();
+    return response;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function sendMessage() {
   const socket = net.createConnection({ host: smtpHost, port: smtpPort });
+  const abortSMTP = () => {
+    socket.destroy(new Error(`SMTP operation exceeded ${ioTimeoutMs} ms`));
+  };
+  socket.setTimeout(ioTimeoutMs, abortSMTP);
+  const deadline = setTimeout(abortSMTP, ioTimeoutMs);
   const readLine = lineReader(socket);
-  await new Promise((resolve, reject) => {
-    socket.once("connect", resolve);
-    socket.once("error", reject);
-  });
+  try {
+    await new Promise((resolve, reject) => {
+      socket.once("connect", resolve);
+      socket.once("error", reject);
+    });
 
-  async function reply(expected) {
-    let line;
-    do {
-      line = await readLine();
-    } while (/^\d{3}-/.test(line));
-    assert.equal(Number(line.slice(0, 3)), expected, line.trim());
-  }
-  async function command(value, expected) {
-    socket.write(`${value}\r\n`);
-    await reply(expected);
-  }
+    async function reply(expected) {
+      let line;
+      do {
+        line = await readLine();
+      } while (/^\d{3}-/.test(line));
+      assert.equal(Number(line.slice(0, 3)), expected, line.trim());
+    }
+    async function command(value, expected) {
+      socket.write(`${value}\r\n`);
+      await reply(expected);
+    }
 
-  await reply(220);
-  await command("EHLO integration.test", 250);
-  await command("MAIL FROM:<sender@example.test>", 250);
-  await command(`RCPT TO:<${recipient}>`, 250);
-  await command("DATA", 354);
-  socket.write([
-    "From: Sender <sender@example.test>",
-    `To: ${recipient}`,
-    `Subject: ${subject}`,
-    "Content-Type: text/plain; charset=utf-8",
-    "",
-    `Verification token: ${token}`,
-    ".",
-    "",
-  ].join("\r\n"));
-  await reply(250);
-  await command("QUIT", 221);
-  socket.end();
+    await reply(220);
+    await command("EHLO integration.test", 250);
+    await command("MAIL FROM:<sender@example.test>", 250);
+    await command(`RCPT TO:<${recipient}>`, 250);
+    await command("DATA", 354);
+    socket.write([
+      "From: Sender <sender@example.test>",
+      `To: ${recipient}`,
+      `Subject: ${subject}`,
+      "Content-Type: text/plain; charset=utf-8",
+      "",
+      `Verification token: ${token}`,
+      ".",
+      "",
+    ].join("\r\n"));
+    await reply(250);
+    await command("QUIT", 221);
+  } finally {
+    clearTimeout(deadline);
+    socket.destroy();
+  }
 }
 
 async function waitForMessage() {
   const deadline = Date.now() + 15_000;
   while (Date.now() < deadline) {
     const query = new URLSearchParams({ to: recipient, limit: "10" });
-    const response = await fetch(`${apiBase}/api/v1/emails?${query}`);
+    const { response, body: page } = await requestJSON(`/api/v1/emails?${query}`);
     assert.equal(response.ok, true, `list failed: ${response.status}`);
-    const page = await response.json();
     const match = page.emails.find((email) => email.subject === subject);
     if (match) return match;
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -93,14 +139,14 @@ async function waitForMessage() {
 
 await sendMessage();
 const summary = await waitForMessage();
-const detailResponse = await fetch(`${apiBase}/api/v1/emails/${encodeURIComponent(summary.id)}`);
-assert.equal(detailResponse.ok, true, `detail failed: ${detailResponse.status}`);
-const detail = await detailResponse.json();
-assert.equal(detail.subject, subject);
-assert.match(detail.text, new RegExp(token));
-
-const deleteResponse = await fetch(`${apiBase}/api/v1/emails/${encodeURIComponent(summary.id)}`, {
-  method: "DELETE",
-});
-assert.equal(deleteResponse.ok, true, `cleanup failed: ${deleteResponse.status}`);
-console.log(`verified OwlMail message ${summary.id}`);
+const messagePath = `/api/v1/emails/${encodeURIComponent(summary.id)}`;
+try {
+  const { response: detailResponse, body: detail } = await requestJSON(messagePath);
+  assert.equal(detailResponse.ok, true, `detail failed: ${detailResponse.status}`);
+  assert.equal(detail.subject, subject);
+  assert.match(detail.text, new RegExp(token));
+  console.log(`verified OwlMail message ${summary.id}`);
+} finally {
+  const deleteResponse = await requestStatus(messagePath, { method: "DELETE" });
+  assert.equal(deleteResponse.ok, true, `cleanup failed: ${deleteResponse.status}`);
+}

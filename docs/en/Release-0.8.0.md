@@ -142,14 +142,28 @@ For repeatable deployment, record the published manifest digest and use
 - `owlmail-windows-amd64.exe` and
   `owlmail-windows-amd64.exe.spdx.json`
 
+Linux amd64 download, verification, and launch example:
+
 ```bash
-sha256sum -c checksums.txt
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/owlmail-linux-amd64
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/checksums.txt
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/checksums.txt.sigstore.json
+grep ' owlmail-linux-amd64$' checksums.txt | sha256sum -c -
 gh attestation verify owlmail-linux-amd64 --repo soulteary/owlmail
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
+chmod +x owlmail-linux-amd64
+./owlmail-linux-amd64
+```
+
+The checksum manifest covers every release binary and SBOM. Filtering it to the
+downloaded filename avoids false “file not found” failures. Select the matching
+binary name for Linux arm64, macOS, or Windows.
+
+```bash
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \

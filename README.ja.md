@@ -50,8 +50,9 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
   安定した配信 ID、有限再試行、graceful drain。
 - **明示的な運用境界** — SMTP 容量制限、永続化、任意の S3 添付、SQLite
   index、Prometheus metrics、JSON log。
-- **制御された配信** — 永続非同期 Relay job は不変 snapshot、ストリーミング
-  DATA、明示的 TLS mode、状態照会を利用します。
+- **制御された配信** — ネイティブ非同期 Relay job は mail directory 設定時のみ
+  永続化され（未設定時はメモリ内）、不変 snapshot、ストリーミング DATA、
+  明示的 TLS mode、状態照会を利用します。
 - **移行パス** — MailDev / MailCatcher REST facade は既定で無効であり、
   Socket.IO や完全互換を主張しません。
 
@@ -61,8 +62,9 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 
 ## 🆕 OwlMail 0.8.0
 
-`v0.8.0` は現在の安定版です。永続 Relay job、階層化 YAML/JSON 設定、任意の
-SQLite index、Prometheus metrics、構造化 log、MailCatcher REST facade、MCP
+`v0.8.0` は現在の安定版です。mail directory 設定時に永続化されるネイティブ
+Relay job、階層化 YAML/JSON 設定、任意の SQLite index、Prometheus metrics、
+構造化 log、MailCatcher REST facade、MCP
 stdio bridge、強化された Web inbox と厳格な検証を追加しました。
 
 以下の例は `ghcr.io/soulteary/owlmail:0.8.0` に固定しています。
@@ -82,7 +84,7 @@ stdio bridge、強化された Web inbox と厳格な検証を追加しました
 
 ```bash
 # Clone repository
-git clone https://github.com/soulteary/owlmail.git
+git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -95,7 +97,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@latest
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
 owlmail
 ```
 
@@ -129,8 +131,9 @@ docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # コンテナを実行
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   ghcr.io/soulteary/owlmail:0.8.0
 ```
@@ -156,8 +159,9 @@ docker build -t owlmail .
 
 # コンテナを実行
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   owlmail
 ```

@@ -54,7 +54,8 @@ fits each workflow:
   signatures, stable delivery IDs, retry limits, and graceful drain.
 - **Operationally explicit** — SMTP capacity limits, persistence, optional S3
   attachments, SQLite indexing, Prometheus metrics, JSON logs, and recovery.
-- **Controlled delivery** — Persistent asynchronous Relay jobs use immutable
+- **Controlled delivery** — Native asynchronous Relay jobs persist when a mail
+  directory is configured (otherwise they are in memory), and use immutable
   configuration snapshots, streaming DATA, explicit TLS modes, and status lookup.
 - **Migration paths** — Default-off MailDev and MailCatcher REST facades support
   selected existing workflows without claiming Socket.IO or exact equivalence.
@@ -65,8 +66,9 @@ fits each workflow:
 
 ## 🆕 OwlMail 0.8.0
 
-`v0.8.0` is the current stable release. It brings persistent Relay jobs, layered
-YAML/JSON configuration, optional SQLite indexing, Prometheus metrics, structured
+`v0.8.0` is the current stable release. It brings native Relay jobs that persist
+when a mail directory is configured, layered YAML/JSON configuration, optional
+SQLite indexing, Prometheus metrics, structured
 logging, the MailCatcher REST facade, the MCP stdio bridge, expanded Web inbox
 navigation, stricter API validation, SMTP capacity controls, and hardened
 attachment downloads.
@@ -90,7 +92,7 @@ See [the 0.8.0 release notes](./docs/en/Release-0.8.0.md) and
 
 ```bash
 # Clone repository
-git clone https://github.com/soulteary/owlmail.git
+git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -103,7 +105,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@latest
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
 owlmail
 ```
 
@@ -145,8 +147,9 @@ docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # Run container
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   ghcr.io/soulteary/owlmail:0.8.0
 ```
@@ -172,8 +175,9 @@ docker build -t owlmail .
 
 # Run container
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   owlmail
 ```

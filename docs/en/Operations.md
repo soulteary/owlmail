@@ -502,7 +502,10 @@ Publish port 465 explicitly when direct SMTPS is needed:
 
 ```bash
 docker run -d \
-  -p 1025:1025 -p 1080:1080 -p 465:465 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -p 127.0.0.1:465:465 \
+  -v owlmail-data:/app/mail \
   -v "$PWD/certs:/certs:ro" \
   -e OWLMAIL_TLS_ENABLED=true \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \

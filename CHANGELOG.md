@@ -6,6 +6,16 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Documentation examples now bind Docker ports to loopback, persist the default
+  mail directory, pin the 0.8.0 source and Go installs, and use executable CI
+  commands with bounded network waits.
+- The Go Report Card workflow no longer replaces its stable documentation page
+  with line-number output or suppresses CI on badge-only commits.
+- Relay persistence documentation now states that it requires a configured mail
+  directory and applies to native asynchronous relay jobs.
+
 ## [0.8.0] - 2026-09-03
 
 ### Security
@@ -19,8 +29,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
-- Persistent asynchronous relay jobs with status lookup, bounded retry,
-  restart recovery, source-file leases, and at-least-once delivery semantics.
+- Native asynchronous relay jobs use persistent status lookup, bounded retry,
+  restart recovery, source-file leases, and at-least-once delivery semantics
+  when a mail directory is configured; otherwise the job store is in memory.
 - Flat layered YAML and JSON configuration with strict validation and explicit
   CLI, environment-alias, environment, file, and default precedence.
 - Optional SQLite mailbox indexing while stored EML and sidecar files remain
