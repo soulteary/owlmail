@@ -78,6 +78,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     }
     const notificationToggle = createElement();
     const notificationStatus = createElement();
+    const deleteAllBtn = createElement();
     const emailDetail = createElement();
     const emailList = createElement();
     const emailViewportFrame = createElement();
@@ -88,6 +89,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const elements = new Map([
         ['notificationToggle', notificationToggle],
         ['notificationStatus', notificationStatus],
+        ['deleteAllBtn', deleteAllBtn],
         ['emailDetail', emailDetail],
         ['emailList', emailList],
         ['emailViewportFrame', emailViewportFrame],
@@ -103,6 +105,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const webSocketURLs = [];
     const historyCalls = [];
     const alerts = [];
+    const confirmations = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -194,7 +197,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
             setItem(key, value) { storage.set(key, value); }
         },
         console,
-        setTimeout() { return 1; },
+        setTimeout(callback) { Promise.resolve().then(callback); return 1; },
         clearTimeout() {},
         fetch: async (url, options) => {
             fetchRequests.push({ url: String(url), options });
@@ -206,13 +209,15 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         URLSearchParams,
         Blob,
         alert(message) { alerts.push(String(message)); },
-        confirm: () => true
+        confirm(message) { confirmations.push(String(message)); return true; }
     };
     vm.createContext(sandbox);
     vm.runInContext(appSource, sandbox, { filename: 'web/app.js' });
 
     return {
         alerts,
+        confirmations,
+        deleteAllBtn,
         documentListeners,
         emailDetail,
         emailList,
@@ -365,6 +370,188 @@ test('HTML previews expose every responsive viewport preset', () => {
     assert.match(preview, /referrerpolicy="no-referrer"/);
 });
 
+test('manual relay controls render only when outgoing mail is enabled', () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body' }; relayEnabled = false; renderEmailDetail();`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to original recipients'), false);
+
+    harness.run(`relayEnabled = true; renderEmailDetail();`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to original recipients'), true);
+    assert.equal(harness.emailDetail.innerHTML.includes('Relay to…'), true);
+});
+
+test('manual relay confirms envelope recipients and stays pending until completion', async () => {
+    let resolveStatus;
+    const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['hidden@example.test', 'redirect@example.test'] } });
+            }
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            return statusResponse;
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = {
+            id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body',
+            envelope: { to: ['hidden@example.test', 'redirect@example.test'] }
+        };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(harness.confirmations[0], /hidden@example\.test, redirect@example\.test/);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), true);
+    assert.equal(harness.fetchRequests.length, 3);
+    await harness.run(`relayCurrentEmail('mail-1')`);
+    assert.equal(harness.fetchRequests.length, 3);
+
+    resolveStatus(jsonResponse({ data: { id: 'job-1', status: 'succeeded' } }));
+    await relay;
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+});
+
+test('manual relay aborts when the selection changes during preflight', async () => {
+    let resolvePreflight;
+    const preflightResponse = new Promise((resolve) => { resolvePreflight = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            if (String(url).endsWith('/actions/relay/preflight')) return preflightResponse;
+            throw new Error('relay submission must not run after the selection changes');
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = { id: 'mail-1', envelope: { to: ['recipient@example.test'] } };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    harness.run(`state.currentEmail = { id: 'mail-2', envelope: { to: ['other@example.test'] } };`);
+    resolvePreflight(jsonResponse({ data: { recipients: ['recipient@example.test'] } }));
+    await relay;
+
+    assert.equal(harness.confirmations.length, 0);
+    assert.equal(harness.fetchRequests.length, 1);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+});
+
+test('manual relay refuses an unknown original envelope', async () => {
+    const harness = createHarness();
+    harness.run(`relayEnabled = true; state.currentEmail = { id: 'mail-1', envelope: null }`);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.match(harness.alerts[0], /no SMTP envelope recipients/);
+});
+
+test('manual relay confirms only recipients allowed by outgoing rules', async () => {
+    let preflightAttempts = 0;
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                preflightAttempts++;
+                return jsonResponse({ data: { recipients: preflightAttempts === 1 ? ['allowed@example.test'] : [] } });
+            }
+            return options && options.method === 'POST'
+                ? jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } })
+                : jsonResponse({ data: { id: 'job-1', status: 'succeeded' } });
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = {
+            id: 'mail-1',
+            envelope: { to: ['allowed@example.test', 'blocked@example.test'] }
+        };
+    `);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.match(harness.confirmations[0], /allowed@example\.test/);
+    assert.doesNotMatch(harness.confirmations[0], /blocked@example\.test/);
+    assert.equal(harness.fetchRequests.length, 3);
+    assert.deepEqual(JSON.parse(harness.fetchRequests[1].options.body).confirmedRecipients, ['allowed@example.test']);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+    assert.equal(harness.fetchRequests.length, 4);
+    assert.match(harness.alerts.at(-1), /relay rules exclude every/);
+});
+
+test('manual relay retries transient status failures', async () => {
+    let statusAttempts = 0;
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['recipient@example.test'] } });
+            }
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            statusAttempts++;
+            if (statusAttempts === 1) {
+                return {
+                    ...jsonResponse({ message: 'temporarily unavailable' }),
+                    ok: false,
+                    status: 503
+                };
+            }
+            return jsonResponse({ data: { id: 'job-1', status: 'succeeded' } });
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = { id: 'mail-1', envelope: { to: ['recipient@example.test'] } };
+    `);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.equal(statusAttempts, 2);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+    assert.equal(harness.alerts.length, 1);
+});
+
+test('delete controls stay disabled while relay delivery is pending', async () => {
+    let resolveStatus;
+    const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (String(url).endsWith('/actions/relay/preflight')) {
+                return jsonResponse({ data: { recipients: ['recipient@example.test'] } });
+            }
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            return statusResponse;
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = {
+            id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body',
+            envelope: { to: ['recipient@example.test'] }
+        };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(harness.deleteAllBtn.disabled, true);
+    assert.match(harness.emailDetail.innerHTML, /btn btn-danger" disabled/);
+    const requestCount = harness.fetchRequests.length;
+    await harness.run(`deleteEmail('mail-1')`);
+    await harness.run(`deleteAllEmails()`);
+    assert.equal(harness.fetchRequests.length, requestCount);
+
+    resolveStatus(jsonResponse({ data: { id: 'job-1', status: 'succeeded' } }));
+    await relay;
+    assert.equal(harness.deleteAllBtn.disabled, false);
+});
+
 test('email detail offers HTML, text, headers, and source tabs', () => {
     const harness = createHarness();
     const markup = harness.run(`renderEmailContentTabs({ id: 'mail-1', html: '<p>hello</p>', text: 'hello', headers: { subject: 'hello' }, attachments: [] })`);
@@ -460,25 +647,25 @@ test('source requests are deduplicated and keyboard focus survives completion', 
 });
 
 test('source completion does not steal focus moved to another control', async () => {
-	let resolveFetch;
-	const response = new Promise((resolve) => { resolveFetch = resolve; });
-	const harness = createHarness({ fetchImpl: async () => response });
-	harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+    let resolveFetch;
+    const response = new Promise((resolve) => { resolveFetch = resolve; });
+    const harness = createHarness({ fetchImpl: async () => response });
+    harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
 
-	const loading = harness.run(`setEmailContentTab('source', true)`);
-	harness.emailSourceTab.focused = false;
-	harness.run(`document.activeElement = { id: 'another-control' }`);
-	resolveFetch({
-		ok: true,
-		status: 200,
-		body: null,
-		headers: { get: () => null },
-		async text() { return 'Subject: hello\r\n\r\nbody'; }
-	});
-	await loading;
+    const loading = harness.run(`setEmailContentTab('source', true)`);
+    harness.emailSourceTab.focused = false;
+    harness.run(`document.activeElement = { id: 'another-control' }`);
+    resolveFetch({
+        ok: true,
+        status: 200,
+        body: null,
+        headers: { get: () => null },
+        async text() { return 'Subject: hello\r\n\r\nbody'; }
+    });
+    await loading;
 
-	assert.equal(harness.emailSourceTab.focused, false);
-	assert.equal(harness.run(`document.activeElement.id`), 'another-control');
+    assert.equal(harness.emailSourceTab.focused, false);
+    assert.equal(harness.run(`document.activeElement.id`), 'another-control');
 });
 
 test('large sources use the standalone view without an inline fetch', async () => {
@@ -796,6 +983,9 @@ test('delayed initial deep link cannot supersede newer history navigation', asyn
     const harness = createHarness({
         fetchImpl: async (url) => {
             const requestURL = new URL(url);
+            if (requestURL.pathname.endsWith('/settings/outgoing')) {
+                return jsonResponse({ enabled: false });
+            }
             if (requestURL.pathname.endsWith('/emails/preview')) {
                 return new Promise((resolve) => {
                     resolvePreview = () => resolve(jsonResponse({ previews: [], total: 0 }));

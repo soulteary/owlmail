@@ -69,6 +69,27 @@ func TestListenBasic(t *testing.T) {
 	}
 }
 
+func TestListenWithReadyDoesNotSignalOnBindFailure(t *testing.T) {
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = occupied.Close() }()
+	port := occupied.Addr().(*net.TCPAddr).Port
+	server, err := NewMailServer(port, "127.0.0.1", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	ready := false
+	if err := server.ListenWithReady(func() { ready = true }); err == nil {
+		t.Fatal("ListenWithReady succeeded on an occupied address")
+	}
+	if ready {
+		t.Fatal("ready callback ran before the SMTP listener was bound")
+	}
+}
+
 // TestListenWithAuth tests SMTP server listening with authentication enabled
 func TestListenWithAuth(t *testing.T) {
 	tmpDir := t.TempDir()

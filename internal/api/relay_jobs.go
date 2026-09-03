@@ -21,6 +21,9 @@ import (
 var (
 	errRelayJobCapacity       = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong  = errors.New("relay recipient exceeds size limit")
+	errRelayAlreadyPending    = errors.New("email already has a pending relay job")
+	errRelayJobTooLarge       = errors.New("relay job exceeds persistence size limit")
+	errRelaySourceInUse       = errors.New("email has a pending relay job")
 	errRelayAttemptsExhausted = errors.New("relay job attempt limit reached")
 	errRelayJobPersistence    = errors.New("relay job persistence unavailable")
 	errRelayJobRetained       = errors.New("relay job retained after an indeterminate persistence failure")
@@ -43,6 +46,8 @@ type relayJob struct {
 	ID            string     `json:"id"`
 	EmailID       string     `json:"emailId"`
 	RelayTo       string     `json:"relayTo,omitempty"`
+	Recipients    []string   `json:"confirmedRecipients,omitempty"`
+	Confirmed     bool       `json:"recipientsConfirmed,omitempty"`
 	Status        string     `json:"status"`
 	ErrorCategory string     `json:"errorCategory,omitempty"`
 	CreatedAt     time.Time  `json:"createdAt"`
@@ -51,6 +56,31 @@ type relayJob struct {
 	Attempts      int        `json:"attempts"`
 	NextAttemptAt *time.Time `json:"nextAttemptAt,omitempty"`
 	retainUntil   time.Time
+}
+
+// protectSourceDeletion serializes acceptance and deletion so a relay cannot
+// become pending after the deletion check but before its source is removed.
+// A nil ID set protects deletion of the entire mailbox.
+func (store *relayJobStore) protectSourceDeletion(ids []string, deleteSource func() error) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.pruneLocked(store.now().UTC())
+	targets := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		targets[id] = struct{}{}
+	}
+	for _, job := range store.jobs {
+		if job.CompletedAt != nil {
+			continue
+		}
+		if ids == nil {
+			return errRelaySourceInUse
+		}
+		if _, targeted := targets[job.EmailID]; targeted {
+			return errRelaySourceInUse
+		}
+	}
+	return deleteSource()
 }
 
 type relayJobStore struct {
@@ -87,6 +117,10 @@ func randomRelayJobID() (string, error) {
 }
 
 func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
+	return store.createConfirmed(emailID, relayTo, nil)
+}
+
+func (store *relayJobStore) createConfirmed(emailID, relayTo string, recipients []string) (relayJob, error) {
 	if len(relayTo) > defaultRelayRecipientMaxBytes {
 		return relayJob{}, errRelayRecipientTooLong
 	}
@@ -96,9 +130,23 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	}
 	now := store.now().UTC()
 	job := relayJob{ID: id, EmailID: emailID, RelayTo: relayTo, Status: relayJobQueued, CreatedAt: now, UpdatedAt: now}
+	if recipients != nil {
+		job.Recipients = append([]string(nil), recipients...)
+		job.Confirmed = true
+	}
+	if store.directory != "" {
+		if err := validateRelayJobPersistenceBudget(job); err != nil {
+			return relayJob{}, err
+		}
+	}
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.pruneLocked(now)
+	for _, existing := range store.jobs {
+		if existing.EmailID == emailID && existing.CompletedAt == nil {
+			return relayJob{}, errRelayAlreadyPending
+		}
+	}
 	if !store.makeRoomLocked(now) {
 		return relayJob{}, errRelayJobCapacity
 	}
@@ -290,6 +338,8 @@ func relayFailureCategory(err error) string {
 		return "queue_full"
 	case strings.Contains(message, "not configured"):
 		return "not_configured"
+	case errors.Is(err, outgoing.ErrConfigChanged):
+		return "configuration_changed"
 	case strings.Contains(message, "no recipients"):
 		return "no_recipients"
 	case strings.Contains(message, "authentication") || strings.Contains(message, "auth"):
@@ -309,15 +359,23 @@ func relayFailureCategory(err error) string {
 
 func (api *API) relayEmailAsync(c fiber.Ctx) error {
 	relayTo := c.Query("relayTo")
-	if relayTo == "" {
+	var confirmedRecipients []string
+	if len(c.Request().Body()) > 0 {
 		var body struct {
-			RelayTo string `json:"relayTo"`
+			RelayTo             string    `json:"relayTo"`
+			ConfirmedRecipients *[]string `json:"confirmedRecipients"`
 		}
-		if err := c.Bind().Body(&body); err == nil {
+		if err := c.Bind().Body(&body); err != nil {
+			return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid relay request body"))
+		}
+		if relayTo == "" {
 			relayTo = body.RelayTo
+			if body.ConfirmedRecipients != nil {
+				confirmedRecipients = *body.ConfirmedRecipients
+			}
 		}
 	}
-	return api.enqueueRelayJob(c, relayTo)
+	return api.enqueueRelayJob(c, relayTo, confirmedRecipients)
 }
 
 func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
@@ -325,29 +383,55 @@ func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
 	if relayTo == "" {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Invalid email address provided"))
 	}
-	return api.enqueueRelayJob(c, relayTo)
+	return api.enqueueRelayJob(c, relayTo, nil)
 }
 
-func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
+func (api *API) relayEmailPreflight(c fiber.Ctx) error {
+	email, err := api.mailServer.GetEmail(c.Params("id"))
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
+	}
+	recipients, err := api.mailServer.EffectiveRelayRecipients(email)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+	}
+	return c.JSON(SuccessResponse("RELAY_PREFLIGHT", "Effective relay recipients", fiber.Map{"recipients": recipients}))
+}
+
+func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string, confirmedRecipients []string) error {
 	if api.relayJobsPersistenceErr != nil {
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is unavailable"))
 	}
 	id := c.Params("id")
-	email, err := api.mailServer.GetEmail(id)
+	if confirmedRecipients != nil && len(confirmedRecipients) == 0 {
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, "Confirmed relay recipients cannot be empty"))
+	}
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
-	job, err := api.relayJobs.create(id, relayTo)
+	job, err := api.relayJobs.createConfirmed(id, relayTo, confirmedRecipients)
 	retained := errors.Is(err, errRelayJobRetained)
 	if errors.Is(err, errRelayRecipientTooLong) {
+		releaseSource()
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
 	}
+	if errors.Is(err, errRelayJobTooLarge) {
+		releaseSource()
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, "Confirmed relay recipients exceed the durable job size limit"))
+	}
+	if errors.Is(err, errRelayAlreadyPending) {
+		releaseSource()
+		return c.Status(http.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "Email already has a pending relay job"))
+	}
 	if errors.Is(err, errRelayJobCapacity) {
+		releaseSource()
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))
 	}
 	if errors.Is(err, errRelayJobPersistence) {
+		releaseSource()
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is temporarily unavailable"))
 	}
@@ -356,14 +440,17 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		err = nil
 	}
 	if err != nil {
+		releaseSource()
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
+	api.trackRelaySource(job.ID, releaseSource)
 	if retained {
 		time.AfterFunc(defaultRelayRetryBaseDelay, func() { api.retryRelayJob(job.ID) })
 	} else {
 		err, handled := api.submitRelayJob(job, email)
 		if err != nil && handled && !relayFailureIsRetryable(err) && !errors.Is(err, outgoing.ErrClosed) {
 			if removeErr := api.relayJobs.remove(job.ID); removeErr == nil {
+				api.releaseRelaySource(job.ID)
 				return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 			}
 			common.Error("Relay job %s remains accepted after synchronous rejection could not be durably removed", job.ID)
@@ -371,6 +458,7 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		if err != nil && !handled {
 			if errors.Is(err, errRelayJobPersistence) {
 				if removeErr := api.relayJobs.remove(job.ID); removeErr == nil {
+					api.releaseRelaySource(job.ID)
 					c.Set("Retry-After", "1")
 					return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is temporarily unavailable"))
 				}
@@ -380,7 +468,9 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 				if removeErr := api.relayJobs.remove(job.ID); removeErr != nil {
 					common.Error("Relay job %s remains accepted after synchronous rejection could not be made durable: %v", job.ID, removeErr)
 					api.relayJobs.complete(job.ID, err)
+					api.releaseRelaySource(job.ID)
 				} else {
+					api.releaseRelaySource(job.ID)
 					return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 				}
 			}
@@ -392,6 +482,50 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	return c.Status(http.StatusAccepted).JSON(SuccessResponse("RELAY_QUEUED", "Relay request accepted", fiber.Map{
 		"job": current, "statusUrl": statusURL,
 	}))
+}
+
+func (api *API) trackRelaySource(jobID string, release func()) {
+	api.relaySourceMutex.Lock()
+	if previous := api.relaySourceReleases[jobID]; previous != nil {
+		api.relaySourceMutex.Unlock()
+		release()
+		return
+	}
+	api.relaySourceReleases[jobID] = release
+	api.relaySourceMutex.Unlock()
+}
+
+func (api *API) releaseRelaySource(jobID string) {
+	api.relaySourceMutex.Lock()
+	release := api.relaySourceReleases[jobID]
+	delete(api.relaySourceReleases, jobID)
+	api.relaySourceMutex.Unlock()
+	if release != nil {
+		release()
+	}
+}
+
+func (api *API) acquireRelaySource(job relayJob) (*types.Email, error) {
+	api.relaySourceMutex.Lock()
+	_, tracked := api.relaySourceReleases[job.ID]
+	api.relaySourceMutex.Unlock()
+	if tracked {
+		return api.mailServer.GetEmail(job.EmailID)
+	}
+	email, release, err := api.mailServer.AcquireEmailSource(job.EmailID)
+	if err != nil {
+		return nil, err
+	}
+	api.trackRelaySource(job.ID, release)
+	return email, nil
+}
+
+func (api *API) protectQueuedRelaySources() {
+	for _, job := range api.relayJobs.queued() {
+		if _, err := api.acquireRelaySource(job); err != nil {
+			common.Error("Protect source for recovered relay job %s: %v", job.ID, err)
+		}
+	}
 }
 
 func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool) {
@@ -416,6 +550,8 @@ func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool)
 	}
 	if job.RelayTo != "" {
 		err = api.mailServer.RelayMailTo(message, job.RelayTo, callback)
+	} else if job.Confirmed {
+		err = api.mailServer.RelayMailConfirmed(message, job.Recipients, callback)
 	} else {
 		err = api.mailServer.RelayMail(message, false, callback)
 	}
@@ -425,6 +561,7 @@ func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool)
 func (api *API) finishRelayAttempt(jobID string, relayErr error) {
 	if relayErr == nil {
 		api.relayJobs.complete(jobID, nil)
+		api.releaseRelaySource(jobID)
 		return
 	}
 	job, ok := api.relayJobs.get(jobID)
@@ -436,6 +573,7 @@ func (api *API) finishRelayAttempt(jobID string, relayErr error) {
 		}
 	}
 	api.relayJobs.complete(jobID, relayErr)
+	api.releaseRelaySource(jobID)
 	if ok {
 		common.Error("Relay job %s failed for email %s after %d attempt(s) (category: %s)", job.ID, job.EmailID, job.Attempts, relayFailureCategory(relayErr))
 	}
@@ -473,9 +611,10 @@ func (api *API) retryRelayJob(jobID string) {
 	}
 	if job.Attempts >= defaultRelayMaxAttempts {
 		api.relayJobs.complete(jobID, errRelayAttemptsExhausted)
+		api.releaseRelaySource(jobID)
 		return
 	}
-	email, err := api.mailServer.GetEmail(job.EmailID)
+	email, err := api.acquireRelaySource(job)
 	if err == nil {
 		var handled bool
 		err, handled = api.submitRelayJob(job, email)
@@ -498,6 +637,12 @@ func (api *API) recoverRelayJobs() {
 	for _, job := range api.relayJobs.queued() {
 		if job.Attempts >= defaultRelayMaxAttempts {
 			api.relayJobs.complete(job.ID, errRelayAttemptsExhausted)
+			api.releaseRelaySource(job.ID)
+			continue
+		}
+		email, err := api.acquireRelaySource(job)
+		if err != nil {
+			api.finishRelayAttempt(job.ID, err)
 			continue
 		}
 		if job.NextAttemptAt != nil {
@@ -507,8 +652,7 @@ func (api *API) recoverRelayJobs() {
 				continue
 			}
 		}
-		email, err := api.mailServer.GetEmail(job.EmailID)
-		if err == nil {
+		if email != nil {
 			var handled bool
 			err, handled = api.submitRelayJob(job, email)
 			if handled {

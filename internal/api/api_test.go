@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -93,6 +94,29 @@ func TestNewAPIWithHTTPS(t *testing.T) {
 	}
 	if api.httpsKeyFile != "key.pem" {
 		t.Errorf("Expected key file 'key.pem', got '%s'", api.httpsKeyFile)
+	}
+}
+
+func TestAPIStartWithReadyDoesNotSignalOnBindFailure(t *testing.T) {
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = occupied.Close() }()
+	port := occupied.Addr().(*net.TCPAddr).Port
+
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	api := NewAPIWithHTTPSDeferredRecovery(server, port, "127.0.0.1", "", "", false, "", "")
+	ready := false
+	if err := api.StartWithReady(func() { ready = true }); err == nil {
+		t.Fatal("StartWithReady succeeded on an occupied address")
+	}
+	if ready {
+		t.Fatal("ready callback ran before the API listener was bound")
 	}
 }
 

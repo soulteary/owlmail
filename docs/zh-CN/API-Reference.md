@@ -157,6 +157,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `GET /api/v1/emails/:id/source` | RFC 822 原始源码，`text/plain; charset=utf-8` |
 | `GET /api/v1/emails/:id/raw` | 下载 EML，`message/rfc822` |
 | `GET /api/v1/emails/:id/attachments/:filename` | 使用附件元数据 Content-Type 返回解码字节 |
+| `GET /api/v1/emails/:id/actions/relay/preflight` | 在手动中继前预览经规则过滤的 SMTP envelope 收件人 |
 | `POST /api/v1/emails/:id/actions/relay` | 按邮件原收件人中继 |
 | `POST /api/v1/emails/:id/actions/relay/:relayTo` | 中继到一个明确地址 |
 | `GET /api/v1/relay-jobs/:jobID` | 查询异步中继任务状态 |

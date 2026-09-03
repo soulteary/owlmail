@@ -281,6 +281,61 @@ func TestCleanupDoesNotAccountForFailedDeletion(t *testing.T) {
 	}
 }
 
+func TestEmailSourceLeaseProtectsExplicitAndRetentionDeletion(t *testing.T) {
+	server, err := NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	id := "relay-source"
+	if err := os.WriteFile(filepath.Join(server.mailDir, id+".eml"), []byte(governanceTestMessage), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(id, false, &Envelope{To: []string{"receiver@example.test"}}, &Email{Subject: id}); err != nil {
+		t.Fatal(err)
+	}
+
+	email, release, err := server.AcquireEmailSource(id)
+	if err != nil || email.ID != id {
+		t.Fatalf("AcquireEmailSource() = %#v, %v", email, err)
+	}
+	if err := server.DeleteEmail(id); !errors.Is(err, ErrEmailSourceInUse) {
+		t.Fatalf("DeleteEmail() error = %v, want ErrEmailSourceInUse", err)
+	}
+	if err := server.DeleteAllEmail(); !errors.Is(err, ErrEmailSourceInUse) {
+		t.Fatalf("DeleteAllEmail() error = %v, want ErrEmailSourceInUse", err)
+	}
+	server.storeMutex.Lock()
+	server.receivedAtByID[id] = time.Now().Add(-time.Hour)
+	server.storeMutex.Unlock()
+	server.storagePolicy = StoragePolicy{MaxAge: time.Nanosecond}
+	otherID := "other-expired"
+	if err := os.WriteFile(filepath.Join(server.mailDir, otherID+".eml"), []byte(governanceTestMessage), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(otherID, false, &Envelope{To: []string{"receiver@example.test"}}, &Email{Subject: otherID}); err != nil {
+		t.Fatal(err)
+	}
+	server.storeMutex.Lock()
+	server.receivedAtByID[otherID] = time.Now().Add(-time.Hour)
+	server.storeMutex.Unlock()
+	if err := server.CleanupStorage(); err != nil {
+		t.Fatalf("CleanupStorage() error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(server.mailDir, id+".eml")); err != nil {
+		t.Fatalf("leased source was removed: %v", err)
+	}
+	if _, err := server.GetEmail(otherID); err == nil {
+		t.Fatal("cleanup stopped before deleting an unrelated expired email")
+	}
+
+	release()
+	release()
+	if err := server.DeleteEmail(id); err != nil {
+		t.Fatalf("DeleteEmail() after release: %v", err)
+	}
+}
+
 func TestReadAllEmailReportsMetadataFailure(t *testing.T) {
 	server, err := NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {

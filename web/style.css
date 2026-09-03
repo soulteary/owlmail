@@ -292,6 +292,7 @@ body {
 
 .email-detail-actions {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-bottom: 20px;
     padding-bottom: 15px;

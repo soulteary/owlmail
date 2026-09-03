@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 const maximumRelayJobFileBytes = 64 << 10
@@ -96,8 +97,14 @@ func (store *relayJobStore) load() error {
 		}
 		jobs = append(jobs, job)
 	}
-	sort.Slice(jobs, func(left, right int) bool { return jobs[left].CreatedAt.Before(jobs[right].CreatedAt) })
+	sort.Slice(jobs, func(left, right int) bool {
+		if jobs[left].CreatedAt.Equal(jobs[right].CreatedAt) {
+			return jobs[left].ID < jobs[right].ID
+		}
+		return jobs[left].CreatedAt.Before(jobs[right].CreatedAt)
+	})
 	now := store.now().UTC()
+	queuedByEmail := make(map[string]string)
 	for _, job := range jobs {
 		if job.CompletedAt != nil && now.Sub(*job.CompletedAt) > store.ttl {
 			if err := store.removePersistedLocked(job.ID); err != nil {
@@ -107,6 +114,19 @@ func (store *relayJobStore) load() error {
 		}
 		if job.CompletedAt != nil {
 			job.retainUntil = job.CompletedAt.Add(store.minimumRetention)
+		} else if originalID, duplicate := queuedByEmail[job.EmailID]; duplicate {
+			completedAt := now
+			job.Status = relayJobFailed
+			job.ErrorCategory = "duplicate_pending"
+			job.UpdatedAt = now
+			job.CompletedAt = &completedAt
+			job.NextAttemptAt = nil
+			job.retainUntil = completedAt.Add(store.minimumRetention)
+			if err := store.persistLocked(job); err != nil {
+				return fmt.Errorf("mark duplicate relay job %s after %s: %w", job.ID, originalID, err)
+			}
+		} else {
+			queuedByEmail[job.EmailID] = job.ID
 		}
 		if len(store.order) >= store.limit {
 			return fmt.Errorf("persisted relay jobs exceed limit %d", store.limit)
@@ -136,6 +156,28 @@ func validPersistedRelayJob(job relayJob) bool {
 	}
 }
 
+func validateRelayJobPersistenceBudget(job relayJob) error {
+	// Reserve enough space for every field that may be added as the job moves
+	// through retry and terminal states. This prevents a successfully accepted
+	// job from outgrowing the loader's fixed safety limit later in its lifecycle.
+	worstTimestamp := time.Date(9999, time.December, 31, 23, 59, 59, 999999999, time.UTC)
+	worst := job
+	worst.Status = relayJobFailed
+	worst.ErrorCategory = "configuration_changed"
+	worst.UpdatedAt = worstTimestamp
+	worst.CompletedAt = &worstTimestamp
+	worst.NextAttemptAt = &worstTimestamp
+	worst.Attempts = defaultRelayMaxAttempts
+	data, err := json.Marshal(worst)
+	if err != nil {
+		return fmt.Errorf("%w: encode relay job: %v", errRelayJobTooLarge, err)
+	}
+	if len(data) > maximumRelayJobFileBytes {
+		return fmt.Errorf("%w: encoded lifecycle state is %d bytes", errRelayJobTooLarge, len(data))
+	}
+	return nil
+}
+
 func (store *relayJobStore) persistLocked(job relayJob) error {
 	if store.directory == "" {
 		return nil
@@ -143,6 +185,9 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	data, err := json.Marshal(job)
 	if err != nil {
 		return fmt.Errorf("encode relay job: %w", err)
+	}
+	if len(data) > maximumRelayJobFileBytes {
+		return fmt.Errorf("encoded relay job exceeds %d bytes", maximumRelayJobFileBytes)
 	}
 	temporary, err := os.CreateTemp(store.directory, ".relay-job-*")
 	if err != nil {

@@ -57,6 +57,15 @@ const i18n = {
         emailPreviewTitle: '隔离的邮件 HTML 预览',
         emailViewportPresets: '预览宽度',
         emailViewportWidth: '邮件预览宽度：{width}',
+        relayOriginal: '按原收件人中继',
+        relayOverride: '中继到…',
+        relayRecipientPrompt: '输入中继收件人地址：',
+        relayConfirm: '确定要中继这封邮件吗？实际邮件将发送到 {recipient}。',
+        relayOriginalRecipients: '原始收件人',
+        relayNoOriginalRecipients: '这封邮件没有可供中继的 SMTP 信封收件人。',
+        relayNoEffectiveRecipients: '当前中继规则排除了这封邮件的所有 SMTP 信封收件人。',
+        relayQueued: '中继任务已提交。任务 ID：{id}',
+        relayError: '中继失败：{error}',
         contentHTML: 'HTML',
         contentText: '纯文本',
         contentHeaders: '邮件头',
@@ -145,6 +154,15 @@ const i18n = {
         emailPreviewTitle: 'Isolated email HTML preview',
         emailViewportPresets: 'Preview width',
         emailViewportWidth: 'Email preview width: {width}',
+        relayOriginal: 'Relay to original recipients',
+        relayOverride: 'Relay to…',
+        relayRecipientPrompt: 'Enter the relay recipient address:',
+        relayConfirm: 'Relay this message? A real email will be sent to {recipient}.',
+        relayOriginalRecipients: 'the original recipients',
+        relayNoOriginalRecipients: 'This message has no SMTP envelope recipients to relay to.',
+        relayNoEffectiveRecipients: 'The current relay rules exclude every SMTP envelope recipient for this message.',
+        relayQueued: 'Relay job accepted. Job ID: {id}',
+        relayError: 'Relay failed: {error}',
         contentHTML: 'HTML',
         contentText: 'Plain text',
         contentHeaders: 'Headers',
@@ -819,6 +837,19 @@ let state = {
     searchQuery: '',
     ws: null
 };
+let relayEnabled = false;
+const relayPending = new Set();
+
+function syncRelayMutationControls() {
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0;
+}
+
+function relayStatusErrorIsTransient(error) {
+    const status = Number(error && error.status);
+    return !Number.isFinite(status) || status === 408 || status === 429 || status >= 500;
+}
+const RELAY_STATUS_POLL_INTERVAL_MS = 1000;
 
 function currentEmailIDFromLocation() {
     try {
@@ -1207,6 +1238,11 @@ const API = {
         return await handleAPIResponse(response);
     },
 
+    async getOutgoingConfig() {
+        const response = await fetch(`${API_BASE}/settings/outgoing`);
+        return await handleAPIResponse(response);
+    },
+
     async getEmailSource(id, maximumBytes = EMAIL_SOURCE_INLINE_MAX_BYTES) {
         const response = await fetch(`${API_BASE}/emails/${id}/source`);
         if (!response.ok) return await handleAPIResponse(response);
@@ -1257,13 +1293,26 @@ const API = {
         return await handleAPIResponse(response);
     },
 
-    async relayEmail(id, relayTo = '') {
+    async getRelayPreflight(id) {
+        const response = await fetch(`${API_BASE}/emails/${id}/actions/relay/preflight`);
+        return await handleAPIResponse(response);
+    },
+
+    async relayEmail(id, relayTo = '', confirmedRecipients = null) {
         const url = relayTo 
             ? `${API_BASE}/emails/${id}/actions/relay/${encodeURIComponent(relayTo)}`
             : `${API_BASE}/emails/${id}/actions/relay`;
-        const response = await fetch(url, {
-            method: 'POST'
-        });
+        const options = { method: 'POST' };
+        if (confirmedRecipients !== null) {
+            options.headers = { 'Content-Type': 'application/json' };
+            options.body = JSON.stringify({ confirmedRecipients });
+        }
+        const response = await fetch(url, options);
+        return await handleAPIResponse(response);
+    },
+
+    async getRelayJob(statusURL) {
+        const response = await fetch(new URL(statusURL, window.location.origin).toString());
         return await handleAPIResponse(response);
     }
 };
@@ -1339,7 +1388,10 @@ function updateUI(renderDynamic = true) {
     if (markAllReadBtn) markAllReadBtn.textContent = t('markAllRead');
     
     const deleteAllBtn = document.getElementById('deleteAllBtn');
-    if (deleteAllBtn) deleteAllBtn.textContent = t('deleteAll');
+    if (deleteAllBtn) {
+        deleteAllBtn.textContent = t('deleteAll');
+        deleteAllBtn.disabled = relayPending.size > 0;
+    }
 
     const webhookBtn = document.getElementById('webhookBtn');
     if (webhookBtn) {
@@ -1478,7 +1530,11 @@ function renderEmailDetail() {
         <div class="email-detail-actions">
             <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">${t('downloadEml')}</button>
             <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button>
-            <button class="btn btn-danger" onclick="deleteEmail('${email.id}')">${t('delete')}</button>
+            ${relayEnabled ? `
+                <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
+                <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
+            ` : ''}
+            <button class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
             <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
@@ -1805,6 +1861,99 @@ async function loadEmails() {
     }
 }
 
+async function loadRelayAvailability() {
+    try {
+        const outgoing = await API.getOutgoingConfig();
+        relayEnabled = outgoing && outgoing.enabled === true;
+        if (state.currentEmail) renderEmailDetail();
+    } catch (error) {
+        relayEnabled = false;
+        console.warn('Unable to inspect outgoing relay configuration:', error);
+    }
+}
+
+async function relayCurrentEmail(id, askForRecipient = false) {
+    if (!relayEnabled || relayPending.has(id)) return;
+    let relayTo = '';
+    if (askForRecipient) {
+        relayTo = (prompt(t('relayRecipientPrompt')) || '').trim();
+        if (!relayTo) return;
+    }
+    let recipient = relayTo;
+    let confirmedRecipients = null;
+    if (!askForRecipient) {
+        const envelopeRecipients = state.currentEmail && state.currentEmail.id === id
+            && state.currentEmail.envelope && Array.isArray(state.currentEmail.envelope.to)
+            ? state.currentEmail.envelope.to.filter((value) => String(value).trim() !== '')
+            : [];
+        if (envelopeRecipients.length === 0) {
+            alert(t('relayNoOriginalRecipients'));
+            return;
+        }
+        let preflight;
+        try {
+            preflight = await API.getRelayPreflight(id);
+        } catch (error) {
+            alert(t('relayError', { error: parseAPIError(error) }));
+            return;
+        }
+        if (!state.currentEmail || state.currentEmail.id !== id) return;
+        confirmedRecipients = preflight && preflight.data && Array.isArray(preflight.data.recipients)
+            ? preflight.data.recipients
+            : [];
+        if (confirmedRecipients.length === 0) {
+            alert(t('relayNoEffectiveRecipients'));
+            return;
+        }
+        recipient = confirmedRecipients.join(', ');
+    }
+    if (!confirm(t('relayConfirm', { recipient }))) return;
+
+    relayPending.add(id);
+    syncRelayMutationControls();
+    renderEmailDetail();
+    let releasePending = true;
+    try {
+        const result = await API.relayEmail(id, relayTo, confirmedRecipients);
+        const data = result && result.data;
+        const job = data && data.job;
+        alert(t('relayQueued', { id: job && job.id ? job.id : t('unknown') }));
+        if (!data || !data.statusUrl) {
+            throw new Error('Relay status URL is missing');
+        }
+        releasePending = false;
+        while (true) {
+            let statusResult;
+            try {
+                statusResult = await API.getRelayJob(data.statusUrl);
+            } catch (error) {
+                if (!relayStatusErrorIsTransient(error)) {
+                    releasePending = true;
+                    throw error;
+                }
+                console.warn('Relay status check failed; retrying:', error);
+                await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+                continue;
+            }
+            const current = statusResult && statusResult.data;
+            if (current && (current.status === 'succeeded' || current.status === 'failed')) {
+                releasePending = true;
+                if (current.status === 'failed') {
+                    throw new Error(current.errorCategory || 'delivery failed');
+                }
+                break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+        }
+    } catch (error) {
+        alert(t('relayError', { error: parseAPIError(error) }));
+    } finally {
+        if (releasePending) relayPending.delete(id);
+        syncRelayMutationControls();
+        if (state.currentEmail && state.currentEmail.id === id) renderEmailDetail();
+    }
+}
+
 async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
     if (!id) {
         clearEmailSelection(historyMode);
@@ -1845,6 +1994,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
 }
 
 async function deleteEmail(id) {
+    if (relayPending.has(id)) return;
     if (!confirm(t('deleteConfirm'))) return;
 
     try {
@@ -1868,6 +2018,7 @@ async function deleteEmail(id) {
 }
 
 async function deleteAllEmails() {
+    if (relayPending.size > 0) return;
     if (!confirm(t('deleteAllConfirm'))) return;
 
     try {
@@ -2116,6 +2267,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize opt-in browser notifications without prompting on page load.
     initializeBrowserNotifications();
+    void loadRelayAvailability();
 
     // Load initial emails, then honor an email deep link without adding a
     // duplicate browser-history entry.
@@ -2171,6 +2323,7 @@ document.addEventListener('DOMContentLoaded', () => {
 window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
+window.relayCurrentEmail = relayCurrentEmail;
 window.setEmailContentTab = setEmailContentTab;
 window.handleEmailContentTabKeydown = handleEmailContentTabKeydown;
 window.t = t; // Make translation function available globally

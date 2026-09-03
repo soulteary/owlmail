@@ -23,6 +23,9 @@ var (
 	ErrQueueFull = errors.New("relay queue is full")
 	// ErrClosed is returned when work is submitted after the relay has begun closing.
 	ErrClosed = errors.New("outgoing mail is closed")
+	// ErrConfigChanged is returned when confirmed recipients no longer match
+	// the configuration snapshot used to enqueue delivery.
+	ErrConfigChanged = errors.New("outgoing relay configuration changed")
 )
 
 const defaultEnqueueTimeout = 5 * time.Second
@@ -68,13 +71,16 @@ type OutgoingMail struct {
 
 // RelayTask represents a task to relay an email
 type RelayTask struct {
-	Email       *types.Email
-	EmailPath   string
-	RelayTo     string // Optional relay address
-	IsAutoRelay bool
-	Callback    func(error)
-	Context     context.Context
-	config      *OutgoingConfig
+	Email     *types.Email
+	EmailPath string
+	RelayTo   string // Optional relay address
+	// ConfirmedRecipients binds a UI confirmation to the exact effective
+	// recipient list. A nil slice preserves the ordinary rule-based behavior.
+	ConfirmedRecipients []string
+	IsAutoRelay         bool
+	Callback            func(error)
+	Context             context.Context
+	config              *OutgoingConfig
 }
 
 const relayCopyBufferSize = 32 * 1024
@@ -213,6 +219,9 @@ func getRecipients(task *RelayTask, config *OutgoingConfig) []string {
 	if config == nil {
 		return recipients
 	}
+	if task.ConfirmedRecipients != nil {
+		return append(recipients, task.ConfirmedRecipients...)
+	}
 
 	// If manual relay with specific address
 	if task.RelayTo != "" {
@@ -312,7 +321,30 @@ func matchesRule(address, rule string) bool {
 
 // RelayMail queues an email for relay
 func (om *OutgoingMail) RelayMail(email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) error {
-	return om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, isAutoRelay, callback)
+	return om.enqueueRelay(context.Background(), false, email, emailPath, relayTo, nil, isAutoRelay, callback)
+}
+
+// RelayMailConfirmed queues delivery only if the current effective recipients
+// still match the addresses the operator confirmed.
+func (om *OutgoingMail) RelayMailConfirmed(email *types.Email, emailPath string, recipients []string, callback func(error)) error {
+	return om.enqueueRelay(context.Background(), false, email, emailPath, "", recipients, false, callback)
+}
+
+// EffectiveRecipients returns the rule-filtered recipient snapshot currently
+// used for a manual relay to original envelope recipients.
+func (om *OutgoingMail) EffectiveRecipients(email *types.Email) ([]string, error) {
+	om.mu.RLock()
+	if om.closed {
+		om.mu.RUnlock()
+		return nil, ErrClosed
+	}
+	if !om.enabled {
+		om.mu.RUnlock()
+		return nil, ErrNotConfigured
+	}
+	config := cloneConfig(om.config)
+	om.mu.RUnlock()
+	return getRecipients(&RelayTask{Email: email}, config), nil
 }
 
 // RelayMailContext queues an email relay that is canceled if the caller's
@@ -321,10 +353,10 @@ func (om *OutgoingMail) RelayMailContext(ctx context.Context, email *types.Email
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return om.enqueueRelay(ctx, true, email, emailPath, relayTo, isAutoRelay, callback)
+	return om.enqueueRelay(ctx, true, email, emailPath, relayTo, nil, isAutoRelay, callback)
 }
 
-func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath string, relayTo string, isAutoRelay bool, callback func(error)) error {
+func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, email *types.Email, emailPath, relayTo string, confirmedRecipients []string, isAutoRelay bool, callback func(error)) error {
 	om.mu.Lock()
 	if om.closed {
 		om.mu.Unlock()
@@ -335,6 +367,13 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 		return relayRejected(callback, ErrNotConfigured)
 	}
 	config := cloneConfig(om.config)
+	if confirmedRecipients != nil {
+		effective := getRecipients(&RelayTask{Email: email}, config)
+		if !sameRecipients(effective, confirmedRecipients) {
+			om.mu.Unlock()
+			return relayRejected(callback, ErrConfigChanged)
+		}
+	}
 	om.enqueueWG.Add(1)
 	om.mu.Unlock()
 	finishEnqueue := func(err error) error {
@@ -348,12 +387,13 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	}
 
 	task := &RelayTask{
-		Email:       email,
-		EmailPath:   emailPath,
-		RelayTo:     relayTo,
-		IsAutoRelay: isAutoRelay,
-		Callback:    callback,
-		config:      config,
+		Email:               email,
+		EmailPath:           emailPath,
+		RelayTo:             relayTo,
+		ConfirmedRecipients: append([]string(nil), confirmedRecipients...),
+		IsAutoRelay:         isAutoRelay,
+		Callback:            callback,
+		config:              config,
 	}
 	if contextAware {
 		task.Context = ctx
@@ -378,6 +418,18 @@ func (om *OutgoingMail) enqueueRelay(ctx context.Context, contextAware bool, ema
 	case <-canceled:
 		return finishEnqueue(ctx.Err())
 	}
+}
+
+func sameRecipients(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }
 
 func relayRejected(callback func(error), err error) error {

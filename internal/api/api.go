@@ -1,8 +1,10 @@
 package api
 
 import (
+	"crypto/tls"
 	"fmt"
 	"html"
+	"net"
 	"net/http"
 	"strings"
 	"sync"
@@ -46,6 +48,9 @@ type API struct {
 	mcpHandler              http.Handler
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
+	relayRecoveryOnce       sync.Once
+	relaySourceMutex        sync.Mutex
+	relaySourceReleases     map[string]func()
 }
 
 // NewAPI creates a new API server instance
@@ -60,6 +65,14 @@ func NewAPIWithAuth(mailServer *mailserver.MailServer, port int, host, user, pas
 
 // NewAPIWithHTTPS creates a new API server instance with HTTP Basic Auth and HTTPS support
 func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
+	api := NewAPIWithHTTPSDeferredRecovery(mailServer, port, host, user, password, httpsEnabled, certFile, keyFile)
+	api.StartRelayRecovery()
+	return api
+}
+
+// NewAPIWithHTTPSDeferredRecovery loads and protects durable relay jobs but
+// leaves delivery recovery paused until StartRelayRecovery is called.
+func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	authEnabled := user != "" && password != ""
 	relayJobs, err := newPersistentRelayJobStore(mailServer.GetMailDir())
 	persistenceErr := err
@@ -81,6 +94,7 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 		wsUpgrader:              websocket.Upgrader{},
 		relayJobs:               relayJobs,
 		relayJobsPersistenceErr: persistenceErr,
+		relaySourceReleases:     make(map[string]func()),
 	}
 	api.wsUpgrader.CheckOrigin = func(r *http.Request) bool {
 		return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, api.requestScheme())
@@ -88,9 +102,18 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 	api.setupRoutes()
 	api.setupEventListeners()
 	if api.relayJobs.hasQueued() {
-		go api.recoverRelayJobs()
+		api.protectQueuedRelaySources()
 	}
 	return api
+}
+
+// StartRelayRecovery starts queued durable work at most once.
+func (api *API) StartRelayRecovery() {
+	api.relayRecoveryOnce.Do(func() {
+		if api.relayJobs.hasQueued() {
+			go api.recoverRelayJobs()
+		}
+	})
 }
 
 func (api *API) requestScheme() string {
@@ -330,6 +353,7 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	emailsGroup.Get("/:id/source", api.getEmailSource)
 	emailsGroup.Get("/:id/raw", api.downloadEmail)
 	emailsGroup.Get("/:id/attachments/:filename", api.getAttachment)
+	emailsGroup.Get("/:id/actions/relay/preflight", api.relayEmailPreflight)
 	emailsGroup.Post("/:id/actions/relay", api.relayEmailAsync)
 	emailsGroup.Post("/:id/actions/relay/:relayTo", api.relayEmailWithParamAsync)
 	v1.Get("/relay-jobs/:jobID", api.getRelayJob)
@@ -352,20 +376,42 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 
 // Start starts the API server
 func (api *API) Start() error {
+	return api.StartWithReady(nil)
+}
+
+// StartWithReady binds the API listener, then calls ready immediately before
+// serving. A bind or TLS configuration failure is returned without calling it.
+func (api *API) StartWithReady(ready func()) error {
 	addr := fmt.Sprintf("%s:%d", api.host, api.port)
 
+	var listener net.Listener
+	var err error
 	if api.httpsEnabled {
 		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
 			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
 		}
-		return api.app.Listen(addr, fiber.ListenConfig{
-			DisableStartupMessage: true,
-			CertFile:              api.httpsCertFile,
-			CertKeyFile:           api.httpsKeyFile,
-		})
+		certificate, err := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
+		if err != nil {
+			return fmt.Errorf("load HTTPS certificate: %w", err)
+		}
+		listener, err = net.Listen("tcp", addr)
+		if err == nil {
+			listener = tls.NewListener(listener, &tls.Config{
+				MinVersion:   tls.VersionTLS12,
+				Certificates: []tls.Certificate{certificate},
+			})
+		}
+	} else {
+		listener, err = net.Listen("tcp", addr)
 	}
-
-	return api.app.Listen(addr, fiber.ListenConfig{DisableStartupMessage: true})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listener.Close() }()
+	if ready != nil {
+		ready()
+	}
+	return api.app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
 }
 
 // setupEventListeners sets up event listeners for WebSocket broadcasting

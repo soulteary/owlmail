@@ -158,6 +158,60 @@ func TestSendMailContextStreamsLargeMessage(t *testing.T) {
 	}
 }
 
+func TestSendMailContextTreatsQuitTimeoutAfterDataAcceptanceAsSuccess(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+	accepted := make(chan bool, 1)
+	go func() {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			accepted <- false
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		reader := bufio.NewReader(conn)
+		_, _ = fmt.Fprint(conn, "220 localhost ESMTP\r\n")
+		for {
+			line, readErr := reader.ReadString('\n')
+			if readErr != nil {
+				accepted <- false
+				return
+			}
+			switch command := strings.TrimSpace(line); {
+			case strings.HasPrefix(command, "EHLO "), strings.HasPrefix(command, "HELO "):
+				_, _ = fmt.Fprint(conn, "250 localhost\r\n")
+			case strings.HasPrefix(command, "MAIL FROM:"), strings.HasPrefix(command, "RCPT TO:"):
+				_, _ = fmt.Fprint(conn, "250 ok\r\n")
+			case command == "DATA":
+				_, _ = fmt.Fprint(conn, "354 continue\r\n")
+				_, _, dataAccepted, _ := readRelaySMTPData(conn, reader)
+				if !dataAccepted {
+					accepted <- false
+					return
+				}
+				_, _ = fmt.Fprint(conn, "250 queued\r\n")
+			case command == "QUIT":
+				accepted <- true
+				time.Sleep(100 * time.Millisecond)
+				return
+			}
+		}
+	}()
+
+	config := (&OutgoingConfig{TLSMode: TLSModePlain, QuitTimeout: "20ms"}).withDefaults()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := sendMailWithConfig(ctx, listener.Addr().String(), nil, "sender@example.test", []string{"recipient@example.test"}, []byte("Subject: accepted\r\n\r\nbody\r\n"), config); err != nil {
+		t.Fatalf("sendMailWithConfig() after DATA acceptance = %v, want success", err)
+	}
+	if !<-accepted {
+		t.Fatal("SMTP server did not accept DATA before the QUIT timeout")
+	}
+}
+
 func TestRelayEmailRejectsPlaintextCredentials(t *testing.T) {
 	om := &OutgoingMail{
 		config: &OutgoingConfig{

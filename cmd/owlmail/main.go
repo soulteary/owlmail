@@ -506,7 +506,17 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	// Constructing the API loads durable relay jobs and acquires source leases.
+	// Apply the storage policy only afterwards so its initial cleanup cannot
+	// delete source EMLs that queued jobs still need after a restart.
+	storagePolicy, err := setupStoragePolicy(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
+		return nil, fmt.Errorf("configure storage policy: %w", err)
+	}
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
 	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
 	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
@@ -574,7 +584,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		}
 	}
 
-	if err := apiServer.Start(); err != nil {
+	if err := apiServer.StartWithReady(apiServer.StartRelayRecovery); err != nil {
 		return nil, fmt.Errorf("failed to start API server: %w", err)
 	}
 
@@ -807,15 +817,6 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		}
 	}
 	healthOwned = false
-	storagePolicy, err := setupStoragePolicy(cfg)
-	if err != nil {
-		_ = server.Close()
-		return nil, err
-	}
-	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
-		_ = server.Close()
-		return nil, fmt.Errorf("configure storage policy: %w", err)
-	}
 	if attachmentStore != nil {
 		common.Log("S3 attachment storage enabled for bucket %s with prefix %s (startup check: %t)", cfg.S3Bucket, cfg.S3Prefix, cfg.S3StartupCheck)
 	}
@@ -857,16 +858,6 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		return fmt.Errorf("config is nil")
 	}
 
-	// Create and start API server with HTTPS support
-	go func() {
-		if _, err := startAPIServer(server, cfg); err != nil {
-			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
-				// In test environments, this will return an error instead of exiting
-				return
-			}
-		}
-	}()
-
 	// Handle graceful shutdown
 	setupGracefulShutdown(server)
 
@@ -877,7 +868,29 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		common.Log("TLS enabled for SMTP server")
 		common.Verbose("TLS certificate: %s, Key: %s", cfg.TLSCertFile, cfg.TLSKeyFile)
 	}
-	if err := server.Listen(); err != nil {
+	smtpReady := make(chan struct{})
+	smtpResult := make(chan error, 1)
+	go func() {
+		smtpResult <- server.ListenWithReady(func() { close(smtpReady) })
+	}()
+	select {
+	case <-smtpReady:
+	case err := <-smtpResult:
+		return fmt.Errorf("failed to start server: %w", err)
+	}
+
+	// Start the API only after inbound SMTP has bound successfully. Relay
+	// recovery is then triggered by startAPIServer after the API also binds.
+	go func() {
+		if _, err := startAPIServer(server, cfg); err != nil {
+			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
+				// In test environments, this will return an error instead of exiting
+				return
+			}
+		}
+	}()
+
+	if err := <-smtpResult; err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 

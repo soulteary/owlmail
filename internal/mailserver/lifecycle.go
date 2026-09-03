@@ -23,6 +23,18 @@ func (ms *MailServer) AddCloser(closer io.Closer) error {
 
 // Listen starts the SMTP server
 func (ms *MailServer) Listen() error {
+	return ms.ListenWithReady(nil)
+}
+
+// ListenWithReady binds the primary SMTP listener before calling ready and
+// serving. Binding failures are returned without calling ready.
+func (ms *MailServer) ListenWithReady(ready func()) error {
+	listener, err := net.Listen("tcp", ms.smtpServer.Addr)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = listener.Close() }()
+
 	// Start SMTPS server (465) if configured
 	if ms.smtpsServer != nil {
 		go func() {
@@ -58,7 +70,10 @@ func (ms *MailServer) Listen() error {
 	} else {
 		common.Log("SMTP DATA concurrency limit: %d per process", ms.maxDataConcurrency)
 	}
-	return ms.smtpServer.ListenAndServe()
+	if ready != nil {
+		ready()
+	}
+	return ms.smtpServer.Serve(listener)
 }
 
 // Close stops the SMTP server

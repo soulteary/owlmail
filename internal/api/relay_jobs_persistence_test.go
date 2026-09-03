@@ -2,11 +2,14 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -59,6 +62,72 @@ func TestRelayJobsReloadQueuedWork(t *testing.T) {
 	queued := reloaded.queued()
 	if len(queued) != 1 || queued[0].ID != job.ID {
 		t.Fatalf("queued jobs = %#v", queued)
+	}
+}
+
+func TestRelayJobsLoadKeepsOnlyOneQueuedJobPerEmail(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	createdAt := time.Now().UTC().Add(-time.Minute)
+	first := relayJob{
+		ID: "00000000000000000000000000000001", EmailID: "duplicate-mail", Status: relayJobQueued,
+		CreatedAt: createdAt, UpdatedAt: createdAt,
+	}
+	second := relayJob{
+		ID: "00000000000000000000000000000002", EmailID: "duplicate-mail", Status: relayJobQueued,
+		CreatedAt: createdAt.Add(time.Second), UpdatedAt: createdAt.Add(time.Second),
+	}
+	for _, job := range []relayJob{first, second} {
+		if err := store.persistLocked(job); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reloaded, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	queued := reloaded.queued()
+	if len(queued) != 1 || queued[0].ID != first.ID {
+		t.Fatalf("queued jobs = %#v, want only oldest job", queued)
+	}
+	superseded, ok := reloaded.get(second.ID)
+	if !ok || superseded.Status != relayJobFailed || superseded.CompletedAt == nil || superseded.ErrorCategory != "duplicate_pending" {
+		t.Fatalf("superseded duplicate = %#v, found %t", superseded, ok)
+	}
+
+	reloadedAgain, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if queued := reloadedAgain.queued(); len(queued) != 1 || queued[0].ID != first.ID {
+		t.Fatalf("durably deduplicated queued jobs = %#v", queued)
+	}
+}
+
+func TestRelayJobsRejectConfirmedRecipientsThatCannotRemainLoadable(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.newID = func() (string, error) { return "fedcba9876543210fedcba9876543210", nil }
+	recipients := make([]string, 1024)
+	for index := range recipients {
+		recipients[index] = fmt.Sprintf("recipient-%04d-%s@example.test", index, strings.Repeat("x", 64))
+	}
+	if _, err := store.createConfirmed("mail-too-large", "", recipients); !errors.Is(err, errRelayJobTooLarge) {
+		t.Fatalf("createConfirmed() error = %v, want errRelayJobTooLarge", err)
+	}
+	entries, err := os.ReadDir(store.directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("oversized relay job left %d persisted entries", len(entries))
 	}
 }
 
@@ -278,6 +347,79 @@ func TestNewAPIStopsRecoveringExhaustedRelayJob(t *testing.T) {
 	got, ok := waitForTerminalRelayJob(t, restarted.relayJobs, job.ID)
 	if !ok || got.Status != relayJobFailed || got.CompletedAt == nil || got.Attempts != defaultRelayMaxAttempts {
 		t.Fatalf("recovered exhausted job = %#v, found %t", got, ok)
+	}
+}
+
+func TestNewAPIProtectsPersistedRetrySourceBeforeBackgroundRecovery(t *testing.T) {
+	first, server, mailDirectory := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "persisted-retry-source", Subject: "protected retry"}
+	if err := os.WriteFile(filepath.Join(mailDirectory, email.ID+".eml"), []byte("Subject: protected retry\r\n\r\nbody\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	job, err := first.relayJobs.create(email.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.relayJobs.beginAttempt(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, queued := first.relayJobs.queueRetry(job.ID, errors.New("connection refused"), time.Hour); !queued {
+		t.Fatal("retry was not queued")
+	}
+
+	restarted := NewAPI(server, 0, "localhost")
+	defer restarted.releaseRelaySource(job.ID)
+	if err := server.ConfigureStoragePolicy(mailserver.StoragePolicy{MaxDiskBytes: 1, CleanupInterval: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(mailDirectory, email.ID+".eml")); err != nil {
+		t.Fatalf("initial retention cleanup removed a queued relay source: %v", err)
+	}
+	if err := server.DeleteEmail(email.ID); !errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		t.Fatalf("DeleteEmail() error = %v, want ErrEmailSourceInUse", err)
+	}
+}
+
+func TestDeferredAPILoadsAndProtectsQueuedWorkBeforeStartingRecovery(t *testing.T) {
+	first, server, mailDirectory := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "deferred-recovery-source", Subject: "deferred recovery"}
+	if err := os.WriteFile(filepath.Join(mailDirectory, email.ID+".eml"), []byte("Subject: deferred recovery\r\n\r\nbody\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	job, err := first.relayJobs.create(email.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	restarted := NewAPIWithHTTPSDeferredRecovery(server, 0, "localhost", "", "", false, "", "")
+	defer restarted.releaseRelaySource(job.ID)
+	if err := server.DeleteEmail(email.ID); !errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		t.Fatalf("DeleteEmail() before recovery error = %v, want ErrEmailSourceInUse", err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if queued, ok := restarted.relayJobs.get(job.ID); !ok || queued.Attempts != 0 || queued.CompletedAt != nil {
+		t.Fatalf("deferred job started before StartRelayRecovery: %#v, found %t", queued, ok)
+	}
+
+	restarted.StartRelayRecovery()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		started, ok := restarted.relayJobs.get(job.ID)
+		if !ok || started.Attempts > 0 || started.CompletedAt != nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("deferred relay recovery did not start")
+		}
+		time.Sleep(time.Millisecond)
 	}
 }
 

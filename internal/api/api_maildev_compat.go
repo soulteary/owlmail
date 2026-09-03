@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -154,7 +155,11 @@ func (api *API) mailDevDeleteEmail(c fiber.Ctx) error {
 	if _, err := api.mailServer.GetEmail(id); err != nil {
 		return mailDevError(c, http.StatusNotFound, "Email was not found")
 	}
-	if err := api.mailServer.DeleteEmail(id); err != nil {
+	err := api.relayJobs.protectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
+	}
+	if err != nil {
 		return mailDevError(c, http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(true)
@@ -174,25 +179,38 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 	}
 	seen := make(map[string]struct{}, len(request.IDs))
 	response := maildev.BulkDeleteResponse{Deleted: []string{}, NotFound: []string{}}
-	for _, id := range request.IDs {
-		if _, exists := seen[id]; exists {
-			continue
+	err := api.relayJobs.protectSourceDeletion(request.IDs, func() error {
+		for _, id := range request.IDs {
+			if _, exists := seen[id]; exists {
+				continue
+			}
+			seen[id] = struct{}{}
+			if _, err := api.mailServer.GetEmail(id); err != nil {
+				response.NotFound = append(response.NotFound, id)
+				continue
+			}
+			if err := api.mailServer.DeleteEmail(id); err != nil {
+				return err
+			}
+			response.Deleted = append(response.Deleted, id)
 		}
-		seen[id] = struct{}{}
-		if _, err := api.mailServer.GetEmail(id); err != nil {
-			response.NotFound = append(response.NotFound, id)
-			continue
-		}
-		if err := api.mailServer.DeleteEmail(id); err != nil {
-			return mailDevError(c, http.StatusInternalServerError, err.Error())
-		}
-		response.Deleted = append(response.Deleted, id)
+		return nil
+	})
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
+	}
+	if err != nil {
+		return mailDevError(c, http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(response)
 }
 
 func (api *API) mailDevDeleteAllEmails(c fiber.Ctx) error {
-	if err := api.mailServer.DeleteAllEmail(); err != nil {
+	err := api.relayJobs.protectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+		return mailDevError(c, http.StatusConflict, "An email has a pending relay job")
+	}
+	if err != nil {
 		return mailDevError(c, http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(true)
@@ -287,10 +305,11 @@ func (api *API) mailDevRelayEmail(c fiber.Ctx) error {
 	if outgoing := api.mailServer.GetOutgoingConfig(); outgoing == nil || outgoing.Host == "" {
 		return mailDevError(c, http.StatusInternalServerError, "Outgoing mail not configured")
 	}
-	email, err := api.mailServer.GetEmail(id)
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return mailDevError(c, http.StatusInternalServerError, "Email was not found")
 	}
+	defer releaseSource()
 	if relayTo != "" && !mailDevRelayAddress.MatchString(relayTo) {
 		return mailDevError(c, http.StatusBadRequest, fmt.Sprintf("Incorrect email address provided: %s", relayTo))
 	}

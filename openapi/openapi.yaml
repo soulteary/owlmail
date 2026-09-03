@@ -590,6 +590,30 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+  /emails/{id}/actions/relay/preflight:
+    get:
+      tags:
+      - Relay
+      summary: Preview effective relay recipients
+      description: Returns the current rule-filtered SMTP envelope recipients. Pass this exact list as confirmedRecipients when submitting the relay so configuration changes cannot expand delivery beyond the operator's confirmation.
+      operationId: relayEmailPreflight
+      parameters:
+      - $ref: '#/components/parameters/EmailID'
+      responses:
+        '200':
+          description: Effective recipients for operator confirmation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /emails/{id}/actions/relay:
     post:
       tags:
@@ -1467,6 +1491,11 @@ components:
         relayTo:
           type: string
           description: Optional explicit recipient, limited to 1024 UTF-8 bytes. Query `relayTo` takes precedence over this field.
+        confirmedRecipients:
+          type: array
+          description: Exact effective recipient list returned by relay preflight. OwlMail rejects the request if current rules produce a different list and preserves this list across durable retries.
+          items:
+            type: string
       additionalProperties: true
     OutgoingSettingsInput:
       type: object

@@ -292,11 +292,15 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		return relayContextError(ctx, err)
 	}
 
+	// A successful DATA close includes the server's final 250 response, so the
+	// message has already crossed the delivery acceptance boundary. QUIT only
+	// cleans up the session and must not turn an accepted delivery into a retry.
 	if err := setPhaseDeadline(ctx, smtpConn, timeouts.quit); err != nil {
-		return err
+		common.Verbose("Failed to set outgoing SMTP QUIT deadline after acceptance: %v", err)
+		return nil
 	}
 	if err := client.Quit(); err != nil {
-		return relayContextError(ctx, err)
+		common.Verbose("Failed to close outgoing SMTP session after acceptance: %v", relayContextError(ctx, err))
 	}
 	return nil
 }

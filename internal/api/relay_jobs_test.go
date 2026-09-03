@@ -48,6 +48,27 @@ func TestRelayJobStoreRejectsOversizedRecipient(t *testing.T) {
 	}
 }
 
+func TestRelayJobStoreRejectsDuplicatePendingEmail(t *testing.T) {
+	store := newRelayJobStore()
+	ids := []string{"first-job", "duplicate-job", "after-completion"}
+	store.newID = func() (string, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	}
+	first, err := store.create("mail-1", "first@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.create("mail-1", "second@example.test"); !errors.Is(err, errRelayAlreadyPending) {
+		t.Fatalf("duplicate create error = %v, want errRelayAlreadyPending", err)
+	}
+	store.complete(first.ID, nil)
+	if _, err := store.create("mail-1", "second@example.test"); err != nil {
+		t.Fatalf("create after completion: %v", err)
+	}
+}
+
 func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {
@@ -77,6 +98,33 @@ func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	}
 	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
 		t.Fatalf("oversized recipient created a relay job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	}
+}
+
+func TestNativeRelayRejectsInvalidRequestBody(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+
+	for name, payload := range map[string]string{
+		"malformed JSON":          `{"confirmedRecipients":[`,
+		"invalid recipient shape": `{"confirmedRecipients":"recipient@example.test"}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/missing/actions/relay", strings.NewReader(payload))
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, _ := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), ErrorCodeInvalidRequest) {
+				t.Fatalf("invalid relay body status = %d, body = %s", resp.StatusCode, body)
+			}
+			if len(api.relayJobs.jobs) != 0 {
+				t.Fatalf("invalid relay body created %d job(s)", len(api.relayJobs.jobs))
+			}
+		})
 	}
 }
 
@@ -147,6 +195,56 @@ func TestNativeRelayReturnsQueryableJob(t *testing.T) {
 	}
 	if strings.Contains(string(body), "127.0.0.1") {
 		t.Fatalf("status endpoint leaked downstream details: %s", body)
+	}
+}
+
+func TestRelayPreflightBindsConfirmedRecipientsToEnqueueSnapshot(t *testing.T) {
+	directory := t.TempDir()
+	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{
+		Host: "127.0.0.1", Port: 1, AllowRules: []string{"allowed@example.test"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "confirmed-relay", Subject: "Confirmed relay", Time: time.Now()}
+	envelope := &types.Envelope{From: "sender@example.test", To: []string{"allowed@example.test", "blocked@example.test"}}
+	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: Confirmed relay\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, envelope, email); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(server, 1080, "localhost")
+
+	preflightRequest, _ := http.NewRequest(http.MethodGet, "/api/v1/emails/"+email.ID+"/actions/relay/preflight", nil)
+	preflightResponse, err := api.app.Test(preflightRequest, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	preflightBody, _ := io.ReadAll(preflightResponse.Body)
+	_ = preflightResponse.Body.Close()
+	if preflightResponse.StatusCode != http.StatusOK || !strings.Contains(string(preflightBody), `"recipients":["allowed@example.test"]`) {
+		t.Fatalf("preflight status = %d, body = %s", preflightResponse.StatusCode, preflightBody)
+	}
+
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: 1, AllowRules: []string{"*"}}); err != nil {
+		t.Fatal(err)
+	}
+	payload := strings.NewReader(`{"confirmedRecipients":["allowed@example.test"]}`)
+	relayRequest, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", payload)
+	relayRequest.Header.Set("Content-Type", "application/json")
+	relayResponse, err := api.app.Test(relayRequest, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	relayBody, _ := io.ReadAll(relayResponse.Body)
+	_ = relayResponse.Body.Close()
+	if relayResponse.StatusCode != http.StatusBadRequest || !strings.Contains(string(relayBody), "configuration changed") {
+		t.Fatalf("changed-config relay status = %d, body = %s", relayResponse.StatusCode, relayBody)
+	}
+	if len(api.relayJobs.jobs) != 0 {
+		t.Fatalf("changed-config relay retained %d job(s)", len(api.relayJobs.jobs))
 	}
 }
 
@@ -271,6 +369,33 @@ func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 	}
 	if !strings.Contains(string(body), "Relay status capacity reached") {
 		t.Fatalf("relay capacity response = %s", body)
+	}
+}
+
+func TestDeleteEndpointsRejectMessagesWithPendingRelayJobs(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-delete-mail", Subject: "Protected source", Time: time.Now()}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := api.relayJobs.create(email.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/api/v1/emails/" + email.ID, "/api/v1/emails"} {
+		req, _ := http.NewRequest(http.MethodDelete, path, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("DELETE %s returned %d, want 409", path, resp.StatusCode)
+		}
+	}
+	if _, err := server.GetEmail(email.ID); err != nil {
+		t.Fatalf("pending relay source was deleted: %v", err)
 	}
 }
 

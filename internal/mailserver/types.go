@@ -99,6 +99,7 @@ type MailServer struct {
 	nextStorePosition       int
 	storeMutex              sync.RWMutex
 	storageTransactionMutex sync.RWMutex
+	protectedEmailSources   map[string]int
 	mailDir                 string
 	port                    int
 	host                    string
@@ -123,7 +124,9 @@ type MailServer struct {
 	closersMutex            sync.Mutex
 	outgoing                interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
+		RelayMailConfirmed(email *types.Email, emlPath string, recipients []string, callback func(error)) error
 		RelayMailContext(ctx context.Context, email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
+		EffectiveRecipients(email *types.Email) ([]string, error)
 		UpdateConfig(config interface{}) error
 		GetConfig() interface{}
 		IsAutoRelayEnabled() bool
