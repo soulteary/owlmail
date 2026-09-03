@@ -182,6 +182,48 @@ func TestRefreshReadOnlyMailboxRechecksDeletionFenceBeforePublishing(t *testing.
 	}
 }
 
+func TestRefreshReadOnlyMailboxRejectsDeletionCompletedBeforePublicationRescan(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "deleted-before-rescan"
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: deleted\r\n\r\nbody")
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	server.beforeReadOnlyPublish = func(candidateID string) {
+		if candidateID != id {
+			return
+		}
+		server.beforeReadOnlyPublish = nil
+		if err := server.ensureDeletionFence(id); err != nil {
+			t.Errorf("create deletion fence: %v", err)
+			return
+		}
+		if err := server.cleanupDeletionFencedEmail(id); err != nil {
+			t.Errorf("complete deletion: %v", err)
+		}
+	}
+	notified := make(chan string, 1)
+	server.On("new", func(email *Email) { notified <- email.ID })
+
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := server.GetEmail(id); err == nil {
+		t.Fatal("completed deletion was published from a stale source observation")
+	}
+	select {
+	case published := <-notified:
+		t.Fatalf("completed deletion emitted a new event for %q", published)
+	case <-time.After(50 * time.Millisecond):
+	}
+}
+
 func TestRefreshReadOnlyMailboxPreservesExistingMailWhenFenceIsUnreadable(t *testing.T) {
 	directory := t.TempDir()
 	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
