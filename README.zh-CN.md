@@ -51,8 +51,8 @@ OwlMail 在应用邮件进入真实邮箱前将其捕获，并转换为确定、
   稳定投递 ID、有限重试和优雅排空。
 - **明确的运维边界** —— SMTP 容量限制、持久化、可选 S3 附件、SQLite 索引、
   Prometheus Metrics、JSON 日志与故障恢复。
-- **受控投递** —— 持久化异步 Relay 任务使用不可变配置快照、流式 DATA、
-  明确 TLS 模式与状态查询。
+- **受控投递** —— 原生异步 Relay 任务仅在配置邮件目录时持久化（否则保存在
+  内存中），并使用不可变配置快照、流式 DATA、明确 TLS 模式与状态查询。
 - **清晰迁移路径** —— 默认关闭的 MailDev 与 MailCatcher REST facade 支持
   部分现有工作流，但不宣称 Socket.IO 或完全等价兼容。
 
@@ -62,8 +62,9 @@ OwlMail 在应用邮件进入真实邮箱前将其捕获，并转换为确定、
 
 ## 🆕 OwlMail 0.8.0
 
-`v0.8.0` 是当前稳定版本，新增持久化 Relay 任务、分层 YAML/JSON 配置、可选
-SQLite 索引、Prometheus Metrics、结构化日志、MailCatcher REST facade、MCP
+`v0.8.0` 是当前稳定版本，新增配置邮件目录后可持久化的原生 Relay 任务、分层
+YAML/JSON 配置、可选 SQLite 索引、Prometheus Metrics、结构化日志、
+MailCatcher REST facade、MCP
 stdio 桥接、更完整的 Web 收件箱导航、更严格的 API 校验、SMTP 容量控制及附件
 下载安全加固。
 
@@ -85,7 +86,7 @@ stdio 桥接、更完整的 Web 收件箱导航、更严格的 API 校验、SMTP
 
 ```bash
 # 克隆仓库
-git clone https://github.com/soulteary/owlmail.git
+git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # 编译
@@ -98,7 +99,7 @@ go build -o owlmail ./cmd/owlmail
 #### 使用 Go 安装
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@latest
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
 owlmail
 ```
 
@@ -138,8 +139,9 @@ docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # 运行容器
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   ghcr.io/soulteary/owlmail:0.8.0
 ```
@@ -165,8 +167,9 @@ docker build -t owlmail .
 
 # 运行容器
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   owlmail
 ```

@@ -3,6 +3,7 @@ package testingexample
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/smtp"
 	"net/url"
@@ -31,6 +32,49 @@ func environment(name, fallback string) string {
 	return fallback
 }
 
+func sendSMTPMessage(address, from string, recipients []string, message []byte, timeout time.Duration) error {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return fmt.Errorf("parse SMTP address: %w", err)
+	}
+	connection, err := (&net.Dialer{Timeout: timeout}).Dial("tcp", address)
+	if err != nil {
+		return fmt.Errorf("connect to SMTP: %w", err)
+	}
+	defer connection.Close()
+	if err := connection.SetDeadline(time.Now().Add(timeout)); err != nil {
+		return fmt.Errorf("set SMTP deadline: %w", err)
+	}
+
+	client, err := smtp.NewClient(connection, host)
+	if err != nil {
+		return fmt.Errorf("read SMTP greeting: %w", err)
+	}
+	defer client.Close()
+	if err := client.Mail(from); err != nil {
+		return fmt.Errorf("send MAIL command: %w", err)
+	}
+	for _, recipient := range recipients {
+		if err := client.Rcpt(recipient); err != nil {
+			return fmt.Errorf("send RCPT command: %w", err)
+		}
+	}
+	writer, err := client.Data()
+	if err != nil {
+		return fmt.Errorf("start SMTP DATA: %w", err)
+	}
+	if _, err := writer.Write(message); err != nil {
+		return fmt.Errorf("write SMTP DATA: %w", err)
+	}
+	if err := writer.Close(); err != nil {
+		return fmt.Errorf("finish SMTP DATA: %w", err)
+	}
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("quit SMTP session: %w", err)
+	}
+	return nil
+}
+
 func TestCapturedEmail(t *testing.T) {
 	if os.Getenv("OWLMAIL_RUN_INTEGRATION_TEST") != "1" {
 		t.Skip("set OWLMAIL_RUN_INTEGRATION_TEST=1 to run against a live OwlMail instance")
@@ -50,7 +94,13 @@ func TestCapturedEmail(t *testing.T) {
 		"",
 		"Verification token: " + token,
 	}, "\r\n")
-	if err := smtp.SendMail(smtpAddress, nil, "sender@example.test", []string{recipient}, []byte(message)); err != nil {
+	if err := sendSMTPMessage(
+		smtpAddress,
+		"sender@example.test",
+		[]string{recipient},
+		[]byte(message),
+		5*time.Second,
+	); err != nil {
 		t.Fatalf("send test email: %v", err)
 	}
 

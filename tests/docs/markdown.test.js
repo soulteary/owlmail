@@ -752,12 +752,53 @@ test("release history and generated reports avoid stale documentation", () => {
   );
 
   const report = fs.readFileSync(path.join(root, ".github/goreportcard-report.md"), "utf8");
-  assert.ok(!report.includes("Line 1034"), "Go Report Card keeps stale source line numbers");
+  assert.doesNotMatch(report, /\bLine \d+:/, "Go Report Card keeps stale source line numbers");
   assert.ok(report.includes("exact analyzed commit"));
   const workflow = fs.readFileSync(path.join(root, ".github/workflows/go-reportcard.yml"), "utf8");
   assert.ok(workflow.includes("branches:"));
   assert.ok(workflow.includes("- main"));
   assert.ok(workflow.includes("'**/*.go'"));
+  assert.ok(workflow.includes('report: "false"'));
+  assert.ok(workflow.includes('commit: "false"'));
+  assert.ok(workflow.includes('version: "v1.0.0"'));
+  assert.ok(workflow.includes("git add .github/goreportcard.svg"));
+  assert.ok(!workflow.includes("[skip ci]"));
+});
+
+test("0.8.0 examples are pinned, private by default, persistent, and bounded", () => {
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("--branch v0.8.0 --depth 1"), `${readme} does not pin the source tag`);
+    assert.ok(markdown.includes("cmd/owlmail@v0.8.0"), `${readme} does not pin go install`);
+    assert.doesNotMatch(markdown, /cmd\/owlmail@latest/, `${readme} uses a moving Go install`);
+    assert.doesNotMatch(markdown, /^\s*-p\s+(?:1025|1080):/m, `${readme} publishes a port on every interface`);
+    assert.ok(markdown.includes("-v owlmail-data:/app/mail"), `${readme} omits mailbox persistence`);
+  }
+
+  for (const locale of ["en", "zh-CN"]) {
+    const release = fs.readFileSync(path.join(root, `docs/${locale}/Release-0.8.0.md`), "utf8");
+    assert.ok(release.includes("grep ' owlmail-linux-amd64$' checksums.txt | sha256sum -c -"));
+    assert.ok(release.includes("chmod +x owlmail-linux-amd64"));
+
+    const operations = fs.readFileSync(path.join(root, `docs/${locale}/Operations.md`), "utf8");
+    assert.doesNotMatch(operations, /^\s*-p\s+(?:1025|1080|465):/m);
+
+    const ci = fs.readFileSync(path.join(root, `docs/${locale}/CI-Quickstart.md`), "utf8");
+    assert.ok(ci.includes("OWLMAIL_RUN_INTEGRATION_TEST=1 go test ./examples/testing/go -v"));
+    assert.ok(ci.includes("--connect-timeout 2 --max-time 3"));
+    assert.ok(!ci.includes("./scripts/test-integration"));
+    assert.doesNotMatch(ci, /actions\/(?:checkout|setup-go|upload-artifact)@v\d/);
+
+    const ai = fs.readFileSync(path.join(root, `docs/${locale}/AI-Agent-Testing.md`), "utf8");
+    assert.ok(ai.includes("get_latest_email"));
+  }
+
+  const javascript = fs.readFileSync(path.join(root, "examples/testing/javascript/email-test.mjs"), "utf8");
+  assert.ok(javascript.includes("socket.setTimeout"));
+  assert.ok(javascript.includes("AbortController"));
+  const goExample = fs.readFileSync(path.join(root, "examples/testing/go/email_test.go"), "utf8");
+  assert.ok(goExample.includes("net.Dialer{Timeout:"));
+  assert.ok(goExample.includes("SetDeadline"));
 });
 
 test("browser and documentation tests use the pinned Bun runner", () => {

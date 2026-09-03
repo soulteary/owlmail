@@ -43,9 +43,10 @@ Webhook 或保留策略清理。
 ## 可靠的 Agent 流程
 
 1. 为场景创建唯一收件人。
-2. 在触发应用之前，先用该收件人调用 `wait_for_email`。
-3. 触发注册、密码重置、通知或其他发信操作。
-4. 用返回 ID 调用 `get_email`；除非纯文本缺少目标值，否则保持 `include_html=false`。
+2. 在可与应用触发器并发运行的任务或会话中，用该收件人启动 `wait_for_email`。
+3. 等待仍在进行时，触发注册、密码重置、通知或其他发信操作。
+4. 等待结果返回，再用其 ID 调用 `get_email`；除非纯文本缺少目标值，否则保持
+   `include_html=false`。
 5. 返回断言结果与 `web_url`，不要请求修改邮箱。
 
 ```text
@@ -54,7 +55,10 @@ Webhook 或保留策略清理。
 ```
 
 内置 `registration_verification_email`、`password_reset_email` 与
-`wait_for_delivery` Prompts 已封装这一流程。空过滤器范围很宽，应优先使用唯一收件人。
+`wait_for_delivery` Prompts 封装的是等待侧，并假设应用触发器会并发运行。严格串行的
+客户端无法在 `wait_for_email` 阻塞期间执行触发操作；此时应使用唯一收件人，先触发，
+再调用 `get_latest_email` 或 `search_emails` 检查可能已经到达的邮件。空过滤器范围
+很宽，应优先使用唯一收件人。
 
 ## 防护边界
 

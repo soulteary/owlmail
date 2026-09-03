@@ -46,9 +46,11 @@ retention cleanup.
 ## Reliable agent workflow
 
 1. Create a unique recipient for the scenario.
-2. Call `wait_for_email` with that recipient before triggering the application.
-3. Trigger registration, password reset, notification, or another mail action.
-4. Use the returned ID with `get_email`; keep `include_html=false` unless plain
+2. Start `wait_for_email` with that recipient in a task or session that can run
+   concurrently with the application trigger.
+3. While the wait is active, trigger registration, password reset,
+   notification, or another mail action.
+4. Await the result, then use its ID with `get_email`; keep `include_html=false` unless plain
    text does not contain the expected value.
 5. Report the assertion and `web_url`; never request a mailbox mutation.
 
@@ -61,8 +63,12 @@ verification URL from plain text, and return the OwlMail Web link as evidence.
 ```
 
 The built-in `registration_verification_email`, `password_reset_email`, and
-`wait_for_delivery` prompts encode this sequence. Empty filters are broad;
-prefer a unique recipient to prevent an agent from selecting unrelated mail.
+`wait_for_delivery` prompts encode the waiting side of this sequence and assume
+the application trigger runs concurrently. A strictly serial client cannot
+start its trigger while `wait_for_email` is blocking. In that case, use a unique
+recipient, trigger first, then call `get_latest_email` or `search_emails` to
+inspect mail that may already have arrived. Empty filters are broad; prefer a
+unique recipient to prevent an agent from selecting unrelated mail.
 
 ## Guardrails
 

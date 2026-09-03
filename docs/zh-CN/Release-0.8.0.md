@@ -119,14 +119,27 @@ docker run --rm \
 - `owlmail-windows-amd64.exe` 与
   `owlmail-windows-amd64.exe.spdx.json`
 
+Linux amd64 下载、校验与启动示例：
+
 ```bash
-sha256sum -c checksums.txt
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/owlmail-linux-amd64
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/checksums.txt
+curl -fLO https://github.com/soulteary/owlmail/releases/download/v0.8.0/checksums.txt.sigstore.json
+grep ' owlmail-linux-amd64$' checksums.txt | sha256sum -c -
 gh attestation verify owlmail-linux-amd64 --repo soulteary/owlmail
 cosign verify-blob \
   --bundle checksums.txt.sigstore.json \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   checksums.txt
+chmod +x owlmail-linux-amd64
+./owlmail-linux-amd64
+```
+
+校验清单覆盖全部平台二进制与 SBOM；只筛选已经下载的文件，可避免其他平台文件不存在
+导致的误报。Linux arm64、macOS 或 Windows 请改用对应文件名。
+
+```bash
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \

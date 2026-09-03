@@ -50,8 +50,9 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
   안정적인 전달 ID, 제한된 재시도 및 graceful drain.
 - **명확한 운영 경계** — SMTP 용량 제한, 영속성, 선택적 S3 첨부, SQLite index,
   Prometheus metrics 및 JSON log.
-- **제어된 전달** — 영속 비동기 Relay job은 불변 snapshot, 스트리밍 DATA,
-  명시적 TLS mode 및 상태 조회를 사용합니다.
+- **제어된 전달** — 네이티브 비동기 Relay job은 mail directory가 설정된 경우에만
+  영속화되며(미설정 시 메모리 저장), 불변 snapshot, 스트리밍 DATA, 명시적 TLS
+  mode 및 상태 조회를 사용합니다.
 - **마이그레이션 경로** — 기본 비활성 MailDev 및 MailCatcher REST facade를
   제공하지만 Socket.IO 또는 완전한 동등성을 주장하지 않습니다.
 
@@ -61,8 +62,9 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
 
 ## 🆕 OwlMail 0.8.0
 
-`v0.8.0`은 현재 안정 버전입니다. 영속 Relay job, 계층형 YAML/JSON 설정, 선택적
-SQLite index, Prometheus metrics, 구조화 log, MailCatcher REST facade, MCP
+`v0.8.0`은 현재 안정 버전입니다. mail directory 설정 시 영속화되는 네이티브
+Relay job, 계층형 YAML/JSON 설정, 선택적 SQLite index, Prometheus metrics,
+구조화 log, MailCatcher REST facade, MCP
 stdio bridge, 확장된 Web inbox 및 더 엄격한 검증을 추가했습니다.
 
 아래 예제는 `ghcr.io/soulteary/owlmail:0.8.0`으로 고정됩니다.
@@ -82,7 +84,7 @@ stdio bridge, 확장된 Web inbox 및 더 엄격한 검증을 추가했습니다
 
 ```bash
 # Clone repository
-git clone https://github.com/soulteary/owlmail.git
+git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -95,7 +97,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@latest
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
 owlmail
 ```
 
@@ -129,8 +131,9 @@ docker pull ghcr.io/soulteary/owlmail:sha-b130f33
 
 # 컨테이너 실행
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   ghcr.io/soulteary/owlmail:0.8.0
 ```
@@ -156,8 +159,9 @@ docker build -t owlmail .
 
 # 컨테이너 실행
 docker run -d \
-  -p 1025:1025 \
-  -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 \
+  -p 127.0.0.1:1080:1080 \
+  -v owlmail-data:/app/mail \
   --name owlmail \
   owlmail
 ```
