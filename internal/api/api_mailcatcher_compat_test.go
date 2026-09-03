@@ -188,6 +188,103 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	_ = resp.Body.Close()
 }
 
+func TestMailCatcherReconstructedRecipientsIncludeCC(t *testing.T) {
+	email := &types.Email{
+		ID:       "restored",
+		Envelope: &types.Envelope{To: []string{"to@example.test"}},
+		To:       []*mail.Address{{Address: "to@example.test"}},
+		CC:       []*mail.Address{{Address: "cc@example.test"}},
+	}
+	detail := mailCatcherMessageDTO(email, time.Now(), true)
+	recipients := detail["recipients"].([]string)
+	if len(recipients) != 2 || recipients[0] != "<to@example.test>" || recipients[1] != "<cc@example.test>" {
+		t.Fatalf("detail recipients = %#v", recipients)
+	}
+	summary := mailCatcherSummaryDTO(mailserver.EmailSummary{
+		ID: "restored", EnvelopeTo: []string{"to@example.test"},
+		To: []mailserver.EmailSummaryAddress{{Address: "to@example.test"}},
+		CC: []mailserver.EmailSummaryAddress{{Address: "cc@example.test"}},
+	})
+	summaryRecipients := summary["recipients"].([]string)
+	if len(summaryRecipients) != 2 || summaryRecipients[1] != "<cc@example.test>" {
+		t.Fatalf("summary recipients = %#v", summaryRecipients)
+	}
+}
+
+func TestMailCatcherCIDLessAttachmentsHaveDistinctStableIDs(t *testing.T) {
+	attachments := []*types.Attachment{
+		{FileName: "one.txt", GeneratedFileName: "generated-one.txt"},
+		{FileName: "two.txt", GeneratedFileName: "generated-two.txt"},
+	}
+	first := mailCatcherPartID(attachments[0], 0)
+	second := mailCatcherPartID(attachments[1], 1)
+	if first == "" || second == "" || first == second {
+		t.Fatalf("CID-less part identifiers = %q, %q", first, second)
+	}
+	if repeated := mailCatcherPartID(attachments[0], 0); repeated != first {
+		t.Fatalf("part identifier changed from %q to %q", first, repeated)
+	}
+}
+
+func TestMailCatcherCIDRewriteOnlyTouchesURIAttributes(t *testing.T) {
+	input := `<p>cid:ticket-123</p><a href="https://example.test/cid:ticket-123">link</a><img src="CID:logo%40example.test" alt="cid:description">`
+	body, err := rewriteMailCatcherCIDReferences(input, "/messages/mail-1/parts/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unchanged := range []string{
+		"<p>cid:ticket-123</p>",
+		`href="https://example.test/cid:ticket-123"`,
+		`alt="cid:description"`,
+	} {
+		if !strings.Contains(body, unchanged) {
+			t.Fatalf("rendered HTML changed non-URI CID text %q: %s", unchanged, body)
+		}
+	}
+	if !strings.Contains(body, `src="/messages/mail-1/parts/logo@example.test"`) {
+		t.Fatalf("CID source was not rewritten: %s", body)
+	}
+}
+
+func TestMailCatcherMessagesRemainCaptureOrderedAfterRestart(t *testing.T) {
+	mailDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := func(id, subject string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(mailDir, id+".eml"), []byte("Subject: "+subject+"\r\n\r\nbody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		email := &types.Email{ID: id, Subject: subject}
+		envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+		if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store("z-old", "Old")
+	time.Sleep(2 * time.Millisecond)
+	store("a-new", "New")
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := mailserver.NewMailServer(1025, "localhost", mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = restarted.Close() }()
+	api := NewAPI(restarted, 1080, "localhost")
+	api.SetMailCatcherRESTCompat(true)
+	resp := mailCatcherRequest(t, api, http.MethodGet, "/messages")
+	var messages []map[string]interface{}
+	decodeMailCatcherJSON(t, resp, &messages)
+	if len(messages) != 2 || messages[0]["id"] != "a-new" {
+		t.Fatalf("restored messages are not capture-ordered: %#v", messages)
+	}
+}
+
 func mailCatcherRequest(t *testing.T, api *API, method, path string) *http.Response {
 	t.Helper()
 	req, _ := http.NewRequest(method, path, nil)
