@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 
 	logger "github.com/soulteary/logger-kit/v2"
@@ -59,7 +60,7 @@ func InitLoggerWithFormat(level LogLevel, format string) {
 	defer defaultLogMu.Unlock()
 	kitLevel := owlmailToLoggerLevel(level)
 	kitFormat := logger.FormatConsole
-	if format == "json" {
+	if strings.EqualFold(strings.TrimSpace(format), "json") {
 		kitFormat = logger.FormatJSON
 	}
 	l := logger.New(logger.Config{
