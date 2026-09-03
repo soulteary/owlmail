@@ -43,11 +43,16 @@ is larger. The result includes `returned_bytes`, full `size`, and `truncated`.
 
 ## Prompts
 
-| Prompt | Required input | Purpose |
-|---|---|---|
-| `registration_verification_email` | `recipient` | Wait, inspect, and extract a verification value without mutation |
-| `password_reset_email` | `recipient` | Wait, inspect, and extract a reset value without mutation |
-| `wait_for_delivery` | none | Wait for an optional recipient, subject, or text match |
+| Prompt | Required input | Optional input | Purpose |
+|---|---|---|---|
+| `registration_verification_email` | `recipient` | `subject`, `timeout_seconds` | Wait, inspect, and extract a verification value without mutation |
+| `password_reset_email` | `recipient` | `subject`, `timeout_seconds` | Wait, inspect, and extract a reset value without mutation |
+| `wait_for_delivery` | none | `recipient`, `subject`, `text`, `timeout_seconds` | Wait for an optional recipient, subject, or text match |
+
+`subject` and `text` are substring matches. `timeout_seconds` must be an integer
+from 1 through the effective service maximum, which is the smaller of the
+configured wait timeout and MCP session timeout. When it is omitted, the prompt
+uses the smaller of 30 seconds and that effective maximum.
 
 All prompts compose the read-only tools. They do not grant capabilities beyond
 the tool list.
