@@ -490,7 +490,7 @@ func TestClientAbortAndServerCloseReleaseDataSlot(t *testing.T) {
 			acquired := make(chan struct{})
 			released := make(chan struct{})
 			server.afterDataAcquire = func() { close(acquired) }
-			server.beforeDataRelease = func() { close(released) }
+			server.afterDataRelease = func() { close(released) }
 
 			client, err := smtp.Dial(listener.Addr().String())
 			if err != nil {

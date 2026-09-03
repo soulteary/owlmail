@@ -157,6 +157,7 @@ type MailServer struct {
 	// for concurrency and shutdown tests.
 	afterDataAcquire  func()
 	beforeDataRelease func()
+	afterDataRelease  func()
 }
 
 // GetHost returns the SMTP server host

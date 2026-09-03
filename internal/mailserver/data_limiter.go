@@ -47,9 +47,15 @@ func (ms *MailServer) tryAcquireDataSlot() bool {
 
 func (ms *MailServer) releaseDataSlot() {
 	// Keep the slot held while a deterministic test hook accounts for the
-	// completed transaction. The deferred release still prevents a hook panic
-	// from leaking capacity.
-	defer ms.dataLimiter.release()
+	// completed transaction. The deferred cleanup still prevents a hook panic
+	// from leaking capacity, while afterDataRelease lets tests observe the point
+	// at which the capacity is actually available again.
+	defer func() {
+		ms.dataLimiter.release()
+		if ms.afterDataRelease != nil {
+			ms.afterDataRelease()
+		}
+	}()
 	if ms.beforeDataRelease != nil {
 		ms.beforeDataRelease()
 	}
