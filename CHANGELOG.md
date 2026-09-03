@@ -6,21 +6,57 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-03
+
 ### Security
 
-- Outgoing SMTP relay now has explicit `plain`, mandatory `starttls`, and
-  implicit `smtps` transports. STARTTLS and certificate failures stop delivery
-  without plaintext fallback, `secure=true` retains MailDev-compatible SMTPS
-  semantics, credentials are rejected on plain connections, certificate and
-  hostname verification default to enabled, and connect, TLS, AUTH, envelope,
-  DATA, and QUIT phases have configurable deadlines.
+- Outgoing SMTP relay now uses explicit `plain`, mandatory `starttls`, or
+  implicit `smtps` transport. TLS and certificate failures stop delivery
+  without plaintext fallback, hostname verification is enabled by default, and
+  credentials are rejected on cleartext connections.
+- Active attachment types such as HTML, SVG, XML, and JavaScript are forced to
+  download with `nosniff` protection and sanitized filenames.
 
 ### Added
 
-- A source-pinned three-way OwlMail, MailDev, and MailCatcher comparison that
-  distinguishes release and main-branch versions, corrects the current MCP
-  boundary, and documents API, live-event, storage, sendmail, and migration
-  tradeoffs without claiming unverified performance equivalence.
+- Persistent asynchronous relay jobs with status lookup, bounded retry,
+  restart recovery, source-file leases, and at-least-once delivery semantics.
+- Flat layered YAML and JSON configuration with strict validation and explicit
+  CLI, environment-alias, environment, file, and default precedence.
+- Optional SQLite mailbox indexing while stored EML and sidecar files remain
+  authoritative.
+- Prometheus metrics and structured JSON logging.
+- A default-off MailCatcher REST facade for message access and deletion without
+  WebSocket-bus emulation.
+- A read-only MCP stdio bridge that reuses the existing MCP tools, resources,
+  prompts, limits, and mailbox store while keeping protocol frames on stdout.
+- Inbox content tabs, browser history, keyboard navigation, and confirmation-
+  guarded manual relay controls.
+- Configurable SMTP greeting, command, recipient, size, read-timeout,
+  write-timeout, and DATA-concurrency limits.
+- A source-pinned OwlMail, MailDev, and MailCatcher comparison.
+
+### Changed
+
+- Relay DATA and raw-source responses stream from validated EML paths instead
+  of allocating message-sized buffers; bounded exports use lightweight mailbox
+  summaries.
+- Runtime outgoing relay configuration uses immutable per-job snapshots and
+  coordinates enable, disable, update, enqueue, drain, and idempotent shutdown.
+- API list queries and bulk mutations reject malformed, unknown, negative, or
+  oversized inputs rather than silently normalizing them.
+
+### Fixed
+
+- Relay recovery starts only after SMTP and the Web API bind successfully, and
+  pending jobs protect their source EML from deletion and startup cleanup.
+- Persistent relay queues deduplicate recovered work and retain envelope
+  metadata across attachment migration and read-only MCP refreshes.
+
+## [0.7.0] - 2026-09-02
+
+### Added
+
 - Read-only MCP testing workflows with compact latest-email lookup, bounded
   event-driven delivery waits, Web UI deep links, inbox/statistics/email
   resources, and verification/reset/delivery prompts. Waiters are limited per
@@ -85,15 +121,6 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Changed
 
-- Runtime outgoing relay configuration now uses immutable snapshots, starts
-  workers when relay is enabled dynamically, atomically applies updates, and
-  coordinates queue submission with idempotent shutdown without exposing SMTP
-  passwords through settings responses.
-- Outgoing SMTP relay now streams stored EML files through a fixed 32 KiB
-  buffer into the SMTP `DATA` writer. Manual, addressed, automatic, and
-  synchronous MailDev-compatible relay no longer allocate an additional
-  message-sized byte slice, while cancellation and DATA failures abort the
-  connection before a partial message can be accepted.
 - HTML email previews now combine server-side sanitization with a zero-permission
   iframe sandbox, a no-referrer policy, and a restrictive per-preview CSP.
   Remote images, fonts, stylesheets, and media are blocked by default and can
@@ -239,7 +266,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/soulteary/owlmail/compare/v0.7.0...v0.8.0
+[0.7.0]: https://github.com/soulteary/owlmail/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/soulteary/owlmail/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/soulteary/owlmail/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/soulteary/owlmail/releases/tag/v0.4.0

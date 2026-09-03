@@ -31,7 +31,7 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 
 ### リリース
 
-- **[0.6.0 リリースノート](../en/Release-0.6.0.md)** (English、[中文](../zh-CN/Release-0.6.0.md))
+- **[0.8.0 リリースノート](../en/Release-0.8.0.md)** (English、[中文](../zh-CN/Release-0.8.0.md))
 - **[リリース手順](../en/Releasing.md)** (English、[中文](../zh-CN/Releasing.md))
 
 ### 比較と移行

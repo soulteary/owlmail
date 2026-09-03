@@ -119,8 +119,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# リリース 0.6.0 を取得
-docker pull ghcr.io/soulteary/owlmail:0.6.0
+# リリース 0.8.0 を取得
+docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # 特定コミットのイメージを取得（例）
 docker pull ghcr.io/soulteary/owlmail:sha-b130f33
@@ -130,11 +130,11 @@ docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
 **利用可能なタグ：**
-- `0.6.0` - 正確なリリースタグ。`0.6` と `0` は同じ系列の後続リリースで更新
+- `0.8.0` - 正確なリリースタグ。`0.8` と `0` は同じ系列の後続リリースで更新
 - `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-b130f33`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - デフォルトブランチに追随する可変イメージで、安定版の指定には使用不可
@@ -680,7 +680,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.6.0 リリースノート](./docs/en/Release-0.6.0.md) ([中文](./docs/zh-CN/Release-0.6.0.md))
+- [OwlMail 0.8.0 リリースノート](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [変更履歴](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API リファレンス (English)](./docs/en/API-Reference.md)

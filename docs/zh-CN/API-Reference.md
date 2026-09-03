@@ -198,10 +198,10 @@ WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 
 
 ```json
 {
-  "version": "0.6.0",
+  "version": "0.8.0",
   "commit": "<完整 Git 提交 SHA>",
   "build_date": "<UTC RFC 3339 时间>",
-  "branch": "v0.6.0",
+  "branch": "v0.8.0",
   "go_version": "go1.27.0",
   "platform": "linux/amd64",
   "compiler": "gc"

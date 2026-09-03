@@ -130,8 +130,8 @@ folder.
 The easiest way to use OwlMail is to pull the pre-built image from GitHub Container Registry:
 
 ```bash
-# Pull release 0.6.0
-docker pull ghcr.io/soulteary/owlmail:0.6.0
+# Pull release 0.8.0
+docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # Pull an image for one exact commit (example)
 docker pull ghcr.io/soulteary/owlmail:sha-b130f33
@@ -141,11 +141,11 @@ docker run -d \
   -p 1025:1025 \
   -p 1080:1080 \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.6.0
+  ghcr.io/soulteary/owlmail:0.8.0
 ```
 
 **Available Tags:**
-- `0.6.0` - Exact release tag; `0.6` and `0` move with later releases in those series
+- `0.8.0` - Exact release tag; `0.8` and `0` move with later releases in those series
 - `sha-<commit>` - Image for a specific short commit SHA (for example, `sha-b130f33`)
 - `main` - Moving image from the latest `main` branch build
 - `latest` - Moving default-branch image; it is not a stable-release selector
@@ -817,7 +817,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.6.0 Release Notes](./docs/en/Release-0.6.0.md)
+- [OwlMail 0.8.0 Release Notes](./docs/en/Release-0.8.0.md)
 - [Changelog](./CHANGELOG.md)
 - [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/en/OwlMail%20×%20MailDev%20-%20Full%20Feature%20&%20API%20Comparison%20and%20Migration%20White%20Paper.md)
 - [API Reference](./docs/en/API-Reference.md)
