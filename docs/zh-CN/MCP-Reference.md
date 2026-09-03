@@ -42,11 +42,15 @@ HTTP 会话在 `-mcp-session-timeout` 后过期，默认 `30m`；关闭最多等
 
 ## Prompts
 
-| Prompt | 必填输入 | 用途 |
-|---|---|---|
-| `registration_verification_email` | `recipient` | 等待、检查并提取验证值，不修改邮件 |
-| `password_reset_email` | `recipient` | 等待、检查并提取重置值，不修改邮件 |
-| `wait_for_delivery` | 无 | 按可选收件人、主题或文本等待投递 |
+| Prompt | 必填输入 | 可选输入 | 用途 |
+|---|---|---|---|
+| `registration_verification_email` | `recipient` | `subject`、`timeout_seconds` | 等待、检查并提取验证值，不修改邮件 |
+| `password_reset_email` | `recipient` | `subject`、`timeout_seconds` | 等待、检查并提取重置值，不修改邮件 |
+| `wait_for_delivery` | 无 | `recipient`、`subject`、`text`、`timeout_seconds` | 按可选收件人、主题或文本等待投递 |
+
+`subject` 与 `text` 使用子串匹配。`timeout_seconds` 必须是 1 到服务有效上限之间的
+整数；有效上限取配置的等待超时与 MCP 会话超时中的较小值。省略时，Prompt 使用
+30 秒与该有效上限中的较小值。
 
 所有 Prompt 只组合上述只读工具，不会增加权限。
 
