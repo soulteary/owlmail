@@ -108,6 +108,42 @@ func TestRefreshReadOnlyMailboxHidesTransactionFencedMail(t *testing.T) {
 	}
 }
 
+func TestVisibleRawEmailSourceHidesDeletionFencedMail(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "source-hidden-by-fence"
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: source\r\n\r\nbody")
+	emlPath := filepath.Join(directory, id+".eml")
+	if err := os.WriteFile(emlPath, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	content, size, truncated, err := server.GetVisibleRawEmailContentLimit(id, 1024)
+	if err != nil || string(content) != string(raw) || size != int64(len(raw)) || truncated {
+		t.Fatalf("visible source = %q, %d, %t, %v", content, size, truncated, err)
+	}
+
+	if err := os.WriteFile(deletionFencePath(directory, id), []byte(deletionFenceState+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(emlPath); err != nil {
+		t.Fatalf("source file was unexpectedly removed: %v", err)
+	}
+	if _, _, _, err := server.GetVisibleRawEmailContentLimit(id, 1024); err == nil {
+		t.Fatal("deletion-fenced source remained readable")
+	}
+}
+
 func TestRefreshReadOnlyMailboxRechecksDeletionFenceBeforePublishing(t *testing.T) {
 	directory := t.TempDir()
 	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
