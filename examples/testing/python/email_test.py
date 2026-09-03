@@ -9,6 +9,15 @@ import uuid
 from email.message import EmailMessage
 
 
+def delete_email(api_base, email_id):
+    cleanup = urllib.request.Request(
+        f"{api_base}/api/v1/emails/{email_id}", method="DELETE"
+    )
+    with urllib.request.urlopen(cleanup, timeout=5) as response:
+        if response.status >= 300:
+            raise RuntimeError(f"cleanup failed with HTTP status {response.status}")
+
+
 class OwlMailIntegrationTest(unittest.TestCase):
     def test_captured_email(self):
         smtp_host = os.getenv("TEST_SMTP_HOST", "127.0.0.1")
@@ -44,18 +53,13 @@ class OwlMailIntegrationTest(unittest.TestCase):
         self.assertIsNotNone(found, f"timed out waiting for {recipient}")
 
         email_id = urllib.parse.quote(found["id"], safe="")
+        self.addCleanup(delete_email, api_base, email_id)
         with urllib.request.urlopen(
             f"{api_base}/api/v1/emails/{email_id}", timeout=5
         ) as response:
             detail = json.load(response)
         self.assertEqual(detail["subject"], subject)
         self.assertIn(token, detail["text"])
-
-        cleanup = urllib.request.Request(
-            f"{api_base}/api/v1/emails/{email_id}", method="DELETE"
-        )
-        with urllib.request.urlopen(cleanup, timeout=5) as response:
-            self.assertLess(response.status, 300)
 
 
 if __name__ == "__main__":
