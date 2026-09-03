@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	"html"
 	"mime"
 	"net/http"
 	"net/url"
@@ -73,10 +74,11 @@ func mailCatcherMessageDTO(email *types.Email, createdAt time.Time, detail bool)
 		for _, recipient := range append(append([]string{}, email.Envelope.To...), append(email.Envelope.CC, email.Envelope.BCC...)...) {
 			recipients = append(recipients, angleAddress(recipient))
 		}
-	} else {
-		if len(email.From) > 0 && email.From[0] != nil {
-			sender = angleAddress(email.From[0].Address)
-		}
+	}
+	if sender == "" && len(email.From) > 0 && email.From[0] != nil {
+		sender = angleAddress(email.From[0].Address)
+	}
+	if len(recipients) == 0 {
 		for _, recipient := range append(append([]*mail.Address{}, email.To...), email.CC...) {
 			if recipient != nil {
 				recipients = append(recipients, angleAddress(recipient.Address))
@@ -121,7 +123,7 @@ func (api *API) mailCatcherHTML(c fiber.Ctx) error {
 	}
 	prefix := api.route("/messages/" + email.ID + "/parts/")
 	body := mailCatcherCIDReference.ReplaceAllStringFunc(email.HTML, func(reference string) string {
-		return prefix + url.PathEscape(reference[len("cid:"):])
+		return prefix + url.PathEscape(html.UnescapeString(reference[len("cid:"):]))
 	})
 	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
 	return c.SendString(body)
