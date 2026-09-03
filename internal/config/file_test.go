@@ -41,8 +41,8 @@ func TestConfigFileLayering(t *testing.T) {
 
 func TestConfigFileSecretsAreNotFlagDefaults(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "owlmail.yaml")
-	secrets := []string{"value-web-991", "value-outgoing-992", "value-smtp-993", "value-access-994", "value-private-995", "value-session-996"}
-	content := "web-password: value-web-991\noutgoing-pass: value-outgoing-992\nsmtp-password: value-smtp-993\ns3-access-key: value-access-994\ns3-secret-key: value-private-995\ns3-session-token: value-session-996\n"
+	secrets := []string{"value-web-991", "value-outgoing-992", "value-smtp-993", "value-access-994", "value-private-995", "value-session-996", "value-redis-password-997"}
+	content := "web-password: value-web-991\noutgoing-pass: value-outgoing-992\nsmtp-password: value-smtp-993\ns3-access-key: value-access-994\ns3-secret-key: value-private-995\ns3-session-token: value-session-996\nwebhook-redis-url: redis://user:value-redis-password-997@redis.example.test/0\n"
 	if err := os.WriteFile(path, []byte(content), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +60,7 @@ func TestConfigFileSecretsAreNotFlagDefaults(t *testing.T) {
 			t.Fatalf("flag defaults exposed %q: %s", secret, output.String())
 		}
 	}
-	if cfg := ResolveConfig(fs, refs); cfg.WebPassword != "value-web-991" || cfg.OutgoingPass != "value-outgoing-992" || cfg.SMTPPassword != "value-smtp-993" || cfg.S3SecretAccessKey != "value-private-995" {
+	if cfg := ResolveConfig(fs, refs); cfg.WebPassword != "value-web-991" || cfg.OutgoingPass != "value-outgoing-992" || cfg.SMTPPassword != "value-smtp-993" || cfg.S3SecretAccessKey != "value-private-995" || !strings.Contains(cfg.WebhookRedisURL, "value-redis-password-997") {
 		t.Fatalf("redacting flag defaults changed resolution: %#v", cfg)
 	}
 }

@@ -571,7 +571,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		S3HealthTimeout:             fs.String("s3-health-check-timeout", cfg.S3HealthTimeout, "Timeout for each S3 health check"),
 		WebhookConfig:               fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
 		WebhookMaxConcurrency:       fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
-		WebhookRedisURL:             fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
+		WebhookRedisURL:             secretStringFlag(fs, "webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
 		WebhookRedisPrefix:          fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
 		WebhookShutdownTimeout:      fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
 	}
