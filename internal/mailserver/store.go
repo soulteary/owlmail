@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/emersion/go-message"
@@ -22,6 +23,10 @@ import (
 const webhookOutboxDirectoryName = ".owlmail-webhook-outbox"
 
 const attachmentCopyBufferSize = 32 * 1024
+
+// ErrEmailSourceInUse is returned when deletion would remove the source of an
+// accepted relay that has not finished reading it yet.
+var ErrEmailSourceInUse = errors.New("email source is in use")
 
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
@@ -246,6 +251,43 @@ func (ms *MailServer) GetEmail(id string) (*Email, error) {
 	return nil, fmt.Errorf("email was not found")
 }
 
+// AcquireEmailSource atomically looks up an email and prevents all deletion
+// paths, including retention cleanup, from removing its source until release
+// is called. The returned release function is safe to call more than once.
+func (ms *MailServer) AcquireEmailSource(id string) (*Email, func(), error) {
+	if err := validateEmailID(id); err != nil {
+		return nil, nil, fmt.Errorf("invalid email ID: %w", err)
+	}
+	ms.storageTransactionMutex.Lock()
+	ms.storeMutex.RLock()
+	email, exists := ms.storeByID[id]
+	email = cloneEmail(email)
+	ms.storeMutex.RUnlock()
+	if !exists {
+		ms.storageTransactionMutex.Unlock()
+		return nil, nil, fmt.Errorf("email was not found")
+	}
+	if ms.protectedEmailSources == nil {
+		ms.protectedEmailSources = make(map[string]int)
+	}
+	ms.protectedEmailSources[id]++
+	ms.storageTransactionMutex.Unlock()
+
+	var once sync.Once
+	release := func() {
+		once.Do(func() {
+			ms.storageTransactionMutex.Lock()
+			defer ms.storageTransactionMutex.Unlock()
+			if ms.protectedEmailSources[id] <= 1 {
+				delete(ms.protectedEmailSources, id)
+				return
+			}
+			ms.protectedEmailSources[id]--
+		})
+	}
+	return email, release, nil
+}
+
 // GetAllEmail returns all emails
 func (ms *MailServer) GetAllEmail() []*Email {
 	ms.storeMutex.RLock()
@@ -269,6 +311,9 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	}
 	ms.storageTransactionMutex.Lock()
 	defer ms.storageTransactionMutex.Unlock()
+	if ms.protectedEmailSources[id] > 0 {
+		return ErrEmailSourceInUse
+	}
 	ms.storeMutex.RLock()
 	email, exists := ms.storeByID[id]
 	if !exists {
@@ -310,6 +355,9 @@ func (ms *MailServer) DeleteEmail(id string) error {
 func (ms *MailServer) DeleteAllEmail() error {
 	ms.storageTransactionMutex.Lock()
 	defer ms.storageTransactionMutex.Unlock()
+	if len(ms.protectedEmailSources) > 0 {
+		return ErrEmailSourceInUse
+	}
 	common.Log("Deleting all email")
 
 	ids, err := ms.deletionCandidates()

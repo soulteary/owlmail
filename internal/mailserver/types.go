@@ -96,6 +96,7 @@ type MailServer struct {
 	nextStorePosition       int
 	storeMutex              sync.RWMutex
 	storageTransactionMutex sync.RWMutex
+	protectedEmailSources   map[string]int
 	mailDir                 string
 	port                    int
 	host                    string

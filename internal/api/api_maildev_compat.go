@@ -156,7 +156,7 @@ func (api *API) mailDevDeleteEmail(c fiber.Ctx) error {
 		return mailDevError(c, http.StatusNotFound, "Email was not found")
 	}
 	err := api.relayJobs.protectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
-	if errors.Is(err, errRelaySourceInUse) {
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
 	}
 	if err != nil {
@@ -196,7 +196,7 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 		}
 		return nil
 	})
-	if errors.Is(err, errRelaySourceInUse) {
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
 	}
 	if err != nil {
@@ -207,7 +207,7 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 
 func (api *API) mailDevDeleteAllEmails(c fiber.Ctx) error {
 	err := api.relayJobs.protectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
-	if errors.Is(err, errRelaySourceInUse) {
+	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "An email has a pending relay job")
 	}
 	if err != nil {

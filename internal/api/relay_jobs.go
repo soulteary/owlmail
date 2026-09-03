@@ -243,22 +243,28 @@ func (api *API) relayEmailWithParamAsync(c fiber.Ctx) error {
 
 func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	id := c.Params("id")
-	email, err := api.mailServer.GetEmail(id)
+	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
 	if err != nil {
 		return c.Status(http.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
 	job, err := api.relayJobs.create(id, relayTo)
 	if errors.Is(err, errRelayRecipientTooLong) {
+		releaseSource()
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
 	}
 	if errors.Is(err, errRelayJobCapacity) {
+		releaseSource()
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay status capacity reached; retry later"))
 	}
 	if err != nil {
+		releaseSource()
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to create relay job"))
 	}
 	callback := func(relayErr error) {
+		// Delivery no longer needs the EML when its callback begins. Release the
+		// source before taking the relay-job lock to keep lock ordering acyclic.
+		releaseSource()
 		api.relayJobs.complete(job.ID, relayErr)
 		if relayErr != nil {
 			common.Error("Relay job %s failed for email %s (category: %s)", job.ID, id, relayFailureCategory(relayErr))
@@ -270,6 +276,7 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		err = api.mailServer.RelayMail(email, false, callback)
 	}
 	if err != nil {
+		releaseSource()
 		api.relayJobs.remove(job.ID)
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 	}
