@@ -55,7 +55,11 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
 - **마이그레이션 경로** — 기본 비활성 MailDev 및 MailCatcher REST facade를
   제공하지만 Socket.IO 또는 완전한 동등성을 주장하지 않습니다.
 
-- **로컬 도구** — 내장 `/webhooks` 편집기에서 규칙을 만들고 기존 프로그램은\n  [sendmail 가이드](./docs/ko/Sendmail.md)를 사용할 수 있습니다. 소스 및 브라우저\n  테스트는 Bun을 사용하지만 배포 바이너리에는 런타임이 필요하지 않습니다.\n\n## 🆕 OwlMail 0.8.0
+- **로컬 도구** — 내장 `/webhooks` 편집기에서 규칙을 만들고 기존 프로그램은
+  [sendmail 가이드](./docs/ko/Sendmail.md)를 사용할 수 있습니다. 소스 및 브라우저
+  테스트는 Bun을 사용하지만 배포 바이너리에는 런타임이 필요하지 않습니다.
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0`은 현재 안정 버전입니다. 영속 Relay job, 계층형 YAML/JSON 설정, 선택적
 SQLite index, Prometheus metrics, 구조화 log, MailCatcher REST facade, MCP

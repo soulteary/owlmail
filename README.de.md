@@ -55,7 +55,11 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
 - **Migrationspfade** — Optionale MailDev- und MailCatcher-REST-Fassaden, ohne
   Socket.IO oder vollständige Gleichwertigkeit zu versprechen.
 
-- **Lokale Werkzeuge** — Webhook-Regeln im eingebetteten `/webhooks`-Editor\n  erstellen und Altprogramme über den [Sendmail-Leitfaden](./docs/de/Sendmail.md)\n  anbinden. Quell- und Browsertests verwenden Bun; die Binärdatei benötigt keine Laufzeit.\n\n## 🆕 OwlMail 0.8.0
+- **Lokale Werkzeuge** — Webhook-Regeln im eingebetteten `/webhooks`-Editor
+  erstellen und Altprogramme über den [Sendmail-Leitfaden](./docs/de/Sendmail.md)
+  anbinden. Quell- und Browsertests verwenden Bun; die Binärdatei benötigt keine Laufzeit.
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` ist die aktuelle stabile Version. Sie ergänzt persistente Relay-Aufträge,
 geschichtete YAML/JSON-Konfiguration, optionales SQLite-Indexing, Prometheus-

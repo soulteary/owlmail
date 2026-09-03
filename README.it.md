@@ -55,7 +55,11 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
 - **Migrazione chiara** — Facade REST MailDev e MailCatcher opzionali, senza
   promettere Socket.IO o equivalenza completa.
 
-- **Strumenti locali** — Crea regole nell’editor `/webhooks` integrato e usa la\n  [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente\n  e browser usano Bun; il binario distribuito non richiede runtime.\n\n## 🆕 OwlMail 0.8.0
+- **Strumenti locali** — Crea regole nell’editor `/webhooks` integrato e usa la
+  [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente
+  e browser usano Bun; il binario distribuito non richiede runtime.
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` è la versione stabile corrente. Aggiunge job Relay persistenti,
 configurazione YAML/JSON a livelli, indice SQLite opzionale, metriche

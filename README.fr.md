@@ -56,7 +56,11 @@ borné en lecture seule.
 - **Migration claire** — Façades REST MailDev et MailCatcher optionnelles, sans
   prétendre implémenter Socket.IO ni une équivalence exacte.
 
-- **Outils locaux** — Créez les règles dans l’éditeur `/webhooks` intégré et\n  utilisez le [guide sendmail](./docs/fr/Sendmail.md) pour les programmes existants.\n  Les tests source et navigateur utilisent Bun ; le binaire déployé n’en dépend pas.\n\n## 🆕 OwlMail 0.8.0
+- **Outils locaux** — Créez les règles dans l’éditeur `/webhooks` intégré et
+  utilisez le [guide sendmail](./docs/fr/Sendmail.md) pour les programmes existants.
+  Les tests source et navigateur utilisent Bun ; le binaire déployé n’en dépend pas.
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` est la version stable actuelle. Elle ajoute les tâches Relay
 persistantes, la configuration YAML/JSON en couches, l’index SQLite optionnel,

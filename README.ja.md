@@ -55,7 +55,11 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 - **移行パス** — MailDev / MailCatcher REST facade は既定で無効であり、
   Socket.IO や完全互換を主張しません。
 
-- **ローカルツール** — 組み込み `/webhooks` editor でルールを作成し、従来\n  プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと\n  ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。\n\n## 🆕 OwlMail 0.8.0
+- **ローカルツール** — 組み込み `/webhooks` editor でルールを作成し、従来
+  プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと
+  ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` は現在の安定版です。永続 Relay job、階層化 YAML/JSON 設定、任意の
 SQLite index、Prometheus metrics、構造化 log、MailCatcher REST facade、MCP

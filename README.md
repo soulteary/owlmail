@@ -59,7 +59,11 @@ fits each workflow:
 - **Migration paths** — Default-off MailDev and MailCatcher REST facades support
   selected existing workflows without claiming Socket.IO or exact equivalence.
 
-- **Local tooling** — Build Webhook rules in the embedded `/webhooks` editor and\n  use the [sendmail guide](./docs/en/Sendmail.md) for legacy programs. Source and\n  browser tests use Bun; the deployed binary needs no Go, Bun, or Node.js runtime.\n\n## 🆕 OwlMail 0.8.0
+- **Local tooling** — Build Webhook rules in the embedded `/webhooks` editor and
+  use the [sendmail guide](./docs/en/Sendmail.md) for legacy programs. Source and
+  browser tests use Bun; the deployed binary needs no Go, Bun, or Node.js runtime.
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` is the current stable release. It brings persistent Relay jobs, layered
 YAML/JSON configuration, optional SQLite indexing, Prometheus metrics, structured

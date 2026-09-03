@@ -56,7 +56,11 @@ OwlMail 在应用邮件进入真实邮箱前将其捕获，并转换为确定、
 - **清晰迁移路径** —— 默认关闭的 MailDev 与 MailCatcher REST facade 支持
   部分现有工作流，但不宣称 Socket.IO 或完全等价兼容。
 
-- **本地工具** —— 使用内嵌的 `/webhooks` 编辑器生成 Webhook 规则，并通过\n  [sendmail 指南](./docs/zh-CN/Sendmail.md)接入传统程序。源码和浏览器测试使用 Bun；\n  部署后的二进制不需要 Go、Bun 或 Node.js 运行时。\n\n## 🆕 OwlMail 0.8.0
+- **本地工具** —— 使用内嵌的 `/webhooks` 编辑器生成 Webhook 规则，并通过
+  [sendmail 指南](./docs/zh-CN/Sendmail.md)接入传统程序。源码和浏览器测试使用 Bun；
+  部署后的二进制不需要 Go、Bun 或 Node.js 运行时。
+
+## 🆕 OwlMail 0.8.0
 
 `v0.8.0` 是当前稳定版本，新增持久化 Relay 任务、分层 YAML/JSON 配置、可选
 SQLite 索引、Prometheus Metrics、结构化日志、MailCatcher REST facade、MCP
