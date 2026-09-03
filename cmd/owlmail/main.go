@@ -886,6 +886,9 @@ func main() {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runAttachmentMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)
 		stop()
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Attachment migration failed: %v\n", err)
 			os.Exit(1)
