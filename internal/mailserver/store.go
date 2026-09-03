@@ -884,6 +884,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		if parseErr == nil && closeErr == nil {
 			persistRestoredMetadata := !metadataLoaded || metadata.Version < currentMetadataVersion
 			if metadataLoaded {
+				if metadata.Envelope != nil {
+					envelope = cloneEnvelope(metadata.Envelope)
+				}
 				if metadataErr := restoreAttachmentMetadata(email, metadata); metadataErr != nil {
 					loadErrors = append(loadErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, metadataErr))
 					continue
