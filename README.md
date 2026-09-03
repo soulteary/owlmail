@@ -219,6 +219,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
+| `-config` | `OWLMAIL_CONFIG_FILE` | - | Flat YAML or JSON file whose keys use CLI option names |
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximum inbound message size in MiB |
