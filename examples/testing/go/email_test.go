@@ -32,6 +32,10 @@ func environment(name, fallback string) string {
 	return fallback
 }
 
+func joinSMTPAddress(host, port string) string {
+	return net.JoinHostPort(host, port)
+}
+
 func sendSMTPMessage(address, from string, recipients []string, message []byte, timeout time.Duration) error {
 	host, _, err := net.SplitHostPort(address)
 	if err != nil {
@@ -83,7 +87,10 @@ func TestCapturedEmail(t *testing.T) {
 		t.Skip("set OWLMAIL_RUN_INTEGRATION_TEST=1 to run against a live OwlMail instance")
 	}
 
-	smtpAddress := environment("TEST_SMTP_HOST", "127.0.0.1") + ":" + environment("TEST_SMTP_PORT", "1025")
+	smtpAddress := joinSMTPAddress(
+		environment("TEST_SMTP_HOST", "127.0.0.1"),
+		environment("TEST_SMTP_PORT", "1025"),
+	)
 	apiBase := strings.TrimRight(environment("TEST_MAIL_API", "http://127.0.0.1:1080"), "/")
 	runID := fmt.Sprintf("%d", time.Now().UnixNano())
 	recipient := "signup+" + runID + "@example.test"
@@ -163,5 +170,23 @@ func TestCapturedEmail(t *testing.T) {
 	}
 	if detail.Subject != subject || !strings.Contains(detail.Text, token) {
 		t.Fatalf("unexpected email: %#v", detail)
+	}
+}
+
+func TestSMTPAddressSupportsHostnamesAndIPAddresses(t *testing.T) {
+	tests := map[string]struct {
+		host string
+		want string
+	}{
+		"hostname": {host: "owlmail", want: "owlmail:1025"},
+		"IPv4":     {host: "127.0.0.1", want: "127.0.0.1:1025"},
+		"IPv6":     {host: "::1", want: "[::1]:1025"},
+	}
+	for name, test := range tests {
+		t.Run(name, func(t *testing.T) {
+			if got := joinSMTPAddress(test.host, "1025"); got != test.want {
+				t.Fatalf("joinSMTPAddress(%q, %q) = %q, want %q", test.host, "1025", got, test.want)
+			}
+		})
 	}
 }
