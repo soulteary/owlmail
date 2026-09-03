@@ -64,7 +64,6 @@ func TestRunMCPStdioFormatsTerminalErrorsAsJSON(t *testing.T) {
 	}
 }
 
-
 func TestReportMCPStdioResult(t *testing.T) {
 	reportedCause := errors.New("already logged")
 	for _, test := range []struct {
