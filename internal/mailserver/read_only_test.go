@@ -139,6 +139,42 @@ func TestRefreshReadOnlyMailboxRestoresLegacyAttachmentFilenameWithoutWritingMet
 	}
 }
 
+func TestRefreshReadOnlyMailboxRetriesLegacyAttachmentRestoration(t *testing.T) {
+	directory := t.TempDir()
+	const id = "legacy-attachment-retry"
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), multipartMessage(), 0600); err != nil {
+		t.Fatal(err)
+	}
+
+	observer, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = observer.Close() }()
+	var partial *ReadOnlyRefreshPartialError
+	if err := observer.RefreshReadOnlyMailbox(); !errors.As(err, &partial) {
+		t.Fatalf("initial refresh error = %v, want ReadOnlyRefreshPartialError", err)
+	}
+	if _, err := observer.GetEmail(id); err == nil {
+		t.Fatal("email with unresolved legacy attachment metadata was published")
+	}
+
+	attachmentDirectory := filepath.Join(directory, id)
+	if err := os.MkdirAll(attachmentDirectory, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(attachmentDirectory, "recovered.txt"), []byte("data"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := observer.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	observed, err := observer.GetEmail(id)
+	if err != nil || len(observed.Attachments) != 1 || observed.Attachments[0].GeneratedFileName != "recovered.txt" {
+		t.Fatalf("recovered email = %#v, %v", observed, err)
+	}
+}
+
 func TestRefreshReadOnlyMailboxHidesTransactionFencedMail(t *testing.T) {
 	directory := t.TempDir()
 	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
