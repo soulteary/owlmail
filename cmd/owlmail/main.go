@@ -504,7 +504,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	apiServer := api.NewAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 	// Constructing the API loads durable relay jobs and acquires source leases.
 	// Apply the storage policy only afterwards so its initial cleanup cannot
 	// delete source EMLs that queued jobs still need after a restart.
@@ -515,6 +515,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
 		return nil, fmt.Errorf("configure storage policy: %w", err)
 	}
+	apiServer.StartRelayRecovery()
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
 	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
 	apiServer.SetMetricsEnabled(cfg.MetricsEnabled)
