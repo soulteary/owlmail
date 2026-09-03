@@ -121,3 +121,27 @@ func TestConfigFileFromArgs(t *testing.T) {
 		}
 	}
 }
+
+func TestHelpRequestedUsesFlagParserBoundaries(t *testing.T) {
+	fs := flag.NewFlagSet("help-scan-test", flag.ContinueOnError)
+	fs.String("config", "", "")
+	fs.String("mail-directory", "", "")
+	fs.Bool("dry-run", false, "")
+	for name, test := range map[string]struct {
+		args []string
+		want bool
+	}{
+		"direct":               {[]string{"-h"}, true},
+		"after config":         {[]string{"-config", "missing.yaml", "-help"}, true},
+		"consumed as value":    {[]string{"-mail-directory", "-h", "-dry-run"}, false},
+		"after double dash":    {[]string{"--", "-h"}, false},
+		"after positional":     {[]string{"serve", "-h"}, false},
+		"after unknown option": {[]string{"-unknown", "-h"}, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if got := HelpRequested(test.args, fs); got != test.want {
+				t.Fatalf("HelpRequested(%q) = %v, want %v", test.args, got, test.want)
+			}
+		})
+	}
+}

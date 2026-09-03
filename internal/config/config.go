@@ -6,6 +6,7 @@ package config
 
 import (
 	"flag"
+	"io"
 	"os"
 	"strconv"
 
@@ -738,15 +739,20 @@ func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 // For tests, use DefineFlags and ResolveConfig separately.
 func ParseFlags() (*Config, error) {
 	fs := flag.CommandLine
-	configPath, err := configFileFromArgs(os.Args[1:])
-	if err != nil {
-		return nil, err
-	}
 	defaults := DefaultConfig()
-	if configPath != "" {
-		defaults, err = LoadConfigFile(configPath)
+	helpScan := flag.NewFlagSet("help-scan", flag.ContinueOnError)
+	helpScan.SetOutput(io.Discard)
+	DefineFlags(helpScan)
+	if !HelpRequested(os.Args[1:], helpScan) {
+		configPath, err := configFileFromArgs(os.Args[1:])
 		if err != nil {
 			return nil, err
+		}
+		if configPath != "" {
+			defaults, err = LoadConfigFile(configPath)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	refs := DefineFlagsWithDefaults(fs, defaults)

@@ -1159,6 +1159,7 @@ func TestRunAttachmentMigrationLoadsConfigFileAfterSubcommandFlags(t *testing.T)
 }
 
 func TestRunAttachmentMigrationHelpUsesVisibleParser(t *testing.T) {
+	t.Setenv("OWLMAIL_CONFIG_FILE", filepath.Join(t.TempDir(), "missing.yaml"))
 	var stderr bytes.Buffer
 	err := runAttachmentMigration(context.Background(), []string{"-help"}, io.Discard, &stderr)
 	if !errors.Is(err, flag.ErrHelp) {
@@ -1166,6 +1167,24 @@ func TestRunAttachmentMigrationHelpUsesVisibleParser(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "Usage of migrate-attachments:") || !strings.Contains(stderr.String(), "-dry-run") {
 		t.Fatalf("migration help output = %q", stderr.String())
+	}
+}
+
+func TestAttachmentMigrationHelpTokenCanBeAFlagValue(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "migration.yaml")
+	if err := os.WriteFile(configPath, []byte("s3-enabled: true\ns3-bucket: loaded\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	defaults, err := attachmentMigrationConfigDefaults([]string{
+		"-config", configPath,
+		"-mail-directory", "-h",
+		"-dry-run",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !defaults.S3Enabled || defaults.S3Bucket != "loaded" {
+		t.Fatalf("configuration defaults were skipped: %#v", defaults)
 	}
 }
 

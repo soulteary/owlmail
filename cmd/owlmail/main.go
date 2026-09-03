@@ -253,17 +253,15 @@ func defineAttachmentMigrationFlags(fs *flag.FlagSet) attachmentMigrationFlagRef
 }
 
 func attachmentMigrationConfigDefaults(args []string) (*config.Config, error) {
-	for _, argument := range args {
-		if argument == "-h" || argument == "--help" || argument == "-help" {
-			// Let the real FlagSet below render usage to the caller-selected
-			// stderr stream. Configuration defaults do not affect help text.
-			return config.DefaultConfig(), nil
-		}
-	}
 	scan := flag.NewFlagSet("migrate-attachments-config", flag.ContinueOnError)
 	scan.SetOutput(io.Discard)
 	refs := config.DefineFlags(scan)
 	defineAttachmentMigrationFlags(scan)
+	if config.HelpRequested(args, scan) {
+		// Let the real FlagSet below render usage to the caller-selected
+		// stderr stream. Configuration defaults do not affect help text.
+		return config.DefaultConfig(), nil
+	}
 	if err := scan.Parse(args); err != nil {
 		return nil, err
 	}

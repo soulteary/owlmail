@@ -132,3 +132,38 @@ func configFileFromArgs(args []string) (string, error) {
 	}
 	return strings.TrimSpace(path), nil
 }
+
+// HelpRequested reports whether -h or -help appears where FlagSet.Parse would
+// interpret it as an option. Help-looking tokens consumed as values, or those
+// after a positional argument or --, are deliberately ignored.
+func HelpRequested(args []string, fs *flag.FlagSet) bool {
+	if fs == nil {
+		return false
+	}
+	for index := 0; index < len(args); index++ {
+		argument := args[index]
+		if argument == "--" || argument == "-" || !strings.HasPrefix(argument, "-") {
+			return false
+		}
+		nameAndValue := strings.TrimPrefix(strings.TrimPrefix(argument, "-"), "-")
+		name, _, hasValue := strings.Cut(nameAndValue, "=")
+		if name == "h" || name == "help" {
+			return true
+		}
+		option := fs.Lookup(name)
+		if option == nil {
+			return false
+		}
+		if hasValue {
+			continue
+		}
+		if boolean, ok := option.Value.(interface{ IsBoolFlag() bool }); ok && boolean.IsBoolFlag() {
+			continue
+		}
+		if index+1 >= len(args) {
+			return false
+		}
+		index++
+	}
+	return false
+}
