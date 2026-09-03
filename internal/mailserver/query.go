@@ -363,6 +363,13 @@ func sortEmailMatches(emails []emailQueryEntry, sortBy, sortOrder string) {
 			}
 			return emails[i].time.After(emails[j].time)
 		})
+	case "received":
+		sort.Slice(emails, func(i, j int) bool {
+			if ascending {
+				return emails[i].receivedAt.Before(emails[j].receivedAt)
+			}
+			return emails[i].receivedAt.After(emails[j].receivedAt)
+		})
 	case "subject":
 		for i := range emails {
 			emails[i].sortKey = strings.ToLower(emails[i].subject)
