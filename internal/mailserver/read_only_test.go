@@ -442,9 +442,8 @@ func TestRefreshReadOnlyMailboxReappliesRepairedAttachmentMetadata(t *testing.T)
 	if err := server.RefreshReadOnlyMailbox(); !errors.As(err, &partial) {
 		t.Fatalf("initial refresh error = %v, want ReadOnlyRefreshPartialError", err)
 	}
-	before, err := server.GetEmail(id)
-	if err != nil || len(before.Attachments) != 1 {
-		t.Fatalf("initial email = %#v, %v", before, err)
+	if _, err := server.GetEmail(id); err == nil {
+		t.Fatal("attachment email with uncertain metadata was published")
 	}
 
 	metadata := emailMetadata{
