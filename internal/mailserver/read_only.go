@@ -30,10 +30,11 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	}
 
 	type candidate struct {
-		entry      os.DirEntry
-		receivedAt time.Time
-		read       bool
-		metadata   *emailMetadata
+		entry             os.DirEntry
+		receivedAt        time.Time
+		read              bool
+		metadata          *emailMetadata
+		metadataUncertain bool
 	}
 	candidates := make(map[string]candidate)
 	var refreshErrors []error
@@ -81,6 +82,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			item.receivedAt = metadata.Sequence
 			item.metadata = &metadata
 		} else if !os.IsNotExist(metadataErr) {
+			item.metadataUncertain = true
 			refreshErrors = append(refreshErrors, fmt.Errorf("read metadata for %s: %w", id, metadataErr))
 		}
 		candidates[id] = item
@@ -157,6 +159,9 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	}
 	for id, item := range candidates {
 		if email := ms.storeByID[id]; email != nil {
+			if item.metadataUncertain {
+				continue
+			}
 			updated := cloneEmail(email)
 			if item.metadata != nil {
 				if err := restoreAttachmentMetadata(updated, *item.metadata); err != nil {

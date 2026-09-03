@@ -25,7 +25,9 @@ func TestRefreshReadOnlyMailboxObservesNewMailWithoutMutatingArtifacts(t *testin
 	}
 
 	notified := make(chan string, 1)
-	server.On("new", func(email *Email) { notified <- email.ID })
+	if err := server.OnWithConcurrency("new", 1, func(email *Email) { notified <- email.ID }); err != nil {
+		t.Fatal(err)
+	}
 	raw := "From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: observed\r\nDate: Wed, 02 Sep 2026 12:00:00 +0000\r\n\r\nbody"
 	if err := os.WriteFile(filepath.Join(directory, "observed.eml"), []byte(raw), 0600); err != nil {
 		t.Fatal(err)
@@ -169,7 +171,9 @@ func TestRefreshReadOnlyMailboxUsesDeterministicOrderForEqualTimestamps(t *testi
 		}
 	}
 	notified := make(chan string, 2)
-	server.On("new", func(email *Email) { notified <- email.ID })
+	if err := server.OnWithConcurrency("new", 1, func(email *Email) { notified <- email.ID }); err != nil {
+		t.Fatal(err)
+	}
 	for iteration := 0; iteration < 5; iteration++ {
 		if err := server.RefreshReadOnlyMailbox(); err != nil {
 			t.Fatal(err)
@@ -245,5 +249,20 @@ func TestRefreshReadOnlyMailboxReappliesRepairedAttachmentMetadata(t *testing.T)
 	attachment := after.Attachments[0]
 	if attachment.GeneratedFileName != "restored.bin" || attachment.ContentSHA256 != "0123456789abcdef" || attachment.Storage != attachmentStorageLocal {
 		t.Fatalf("repaired attachment metadata = %#v", attachment)
+	}
+
+	if err := os.WriteFile(server.metadataPath(id), []byte("temporarily-unreadable"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	partial = nil
+	if err := server.RefreshReadOnlyMailbox(); !errors.As(err, &partial) {
+		t.Fatalf("partial refresh error = %v, want ReadOnlyRefreshPartialError", err)
+	}
+	afterPartial, err := server.GetEmail(id)
+	if err != nil || !afterPartial.Read {
+		t.Fatalf("partial refresh lost known read state: %#v, %v", afterPartial, err)
+	}
+	if receivedAt := server.receivedAt(id); !receivedAt.Equal(metadata.Sequence) {
+		t.Fatalf("partial refresh sequence = %s, want %s", receivedAt, metadata.Sequence)
 	}
 }
