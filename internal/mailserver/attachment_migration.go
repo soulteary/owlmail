@@ -536,7 +536,12 @@ func persistMigrationMetadata(mailDir string, metadata emailMetadata) error {
 	server := &MailServer{mailDir: mailDir}
 	// Reuse the normal atomic temp-write, fsync, rename, and directory-fsync
 	// path without constructing or starting a MailServer.
-	email := &Email{ID: metadata.ID, Read: metadata.Read, Attachments: make([]*Attachment, 0, len(metadata.Attachments))}
+	email := &Email{
+		ID:          metadata.ID,
+		Read:        metadata.Read,
+		Envelope:    cloneEnvelope(metadata.Envelope),
+		Attachments: make([]*Attachment, 0, len(metadata.Attachments)),
+	}
 	for _, saved := range metadata.Attachments {
 		email.Attachments = append(email.Attachments, &Attachment{
 			GeneratedFileName: saved.GeneratedFileName,

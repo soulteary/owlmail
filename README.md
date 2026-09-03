@@ -320,6 +320,10 @@ MCP is disabled by default. Enable the official Streamable HTTP endpoint with
 an authenticated Web deployment therefore requires the same Basic Auth
 credentials for every MCP request.
 
+Local MCP clients may instead launch `owlmail mcp-stdio -mail-directory DIR`.
+This reuses the same read-only tools over stdio without opening a listener;
+protocol output stays on stdout and logs are sent to stderr.
+
 The server exposes seven read-only tools, adding `get_latest_email` and the
 event-driven `wait_for_email` testing workflow to the existing compact query,
 detached detail, bounded source, and attachment-metadata tools. It also exposes

@@ -1,6 +1,8 @@
 package common
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 )
 
@@ -67,6 +69,21 @@ func TestConvenienceFunctions(t *testing.T) {
 
 func TestInitLoggerSilentMode(t *testing.T) {
 	InitLogger(LogLevelSilent)
+}
+
+func TestInitLoggerOutputWithFormatUsesJSON(t *testing.T) {
+	var output bytes.Buffer
+	InitLoggerOutputWithFormat(LogLevelNormal, "json", &output)
+	defer InitLogger(LogLevelNormal)
+	Log("stdio diagnostic")
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal(output.Bytes(), &entry); err != nil {
+		t.Fatalf("stderr log is not JSON: %q: %v", output.String(), err)
+	}
+	if entry["message"] != "stdio diagnostic" {
+		t.Fatalf("JSON message = %#v", entry["message"])
+	}
 }
 
 // TestGlobalFatalWithErrorHandler tests global Fatal function with error handler

@@ -15,6 +15,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 )
 
 const generatedWebPasswordBytes = 24
+const mcpRefreshErrorLogInterval = time.Minute
 
 const (
 	defaultAttachmentMigrationRetries    = 3
@@ -882,6 +884,144 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	return nil
 }
 
+type reportedMCPStdioError struct{ err error }
+
+func (err *reportedMCPStdioError) Error() string { return err.err.Error() }
+func (err *reportedMCPStdioError) Unwrap() error { return err.err }
+
+func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) (resultErr error) {
+	loggerReady := false
+	defer func() {
+		if resultErr == nil || !loggerReady || errors.Is(resultErr, flag.ErrHelp) || errors.Is(resultErr, context.Canceled) {
+			return
+		}
+		common.Error("MCP stdio bridge failed: %v", resultErr)
+		resultErr = &reportedMCPStdioError{err: resultErr}
+	}()
+	fs := flag.NewFlagSet("mcp-stdio", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	refs := config.DefineFlags(fs)
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	cfg := config.ResolveConfig(fs, refs)
+	if err := validateMCPStdioConfig(cfg); err != nil {
+		return err
+	}
+	common.InitLoggerOutputWithFormat(parseLogLevel(cfg.LogLevel), cfg.LogFormat, stderr)
+	loggerReady = true
+	if strings.TrimSpace(cfg.MailDir) == "" {
+		return fmt.Errorf("mcp-stdio requires -mail-directory or OWLMAIL_MAIL_DIR")
+	}
+	server, err := mailserver.NewMailServerWithOptions(0, "localhost", cfg.MailDir, mailserver.ServerOptions{ReadOnly: true})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = server.Close() }()
+	var lastRefreshErrorReport time.Time
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		var partial *mailserver.ReadOnlyRefreshPartialError
+		if !errors.As(err, &partial) {
+			return fmt.Errorf("load read-only mailbox: %w", err)
+		}
+		common.Error("MCP stdio mailbox loaded with skipped entries: %v", err)
+		lastRefreshErrorReport = time.Now()
+	}
+	sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
+	if err != nil || sessionTimeout <= 0 {
+		return fmt.Errorf("invalid MCP session timeout %q", cfg.MCPSessionTimeout)
+	}
+	shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout)
+	if err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("invalid MCP shutdown timeout %q", cfg.MCPShutdownTimeout)
+	}
+	webBaseURL, err := mcpWebBaseURL(cfg)
+	if err != nil {
+		return err
+	}
+	service, err := mcpserver.New(server, mcpserver.Options{
+		SessionTimeout: sessionTimeout, ShutdownTimeout: shutdownTimeout, WebBaseURL: webBaseURL,
+	})
+	if err != nil {
+		return err
+	}
+	defer func() { _ = service.Close() }()
+	watchContext, stopWatcher := context.WithCancel(ctx)
+	var watcher sync.WaitGroup
+	watcher.Add(1)
+	go func() {
+		defer watcher.Done()
+		ticker := time.NewTicker(500 * time.Millisecond)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-watchContext.Done():
+				return
+			case <-ticker.C:
+				if err := server.RefreshReadOnlyMailbox(); err != nil {
+					now := time.Now()
+					if lastRefreshErrorReport.IsZero() || now.Sub(lastRefreshErrorReport) >= mcpRefreshErrorLogInterval {
+						common.Error("MCP stdio mailbox refresh failed: %v", err)
+						lastRefreshErrorReport = now
+					}
+				} else {
+					lastRefreshErrorReport = time.Time{}
+				}
+			}
+		}
+	}()
+	defer func() {
+		stopWatcher()
+		watcher.Wait()
+	}()
+	return service.RunStdio(ctx)
+}
+
+func validateMCPStdioConfig(cfg *config.Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if err := config.ValidateLogLevel(cfg.LogLevel); err != nil {
+		return err
+	}
+	if err := config.ValidateLogFormat(cfg.LogFormat); err != nil {
+		return err
+	}
+	if _, err := config.NormalizeBasePathname(cfg.BasePathname); err != nil {
+		return err
+	}
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return err
+	}
+	if externalURL == "" {
+		if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
+			return fmt.Errorf("web external scheme must be http or https")
+		}
+		if err := config.ValidatePort(cfg.WebPort, "Web port"); err != nil {
+			return err
+		}
+	}
+	if sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout); err != nil || sessionTimeout <= 0 {
+		return fmt.Errorf("MCP session timeout must be a positive duration")
+	}
+	if shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout); err != nil || shutdownTimeout <= 0 {
+		return fmt.Errorf("MCP shutdown timeout must be a positive duration")
+	}
+	return nil
+}
+
+func reportMCPStdioResult(err error, stderr io.Writer) int {
+	if err == nil || errors.Is(err, flag.ErrHelp) || errors.Is(err, context.Canceled) {
+		return 0
+	}
+	var reported *reportedMCPStdioError
+	if !errors.As(err, &reported) {
+		_, _ = fmt.Fprintf(stderr, "MCP stdio bridge failed: %v\n", err)
+	}
+	return 1
+}
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
@@ -896,6 +1036,15 @@ func main() {
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "Attachment migration failed: %v\n", err)
 			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "mcp-stdio" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := runMCPStdio(ctx, os.Args[2:], os.Stderr)
+		stop()
+		if exitCode := reportMCPStdioResult(err, os.Stderr); exitCode != 0 {
+			os.Exit(exitCode)
 		}
 		return
 	}

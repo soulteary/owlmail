@@ -43,6 +43,7 @@ type Options struct {
 // Service owns the SDK server, Streamable HTTP handler, and active sessions.
 type Service struct {
 	mailbox         *mailserver.MailServer
+	server          *mcp.Server
 	handler         *mcp.StreamableHTTPHandler
 	sessionTimeout  time.Duration
 	shutdownTimeout time.Duration
@@ -116,6 +117,7 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 	registerTools(server, mailbox, service)
 	registerResources(server, mailbox, service)
 	registerPrompts(server, service)
+	service.server = server
 	// One bounded dispatcher is enough: notify only snapshots the bounded waiter
 	// set, evaluates filters, and publishes an ID to buffered result channels.
 	if err := mailbox.OnWithConcurrency("new", 1, service.waiters.notify); err != nil {
@@ -128,6 +130,15 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 		SessionTimeout: options.SessionTimeout,
 	})
 	return service, nil
+}
+
+// RunStdio serves the same read-only tools, resources, and prompts over the
+// official MCP stdio transport until the context is canceled or stdin closes.
+func (service *Service) RunStdio(ctx context.Context) error {
+	if service == nil || service.server == nil {
+		return fmt.Errorf("MCP service is not initialized")
+	}
+	return service.server.Run(ctx, &mcp.StdioTransport{})
 }
 
 // ServeHTTP serves the official MCP Streamable HTTP transport.
@@ -462,7 +473,7 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer, service *
 		if maxBytes < 1 || maxBytes > maximumSourceMaxBytes {
 			return nil, getSourceOutput{}, fmt.Errorf("max_bytes must be between 1 and %d", maximumSourceMaxBytes)
 		}
-		content, size, truncated, err := mailbox.GetRawEmailContentLimit(input.ID, int64(maxBytes))
+		content, size, truncated, err := mailbox.GetVisibleRawEmailContentLimit(input.ID, int64(maxBytes))
 		if err != nil {
 			return nil, getSourceOutput{}, fmt.Errorf("email source was not found")
 		}

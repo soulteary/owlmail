@@ -2,6 +2,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"sync"
@@ -54,8 +55,24 @@ func InitLogger(level LogLevel) {
 	InitLoggerWithFormat(level, "console")
 }
 
+// InitLoggerOutput initializes the global console logger on a selected stream.
+// Stdio protocols use stderr so logs cannot corrupt protocol messages.
+func InitLoggerOutput(level LogLevel, output io.Writer) {
+	InitLoggerOutputWithFormat(level, "console", output)
+}
+
+// InitLoggerOutputWithFormat initializes the global logger in console or JSON
+// form on a selected stream.
+func InitLoggerOutputWithFormat(level LogLevel, format string, output io.Writer) {
+	initLogger(level, format, output)
+}
+
 // InitLoggerWithFormat initializes the global logger in console or JSON form.
 func InitLoggerWithFormat(level LogLevel, format string) {
+	initLogger(level, format, os.Stdout)
+}
+
+func initLogger(level LogLevel, format string, output io.Writer) {
 	defaultLogMu.Lock()
 	defer defaultLogMu.Unlock()
 	kitLevel := owlmailToLoggerLevel(level)
@@ -65,7 +82,7 @@ func InitLoggerWithFormat(level LogLevel, format string) {
 	}
 	l := logger.New(logger.Config{
 		Level:       kitLevel,
-		Output:      os.Stdout,
+		Output:      output,
 		Format:      kitFormat,
 		ServiceName: "owlmail",
 	})
