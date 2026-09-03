@@ -2,8 +2,10 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -60,6 +62,29 @@ func TestRelayJobsReloadQueuedWork(t *testing.T) {
 	queued := reloaded.queued()
 	if len(queued) != 1 || queued[0].ID != job.ID {
 		t.Fatalf("queued jobs = %#v", queued)
+	}
+}
+
+func TestRelayJobsRejectConfirmedRecipientsThatCannotRemainLoadable(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.newID = func() (string, error) { return "fedcba9876543210fedcba9876543210", nil }
+	recipients := make([]string, 1024)
+	for index := range recipients {
+		recipients[index] = fmt.Sprintf("recipient-%04d-%s@example.test", index, strings.Repeat("x", 64))
+	}
+	if _, err := store.createConfirmed("mail-too-large", "", recipients); !errors.Is(err, errRelayJobTooLarge) {
+		t.Fatalf("createConfirmed() error = %v, want errRelayJobTooLarge", err)
+	}
+	entries, err := os.ReadDir(store.directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("oversized relay job left %d persisted entries", len(entries))
 	}
 }
 
@@ -305,6 +330,12 @@ func TestNewAPIProtectsPersistedRetrySourceBeforeBackgroundRecovery(t *testing.T
 
 	restarted := NewAPI(server, 0, "localhost")
 	defer restarted.releaseRelaySource(job.ID)
+	if err := server.ConfigureStoragePolicy(mailserver.StoragePolicy{MaxDiskBytes: 1, CleanupInterval: time.Hour}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(mailDirectory, email.ID+".eml")); err != nil {
+		t.Fatalf("initial retention cleanup removed a queued relay source: %v", err)
+	}
 	if err := server.DeleteEmail(email.ID); !errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		t.Fatalf("DeleteEmail() error = %v, want ErrEmailSourceInUse", err)
 	}
