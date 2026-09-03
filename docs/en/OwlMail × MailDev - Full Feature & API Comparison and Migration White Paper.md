@@ -3,9 +3,11 @@
 > A source-based comparison for choosing a development mail server. It describes
 > verified behavior, not drop-in compatibility.
 
-**Review baseline:** 2026-09-02.
+**Review baseline:** 2026-09-03.
 
-- OwlMail: release 0.6.0; reviewed main at 279571b62a5e4891f0a204837d8553b131b89b20.
+- OwlMail: release 0.8.0 at
+  e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9; the reviewed main commit
+  1ef3cb32063a12a73fdc68f8c434d7ba143cefc4 adds documentation only.
 - MailDev: release candidate maildev@3.0.0-rc.3; main at
   9d4141f42b0acedfa544a306f96a5373ded8c8a3. The latest stable 2.x release is
   2.2.1 and differs materially from the 3.x codebase.
@@ -20,43 +22,47 @@ validate the exact build before migration.
 The three projects accept development SMTP mail and expose it for inspection,
 but optimize for different workflows:
 
-- **OwlMail** emphasizes a single Go binary, durable and recoverable local
-  storage, optional S3 attachments, generic durable webhooks, a versioned API,
-  and a default-off read-only MCP endpoint.
+- **OwlMail** emphasizes a single Go binary, AI-assisted integration testing,
+  durable and recoverable local storage, optional S3 attachments, generic
+  durable webhooks, versioned and compatibility APIs, and default-off read-only
+  MCP over Streamable HTTP or stdio.
 - **MailDev 3** emphasizes a rich React inspection experience, Node embedding,
   exact Socket.IO integration, a broad MCP workflow, and a configurable
   TypeScript application surface.
 - **MailCatcher** emphasizes a small Ruby workflow, a simple browser inbox, and
   the catchmail sendmail analogue.
 
-OwlMail is not a universal drop-in replacement for either project. On the reviewed main branch, its optional
-MailDev REST facade covers the current MailDev REST contract, but does not
-implement Socket.IO or the Node API. MailCatcher uses a different messages API
-and live-update contract.
+OwlMail is not a universal drop-in replacement for either project. In 0.8.0,
+its optional MailDev REST facade covers the current MailDev REST contract, but
+does not implement Socket.IO or the Node API. Its separate MailCatcher facade
+covers a bounded subset of the messages API without emulating MailCatcher's
+live-update protocol.
 
 ## Feature comparison
 
-| Capability | OwlMail 0.6.0 | OwlMail reviewed main | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
-|---|---|---|---|---|
-| Runtime | Go single binary with embedded Web assets | Same | Node.js 20+, TypeScript monorepo and React UI | Ruby 3.3+, EventMachine/Sinatra |
-| Primary strength | Recoverable local storage and durable webhooks | Storage, automation, and broader integrations | Interactive email inspection and integration breadth | Minimal Ruby/sendmail workflow |
-| SMTP capture | SMTP, STARTTLS and direct SMTPS | Same | Configurable SMTP/TLS behavior | Intentionally simple SMTP server |
-| Message size | Fixed 1 MiB | Configurable; 100 MiB default | Configurable; 50 MiB default on current main | No equivalent documented control |
-| DATA concurrency | No process-wide limiter | Configurable per process; 8 default, 0 unlimited | No equivalent documented process-wide limiter | No equivalent documented limiter |
-| Persistence | Atomic EML commit, recovery and quarantine | Same | Optional EML and attachment directory with restore | SQLite in-memory database |
-| Retention | Age, count and local-disk limits | Same | Maximum email count | Maximum message count |
-| Attachments | Local decoded attachments | Streaming staging; local or optional S3 | Local attachment files when persistence is enabled | Stored with the in-memory message database |
-| REST API | Native versioned and historical unversioned routes | Same, plus an optional MailDev REST facade | Current API below /api | Messages API below /messages |
-| Live updates | Native RFC 6455 WebSocket | Same | Socket.IO | WebSocket with polling fallback |
-| UI | Lightweight multilingual inbox | Same, plus secure HTML isolation and responsive widths | Rich React UI, source/header views and responsive preview | Simple HTML/plain/source UI with keyboard navigation |
-| MCP | No built-in endpoint | Optional, default-off Streamable HTTP with seven read-only tools, resources and prompts | HTTP and stdio MCP with broader tools, resources and prompts | No built-in MCP |
-| Webhooks | Generic filters, templates, HMAC, retry, local outbox and optional Redis Streams | Same | No equivalent generic durable webhook pipeline | No built-in generic webhook pipeline |
-| Relay | Manual and automatic outgoing SMTP relay | Same | Manual and automatic outgoing SMTP relay | No comparable outgoing relay workflow |
-| sendmail analogue | No bundled command | owlmail sendmail | No bundled equivalent documented | catchmail |
-| Embedding | No stable Go library surface; internal packages remain internal | Same | Public Node API | Primarily a standalone Ruby command |
-| Base path | No configurable URL prefix | Configurable URL prefix | Yes | Yes through http-path |
-| Authentication | Web Basic Auth; SMTP credential settings are not enforced | Web Basic Auth; real SMTP AUTH; optional TLS requirement | Web and incoming SMTP credentials | Intended for trusted development use |
-| Multi-instance mailbox | No shared mailbox database | Same | No | No |
+| Capability | OwlMail 0.8.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
+|---|---|---|---|
+| Runtime | Go single binary with embedded Web assets | Node.js 20+, TypeScript monorepo and React UI | Ruby 3.3+, EventMachine/Sinatra |
+| Primary strength | AI-assisted testing, recoverable storage, automation, and explicit resource limits | Interactive email inspection and integration breadth | Minimal Ruby/sendmail workflow |
+| Configuration | Flat layered YAML/JSON with strict file-shape validation, environment aliases, CLI flags, and component startup checks | TypeScript/JavaScript application configuration and environment variables | Command-line configuration |
+| SMTP capture | SMTP, STARTTLS, and direct SMTPS | Configurable SMTP/TLS behavior | Intentionally simple SMTP server |
+| Message size | Configurable; 100 MiB default | Configurable; 50 MiB default on current main | No equivalent documented control |
+| DATA concurrency | Configurable per process; 8 default, 0 unlimited | No equivalent documented process-wide limiter | No equivalent documented limiter |
+| Persistence | Atomic EML commit, recovery, quarantine, and an optional SQLite mailbox index | Optional EML and attachment directory with restore | SQLite in-memory database |
+| Retention | Age, count, and local-disk limits | Maximum email count | Maximum message count |
+| Attachments | Streaming staging; local or optional S3 with cached readiness probes | Local attachment files when persistence is enabled | Stored with the in-memory message database |
+| REST API | Native versioned and historical routes, plus default-off MailDev and MailCatcher facades | Current API below /api | Messages API below /messages |
+| Live updates | Native RFC 6455 WebSocket | Socket.IO | WebSocket with polling fallback |
+| UI | Lightweight multilingual inbox with secure HTML isolation, responsive widths, tabs, history, and keyboard navigation | Rich React UI, source/header views, and responsive preview | Simple HTML/plain/source UI with keyboard navigation |
+| MCP | Default-off Streamable HTTP and stdio with seven read-only tools, resources, and prompts | HTTP and stdio MCP with broader tools, resources, and prompts | No built-in MCP |
+| Webhooks | Generic filters, templates, HMAC, retry, local outbox, and optional Redis Streams | No equivalent generic durable webhook pipeline | No built-in generic webhook pipeline |
+| Relay | Persistent asynchronous jobs, streaming DATA, explicit TLS modes, and bounded retry | Manual and automatic outgoing SMTP relay | No comparable outgoing relay workflow |
+| sendmail analogue | `owlmail sendmail` | No bundled equivalent documented | `catchmail` |
+| Observability | Public liveness/readiness, optional Prometheus metrics, and console or JSON logs | Health endpoint and application logging | Basic application logging |
+| Embedding | No stable Go library surface; internal packages remain internal | Public Node API | Primarily a standalone Ruby command |
+| Base path | Configurable URL prefix across Web, APIs, WebSocket, and MCP | Yes | Yes through http-path |
+| Authentication | Web Basic Auth; real SMTP AUTH; optional TLS requirement | Web and incoming SMTP credentials | Intended for trusted development use |
+| Multi-instance mailbox | No shared mailbox database | No | No |
 
 No cross-project performance ranking is claimed. Runtime language, binary size,
 or a synthetic microbenchmark does not establish end-to-end behavior under MIME
@@ -74,7 +80,7 @@ parsing, disk pressure, TLS, S3, webhook, or browser workloads.
 | Live events | Socket.IO | Native WebSocket, not Socket.IO | Project-specific WebSocket/polling |
 | Embedded API | Node MailDev class | None | None |
 
-On the reviewed OwlMail main branch, enable the MailDev facade explicitly with
+In OwlMail 0.8.0, enable the MailDev facade explicitly with
 OWLMAIL_MAILDEV_REST_COMPAT=true or -maildev-rest-compat. It shares the normal
 Basic Auth, HTTPS, storage, and base-path boundary. It does not enable Socket.IO.
 
@@ -84,15 +90,17 @@ delivery.
 
 ## Agent integration
 
-The reviewed OwlMail main branch provides a default-off MCP endpoint at `/mcp`
-for a root deployment and `<base-pathname>/mcp` when a base pathname is
-configured, with seven closed-world, read-only tools: list, search, detached detail,
-bounded base64 source, attachment metadata, latest-email lookup ordered by
-receipt, and an event-driven bounded delivery wait. It also exposes bounded
-inbox, statistics, and email resources plus registration-verification,
-password-reset, and delivery prompts. It shares the Web listener and
-authentication boundary and generates base-path-aware Web links. It
-deliberately excludes deletion, read-state mutation, relay, configuration
+OwlMail 0.8.0 provides a default-off MCP endpoint at `/mcp` for a root
+deployment and `<base-pathname>/mcp` when a base pathname is configured. Local
+clients can instead launch `owlmail mcp-stdio -mail-directory DIR`; both
+transports expose the same seven closed-world, read-only tools: list, search,
+detached detail, bounded base64 source, attachment metadata, latest-email
+lookup ordered by receipt, and an event-driven bounded delivery wait. They also
+expose bounded inbox, statistics, and email resources plus
+registration-verification, password-reset, and delivery prompts. The HTTP
+transport shares the Web listener and authentication boundary, and generated
+Web links honor the configured external origin and base path. Both transports
+deliberately exclude deletion, read-state mutation, relay, configuration
 changes, and attachment bytes.
 
 MailDev 3 exposes a broader MCP server and supports both HTTP and stdio
@@ -122,13 +130,13 @@ database-backed production mailbox service.
 
 ## Selection guide
 
-Choose the reviewed **OwlMail main** when a single binary, ARM/cross-platform deployment, durable
-webhook automation, recoverable disk storage, optional S3 attachments, SMTP
-resource controls, or a small read-only agent surface matters most.
+Choose **OwlMail 0.8.0** when a single binary, ARM/cross-platform deployment,
+AI-assisted integration testing, durable webhook automation, recoverable disk
+storage, optional S3 attachments, SMTP resource controls, or a bounded
+read-only agent surface matters most.
 
 Choose **MailDev** when the richest interactive UI, Node embedding, exact
-Socket.IO behavior, configuration files, or its broader MCP workflow matters
-most.
+Socket.IO behavior, or its broader MCP workflow matters most.
 
 Choose **MailCatcher** when the smallest familiar Ruby workflow and catchmail
 integration are more valuable than persistence, relaying, webhooks, or agent
@@ -139,18 +147,18 @@ inventorying REST and live-event consumers. For MailCatcher, treat SMTP capture
 and the sendmail analogue as the portable concepts; adapt every HTTP or
 WebSocket integration.
 
-## Known OwlMail main-branch gaps at this baseline
+## Known OwlMail 0.8.0 boundaries at this baseline
 
 - The native WebSocket endpoint is not Socket.IO.
-- There is no public stable Go embedding SDK or general application config file.
-- SMTP read/write timeouts and the recipient count are still fixed defaults.
+- There is no public stable Go embedding SDK; `internal/` packages are not a
+  supported embedding surface.
 - Native relay acceptance is asynchronous; with a persistent mail directory,
   status survives restarts with documented at-least-once recovery rather than
   exactly-once delivery.
-- The Web inbox does not yet provide complete browser-history and keyboard
-  navigation semantics.
-- The mailbox index remains in memory even when EML files are durable.
-- There is no Prometheus metrics endpoint.
+- The mailbox, SQLite index, Webhook outbox, and Relay job state are local to
+  one OwlMail instance; there is no shared multi-instance mailbox database.
+- MCP is intentionally read-only and bounded. It does not expose attachment
+  bytes or mutation, relay, and configuration tools.
 
 These are roadmap observations, not claims that MailDev or MailCatcher
 necessarily implement the same behavior.

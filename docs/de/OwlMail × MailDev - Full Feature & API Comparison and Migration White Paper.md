@@ -19,7 +19,7 @@ aber **nicht protokollgleich oder ohne Prüfung austauschbar**. API-Präfixe,
 Antwortformen, Lesezustand und Live-Protokolle unterscheiden sich. Die aktuelle
 [API-Referenz](../en/API-Reference.md) enthält die verifizierte Abgrenzung.
 
-OwlMail bietet im geprüften main-Branch (nicht in v0.6.0) einen standardmäßig deaktivierten, schreibgeschützten MCP-Endpunkt. MailDev 3 bietet einen breiteren MCP-Workflow; MailCatcher bietet kein integriertes MCP. Die standardmäßig deaktivierte Option `-maildev-rest-compat` stellt die aktuellen
+OwlMail 0.8.0 bietet standardmäßig deaktivierte, schreibgeschützte MCP-Schnittstellen über Streamable HTTP und stdio. MailDev 3 bietet einen breiteren MCP-Workflow; MailCatcher bietet kein integriertes MCP. Die standardmäßig deaktivierte Option `-maildev-rest-compat` stellt die aktuellen
 MailDev-REST-Routen unter `/api` bereit. Sie bietet keine Socket.IO-Kompatibilität.
 
 > **Hinweis**: Der vollständige Inhalt wird verfügbar sein, sobald die Übersetzung abgeschlossen ist. Bitte verweisen Sie in der Zwischenzeit auf die englische Version für vollständige Details.

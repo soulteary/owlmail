@@ -393,7 +393,7 @@ test("OpenAPI contract is linked from every translated README", () => {
   }
 });
 
-test("three-way comparison stays source-pinned and reflects MCP support", () => {
+test("three-way comparison stays source-pinned and reflects the 0.8.0 contract", () => {
   for (const document of [
     "docs/en/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
     "docs/zh-CN/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md",
@@ -401,13 +401,16 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
     const markdown = fs.readFileSync(path.join(root, document), "utf8");
     for (const marker of [
       "OwlMail × MailDev × MailCatcher",
-      "2026-09-02",
-      "279571b62a5e4891f0a204837d8553b131b89b20",
+      "2026-09-03",
+      "e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9",
+      "0.8.0",
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
       "0.11.0",
       "MCP",
       "MailCatcher",
+      "Prometheus",
+      "SQLite",
     ]) {
       assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
     }
@@ -415,6 +418,22 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
     assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
     assert.ok(!markdown.includes("with five closed-world"));
     assert.ok(!markdown.includes("只包含五个封闭只读能力"));
+    for (const obsolete of [
+      "release 0.6.0",
+      "正式版 0.6.0",
+      "general application config file",
+      "通用应用配置文件",
+      "SMTP read/write timeouts and the recipient count are still fixed defaults",
+      "SMTP 读写超时和收件人数仍使用固定默认值",
+      "does not yet provide complete browser-history",
+      "尚未提供完整浏览器历史",
+      "The mailbox index remains in memory",
+      "邮箱索引仍主要位于内存",
+      "There is no Prometheus metrics endpoint",
+      "没有 Prometheus 指标端点",
+    ]) {
+      assert.ok(!markdown.includes(obsolete), `${document} retains obsolete 0.6.0 claim ${obsolete}`);
+    }
     assert.ok(markdown.includes("<base-pathname>/mcp"));
   }
 
@@ -423,8 +442,9 @@ test("three-way comparison stays source-pinned and reflects MCP support", () => 
       path.join(root, `docs/${locale}/OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper.md`),
       "utf8",
     );
-    assert.ok(stub.includes("main"), `${locale} comparison does not qualify the MCP branch`);
-    assert.ok(stub.includes("v0.6.0"), `${locale} comparison does not qualify the stable release`);
+    assert.ok(stub.includes("0.8.0"), `${locale} comparison does not identify the stable release`);
+    assert.ok(stub.includes("stdio"), `${locale} comparison does not identify both MCP transports`);
+    assert.ok(!stub.includes("v0.6.0"), `${locale} comparison still presents MCP as a post-0.6.0 main-only feature`);
   }
 });
 
