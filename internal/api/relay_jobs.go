@@ -14,6 +14,7 @@ import (
 
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/outgoing"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -175,6 +176,28 @@ func (store *relayJobStore) queueRetry(id string, relayErr error, delay time.Dur
 	}
 	store.jobs[id] = job
 	return job, true
+}
+
+// restoreQueuedAfterShutdown rolls back the attempt reservation made just
+// before the outgoing relay rejected work because shutdown had started. A
+// process shutdown must not consume an attempt or make recoverable work
+// terminal; the next process will retry the durable queued record.
+func (store *relayJobStore) restoreQueuedAfterShutdown(previous relayJob) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	current, ok := store.jobs[previous.ID]
+	if !ok || current.CompletedAt != nil {
+		return nil
+	}
+	previous.Status = relayJobQueued
+	previous.CompletedAt = nil
+	previous.NextAttemptAt = nil
+	previous.UpdatedAt = store.now().UTC()
+	if err := store.persistLocked(previous); err != nil {
+		return fmt.Errorf("%w: %v", errRelayJobPersistence, err)
+	}
+	store.jobs[previous.ID] = previous
+	return nil
 }
 
 func (store *relayJobStore) remove(id string) error {
@@ -369,6 +392,7 @@ func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool)
 	if message == nil {
 		return fmt.Errorf("email is unavailable"), false
 	}
+	previous := job
 	job, err := api.relayJobs.beginAttempt(job.ID)
 	if err != nil {
 		return fmt.Errorf("persist relay attempt: %w", err), false
@@ -376,6 +400,12 @@ func (api *API) submitRelayJob(job relayJob, message *types.Email) (error, bool)
 	var callbackHandled atomic.Bool
 	callback := func(relayErr error) {
 		callbackHandled.Store(true)
+		if errors.Is(relayErr, outgoing.ErrClosed) {
+			if restoreErr := api.relayJobs.restoreQueuedAfterShutdown(previous); restoreErr != nil {
+				common.Error("Restore relay job %s after shutdown rejection: %v", job.ID, restoreErr)
+			}
+			return
+		}
 		api.finishRelayAttempt(job.ID, relayErr)
 	}
 	if job.RelayTo != "" {
@@ -447,6 +477,12 @@ func (api *API) retryRelayJob(jobID string) {
 			return
 		}
 	}
+	if errors.Is(err, outgoing.ErrClosed) {
+		if restoreErr := api.relayJobs.restoreQueuedAfterShutdown(job); restoreErr != nil {
+			common.Error("Restore relay job %s after shutdown rejection: %v", job.ID, restoreErr)
+		}
+		return
+	}
 	if err != nil {
 		api.finishRelayAttempt(jobID, err)
 	}
@@ -472,6 +508,12 @@ func (api *API) recoverRelayJobs() {
 			if handled {
 				continue
 			}
+		}
+		if errors.Is(err, outgoing.ErrClosed) {
+			if restoreErr := api.relayJobs.restoreQueuedAfterShutdown(job); restoreErr != nil {
+				common.Error("Restore relay job %s after shutdown rejection: %v", job.ID, restoreErr)
+			}
+			continue
 		}
 		if err != nil {
 			api.finishRelayAttempt(job.ID, err)

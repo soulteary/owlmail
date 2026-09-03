@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 func TestRelayJobsPersistTerminalStatus(t *testing.T) {
@@ -176,6 +178,49 @@ func TestRelayJobRetryStateIsDurable(t *testing.T) {
 	got, ok := reloaded.get(job.ID)
 	if !ok || got.Attempts != 1 || got.NextAttemptAt == nil || got.ErrorCategory != "connection" {
 		t.Fatalf("reloaded retry = %#v, found %t", got, ok)
+	}
+}
+
+func TestRetryRelayJobPreservesQueuedWorkDuringShutdown(t *testing.T) {
+	api, server, mailDirectory := setupTestAPI(t)
+	email := &types.Email{ID: "shutdown-retry", Subject: "retry after restart"}
+	if err := os.WriteFile(filepath.Join(mailDirectory, email.ID+".eml"), []byte("Subject: retry after restart\r\n\r\nbody\r\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	job, err := api.relayJobs.create(email.ID, "recipient@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := api.relayJobs.beginAttempt(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	queued, ok := api.relayJobs.queueRetry(job.ID, errors.New("connection refused"), time.Second)
+	if !ok {
+		t.Fatal("retry was not queued")
+	}
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	api.retryRelayJob(job.ID)
+	got, ok := api.relayJobs.get(job.ID)
+	if !ok || got.Status != relayJobQueued || got.CompletedAt != nil {
+		t.Fatalf("relay job after shutdown rejection = %#v, found %t", got, ok)
+	}
+	if got.Attempts != queued.Attempts {
+		t.Fatalf("attempts after shutdown rejection = %d, want %d", got.Attempts, queued.Attempts)
+	}
+
+	reloaded, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	persisted, ok := reloaded.get(job.ID)
+	if !ok || persisted.Status != relayJobQueued || persisted.Attempts != queued.Attempts || persisted.CompletedAt != nil {
+		t.Fatalf("persisted relay job after shutdown rejection = %#v, found %t", persisted, ok)
 	}
 }
 
