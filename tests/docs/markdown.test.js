@@ -653,6 +653,13 @@ test("integration and AI-first guides are complete, bilingual, and runnable", ()
   assert.match(compose, /127\.0\.0\.1:1025:1025/);
   assert.match(compose, /127\.0\.0\.1:1080:1080/);
 
+  const goExample = fs.readFileSync(path.join(root, "examples/testing/go/email_test.go"), "utf8");
+  assert.ok(goExample.includes('os.Getenv("OWLMAIL_RUN_INTEGRATION_TEST") != "1"'));
+  for (const readme of ["examples/testing/README.md", "examples/testing/README.zh-CN.md"]) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    assert.ok(markdown.includes("OWLMAIL_RUN_INTEGRATION_TEST=1 go test"));
+  }
+
   const mcp = fs.readFileSync(path.join(root, "docs/en/MCP-Reference.md"), "utf8");
   for (const marker of [
     "list_emails",

@@ -22,8 +22,11 @@ node examples/testing/javascript/email-test.mjs
 python3 examples/testing/python/email_test.py
 
 # 使用仓库 go.mod 声明的 Go 版本
-go test ./examples/testing/go -v
+OWLMAIL_RUN_INTEGRATION_TEST=1 go test ./examples/testing/go -v
 ```
+
+Go 示例要求显式设置该变量，避免常规的仓库级 `go test ./...` 依赖已启动的
+OwlMail 实例。
 
 OwlMail 位于其他地址时可覆盖端点：
 

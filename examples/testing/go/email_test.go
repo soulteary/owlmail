@@ -32,6 +32,10 @@ func environment(name, fallback string) string {
 }
 
 func TestCapturedEmail(t *testing.T) {
+	if os.Getenv("OWLMAIL_RUN_INTEGRATION_TEST") != "1" {
+		t.Skip("set OWLMAIL_RUN_INTEGRATION_TEST=1 to run against a live OwlMail instance")
+	}
+
 	smtpAddress := environment("TEST_SMTP_HOST", "127.0.0.1") + ":" + environment("TEST_SMTP_PORT", "1025")
 	apiBase := strings.TrimRight(environment("TEST_MAIL_API", "http://127.0.0.1:1080"), "/")
 	runID := fmt.Sprintf("%d", time.Now().UnixNano())
@@ -61,7 +65,9 @@ func TestCapturedEmail(t *testing.T) {
 		}
 		var page emailPage
 		err = json.NewDecoder(response.Body).Decode(&page)
-		response.Body.Close()
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Fatalf("close email list response: %v", closeErr)
+		}
 		if err != nil || response.StatusCode != http.StatusOK {
 			t.Fatalf("decode email list: status=%d err=%v", response.StatusCode, err)
 		}
@@ -84,14 +90,20 @@ func TestCapturedEmail(t *testing.T) {
 	t.Cleanup(func() {
 		request, _ := http.NewRequest(http.MethodDelete, messageURL, nil)
 		if response, err := client.Do(request); err == nil {
-			response.Body.Close()
+			if closeErr := response.Body.Close(); closeErr != nil {
+				t.Errorf("close cleanup response: %v", closeErr)
+			}
 		}
 	})
 	response, err := client.Get(messageURL)
 	if err != nil {
 		t.Fatalf("get email: %v", err)
 	}
-	defer response.Body.Close()
+	defer func() {
+		if closeErr := response.Body.Close(); closeErr != nil {
+			t.Errorf("close email response: %v", closeErr)
+		}
+	}()
 	var detail emailDetail
 	if err := json.NewDecoder(response.Body).Decode(&detail); err != nil {
 		t.Fatalf("decode email: %v", err)

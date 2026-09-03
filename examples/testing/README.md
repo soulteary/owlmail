@@ -24,8 +24,11 @@ node examples/testing/javascript/email-test.mjs
 python3 examples/testing/python/email_test.py
 
 # Go version declared by the repository go.mod
-go test ./examples/testing/go -v
+OWLMAIL_RUN_INTEGRATION_TEST=1 go test ./examples/testing/go -v
 ```
+
+The Go example requires the opt-in variable so a normal repository-wide
+`go test ./...` does not depend on a running OwlMail instance.
 
 Override the endpoints when OwlMail runs elsewhere:
 
