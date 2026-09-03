@@ -75,6 +75,7 @@ type EmailSummary struct {
 	Text            string
 	EnvelopeFrom    string
 	EnvelopeTo      []string
+	SMTPEnvelope    bool
 }
 
 // QueryEmails returns detached full-email snapshots for one page and the
@@ -161,6 +162,7 @@ type emailQueryEntry struct {
 	calculatedBCC   []emailQueryAddress
 	envelopeFrom    string
 	envelopeTo      []string
+	smtpEnvelope    bool
 	text            string
 	html            string
 	size            int64
@@ -245,6 +247,7 @@ func (ms *MailServer) snapshotSummaryQueryAddresses(entries []emailQueryEntry) {
 		if entries[i].source.Envelope != nil {
 			entries[i].envelopeFrom = entries[i].source.Envelope.From
 			entries[i].envelopeTo = append([]string(nil), entries[i].source.Envelope.To...)
+			entries[i].smtpEnvelope = entries[i].source.Envelope.SMTPTransaction
 		}
 	}
 }
@@ -466,6 +469,7 @@ func makeEmailSummary(email emailQueryEntry) EmailSummary {
 		Text:            email.text,
 		EnvelopeFrom:    email.envelopeFrom,
 		EnvelopeTo:      email.envelopeTo,
+		SMTPEnvelope:    email.smtpEnvelope,
 	}
 }
 

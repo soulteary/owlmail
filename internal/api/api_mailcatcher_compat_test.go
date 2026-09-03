@@ -14,6 +14,7 @@ import (
 
 	"github.com/emersion/go-message/mail"
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -104,6 +105,20 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	}, time.Now(), true)
 	if restored["sender"] != "<header-sender@example.test>" || len(restored["recipients"].([]string)) != 1 {
 		t.Fatalf("restored envelope fallback = %#v", restored)
+	}
+	nullSender := &types.Email{
+		ID:       "bounce",
+		Envelope: &types.Envelope{From: "", To: []string{"recipient@example.test"}, SMTPTransaction: true},
+		From:     []*mail.Address{{Address: "header-sender@example.test"}},
+	}
+	if projected := mailCatcherMessageDTO(nullSender, time.Now(), true); projected["sender"] != "" {
+		t.Fatalf("null SMTP reverse-path was replaced by header sender: %#v", projected)
+	}
+	if summary := mailCatcherSummaryDTO(mailserver.EmailSummary{
+		ID: "bounce", EnvelopeFrom: "", EnvelopeTo: []string{"recipient@example.test"}, SMTPEnvelope: true,
+		From: []mailserver.EmailSummaryAddress{{Address: "header-sender@example.test"}},
+	}); summary["sender"] != "" {
+		t.Fatalf("null summary reverse-path was replaced by header sender: %#v", summary)
 	}
 
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.html")

@@ -52,7 +52,7 @@ func (api *API) mailCatcherMessage(c fiber.Ctx) error {
 func mailCatcherSummaryDTO(email mailserver.EmailSummary) fiber.Map {
 	sender := email.EnvelopeFrom
 	recipients := append([]string(nil), email.EnvelopeTo...)
-	if sender == "" && len(email.From) > 0 {
+	if sender == "" && !email.SMTPEnvelope && len(email.From) > 0 {
 		sender = email.From[0].Address
 	}
 	if len(recipients) == 0 {
@@ -75,7 +75,7 @@ func mailCatcherMessageDTO(email *types.Email, createdAt time.Time, detail bool)
 			recipients = append(recipients, angleAddress(recipient))
 		}
 	}
-	if sender == "" && len(email.From) > 0 && email.From[0] != nil {
+	if sender == "" && (email.Envelope == nil || !email.Envelope.SMTPTransaction) && len(email.From) > 0 && email.From[0] != nil {
 		sender = angleAddress(email.From[0].Address)
 	}
 	if len(recipients) == 0 {

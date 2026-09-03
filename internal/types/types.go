@@ -54,4 +54,8 @@ type Envelope struct {
 	CalculatedBCC []string `json:"calculatedBcc"`
 	Host          string   `json:"host"`
 	RemoteAddress string   `json:"remoteAddress"`
+	// SMTPTransaction distinguishes a captured SMTP envelope (where an empty
+	// From is a meaningful null reverse-path) from a best-effort envelope
+	// reconstructed from an EML after restart.
+	SMTPTransaction bool `json:"-"`
 }

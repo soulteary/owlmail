@@ -793,6 +793,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 		RemoteAddress: "unknown",
 	}
 	if s != nil {
+		envelope.SMTPTransaction = true
 		if s.conn != nil {
 			if conn := s.conn.Conn(); conn != nil {
 				envelope.RemoteAddress = conn.RemoteAddr().String()
