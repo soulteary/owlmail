@@ -10,7 +10,7 @@ delete only that message.
 docker compose -f examples/testing/compose.yaml up -d --wait
 ```
 
-The Compose profile pins OwlMail 0.8.0 and publishes both ports on loopback.
+The Compose profile pins OwlMail 0.9.0 and publishes both ports on loopback.
 For exact CI reproducibility, replace the image tag with the release manifest
 digest.
 

@@ -4,9 +4,9 @@
 
 **审查基线：2026-09-03。**
 
-- OwlMail：正式版 0.8.0，对应提交
-  e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9；已审查 main
-  1ef3cb32063a12a73fdc68f8c434d7ba143cefc4 仅在此基础上更新文档。
+- OwlMail：0.9.0 发布基线对应提交
+  112f0d0f33b8fa040cdc8699d300118c96c09cf8。从 0.8.0 标签到该基线的变化仅涉及
+  文档、示例、测试与 CI。
 - MailDev：候选版 maildev@3.0.0-rc.3；main 为
   9d4141f42b0acedfa544a306f96a5373ded8c8a3。最新稳定 2.x 为 2.2.1，
   与 3.x 主线架构存在明显差异。
@@ -27,13 +27,13 @@
 - **MailCatcher** 侧重简单 Ruby 工作流、轻量收件箱及 catchmail sendmail
   替代命令。
 
-OwlMail 不是另外两者的通用无缝替代。0.8.0 的可选 MailDev REST facade 能覆盖
+OwlMail 不是另外两者的通用无缝替代。0.9.0 的可选 MailDev REST facade 能覆盖
 当前 MailDev REST 合约，但不实现 Socket.IO 或 Node API；独立的 MailCatcher
 facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议。
 
 ## 功能对比
 
-| 能力 | OwlMail 0.8.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
+| 能力 | OwlMail 0.9.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
 |---|---|---|---|
 | 运行时 | Go 单二进制，内嵌 Web 资源 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra |
 | 核心优势 | AI 辅助测试、可恢复存储、自动化和明确资源限制 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 |
@@ -72,7 +72,7 @@ facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议�
 | 实时事件 | Socket.IO | 原生 WebSocket，不是 Socket.IO | 项目专用 WebSocket/轮询 |
 | 嵌入 API | Node MailDev 类 | 无 | 无 |
 
-在 OwlMail 0.8.0 中，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
+在 OwlMail 0.9.0 中，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
 -maildev-rest-compat 才会启用 OwlMail MailDev facade。它复用现有 Basic Auth、
 HTTPS、存储和 base path，但不会启用 Socket.IO。
 
@@ -81,7 +81,7 @@ HTTPS、存储和 base path，但不会启用 Socket.IO。
 
 ## Agent 集成
 
-OwlMail 0.8.0 提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base pathname
+OwlMail 0.9.0 提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base pathname
 后使用 `<base-pathname>/mcp`；本地客户端也可以运行
 `owlmail mcp-stdio -mail-directory DIR`。两个 transport 提供相同的七个封闭只读
 工具：列表、搜索、独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得
@@ -110,7 +110,7 @@ MailCatcher 使用内存 SQLite。消息上限能限制活动收件箱，但它�
 
 ## 选型建议
 
-以下情况优先选择 **OwlMail 0.8.0**：需要单文件部署、ARM/跨平台、AI 辅助集成
+以下情况优先选择 **OwlMail 0.9.0**：需要单文件部署、ARM/跨平台、AI 辅助集成
 测试、持久 Webhook 自动化、磁盘异常恢复、可选 S3 附件、SMTP 资源控制或有界
 只读 Agent 接口。
 
@@ -124,7 +124,7 @@ Socket.IO 或更广的 MCP 工作流。
 从 MailCatcher 迁移时，应把 SMTP 捕获和 sendmail 替代视为可迁移概念，并对
 HTTP 与 WebSocket 集成逐项适配。
 
-## 本基线下 OwlMail 0.8.0 的已知边界
+## 本基线下 OwlMail 0.9.0 的已知边界
 
 - 原生 WebSocket 不是 Socket.IO。
 - 没有稳定公共 Go 嵌入 SDK；`internal/` 包不是受支持的嵌入接口。

@@ -41,10 +41,10 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - Component ownership, data flow, single-instance boundaries, trust model, and deployment checklist.
   - **Other languages**: [架构](../zh-CN/Architecture.md) | [安全模型](../zh-CN/Security-Model.md)
 
-- **[OwlMail 0.8.0 Release Notes](./Release-0.8.0.md)**
+- **[OwlMail 0.9.0 Release Notes](./Release-0.9.0.md)**
   - Highlights, upgrade-sensitive behavior, installation commands, asset names,
     known limitations, and links to the detailed references.
-  - **Other languages**: [简体中文](../zh-CN/Release-0.8.0.md)
+  - **Other languages**: [简体中文](../zh-CN/Release-0.9.0.md)
   - **Previous release**: [0.7.0](./Release-0.7.0.md) ([简体中文](../zh-CN/Release-0.7.0.md))
 
 - **[API Reference](./API-Reference.md)**

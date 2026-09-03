@@ -1,6 +1,6 @@
 # MCP reference
 
-OwlMail 0.8.0 exposes the same read-only MCP server through optional stateful
+OwlMail 0.9.0 exposes the same read-only MCP server through optional stateful
 Streamable HTTP and through `owlmail mcp-stdio`. MCP is an inspection surface,
 not a mailbox administration API.
 

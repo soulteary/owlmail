@@ -1,7 +1,7 @@
 # CI 快速入门
 
 将 OwlMail 作为一次性 sidecar 运行：等待就绪、执行测试，并在失败时保留日志。
-示例使用 0.8.0 标签以便阅读；需要严格可复现时，请固定已记录的 manifest digest。
+示例使用 0.9.0 标签以便阅读；需要严格可复现时，请固定已记录的 manifest digest。
 
 ## GitHub Actions
 
@@ -17,12 +17,12 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
-      - name: Start OwlMail 0.8.0
+      - name: Start OwlMail 0.9.0
         run: |
           docker run -d --name owlmail-ci \
             -p 127.0.0.1:1025:1025 \
             -p 127.0.0.1:1080:1080 \
-            ghcr.io/soulteary/owlmail:0.8.0
+            ghcr.io/soulteary/owlmail:0.9.0
           for attempt in $(seq 1 30); do
             curl --fail --silent --connect-timeout 2 --max-time 3 \
               http://127.0.0.1:1080/readyz && exit 0

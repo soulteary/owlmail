@@ -463,7 +463,7 @@ test(`three-way comparison stays source-pinned and reflects the ${currentVersion
     for (const marker of [
       "OwlMail × MailDev × MailCatcher",
       "2026-09-03",
-      "e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9",
+      "112f0d0f33b8fa040cdc8699d300118c96c09cf8",
       currentVersion,
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
@@ -518,27 +518,27 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
   assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, `CHANGELOG.md is missing the ${currentVersion} release section`);
   const releaseSection = changelog.slice(releaseStart, releaseEnd);
   for (const marker of [
-    "Prometheus metrics",
-    "layered YAML and JSON configuration",
-    "MailCatcher REST facade",
-    "read-only MCP stdio bridge",
+    "live CI job",
+    "Documentation contract tests",
+    "single source",
+    "Integration examples",
   ]) {
     assert.ok(releaseSection.includes(marker), `CHANGELOG.md ${currentVersion} section is missing ${marker}`);
   }
   assert.ok(changelog.includes(`[${currentVersion}]:`), `CHANGELOG.md is missing the ${currentVersion} comparison link`);
   assert.ok(
-    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("Prometheus metrics"),
-    `CHANGELOG.md still classifies ${currentVersion} operational work as unreleased`,
+    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("live CI job"),
+    `CHANGELOG.md still classifies ${currentVersion} work as unreleased`,
   );
 
   const releaseNotes = [
     [
       `docs/en/${currentReleaseNote}`,
-      ["Persistent relay jobs", "Layered configuration and indexing", "MCP stdio bridge", "Known limitations", "owlmail-linux-amd64"],
+      ["Runnable examples", "Documentation contracts", "Release consistency", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
       `docs/zh-CN/${currentReleaseNote}`,
-      ["持久化中继任务", "分层配置与索引", "MCP stdio 桥接", "已知限制", "owlmail-linux-amd64"],
+      ["可运行示例", "文档契约", "发布一致性", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
   for (const [releaseNote, markers] of releaseNotes) {
@@ -549,16 +549,16 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
   }
 
   const comparison = fs.readFileSync(path.join(root, "docs/en/Comparison-and-Migration.md"), "utf8");
-  const releaseCommit = comparison.match(
-    new RegExp(`OwlMail: release ${currentVersionPattern} at\\s+([0-9a-f]{40})`),
+  const releaseBaseline = comparison.match(
+    new RegExp(`OwlMail: ${currentVersionPattern} release baseline at\\s+([0-9a-f]{40})`),
   );
-  assert.ok(releaseCommit, "comparison guide does not identify the current release commit");
-  const releaseCommitImage = `sha-${releaseCommit[1].slice(0, 7)}`;
+  assert.ok(releaseBaseline, "comparison guide does not identify the current release baseline");
+  const releaseBaselineImage = `sha-${releaseBaseline[1].slice(0, 7)}`;
 
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
     assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${currentVersion}`), `${readme} does not pin the release image`);
-    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${releaseCommitImage}`), `${readme} does not use the current release commit image`);
+    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${releaseBaselineImage}`), `${readme} does not use the current release baseline image`);
     assert.ok(markdown.includes(currentReleaseNote), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
     assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);

@@ -10,7 +10,7 @@ OwlMail，触发业务行为，再通过原生只读 HTTP API 断言捕获结果
 docker run --rm -d --name owlmail-test \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
-  ghcr.io/soulteary/owlmail:0.8.0
+  ghcr.io/soulteary/owlmail:0.9.0
 
 until curl --fail --silent http://127.0.0.1:1080/readyz >/dev/null; do sleep 1; done
 ```

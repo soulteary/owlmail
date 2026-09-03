@@ -1,6 +1,6 @@
 services:
   owlmail:
-    image: ghcr.io/soulteary/owlmail:0.8.0
+    image: ghcr.io/soulteary/owlmail:0.9.0
     ports:
       - "127.0.0.1:1025:1025"
       - "127.0.0.1:1080:1080"

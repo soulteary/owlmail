@@ -41,9 +41,9 @@
   - 组件职责、数据流、单实例边界、信任模型与部署清单。
   - **其他语言**：[Architecture](../en/Architecture.md) | [Security Model](../en/Security-Model.md)
 
-- **[OwlMail 0.8.0 发布说明](./Release-0.8.0.md)**
+- **[OwlMail 0.9.0 发布说明](./Release-0.9.0.md)**
   - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
-  - **其他语言**：[English](../en/Release-0.8.0.md)
+  - **其他语言**：[English](../en/Release-0.9.0.md)
   - **上一版本**：[0.7.0](./Release-0.7.0.md)（[English](../en/Release-0.7.0.md)）
 
 - **[API 参考](./API-Reference.md)**

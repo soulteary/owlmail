@@ -1,6 +1,6 @@
 # MCP 参考
 
-OwlMail 0.8.0 通过可选的有状态 Streamable HTTP 与 `owlmail mcp-stdio`
+OwlMail 0.9.0 通过可选的有状态 Streamable HTTP 与 `owlmail mcp-stdio`
 提供同一套只读 MCP。MCP 是检查接口，不是邮箱管理 API。
 
 ## Transport

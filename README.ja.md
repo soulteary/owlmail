@@ -60,17 +60,17 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
   プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと
   ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。
 
-## 🆕 OwlMail 0.8.0
+## 🆕 OwlMail 0.9.0
 
-`v0.8.0` は現在の安定版です。mail directory 設定時に永続化されるネイティブ
-Relay job、階層化 YAML/JSON 設定、任意の SQLite index、Prometheus metrics、
-構造化 log、MailCatcher REST facade、MCP
-stdio bridge、強化された Web inbox と厳格な検証を追加しました。
+`v0.9.0` は現在の安定版です。実行可能な JavaScript、Python、Go の例、
+end-to-end CI、失敗時にも確実なメール cleanup、より広い API/MCP 文書契約により、
+AI-native な統合テスト workflow を強化しました。runtime API と保存形式は
+0.8.0 と互換です。
 
-以下の例は `ghcr.io/soulteary/owlmail:0.8.0` に固定しています。
+以下の例は `ghcr.io/soulteary/owlmail:0.9.0` に固定しています。
 再現可能な CI では完全なバージョンまたは
 `ghcr.io/soulteary/owlmail@sha256:<digest>` を使用してください。
-[0.8.0 リリースノート](./docs/en/Release-0.8.0.md)も参照してください。
+[0.9.0 リリースノート](./docs/en/Release-0.9.0.md)も参照してください。
 
 > [!IMPORTANT]
 > OwlMail は開発、テスト、CI、信頼できる内部ネットワーク向けです。公開本番
@@ -84,7 +84,7 @@ stdio bridge、強化された Web inbox と厳格な検証を追加しました
 
 ```bash
 # Clone repository
-git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.9.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -97,7 +97,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.9.0
 owlmail
 ```
 
@@ -123,11 +123,11 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# リリース 0.8.0 を取得
-docker pull ghcr.io/soulteary/owlmail:0.8.0
+# リリース 0.9.0 を取得
+docker pull ghcr.io/soulteary/owlmail:0.9.0
 
 # 特定コミットのイメージを取得（例）
-docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
+docker pull ghcr.io/soulteary/owlmail:sha-112f0d0
 
 # コンテナを実行
 docker run -d \
@@ -135,12 +135,12 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.8.0
+  ghcr.io/soulteary/owlmail:0.9.0
 ```
 
 **利用可能なタグ：**
-- `0.8.0` - 正確なリリースタグ。`0.8` と `0` は同じ系列の後続リリースで更新
-- `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-e3d2cfc`）
+- `0.9.0` - 正確なリリースタグ。`0.9` と `0` は同じ系列の後続リリースで更新
+- `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-112f0d0`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - デフォルトブランチに追随する可変イメージで、安定版の指定には使用不可
 
@@ -686,7 +686,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.8.0 リリースノート](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [OwlMail 0.9.0 リリースノート](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
 - [統合テスト、CI、AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP リファレンス](./docs/en/MCP-Reference.md)、[アーキテクチャ](./docs/en/Architecture.md)、[セキュリティモデル](./docs/en/Security-Model.md)
 - [実行可能なテスト例](./examples/testing/README.md)
