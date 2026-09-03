@@ -22,6 +22,7 @@ var (
 	errRelayJobCapacity       = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong  = errors.New("relay recipient exceeds size limit")
 	errRelayAlreadyPending    = errors.New("email already has a pending relay job")
+	errRelayJobTooLarge       = errors.New("relay job exceeds persistence size limit")
 	errRelaySourceInUse       = errors.New("email has a pending relay job")
 	errRelayAttemptsExhausted = errors.New("relay job attempt limit reached")
 	errRelayJobPersistence    = errors.New("relay job persistence unavailable")
@@ -132,6 +133,11 @@ func (store *relayJobStore) createConfirmed(emailID, relayTo string, recipients 
 	if recipients != nil {
 		job.Recipients = append([]string(nil), recipients...)
 		job.Confirmed = true
+	}
+	if store.directory != "" {
+		if err := validateRelayJobPersistenceBudget(job); err != nil {
+			return relayJob{}, err
+		}
 	}
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -410,6 +416,10 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string, confirmedRecipients
 	if errors.Is(err, errRelayRecipientTooLong) {
 		releaseSource()
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
+	}
+	if errors.Is(err, errRelayJobTooLarge) {
+		releaseSource()
+		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, "Confirmed relay recipients exceed the durable job size limit"))
 	}
 	if errors.Is(err, errRelayAlreadyPending) {
 		releaseSource()
