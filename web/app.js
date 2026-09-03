@@ -63,6 +63,7 @@ const i18n = {
         relayConfirm: '确定要中继这封邮件吗？实际邮件将发送到 {recipient}。',
         relayOriginalRecipients: '原始收件人',
         relayNoOriginalRecipients: '这封邮件没有可供中继的 SMTP 信封收件人。',
+        relayNoEffectiveRecipients: '当前中继规则排除了这封邮件的所有 SMTP 信封收件人。',
         relayQueued: '中继任务已提交。任务 ID：{id}',
         relayError: '中继失败：{error}',
         contentHTML: 'HTML',
@@ -159,6 +160,7 @@ const i18n = {
         relayConfirm: 'Relay this message? A real email will be sent to {recipient}.',
         relayOriginalRecipients: 'the original recipients',
         relayNoOriginalRecipients: 'This message has no SMTP envelope recipients to relay to.',
+        relayNoEffectiveRecipients: 'The current relay rules exclude every SMTP envelope recipient for this message.',
         relayQueued: 'Relay job accepted. Job ID: {id}',
         relayError: 'Relay failed: {error}',
         contentHTML: 'HTML',
@@ -836,6 +838,7 @@ let state = {
     ws: null
 };
 let relayEnabled = false;
+let relayConfig = null;
 const relayPending = new Set();
 
 function syncRelayMutationControls() {
@@ -1855,11 +1858,40 @@ async function loadRelayAvailability() {
     try {
         const outgoing = await API.getOutgoingConfig();
         relayEnabled = outgoing && outgoing.enabled === true;
+        relayConfig = relayEnabled ? outgoing : null;
         if (state.currentEmail) renderEmailDetail();
     } catch (error) {
         relayEnabled = false;
+        relayConfig = null;
         console.warn('Unable to inspect outgoing relay configuration:', error);
     }
+}
+
+function relayRuleMatches(address, rule) {
+    const normalizedAddress = String(address).toLowerCase();
+    const normalizedRule = String(rule).toLowerCase();
+    if (normalizedRule === normalizedAddress) return true;
+    if (!normalizedRule.includes('*')) return false;
+    const parts = normalizedRule.split('*');
+    return parts.length === 2
+        && normalizedAddress.startsWith(parts[0])
+        && normalizedAddress.endsWith(parts[1]);
+}
+
+function effectiveRelayRecipients(recipients) {
+    const allowRules = relayConfig && Array.isArray(relayConfig.allowRules) ? relayConfig.allowRules : [];
+    const denyRules = relayConfig && Array.isArray(relayConfig.denyRules) ? relayConfig.denyRules : [];
+    if (allowRules.length === 0 && denyRules.length === 0) return recipients;
+    return recipients.filter((recipient) => {
+        let allowed = allowRules.length === 0;
+        for (const rule of denyRules) {
+            if (relayRuleMatches(recipient, rule)) allowed = false;
+        }
+        for (const rule of allowRules) {
+            if (relayRuleMatches(recipient, rule)) allowed = true;
+        }
+        return allowed;
+    });
 }
 
 async function relayCurrentEmail(id, askForRecipient = false) {
@@ -1879,7 +1911,12 @@ async function relayCurrentEmail(id, askForRecipient = false) {
             alert(t('relayNoOriginalRecipients'));
             return;
         }
-        recipient = envelopeRecipients.join(', ');
+        const effectiveRecipients = effectiveRelayRecipients(envelopeRecipients);
+        if (effectiveRecipients.length === 0) {
+            alert(t('relayNoEffectiveRecipients'));
+            return;
+        }
+        recipient = effectiveRecipients.join(', ');
     }
     if (!confirm(t('relayConfirm', { recipient }))) return;
 

@@ -422,6 +422,33 @@ test('manual relay refuses an unknown original envelope', async () => {
     assert.match(harness.alerts[0], /no SMTP envelope recipients/);
 });
 
+test('manual relay confirms only recipients allowed by outgoing rules', async () => {
+    const harness = createHarness({
+        fetchImpl: async (url, options) => options && options.method === 'POST'
+            ? jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } })
+            : jsonResponse({ data: { id: 'job-1', status: 'succeeded' } })
+    });
+    harness.run(`
+        relayEnabled = true;
+        relayConfig = { allowRules: ['allowed@example.test'], denyRules: ['*@example.test'] };
+        state.currentEmail = {
+            id: 'mail-1',
+            envelope: { to: ['allowed@example.test', 'blocked@example.test'] }
+        };
+    `);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.match(harness.confirmations[0], /allowed@example\.test/);
+    assert.doesNotMatch(harness.confirmations[0], /blocked@example\.test/);
+    assert.equal(harness.fetchRequests.length, 2);
+
+    harness.run(`relayConfig = { allowRules: ['nobody@example.test'], denyRules: [] }`);
+    await harness.run(`relayCurrentEmail('mail-1')`);
+    assert.equal(harness.fetchRequests.length, 2);
+    assert.match(harness.alerts.at(-1), /relay rules exclude every/);
+});
+
 test('manual relay retries transient status failures', async () => {
     let statusAttempts = 0;
     const harness = createHarness({
