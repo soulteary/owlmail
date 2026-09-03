@@ -182,6 +182,21 @@ func TestReportWebAuthCompletion(t *testing.T) {
 			t.Fatalf("default username was not reported: %q", output.String())
 		}
 	})
+
+	t.Run("JSON format emits one structured notice", func(t *testing.T) {
+		cfg := &config.Config{WebUser: "operator", WebPassword: "generated-secret", LogFormat: "JSON"}
+		var output bytes.Buffer
+		if err := reportWebAuthCompletion(cfg, webAuthCompletion{generatedPassword: true}, &output); err != nil {
+			t.Fatal(err)
+		}
+		var notice map[string]string
+		if err := json.Unmarshal(output.Bytes(), &notice); err != nil {
+			t.Fatalf("notice is not JSON: %q: %v", output.String(), err)
+		}
+		if notice["level"] != "info" || notice["service"] != "owlmail" || !strings.Contains(notice["message"], "generated-secret") {
+			t.Fatalf("unexpected JSON notice: %#v", notice)
+		}
+	})
 }
 
 func TestSetupMailboxIndexRejectsMetadataCollision(t *testing.T) {
@@ -895,6 +910,14 @@ func TestInitializeApplicationNormalizesBasePathname(t *testing.T) {
 	cfg.BasePathname = "/owlmail/../admin"
 	if err := initializeApplication(cfg); err == nil {
 		t.Fatal("initializeApplication accepted path traversal")
+	}
+}
+
+func TestInitializeApplicationRejectsInvalidLogFormat(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.LogFormat = "jsno"
+	if err := initializeApplication(cfg); err == nil {
+		t.Fatal("initializeApplication accepted an invalid log format")
 	}
 }
 

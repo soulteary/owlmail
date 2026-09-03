@@ -7,22 +7,23 @@ import (
 
 func TestDefaultErrorHandlerFatal(t *testing.T) {
 	handler := &DefaultErrorHandler{}
-
-	// Test that DefaultErrorHandler can be created and implements the interface
-	// Note: We cannot directly test DefaultErrorHandler.Fatal because it calls log.Fatalf
-	// which will exit the process. The function is tested indirectly through other tests
-	// that use SetErrorHandler and ResetErrorHandler.
-
-	// Verify it implements the ErrorHandler interface
 	var _ ErrorHandler = handler
 
-	// Verify handler can be used (type check)
-	_ = handler
+	previousExit := exitProcess
+	defer func() { exitProcess = previousExit }()
+	exitCode := 0
+	exitProcess = func(code int) { exitCode = code }
+	err := handler.Fatal("fatal %s", "failure")
+	if exitCode != 1 {
+		t.Fatalf("exit code = %d, want 1", exitCode)
+	}
+	if err == nil || err.Error() != "[FATAL] fatal failure" {
+		t.Fatalf("Fatal() error = %v", err)
+	}
 }
 
-// TestDefaultErrorHandlerFatalFormatting tests the formatting logic of DefaultErrorHandler.Fatal
-// by verifying that fmt.Sprintf produces the expected output. We cannot test log.Fatalf
-// directly as it exits the process, but we can verify the formatting logic is correct.
+// TestDefaultErrorHandlerFatalFormatting tests the formatting contract shared
+// with test handlers without invoking the process exit path.
 func TestDefaultErrorHandlerFatalFormatting(t *testing.T) {
 	handler := &DefaultErrorHandler{}
 

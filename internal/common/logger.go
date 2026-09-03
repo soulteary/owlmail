@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"sync"
 
 	logger "github.com/soulteary/logger-kit/v2"
@@ -51,19 +52,32 @@ func getLoggerUnsafe() *logger.Logger {
 // InitLogger initializes the global logger. Holds the lock for the whole call so it does
 // not race with Log/Verbose/Error: logger.New() writes zerolog globals, and Msg() reads them.
 func InitLogger(level LogLevel) {
-	InitLoggerOutput(level, os.Stdout)
+	InitLoggerWithFormat(level, "console")
 }
 
 // InitLoggerOutput initializes the global console logger on a selected stream.
 // Stdio protocols use stderr so logs cannot corrupt protocol messages.
 func InitLoggerOutput(level LogLevel, output io.Writer) {
+	initLogger(level, "console", output)
+}
+
+// InitLoggerWithFormat initializes the global logger in console or JSON form.
+func InitLoggerWithFormat(level LogLevel, format string) {
+	initLogger(level, format, os.Stdout)
+}
+
+func initLogger(level LogLevel, format string, output io.Writer) {
 	defaultLogMu.Lock()
 	defer defaultLogMu.Unlock()
 	kitLevel := owlmailToLoggerLevel(level)
+	kitFormat := logger.FormatConsole
+	if strings.EqualFold(strings.TrimSpace(format), "json") {
+		kitFormat = logger.FormatJSON
+	}
 	l := logger.New(logger.Config{
 		Level:       kitLevel,
 		Output:      output,
-		Format:      logger.FormatConsole,
+		Format:      kitFormat,
 		ServiceName: "owlmail",
 	})
 	defaultLog = l
