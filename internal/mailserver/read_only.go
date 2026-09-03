@@ -140,6 +140,9 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		if email.HTML != "" {
 			email.HTML = strings.TrimSpace(sanitizeHTML(email.HTML))
 		}
+		if item.metadataUncertain && len(email.Attachments) > 0 {
+			continue
+		}
 		if item.metadata != nil {
 			if err := restoreAttachmentMetadata(email, *item.metadata); err != nil {
 				refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
