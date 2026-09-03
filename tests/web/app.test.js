@@ -415,6 +415,31 @@ test('manual relay confirms envelope recipients and stays pending until completi
     assert.equal(harness.run(`relayPending.has('mail-1')`), false);
 });
 
+test('manual relay aborts when the selection changes during preflight', async () => {
+    let resolvePreflight;
+    const preflightResponse = new Promise((resolve) => { resolvePreflight = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url) => {
+            if (String(url).endsWith('/actions/relay/preflight')) return preflightResponse;
+            throw new Error('relay submission must not run after the selection changes');
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = { id: 'mail-1', envelope: { to: ['recipient@example.test'] } };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    harness.run(`state.currentEmail = { id: 'mail-2', envelope: { to: ['other@example.test'] } };`);
+    resolvePreflight(jsonResponse({ data: { recipients: ['recipient@example.test'] } }));
+    await relay;
+
+    assert.equal(harness.confirmations.length, 0);
+    assert.equal(harness.fetchRequests.length, 1);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+});
+
 test('manual relay refuses an unknown original envelope', async () => {
     const harness = createHarness();
     harness.run(`relayEnabled = true; state.currentEmail = { id: 'mail-1', envelope: null }`);
