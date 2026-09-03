@@ -788,6 +788,16 @@ let state = {
 };
 let relayEnabled = false;
 const relayPending = new Set();
+
+function syncRelayMutationControls() {
+    const deleteAllBtn = document.getElementById('deleteAllBtn');
+    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0;
+}
+
+function relayStatusErrorIsTransient(error) {
+    const status = Number(error && error.status);
+    return !Number.isFinite(status) || status === 408 || status === 429 || status >= 500;
+}
 const RELAY_STATUS_POLL_INTERVAL_MS = 1000;
 
 function currentEmailIDFromLocation() {
@@ -1280,7 +1290,10 @@ function updateUI(renderDynamic = true) {
     if (markAllReadBtn) markAllReadBtn.textContent = t('markAllRead');
     
     const deleteAllBtn = document.getElementById('deleteAllBtn');
-    if (deleteAllBtn) deleteAllBtn.textContent = t('deleteAll');
+    if (deleteAllBtn) {
+        deleteAllBtn.textContent = t('deleteAll');
+        deleteAllBtn.disabled = relayPending.size > 0;
+    }
 
     const webhookBtn = document.getElementById('webhookBtn');
     if (webhookBtn) {
@@ -1423,7 +1436,7 @@ function renderEmailDetail() {
                 <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
                 <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
             ` : ''}
-            <button class="btn btn-danger" onclick="deleteEmail('${email.id}')">${t('delete')}</button>
+            <button class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
             <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
@@ -1673,6 +1686,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
     if (!confirm(t('relayConfirm', { recipient }))) return;
 
     relayPending.add(id);
+    syncRelayMutationControls();
     renderEmailDetail();
     let releasePending = true;
     try {
@@ -1681,12 +1695,22 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         const job = data && data.job;
         alert(t('relayQueued', { id: job && job.id ? job.id : t('unknown') }));
         if (!data || !data.statusUrl) {
-            releasePending = false;
             throw new Error('Relay status URL is missing');
         }
         releasePending = false;
         while (true) {
-            const statusResult = await API.getRelayJob(data.statusUrl);
+            let statusResult;
+            try {
+                statusResult = await API.getRelayJob(data.statusUrl);
+            } catch (error) {
+                if (!relayStatusErrorIsTransient(error)) {
+                    releasePending = true;
+                    throw error;
+                }
+                console.warn('Relay status check failed; retrying:', error);
+                await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+                continue;
+            }
             const current = statusResult && statusResult.data;
             if (current && (current.status === 'succeeded' || current.status === 'failed')) {
                 releasePending = true;
@@ -1701,6 +1725,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         alert(t('relayError', { error: parseAPIError(error) }));
     } finally {
         if (releasePending) relayPending.delete(id);
+        syncRelayMutationControls();
         if (state.currentEmail && state.currentEmail.id === id) renderEmailDetail();
     }
 }
@@ -1740,6 +1765,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
 }
 
 async function deleteEmail(id) {
+    if (relayPending.has(id)) return;
     if (!confirm(t('deleteConfirm'))) return;
 
     try {
@@ -1763,6 +1789,7 @@ async function deleteEmail(id) {
 }
 
 async function deleteAllEmails() {
+    if (relayPending.size > 0) return;
     if (!confirm(t('deleteAllConfirm'))) return;
 
     try {

@@ -76,6 +76,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     }
     const notificationToggle = createElement();
     const notificationStatus = createElement();
+    const deleteAllBtn = createElement();
     const emailDetail = createElement();
     const emailList = createElement();
     const emailViewportFrame = createElement();
@@ -85,6 +86,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const elements = new Map([
         ['notificationToggle', notificationToggle],
         ['notificationStatus', notificationStatus],
+        ['deleteAllBtn', deleteAllBtn],
         ['emailDetail', emailDetail],
         ['emailList', emailList],
         ['emailViewportFrame', emailViewportFrame],
@@ -184,7 +186,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
             setItem(key, value) { storage.set(key, value); }
         },
         console,
-        setTimeout() { return 1; },
+        setTimeout(callback) { Promise.resolve().then(callback); return 1; },
         clearTimeout() {},
         fetch: async (url, options) => {
             fetchRequests.push({ url: String(url), options });
@@ -204,6 +206,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     return {
         alerts,
         confirmations,
+        deleteAllBtn,
         documentListeners,
         emailDetail,
         emailList,
@@ -405,6 +408,69 @@ test('manual relay refuses an unknown original envelope', async () => {
 
     assert.equal(harness.fetchRequests.length, 0);
     assert.match(harness.alerts[0], /no SMTP envelope recipients/);
+});
+
+test('manual relay retries transient status failures', async () => {
+    let statusAttempts = 0;
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            statusAttempts++;
+            if (statusAttempts === 1) {
+                return {
+                    ...jsonResponse({ message: 'temporarily unavailable' }),
+                    ok: false,
+                    status: 503
+                };
+            }
+            return jsonResponse({ data: { id: 'job-1', status: 'succeeded' } });
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = { id: 'mail-1', envelope: { to: ['recipient@example.test'] } };
+    `);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.equal(statusAttempts, 2);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+    assert.equal(harness.alerts.length, 1);
+});
+
+test('delete controls stay disabled while relay delivery is pending', async () => {
+    let resolveStatus;
+    const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            return statusResponse;
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = {
+            id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body',
+            envelope: { to: ['recipient@example.test'] }
+        };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(harness.deleteAllBtn.disabled, true);
+    assert.match(harness.emailDetail.innerHTML, /btn btn-danger" disabled/);
+    const requestCount = harness.fetchRequests.length;
+    await harness.run(`deleteEmail('mail-1')`);
+    await harness.run(`deleteAllEmails()`);
+    assert.equal(harness.fetchRequests.length, requestCount);
+
+    resolveStatus(jsonResponse({ data: { id: 'job-1', status: 'succeeded' } }));
+    await relay;
+    assert.equal(harness.deleteAllBtn.disabled, false);
 });
 
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
