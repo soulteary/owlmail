@@ -10,6 +10,16 @@ import (
 	"time"
 )
 
+// ReadOnlyRefreshPartialError reports files that could not be inspected while
+// preserving every mailbox entry whose state could not be determined safely.
+// The top-level mailbox directory was still readable.
+type ReadOnlyRefreshPartialError struct {
+	err error
+}
+
+func (err *ReadOnlyRefreshPartialError) Error() string { return err.err.Error() }
+func (err *ReadOnlyRefreshPartialError) Unwrap() error { return err.err }
+
 // RefreshReadOnlyMailbox synchronizes the in-memory snapshot with committed
 // EML files without recovery, metadata migration, quarantine, or any write to
 // the mailbox. Newly observed messages emit the ordinary in-process new event.
@@ -27,6 +37,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	candidates := make(map[string]candidate)
 	var refreshErrors []error
 	blockedIDs := make(map[string]struct{})
+	uncertainIDs := make(map[string]struct{})
 	for _, file := range files {
 		if id, ok := deletionFenceID(file.Name()); ok {
 			blockedIDs[id] = struct{}{}
@@ -36,6 +47,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			state, stateErr := readRollbackFenceState(filepath.Join(ms.mailDir, file.Name()))
 			if stateErr != nil {
 				blockedIDs[id] = struct{}{}
+				uncertainIDs[id] = struct{}{}
 				refreshErrors = append(refreshErrors, fmt.Errorf("read rollback fence for %s: %w", id, stateErr))
 				continue
 			}
@@ -58,6 +70,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		}
 		info, err := file.Info()
 		if err != nil {
+			uncertainIDs[id] = struct{}{}
 			refreshErrors = append(refreshErrors, fmt.Errorf("stat email %s: %w", id, err))
 			continue
 		}
@@ -133,6 +146,9 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	ms.storeMutex.Lock()
 	for id := range ms.storeByID {
 		if _, ok := candidates[id]; !ok {
+			if _, uncertain := uncertainIDs[id]; uncertain {
+				continue
+			}
 			delete(ms.storeByID, id)
 			delete(ms.receivedAtByID, id)
 		}
@@ -161,5 +177,8 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	for _, email := range newEmails {
 		ms.emitAsynchronous("new", email)
 	}
-	return errors.Join(refreshErrors...)
+	if err := errors.Join(refreshErrors...); err != nil {
+		return &ReadOnlyRefreshPartialError{err: err}
+	}
+	return nil
 }

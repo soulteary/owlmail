@@ -851,7 +851,11 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) error {
 	}
 	defer func() { _ = server.Close() }()
 	if err := server.RefreshReadOnlyMailbox(); err != nil {
-		return fmt.Errorf("load read-only mailbox: %w", err)
+		var partial *mailserver.ReadOnlyRefreshPartialError
+		if !errors.As(err, &partial) {
+			return fmt.Errorf("load read-only mailbox: %w", err)
+		}
+		common.Error("MCP stdio mailbox loaded with skipped entries: %v", err)
 	}
 	sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
 	if err != nil || sessionTimeout <= 0 {

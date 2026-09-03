@@ -1,6 +1,7 @@
 package mailserver
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -101,5 +102,49 @@ func TestRefreshReadOnlyMailboxHidesTransactionFencedMail(t *testing.T) {
 	}
 	if _, err := server.GetEmail("deleted-message"); err == nil {
 		t.Fatal("deletion-fenced email became visible")
+	}
+}
+
+func TestRefreshReadOnlyMailboxPreservesExistingMailWhenFenceIsUnreadable(t *testing.T) {
+	directory := t.TempDir()
+	server, err := NewMailServerWithOptions(1025, "localhost", directory, ServerOptions{ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	const id = "stable-message"
+	raw := []byte("From: sender@example.test\r\nTo: recipient@example.test\r\nSubject: stable\r\n\r\nbody")
+	if err := os.WriteFile(filepath.Join(directory, id+".eml"), raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+
+	notified := make(chan string, 1)
+	server.On("new", func(email *Email) { notified <- email.ID })
+	fence := rollbackFencePath(directory, id)
+	if err := os.Mkdir(fence, 0700); err != nil {
+		t.Fatal(err)
+	}
+	err = server.RefreshReadOnlyMailbox()
+	var partial *ReadOnlyRefreshPartialError
+	if !errors.As(err, &partial) {
+		t.Fatalf("refresh error = %v, want ReadOnlyRefreshPartialError", err)
+	}
+	if email, getErr := server.GetEmail(id); getErr != nil || email.Subject != "stable" {
+		t.Fatalf("existing email was discarded: %#v, %v", email, getErr)
+	}
+	if err := os.Remove(fence); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.RefreshReadOnlyMailbox(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case duplicate := <-notified:
+		t.Fatalf("existing email emitted a duplicate notification for %q", duplicate)
+	case <-time.After(50 * time.Millisecond):
 	}
 }
