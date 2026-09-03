@@ -35,8 +35,10 @@ function createElement({ dataset = {} } = {}) {
         scrollTop: 0,
         hidden: true,
         disabled: false,
+        focused: false,
         title: '',
         addEventListener(name, handler) { listeners.set(name, handler); },
+        focus() { this.focused = true; },
         setAttribute(name, value) { attributes.set(name, value); },
         querySelectorAll() { return []; }
     };
@@ -80,6 +82,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const emailList = createElement();
     const emailViewportFrame = createElement();
     const emailViewportStage = createElement();
+    const emailSourceTab = createElement();
     const emailViewportButtons = ['100%', '1440', '1024', '768', '425', '375', '320']
         .map((width) => createElement({ dataset: { viewportWidth: width } }));
     const elements = new Map([
@@ -88,7 +91,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['emailDetail', emailDetail],
         ['emailList', emailList],
         ['emailViewportFrame', emailViewportFrame],
-        ['emailViewportStage', emailViewportStage]
+        ['emailViewportStage', emailViewportStage],
+        ['email-content-tab-source', emailSourceTab]
     ]);
     const notifications = [];
     const fetchRequests = [];
@@ -208,6 +212,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         emailViewportButtons,
         emailViewportFrame,
         emailViewportStage,
+        emailSourceTab,
         fetchRequests,
         historyCalls,
         notificationStatus,
@@ -391,6 +396,41 @@ test('source load failures replace the loading placeholder', async () => {
     await harness.run(`setEmailContentTab('source')`);
     assert.equal(harness.emailDetail.innerHTML.includes('Loading source'), false);
     assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), true);
+});
+
+test('source requests are deduplicated and keyboard focus survives completion', async () => {
+    let resolveFetch;
+    const response = new Promise((resolve) => { resolveFetch = resolve; });
+    const harness = createHarness({ fetchImpl: async () => response });
+    harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+
+    const first = harness.run(`setEmailContentTab('source', true)`);
+    const second = harness.run(`setEmailContentTab('source', true)`);
+    assert.equal(harness.fetchRequests.length, 1);
+    resolveFetch({
+        ok: true,
+        status: 200,
+        body: null,
+        headers: { get: () => null },
+        async text() { return 'Subject: hello\r\n\r\nbody'; }
+    });
+    await Promise.all([first, second]);
+
+    assert.equal(harness.run(`emailSourceCache.get('mail-1')`), 'Subject: hello\r\n\r\nbody');
+    assert.equal(harness.run('emailSourceRequests.size'), 0);
+    assert.equal(harness.emailSourceTab.focused, true);
+});
+
+test('large sources use the standalone view without an inline fetch', async () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'large-mail', size: EMAIL_SOURCE_INLINE_MAX_BYTES + 1, html: '', text: '', headers: {}, attachments: [] }`);
+
+    await harness.run(`setEmailContentTab('source')`);
+
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.equal(harness.run(`emailSourceOversized.has('large-mail')`), true);
+    assert.match(harness.emailDetail.innerHTML, /too large to display safely inline/);
+    assert.match(harness.emailDetail.innerHTML, /View Source/);
 });
 
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
