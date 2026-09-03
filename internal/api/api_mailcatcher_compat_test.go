@@ -37,7 +37,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	defer func() { _ = server.Close() }()
 	api.SetMailCatcherRESTCompat(true)
 	email := &types.Email{
-		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder%2Flogo%3Ftheme%231@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test">`,
+		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder%2Flogo%3Ftheme%231@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test"><iframe src="cid:active@example.test"></iframe>`,
 		Time: time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC), Size: 123,
 		Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
 		Attachments: []*types.Attachment{
@@ -45,6 +45,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 			{ContentID: "folder/logo?theme#1@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "special.png", GeneratedFileName: "safe-special.png", Size: 7},
 			{ContentID: "foo&bar@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "amp.png", GeneratedFileName: "safe-amp.png", Size: 3},
 			{ContentID: "foo&copy;@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "entity.png", GeneratedFileName: "safe-entity.png", Size: 6},
+			{ContentID: "active@example.test", ContentType: "text/html", ContentDisposition: "inline", FileName: "active.html", GeneratedFileName: "safe-active.html", Size: 18},
 		},
 	}
 	if err := os.WriteFile(filepath.Join(mailDir, "mail-1.eml"), []byte("Subject: MailCatcher\r\n\r\nsource"), 0600); err != nil {
@@ -63,6 +64,9 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-entity.png"), []byte("entity"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-active.html"), []byte("<script>1</script>"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := server.SaveEmailToStore(email.ID, false, email.Envelope, email); err != nil {
@@ -89,7 +93,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.json")
 	var detail map[string]interface{}
 	decodeMailCatcherJSON(t, resp, &detail)
-	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 4 {
+	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 5 {
 		t.Fatalf("unexpected detail: %#v", detail)
 	}
 	if detail["created_at"] == email.Time.Format(time.RFC3339) {
@@ -137,6 +141,11 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 		}
 		_ = resp.Body.Close()
 	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1/parts/active@example.test")
+	if disposition := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(disposition, "attachment;") {
+		t.Fatalf("active inline part disposition = %q, want attachment", disposition)
+	}
+	_ = resp.Body.Close()
 	if strings.Contains(string(htmlBody), "foo&amp;amp;bar") {
 		t.Fatalf("HTML CID rewrite retained a serialized entity: %s", htmlBody)
 	}

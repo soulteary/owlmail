@@ -192,11 +192,7 @@ func (api *API) mailCatcherPart(c fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).SendString("Message part could not be read")
 	}
 	contentType := reader.ContentType
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-	c.Set(fiber.HeaderContentType, contentType)
-	c.Set("X-Content-Type-Options", "nosniff")
+	setAttachmentResponseHeaders(c, contentType, selected.FileName)
 	if strings.EqualFold(selected.ContentDisposition, "attachment") {
 		c.Set(fiber.HeaderContentDisposition, mime.FormatMediaType("attachment", map[string]string{"filename": selected.FileName}))
 	}
