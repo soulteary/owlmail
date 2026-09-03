@@ -17,6 +17,7 @@ import (
 var (
 	errRelayJobCapacity      = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong = errors.New("relay recipient exceeds size limit")
+	errRelayAlreadyPending   = errors.New("email already has a pending relay job")
 	errRelaySourceInUse      = errors.New("email has a pending relay job")
 )
 
@@ -111,6 +112,11 @@ func (store *relayJobStore) create(emailID, relayTo string) (relayJob, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	store.pruneLocked(now)
+	for _, existing := range store.jobs {
+		if existing.EmailID == emailID && existing.CompletedAt == nil {
+			return relayJob{}, errRelayAlreadyPending
+		}
+	}
 	if !store.makeRoomLocked(now) {
 		return relayJob{}, errRelayJobCapacity
 	}
@@ -251,6 +257,10 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	if errors.Is(err, errRelayRecipientTooLong) {
 		releaseSource()
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeInvalidEmailAddress, "Relay recipient exceeds 1024 UTF-8 bytes"))
+	}
+	if errors.Is(err, errRelayAlreadyPending) {
+		releaseSource()
+		return c.Status(http.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "Email already has a pending relay job"))
 	}
 	if errors.Is(err, errRelayJobCapacity) {
 		releaseSource()

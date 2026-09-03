@@ -159,43 +159,31 @@ func (ms *MailServer) CleanupStorage() error {
 		return items[i].time.Before(items[j].time)
 	})
 
-	remove := make(map[string]candidate)
-	if ms.storagePolicy.MaxAge > 0 {
-		cutoff := time.Now().Add(-ms.storagePolicy.MaxAge)
-		for _, item := range items {
-			if item.time.Before(cutoff) {
-				remove[item.id] = item
-				totalBytes -= item.size
-			}
-		}
-	}
-	remaining := len(items) - len(remove)
-	for _, item := range items {
-		if _, selected := remove[item.id]; selected {
-			continue
-		}
-		overCount := ms.storagePolicy.MaxMessages > 0 && remaining > ms.storagePolicy.MaxMessages
-		overDisk := ms.storagePolicy.MaxDiskBytes > 0 && totalBytes > ms.storagePolicy.MaxDiskBytes
-		if !overCount && !overDisk {
-			break
-		}
-		remove[item.id] = item
-		remaining--
-		totalBytes -= item.size
-	}
-
 	var deleted uint64
 	var reclaimed uint64
+	remaining := len(items)
+	cutoff := time.Time{}
+	if ms.storagePolicy.MaxAge > 0 {
+		cutoff = time.Now().Add(-ms.storagePolicy.MaxAge)
+	}
 	for _, item := range items {
-		if _, selected := remove[item.id]; !selected {
+		expired := !cutoff.IsZero() && item.time.Before(cutoff)
+		overCount := ms.storagePolicy.MaxMessages > 0 && remaining > ms.storagePolicy.MaxMessages
+		overDisk := ms.storagePolicy.MaxDiskBytes > 0 && totalBytes > ms.storagePolicy.MaxDiskBytes
+		if !expired && !overCount && !overDisk {
 			continue
 		}
 		if err := ms.DeleteEmail(item.id); err != nil {
+			if errors.Is(err, ErrEmailSourceInUse) {
+				continue
+			}
 			ms.recordCleanup(deleted, reclaimed, err)
 			return err
 		}
 		deleted++
 		reclaimed += uint64(item.size)
+		remaining--
+		totalBytes -= item.size
 	}
 	ms.recordCleanup(deleted, reclaimed, nil)
 	return nil

@@ -309,11 +309,24 @@ func TestEmailSourceLeaseProtectsExplicitAndRetentionDeletion(t *testing.T) {
 	server.receivedAtByID[id] = time.Now().Add(-time.Hour)
 	server.storeMutex.Unlock()
 	server.storagePolicy = StoragePolicy{MaxAge: time.Nanosecond}
-	if err := server.CleanupStorage(); !errors.Is(err, ErrEmailSourceInUse) {
-		t.Fatalf("CleanupStorage() error = %v, want ErrEmailSourceInUse", err)
+	otherID := "other-expired"
+	if err := os.WriteFile(filepath.Join(server.mailDir, otherID+".eml"), []byte(governanceTestMessage), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(otherID, false, &Envelope{To: []string{"receiver@example.test"}}, &Email{Subject: otherID}); err != nil {
+		t.Fatal(err)
+	}
+	server.storeMutex.Lock()
+	server.receivedAtByID[otherID] = time.Now().Add(-time.Hour)
+	server.storeMutex.Unlock()
+	if err := server.CleanupStorage(); err != nil {
+		t.Fatalf("CleanupStorage() error = %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(server.mailDir, id+".eml")); err != nil {
 		t.Fatalf("leased source was removed: %v", err)
+	}
+	if _, err := server.GetEmail(otherID); err == nil {
+		t.Fatal("cleanup stopped before deleting an unrelated expired email")
 	}
 
 	release()

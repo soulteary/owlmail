@@ -48,6 +48,27 @@ func TestRelayJobStoreRejectsOversizedRecipient(t *testing.T) {
 	}
 }
 
+func TestRelayJobStoreRejectsDuplicatePendingEmail(t *testing.T) {
+	store := newRelayJobStore()
+	ids := []string{"first-job", "duplicate-job", "after-completion"}
+	store.newID = func() (string, error) {
+		id := ids[0]
+		ids = ids[1:]
+		return id, nil
+	}
+	first, err := store.create("mail-1", "first@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.create("mail-1", "second@example.test"); !errors.Is(err, errRelayAlreadyPending) {
+		t.Fatalf("duplicate create error = %v, want errRelayAlreadyPending", err)
+	}
+	store.complete(first.ID, nil)
+	if _, err := store.create("mail-1", "second@example.test"); err != nil {
+		t.Fatalf("create after completion: %v", err)
+	}
+}
+
 func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {
