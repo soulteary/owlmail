@@ -426,6 +426,13 @@ func TestMailServerDeleteAllEmailPreservesWebhookOutbox(t *testing.T) {
 	if err := os.WriteFile(outboxJob, []byte(`{"id":"pending"}`), 0600); err != nil {
 		t.Fatal(err)
 	}
+	relayJob := filepath.Join(tmpDir, metadataDirectoryName, relayJobMetadataDirectoryName, "pending.json")
+	if err := os.MkdirAll(filepath.Dir(relayJob), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(relayJob, []byte(`{"id":"pending-relay"}`), 0600); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(tmpDir, "mail.eml"), []byte("mail"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -435,6 +442,9 @@ func TestMailServerDeleteAllEmailPreservesWebhookOutbox(t *testing.T) {
 	}
 	if content, err := os.ReadFile(outboxJob); err != nil || string(content) != `{"id":"pending"}` {
 		t.Fatalf("outbox job after delete-all = %q, %v", content, err)
+	}
+	if content, err := os.ReadFile(relayJob); err != nil || string(content) != `{"id":"pending-relay"}` {
+		t.Fatalf("relay job after delete-all = %q, %v", content, err)
 	}
 	if _, err := os.Stat(filepath.Join(tmpDir, "mail.eml")); !os.IsNotExist(err) {
 		t.Fatalf("mail file survived delete-all: %v", err)
