@@ -385,10 +385,10 @@ test('manual relay confirms envelope recipients and stays pending until completi
     `);
 
     const relay = harness.run(`relayCurrentEmail('mail-1')`);
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     assert.match(harness.confirmations[0], /hidden@example\.test, redirect@example\.test/);
     assert.equal(harness.run(`relayPending.has('mail-1')`), true);
+    assert.equal(harness.fetchRequests.length, 2);
     await harness.run(`relayCurrentEmail('mail-1')`);
     assert.equal(harness.fetchRequests.length, 2);
 
