@@ -270,18 +270,19 @@ type Config struct {
 	MailIndexPath       string
 
 	// Web API configuration
-	WebPort            int
-	WebHost            string
-	WebUser            string
-	WebPassword        string
-	WebExternalScheme  string
-	WebExternalURL     string
-	BasePathname       string
-	MailDevRESTCompat  bool
-	MetricsEnabled     bool
-	MCPEnabled         bool
-	MCPSessionTimeout  string
-	MCPShutdownTimeout string
+	WebPort               int
+	WebHost               string
+	WebUser               string
+	WebPassword           string
+	WebExternalScheme     string
+	WebExternalURL        string
+	BasePathname          string
+	MailDevRESTCompat     bool
+	MailCatcherRESTCompat bool
+	MetricsEnabled        bool
+	MCPEnabled            bool
+	MCPSessionTimeout     string
+	MCPShutdownTimeout    string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -371,6 +372,7 @@ func DefaultConfig() *Config {
 		WebExternalURL:              "",
 		BasePathname:                "",
 		MailDevRESTCompat:           false,
+		MailCatcherRESTCompat:       false,
 		MetricsEnabled:              false,
 		MCPEnabled:                  false,
 		MCPSessionTimeout:           DefaultMCPSessionTimeout,
@@ -446,6 +448,7 @@ type FlagRefs struct {
 	WebExternalURL              *string
 	BasePathname                *string
 	MailDevRESTCompat           *bool
+	MailCatcherRESTCompat       *bool
 	MetricsEnabled              *bool
 	MCPEnabled                  *bool
 	MCPSessionTimeout           *string
@@ -530,6 +533,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		WebExternalURL:              fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
 		BasePathname:                fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MailDevRESTCompat:           fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
+		MailCatcherRESTCompat:       fs.Bool("mailcatcher-rest-compat", cfg.MailCatcherRESTCompat, "Enable the optional MailCatcher REST compatibility facade under /messages"),
 		MetricsEnabled:              fs.Bool("metrics-enabled", cfg.MetricsEnabled, "Expose Prometheus metrics at /metrics"),
 		MCPEnabled:                  fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
 		MCPSessionTimeout:           fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for MCP sessions"),
@@ -613,18 +617,19 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
 		MailIndexPath:       resolveStringWithFlag(fs, "mail-index-path", "OWLMAIL_MAIL_INDEX_PATH", *refs.MailIndexPath),
 
-		WebPort:            resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
-		WebHost:            resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
-		WebUser:            resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
-		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
-		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
-		WebExternalURL:     resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
-		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
-		MailDevRESTCompat:  resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
-		MetricsEnabled:     resolveBoolWithFlag(fs, "metrics-enabled", "OWLMAIL_METRICS_ENABLED", *refs.MetricsEnabled),
-		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
-		MCPSessionTimeout:  resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
-		MCPShutdownTimeout: resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
+		WebPort:               resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
+		WebHost:               resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
+		WebUser:               resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
+		WebPassword:           resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
+		WebExternalScheme:     ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		WebExternalURL:        resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
+		BasePathname:          resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
+		MailDevRESTCompat:     resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
+		MailCatcherRESTCompat: resolveBoolWithFlag(fs, "mailcatcher-rest-compat", "OWLMAIL_MAILCATCHER_REST_COMPAT", *refs.MailCatcherRESTCompat),
+		MetricsEnabled:        resolveBoolWithFlag(fs, "metrics-enabled", "OWLMAIL_METRICS_ENABLED", *refs.MetricsEnabled),
+		MCPEnabled:            resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
+		MCPSessionTimeout:     resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
+		MCPShutdownTimeout:    resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),

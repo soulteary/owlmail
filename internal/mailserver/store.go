@@ -27,6 +27,10 @@ const relayJobMetadataDirectoryName = "relay-jobs"
 
 const attachmentCopyBufferSize = 32 * 1024
 
+// ErrEmailNotFound allows API adapters to distinguish a concurrent deletion
+// from a storage failure without matching error text.
+var ErrEmailNotFound = errors.New("email not found")
+
 // SaveEmailToStore saves a parsed email to the store (exported for testing)
 func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email) error {
 	ms.storageTransactionMutex.RLock()
@@ -247,7 +251,28 @@ func (ms *MailServer) GetEmail(id string) (*Email, error) {
 		return cloneEmail(email), nil
 	}
 
-	return nil, fmt.Errorf("email was not found")
+	return nil, ErrEmailNotFound
+}
+
+// GetEmailWithReceivedAt returns one consistent snapshot of both the message
+// and its server-assigned capture timestamp.
+func (ms *MailServer) GetEmailWithReceivedAt(id string) (*Email, time.Time, error) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+
+	email, exists := ms.storeByID[id]
+	if !exists {
+		return nil, time.Time{}, ErrEmailNotFound
+	}
+	return cloneEmail(email), ms.receivedAtByID[id], nil
+}
+
+// GetEmailReceivedAt returns OwlMail's capture timestamp for an email.
+func (ms *MailServer) GetEmailReceivedAt(id string) (time.Time, bool) {
+	ms.storeMutex.RLock()
+	defer ms.storeMutex.RUnlock()
+	receivedAt, ok := ms.receivedAtByID[id]
+	return receivedAt, ok
 }
 
 // GetAllEmail returns all emails
@@ -277,7 +302,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	email, exists := ms.storeByID[id]
 	if !exists {
 		ms.storeMutex.RUnlock()
-		return fmt.Errorf("email not found")
+		return ErrEmailNotFound
 	}
 	email = cloneEmail(email)
 	ms.storeMutex.RUnlock()
@@ -792,6 +817,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 		RemoteAddress: "unknown",
 	}
 	if s != nil {
+		envelope.SMTPTransaction = true
 		if s.conn != nil {
 			if conn := s.conn.Conn(); conn != nil {
 				envelope.RemoteAddress = conn.RemoteAddr().String()

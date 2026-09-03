@@ -1,0 +1,308 @@
+package api
+
+import (
+	"encoding/json"
+	"html"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/emersion/go-message/mail"
+	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/types"
+)
+
+func TestMailCatcherRESTFacadeIsOptIn(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	req, _ := http.NewRequest(http.MethodGet, "/messages", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("disabled facade returned %d", resp.StatusCode)
+	}
+}
+
+func TestMailCatcherRESTFacadeContract(t *testing.T) {
+	api, server, mailDir := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	api.SetMailCatcherRESTCompat(true)
+	email := &types.Email{
+		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder%2Flogo%3Ftheme%231@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test"><iframe src="cid:active@example.test"></iframe>`,
+		Time: time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC), Size: 123,
+		Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
+		Attachments: []*types.Attachment{
+			{ContentID: "logo@example.test", ContentType: "image/png", ContentDisposition: "attachment", FileName: "logo.png", GeneratedFileName: "safe-logo.png", Size: 4},
+			{ContentID: "folder/logo?theme#1@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "special.png", GeneratedFileName: "safe-special.png", Size: 7},
+			{ContentID: "foo&bar@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "amp.png", GeneratedFileName: "safe-amp.png", Size: 3},
+			{ContentID: "foo&copy;@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "entity.png", GeneratedFileName: "safe-entity.png", Size: 6},
+			{ContentID: "active@example.test", ContentType: "text/html", ContentDisposition: "inline", FileName: "active.html", GeneratedFileName: "safe-active.html", Size: 18},
+		},
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1.eml"), []byte("Subject: MailCatcher\r\n\r\nsource"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(mailDir, "mail-1"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-logo.png"), []byte("logo"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-special.png"), []byte("special"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-amp.png"), []byte("amp"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-entity.png"), []byte("entity"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-active.html"), []byte("<script>1</script>"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, email.Envelope, email); err != nil {
+		t.Fatal(err)
+	}
+	second := &types.Email{
+		ID: "mail-2", Subject: "Newest capture", Text: "second",
+		Time:     time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC),
+		Envelope: &types.Envelope{From: "new@example.test", To: []string{"recipient@example.test"}},
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-2.eml"), []byte("Subject: Newest capture\r\n\r\nsecond"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(second.ID, false, second.Envelope, second); err != nil {
+		t.Fatal(err)
+	}
+
+	resp := mailCatcherRequest(t, api, http.MethodGet, "/messages")
+	var list []map[string]interface{}
+	decodeMailCatcherJSON(t, resp, &list)
+	if len(list) != 2 || list[0]["id"] != "mail-2" || list[1]["sender"] != "<sender@example.test>" {
+		t.Fatalf("unexpected list: %#v", list)
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.json")
+	var detail map[string]interface{}
+	decodeMailCatcherJSON(t, resp, &detail)
+	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 5 {
+		t.Fatalf("unexpected detail: %#v", detail)
+	}
+	if detail["created_at"] == email.Time.Format(time.RFC3339) {
+		t.Fatalf("created_at used sender-controlled Date header: %#v", detail)
+	}
+	if detail["created_at"] == (time.Time{}).Format(time.RFC3339) {
+		t.Fatalf("created_at is zero: %#v", detail)
+	}
+	restored := mailCatcherMessageDTO(&types.Email{
+		ID: "restored", Envelope: &types.Envelope{},
+		From: []*mail.Address{{Address: "header-sender@example.test"}},
+		To:   []*mail.Address{{Address: "header-recipient@example.test"}},
+	}, time.Now(), true)
+	if restored["sender"] != "<header-sender@example.test>" || len(restored["recipients"].([]string)) != 1 {
+		t.Fatalf("restored envelope fallback = %#v", restored)
+	}
+	nullSender := &types.Email{
+		ID:       "bounce",
+		Envelope: &types.Envelope{From: "", To: []string{"recipient@example.test"}, SMTPTransaction: true},
+		From:     []*mail.Address{{Address: "header-sender@example.test"}},
+	}
+	if projected := mailCatcherMessageDTO(nullSender, time.Now(), true); projected["sender"] != "" {
+		t.Fatalf("null SMTP reverse-path was replaced by header sender: %#v", projected)
+	}
+	if summary := mailCatcherSummaryDTO(mailserver.EmailSummary{
+		ID: "bounce", EnvelopeFrom: "", EnvelopeTo: []string{"recipient@example.test"}, SMTPEnvelope: true,
+		From: []mailserver.EmailSummaryAddress{{Address: "header-sender@example.test"}},
+	}); summary["sender"] != "" {
+		t.Fatalf("null summary reverse-path was replaced by header sender: %#v", summary)
+	}
+
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.html")
+	htmlBody, err := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if err != nil || !strings.Contains(string(htmlBody), url.PathEscape("folder/logo?theme#1@example.test")) {
+		t.Fatalf("HTML CID rewrite = %q, %v", htmlBody, err)
+	}
+	if strings.Contains(string(htmlBody), "folder%252Flogo") {
+		t.Fatalf("HTML CID rewrite double-escaped the encoded reference: %s", htmlBody)
+	}
+	for _, path := range []string{"/messages/mail-1.plain", "/messages/mail-1.source", "/messages/mail-1.eml", "/messages/mail-1/parts/logo@example.test", "/messages/mail-1/parts/" + url.PathEscape("folder/logo?theme#1@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&bar@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&copy;@example.test")} {
+		resp = mailCatcherRequest(t, api, http.MethodGet, path)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s returned %d", path, resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1/parts/active@example.test")
+	if disposition := resp.Header.Get("Content-Disposition"); !strings.HasPrefix(disposition, "attachment;") {
+		t.Fatalf("active inline part disposition = %q, want attachment", disposition)
+	}
+	_ = resp.Body.Close()
+	if strings.Contains(string(htmlBody), "foo&amp;amp;bar") {
+		t.Fatalf("HTML CID rewrite retained a serialized entity: %s", htmlBody)
+	}
+	entityURL := html.EscapeString("/messages/mail-1/parts/" + url.PathEscape("foo&copy;@example.test"))
+	if !strings.Contains(string(htmlBody), entityURL) {
+		t.Fatalf("HTML CID rewrite did not escape entity-like ampersand: %s", htmlBody)
+	}
+	if err := os.Remove(filepath.Join(mailDir, "mail-1", "safe-special.png")); err != nil {
+		t.Fatal(err)
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1/parts/"+url.PathEscape("folder/logo?theme#1@example.test"))
+	if resp.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("unreadable part returned %d, want 500", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+	resp = mailCatcherRequest(t, api, http.MethodDelete, "/messages/mail-1")
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("DELETE returned %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+	resp = mailCatcherRequest(t, api, http.MethodDelete, "/messages/missing")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing DELETE returned %d", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+	if err := os.Remove(filepath.Join(mailDir, "mail-2.eml")); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"/messages/mail-2.source", "/messages/mail-2.eml"} {
+		resp = mailCatcherRequest(t, api, http.MethodGet, path)
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Fatalf("GET %s with missing source returned %d, want 500", path, resp.StatusCode)
+		}
+		_ = resp.Body.Close()
+	}
+	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/missing.source")
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("missing source returned %d, want 404", resp.StatusCode)
+	}
+	_ = resp.Body.Close()
+}
+
+func TestMailCatcherReconstructedRecipientsIncludeCC(t *testing.T) {
+	email := &types.Email{
+		ID:       "restored",
+		Envelope: &types.Envelope{To: []string{"to@example.test"}},
+		To:       []*mail.Address{{Address: "to@example.test"}},
+		CC:       []*mail.Address{{Address: "cc@example.test"}},
+	}
+	detail := mailCatcherMessageDTO(email, time.Now(), true)
+	recipients := detail["recipients"].([]string)
+	if len(recipients) != 2 || recipients[0] != "<to@example.test>" || recipients[1] != "<cc@example.test>" {
+		t.Fatalf("detail recipients = %#v", recipients)
+	}
+	summary := mailCatcherSummaryDTO(mailserver.EmailSummary{
+		ID: "restored", EnvelopeTo: []string{"to@example.test"},
+		To: []mailserver.EmailSummaryAddress{{Address: "to@example.test"}},
+		CC: []mailserver.EmailSummaryAddress{{Address: "cc@example.test"}},
+	})
+	summaryRecipients := summary["recipients"].([]string)
+	if len(summaryRecipients) != 2 || summaryRecipients[1] != "<cc@example.test>" {
+		t.Fatalf("summary recipients = %#v", summaryRecipients)
+	}
+}
+
+func TestMailCatcherCIDLessAttachmentsHaveDistinctStableIDs(t *testing.T) {
+	attachments := []*types.Attachment{
+		{FileName: "one.txt", GeneratedFileName: "generated-one.txt"},
+		{FileName: "two.txt", GeneratedFileName: "generated-two.txt"},
+	}
+	first := mailCatcherPartID(attachments[0], 0)
+	second := mailCatcherPartID(attachments[1], 1)
+	if first == "" || second == "" || first == second {
+		t.Fatalf("CID-less part identifiers = %q, %q", first, second)
+	}
+	if repeated := mailCatcherPartID(attachments[0], 0); repeated != first {
+		t.Fatalf("part identifier changed from %q to %q", first, repeated)
+	}
+}
+
+func TestMailCatcherCIDRewriteOnlyTouchesURIAttributes(t *testing.T) {
+	input := `<p>cid:ticket-123</p><a href="https://example.test/cid:ticket-123">link</a><img src="CID:logo%40example.test" alt="cid:description">`
+	body, err := rewriteMailCatcherCIDReferences(input, "/messages/mail-1/parts/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, unchanged := range []string{
+		"<p>cid:ticket-123</p>",
+		`href="https://example.test/cid:ticket-123"`,
+		`alt="cid:description"`,
+	} {
+		if !strings.Contains(body, unchanged) {
+			t.Fatalf("rendered HTML changed non-URI CID text %q: %s", unchanged, body)
+		}
+	}
+	if !strings.Contains(body, `src="/messages/mail-1/parts/logo@example.test"`) {
+		t.Fatalf("CID source was not rewritten: %s", body)
+	}
+}
+
+func TestMailCatcherMessagesRemainCaptureOrderedAfterRestart(t *testing.T) {
+	mailDir := t.TempDir()
+	server, err := mailserver.NewMailServer(1025, "localhost", mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store := func(id, subject string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(mailDir, id+".eml"), []byte("Subject: "+subject+"\r\n\r\nbody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		email := &types.Email{ID: id, Subject: subject}
+		envelope := &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}}
+		if err := server.SaveEmailToStore(id, false, envelope, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store("z-old", "Old")
+	time.Sleep(2 * time.Millisecond)
+	store("a-new", "New")
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	restarted, err := mailserver.NewMailServer(1025, "localhost", mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = restarted.Close() }()
+	api := NewAPI(restarted, 1080, "localhost")
+	api.SetMailCatcherRESTCompat(true)
+	resp := mailCatcherRequest(t, api, http.MethodGet, "/messages")
+	var messages []map[string]interface{}
+	decodeMailCatcherJSON(t, resp, &messages)
+	if len(messages) != 2 || messages[0]["id"] != "a-new" {
+		t.Fatalf("restored messages are not capture-ordered: %#v", messages)
+	}
+}
+
+func mailCatcherRequest(t *testing.T, api *API, method, path string) *http.Response {
+	t.Helper()
+	req, _ := http.NewRequest(method, path, nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resp
+}
+
+func decodeMailCatcherJSON(t *testing.T, resp *http.Response, target interface{}) {
+	t.Helper()
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := json.Unmarshal(body, target); err != nil {
+		t.Fatalf("decode %s: %v", body, err)
+	}
+}

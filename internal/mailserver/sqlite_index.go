@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS mailbox_index_v2 (
 	store_position INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS mailbox_index_v2_time ON mailbox_index_v2(message_time_seconds, message_time_nanoseconds);
+CREATE INDEX IF NOT EXISTS mailbox_index_v2_received ON mailbox_index_v2(received_at_seconds, received_at_nanoseconds);
 CREATE INDEX IF NOT EXISTS mailbox_index_v2_read ON mailbox_index_v2(is_read);
 CREATE INDEX IF NOT EXISTS mailbox_index_v2_store ON mailbox_index_v2(store_position);
 `
@@ -346,6 +347,8 @@ func sqliteMailboxOrder(sortBy, sortOrder string) string {
 	switch sortBy {
 	case "time":
 		return " ORDER BY message_time_seconds" + direction + ", message_time_nanoseconds" + direction + ", store_position ASC"
+	case "received":
+		return " ORDER BY received_at_seconds" + direction + ", received_at_nanoseconds" + direction + ", store_position ASC"
 	case "subject":
 		return " ORDER BY subject_search" + direction + ", store_position ASC"
 	case "from":
