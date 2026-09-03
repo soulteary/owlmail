@@ -306,3 +306,35 @@ func TestNativeRelayReturnsServiceUnavailableForRuntimePersistenceFailure(t *tes
 		t.Fatal("rejected persistence failure left a latent relay job")
 	}
 }
+
+func TestNativeRelayRetainsJobWhenSynchronousRejectionCannotBeDurablyRemoved(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-retained-rejection", Subject: "Retained rejection", Time: time.Now()}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+
+	realSync := api.relayJobs.syncDirectory
+	syncCalls := 0
+	api.relayJobs.syncDirectory = func(path string) error {
+		syncCalls++
+		if syncCalls == 3 {
+			return errors.New("injected rejection sync failure")
+		}
+		return realSync(path)
+	}
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"status":"failed"`) {
+		t.Fatalf("retained rejection status = %d, body = %s", resp.StatusCode, body)
+	}
+	if len(api.relayJobs.jobs) != 1 {
+		t.Fatalf("retained jobs = %d, want 1", len(api.relayJobs.jobs))
+	}
+}

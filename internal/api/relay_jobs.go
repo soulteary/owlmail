@@ -201,6 +201,17 @@ func (store *relayJobStore) get(id string) (relayJob, bool) {
 	return job, ok
 }
 
+func (store *relayJobStore) hasQueued() bool {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	for _, job := range store.jobs {
+		if job.Status == relayJobQueued && job.CompletedAt == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func (store *relayJobStore) pruneLocked(now time.Time) {
 	kept := store.order[:0]
 	for _, id := range store.order {
@@ -338,10 +349,11 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 				time.AfterFunc(defaultRelayRetryBaseDelay, func() { api.retryRelayJob(job.ID) })
 			} else {
 				if removeErr := api.relayJobs.remove(job.ID); removeErr != nil {
-					c.Set("Retry-After", "1")
-					return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to durably reject relay job"))
+					common.Error("Relay job %s remains accepted after synchronous rejection could not be made durable: %v", job.ID, removeErr)
+					api.relayJobs.complete(job.ID, err)
+				} else {
+					return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 				}
-				return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 			}
 		}
 	}

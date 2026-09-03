@@ -86,7 +86,9 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 	}
 	api.setupRoutes()
 	api.setupEventListeners()
-	go api.recoverRelayJobs()
+	if api.relayJobs.hasQueued() {
+		go api.recoverRelayJobs()
+	}
 	return api
 }
 

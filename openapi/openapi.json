@@ -949,7 +949,7 @@
           "Relay"
         ],
         "summary": "Request email relay",
-        "description": "Returns 202 after OwlMail durably records a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -1050,7 +1050,7 @@
           "Relay"
         ],
         "summary": "Request email relay to an explicit recipient",
-        "description": "Returns 202 after OwlMail durably records a queryable relay job. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
@@ -1132,7 +1132,7 @@
           "Relay"
         ],
         "summary": "Get asynchronous relay status",
-        "description": "Returns a durable relay job. Queued jobs are recovered after restart with at-least-once delivery semantics. `attempts` is always present and `nextAttemptAt` appears while a retry is scheduled. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
+        "description": "Returns a queryable relay job. With a persistent mail directory configured, queued jobs are durable and recovered after restart with at-least-once delivery semantics; the default process-specific temporary directory provides only same-process status. `attempts` is always present and `nextAttemptAt` appears while a retry is scheduled. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
         "operationId": "getRelayJob",
         "parameters": [
           {
@@ -1596,7 +1596,7 @@
         "name": "jobID",
         "in": "path",
         "required": true,
-        "description": "Opaque durable relay job identifier retained across process restarts.",
+        "description": "Opaque relay job identifier retained across process restarts when a persistent mail directory is configured.",
         "schema": {
           "type": "string",
           "minLength": 1
