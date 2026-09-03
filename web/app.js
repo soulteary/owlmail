@@ -13,6 +13,7 @@ const i18n = {
         searchPlaceholder: '搜索邮件...',
         search: '搜索',
         emailList: '邮件列表',
+        emailContentViews: '邮件内容视图',
         emailCount: '{count} 封邮件',
         loading: '加载中...',
         noEmails: '暂无邮件',
@@ -56,6 +57,12 @@ const i18n = {
         emailPreviewTitle: '隔离的邮件 HTML 预览',
         emailViewportPresets: '预览宽度',
         emailViewportWidth: '邮件预览宽度：{width}',
+        contentHTML: 'HTML',
+        contentText: '纯文本',
+        contentHeaders: '邮件头',
+        contentSource: '源码',
+        sourceLoading: '正在加载源码…',
+        sourceTooLarge: '邮件源码过大，无法在页面内安全显示。',
         // API Error Codes
         'EMAIL_NOT_FOUND': '邮件未找到',
         'EMAIL_FILE_NOT_FOUND': '邮件文件未找到',
@@ -88,6 +95,7 @@ const i18n = {
         searchPlaceholder: 'Search emails...',
         search: 'Search',
         emailList: 'Email List',
+        emailContentViews: 'Email content views',
         emailCount: '{count} emails',
         emailCount_one: '{count} email',
         loading: 'Loading...',
@@ -137,6 +145,12 @@ const i18n = {
         emailPreviewTitle: 'Isolated email HTML preview',
         emailViewportPresets: 'Preview width',
         emailViewportWidth: 'Email preview width: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Plain text',
+        contentHeaders: 'Headers',
+        contentSource: 'Source',
+        sourceLoading: 'Loading source…',
+        sourceTooLarge: 'This message source is too large to display safely inline.',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email not found',
         'EMAIL_FILE_NOT_FOUND': 'Email file not found',
@@ -169,6 +183,7 @@ const i18n = {
         searchPlaceholder: 'E-Mails suchen...',
         search: 'Suchen',
         emailList: 'E-Mail-Liste',
+        emailContentViews: 'E-Mail-Inhaltsansichten',
         emailCount: '{count} E-Mails',
         loading: 'Laden...',
         noEmails: 'Keine E-Mails',
@@ -212,6 +227,12 @@ const i18n = {
         emailPreviewTitle: 'Isolierte HTML-E-Mail-Vorschau',
         emailViewportPresets: 'Vorschaubreite',
         emailViewportWidth: 'Breite der E-Mail-Vorschau: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Klartext',
+        contentHeaders: 'Kopfzeilen',
+        contentSource: 'Quelltext',
+        sourceLoading: 'Quelltext wird geladen…',
+        sourceTooLarge: 'Der Nachrichtenquelltext ist zu groß für eine sichere Anzeige auf dieser Seite.',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'E-Mail nicht gefunden',
         'EMAIL_FILE_NOT_FOUND': 'E-Mail-Datei nicht gefunden',
@@ -244,6 +265,7 @@ const i18n = {
         searchPlaceholder: 'Cerca email...',
         search: 'Cerca',
         emailList: 'Elenco Email',
+        emailContentViews: 'Visualizzazioni contenuto email',
         emailCount: '{count} email',
         loading: 'Caricamento...',
         noEmails: 'Nessuna email',
@@ -287,6 +309,12 @@ const i18n = {
         emailPreviewTitle: 'Anteprima HTML email isolata',
         emailViewportPresets: 'Larghezza anteprima',
         emailViewportWidth: 'Larghezza anteprima email: {width}',
+        contentHTML: 'HTML',
+        contentText: 'Testo semplice',
+        contentHeaders: 'Intestazioni',
+        contentSource: 'Sorgente',
+        sourceLoading: 'Caricamento sorgente…',
+        sourceTooLarge: 'Il sorgente del messaggio è troppo grande per essere visualizzato in modo sicuro nella pagina.',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email non trovata',
         'EMAIL_FILE_NOT_FOUND': 'File email non trovato',
@@ -319,6 +347,7 @@ const i18n = {
         searchPlaceholder: 'Rechercher des emails...',
         search: 'Rechercher',
         emailList: 'Liste des Emails',
+        emailContentViews: 'Vues du contenu de l\'email',
         emailCount: '{count} emails',
         loading: 'Chargement...',
         noEmails: 'Aucun email',
@@ -362,6 +391,12 @@ const i18n = {
         emailPreviewTitle: 'Aperçu HTML isolé de l’e-mail',
         emailViewportPresets: 'Largeur de l’aperçu',
         emailViewportWidth: 'Largeur de l’aperçu de l’e-mail : {width}',
+        contentHTML: 'HTML',
+        contentText: 'Texte brut',
+        contentHeaders: 'En-têtes',
+        contentSource: 'Source',
+        sourceLoading: 'Chargement de la source…',
+        sourceTooLarge: 'La source du message est trop volumineuse pour être affichée en toute sécurité dans la page.',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'Email introuvable',
         'EMAIL_FILE_NOT_FOUND': 'Fichier email introuvable',
@@ -394,6 +429,7 @@ const i18n = {
         searchPlaceholder: '이메일 검색...',
         search: '검색',
         emailList: '이메일 목록',
+        emailContentViews: '이메일 콘텐츠 보기',
         emailCount: '{count}개의 이메일',
         loading: '로딩 중...',
         noEmails: '이메일 없음',
@@ -437,6 +473,12 @@ const i18n = {
         emailPreviewTitle: '격리된 이메일 HTML 미리보기',
         emailViewportPresets: '미리보기 너비',
         emailViewportWidth: '이메일 미리보기 너비: {width}',
+        contentHTML: 'HTML',
+        contentText: '일반 텍스트',
+        contentHeaders: '헤더',
+        contentSource: '원본',
+        sourceLoading: '원본을 불러오는 중…',
+        sourceTooLarge: '메시지 원본이 너무 커서 페이지 안에 안전하게 표시할 수 없습니다.',
         // API Error Codes
         'EMAIL_NOT_FOUND': '이메일을 찾을 수 없습니다',
         'EMAIL_FILE_NOT_FOUND': '이메일 파일을 찾을 수 없습니다',
@@ -469,6 +511,7 @@ const i18n = {
         searchPlaceholder: 'メールを検索...',
         search: '検索',
         emailList: 'メール一覧',
+        emailContentViews: 'メール内容表示',
         emailCount: '{count}通のメール',
         loading: '読み込み中...',
         noEmails: 'メールなし',
@@ -512,6 +555,12 @@ const i18n = {
         emailPreviewTitle: '隔離されたメール HTML プレビュー',
         emailViewportPresets: 'プレビュー幅',
         emailViewportWidth: 'メールプレビュー幅: {width}',
+        contentHTML: 'HTML',
+        contentText: 'プレーンテキスト',
+        contentHeaders: 'ヘッダー',
+        contentSource: 'ソース',
+        sourceLoading: 'ソースを読み込み中…',
+        sourceTooLarge: 'メッセージのソースが大きすぎるため、ページ内に安全に表示できません。',
         // API Error Codes
         'EMAIL_NOT_FOUND': 'メールが見つかりません',
         'EMAIL_FILE_NOT_FOUND': 'メールファイルが見つかりません',
@@ -801,6 +850,10 @@ let emailDetailRequestSequence = 0;
 function clearEmailSelection(historyMode = 'push') {
     emailDetailRequestSequence += 1;
     remoteContentAllowedEmailID = null;
+    emailSourceCache.clear();
+    emailSourceErrors.clear();
+    emailSourceOversized.clear();
+    emailSourceRequests.clear();
     state.currentEmail = null;
     renderEmailDetail();
     renderEmailList();
@@ -861,6 +914,12 @@ const EMAIL_VIEWPORT_PRESETS = Object.freeze([
     { key: '320', label: '320 px', width: '320px' }
 ]);
 let emailViewportPreset = '100%';
+let emailContentTab = 'html';
+const EMAIL_SOURCE_INLINE_MAX_BYTES = 1024 * 1024;
+const emailSourceCache = new Map();
+const emailSourceErrors = new Map();
+const emailSourceOversized = new Set();
+const emailSourceRequests = new Map();
 
 // Remote resources are enabled only for the currently rendered message after
 // an explicit user action. The choice is intentionally not persisted.
@@ -1148,6 +1207,35 @@ const API = {
         return await handleAPIResponse(response);
     },
 
+    async getEmailSource(id, maximumBytes = EMAIL_SOURCE_INLINE_MAX_BYTES) {
+        const response = await fetch(`${API_BASE}/emails/${id}/source`);
+        if (!response.ok) return await handleAPIResponse(response);
+        const contentLength = Number(response.headers.get('content-length'));
+        if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
+            return { oversized: true, source: '' };
+        }
+        if (!response.body || typeof response.body.getReader !== 'function') {
+            const source = await response.text();
+            return new Blob([source]).size > maximumBytes
+                ? { oversized: true, source: '' }
+                : { oversized: false, source };
+        }
+        const reader = response.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            received += value.byteLength;
+            if (received > maximumBytes) {
+                await reader.cancel();
+                return { oversized: true, source: '' };
+            }
+            chunks.push(value);
+        }
+        return { oversized: false, source: await new Blob(chunks).text() };
+    },
+
     async deleteEmail(id) {
         const response = await fetch(`${API_BASE}/emails/${id}`, {
             method: 'DELETE'
@@ -1407,11 +1495,121 @@ function renderEmailDetail() {
                 <span>${time}</span>
             </div>
         </div>
-        <div class="email-detail-body">
-            ${email.html ? renderHTML(email.html, email.id, email.attachments || []) : renderText(email.text || '')}
-        </div>
+        ${renderEmailContentTabs(email)}
         ${attachments}
     `;
+}
+
+function renderEmailContentTabs(email) {
+    const availableTabs = ['html', 'text', 'headers', 'source'];
+    if (!availableTabs.includes(emailContentTab) || (emailContentTab === 'html' && !email.html)) {
+        emailContentTab = email.html ? 'html' : 'text';
+    }
+    const labels = { html: 'contentHTML', text: 'contentText', headers: 'contentHeaders', source: 'contentSource' };
+    return `
+        <div class="email-content-tabs" role="tablist" aria-label="${t('emailContentViews')}">
+            ${availableTabs.map((tab) => `
+                <button type="button" role="tab" class="email-content-tab"
+                    id="email-content-tab-${tab}" aria-controls="email-content-panel"
+                    aria-selected="${emailContentTab === tab}" tabindex="${emailContentTab === tab ? '0' : '-1'}"
+                    ${tab === 'html' && !email.html ? 'disabled' : ''}
+                    onclick="setEmailContentTab('${tab}', true)"
+                    onkeydown="handleEmailContentTabKeydown(event, '${tab}')">${t(labels[tab])}</button>
+            `).join('')}
+        </div>
+        <div id="email-content-panel" class="email-detail-body" role="tabpanel"
+            aria-labelledby="email-content-tab-${emailContentTab}">${renderEmailContentPanel(email)}</div>
+    `;
+}
+
+function renderEmailContentPanel(email) {
+    switch (emailContentTab) {
+    case 'html':
+        return renderHTML(email.html || '', email.id, email.attachments || []);
+    case 'headers':
+        return `<pre class="email-detail-source">${escapeHtml(JSON.stringify(email.headers || {}, null, 2))}</pre>`;
+    case 'source': {
+        if (emailSourceOversized.has(email.id)) {
+            return `<div class="email-detail-source-notice">${escapeHtml(t('sourceTooLarge'))} <button type="button" class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button></div>`;
+        }
+        const source = emailSourceCache.get(email.id);
+        const sourceError = emailSourceErrors.get(email.id);
+        if (sourceError !== undefined) {
+            return `<div class="error">${escapeHtml(t('loadEmailDetailError', { error: sourceError }))}</div>`;
+        }
+        return source === undefined
+            ? `<div class="loading">${t('sourceLoading')}</div>`
+            : `<pre class="email-detail-source">${escapeHtml(source)}</pre>`;
+    }
+    default:
+        return renderText(email.text || '');
+    }
+}
+
+async function setEmailContentTab(tab, restoreFocus = false) {
+    const email = state.currentEmail;
+    if (!email || !['html', 'text', 'headers', 'source'].includes(tab)) return;
+    if (tab === 'html' && !email.html) return;
+    emailContentTab = tab;
+    const shouldLoadSource = tab === 'source' && !emailSourceCache.has(email.id) && !emailSourceOversized.has(email.id);
+    if (shouldLoadSource) emailSourceErrors.delete(email.id);
+    renderEmailDetail();
+    if (restoreFocus) {
+        document.getElementById(`email-content-tab-${tab}`)?.focus?.();
+    }
+    if (!shouldLoadSource) return;
+    if (Number(email.size) > EMAIL_SOURCE_INLINE_MAX_BYTES) {
+        emailSourceOversized.add(email.id);
+        renderEmailDetail();
+        if (restoreFocus) document.getElementById(`email-content-tab-${tab}`)?.focus?.();
+        return;
+    }
+    let request = emailSourceRequests.get(email.id);
+    if (!request) {
+        request = { restoreFocus: false };
+        request.promise = API.getEmailSource(email.id, EMAIL_SOURCE_INLINE_MAX_BYTES)
+            .then((result) => {
+                if (emailSourceRequests.get(email.id) !== request) return;
+                if (result.oversized) emailSourceOversized.add(email.id);
+                else emailSourceCache.set(email.id, result.source);
+                emailSourceErrors.delete(email.id);
+            })
+            .catch((error) => {
+                if (emailSourceRequests.get(email.id) !== request) return;
+                console.error('Failed to load email source:', error);
+                const message = parseAPIError(error);
+                emailSourceErrors.set(email.id, message);
+                alert(t('loadEmailDetailError', { error: message }));
+            })
+            .finally(() => {
+                if (emailSourceRequests.get(email.id) === request) emailSourceRequests.delete(email.id);
+                if (state.currentEmail && state.currentEmail.id === email.id && emailContentTab === 'source') {
+					const sourceTab = document.getElementById('email-content-tab-source');
+					const shouldRestoreFocus = request.restoreFocus && document.activeElement === sourceTab;
+                    renderEmailDetail();
+					if (shouldRestoreFocus) document.getElementById('email-content-tab-source')?.focus?.();
+                }
+            });
+        emailSourceRequests.set(email.id, request);
+    }
+    if (restoreFocus) request.restoreFocus = true;
+    await request.promise;
+}
+
+function handleEmailContentTabKeydown(event, tab) {
+    const email = state.currentEmail;
+    if (!email) return;
+    const tabs = ['html', 'text', 'headers', 'source'].filter((candidate) => candidate !== 'html' || email.html);
+    const current = tabs.indexOf(tab);
+    if (current < 0) return;
+    let next = current;
+    if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+    else if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+    else if (event.key === 'Home') next = 0;
+    else if (event.key === 'End') next = tabs.length - 1;
+    else return;
+    event.preventDefault();
+    void setEmailContentTab(tabs[next], true);
 }
 
 function hasRemoteEmailResources(html) {
@@ -1619,6 +1817,11 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         if (requestSequence !== emailDetailRequestSequence) return;
         if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
         remoteContentAllowedEmailID = null;
+        emailSourceCache.clear();
+        emailSourceErrors.clear();
+        emailSourceOversized.clear();
+        emailSourceRequests.clear();
+        emailContentTab = email.html ? 'html' : 'text';
         state.currentEmail = email;
         renderEmailDetail();
         renderEmailList(); // Update selected state
@@ -1968,4 +2171,6 @@ document.addEventListener('DOMContentLoaded', () => {
 window.deleteEmail = deleteEmail;
 window.downloadEmail = downloadEmail;
 window.viewEmailSource = viewEmailSource;
+window.setEmailContentTab = setEmailContentTab;
+window.handleEmailContentTabKeydown = handleEmailContentTabKeydown;
 window.t = t; // Make translation function available globally

@@ -35,8 +35,10 @@ function createElement({ dataset = {} } = {}) {
         scrollTop: 0,
         hidden: true,
         disabled: false,
+        focused: false,
         title: '',
         addEventListener(name, handler) { listeners.set(name, handler); },
+        focus() { this.focused = true; },
         setAttribute(name, value) { attributes.set(name, value); },
         querySelectorAll() { return []; }
     };
@@ -80,6 +82,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const emailList = createElement();
     const emailViewportFrame = createElement();
     const emailViewportStage = createElement();
+    const emailSourceTab = createElement();
     const emailViewportButtons = ['100%', '1440', '1024', '768', '425', '375', '320']
         .map((width) => createElement({ dataset: { viewportWidth: width } }));
     const elements = new Map([
@@ -88,7 +91,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['emailDetail', emailDetail],
         ['emailList', emailList],
         ['emailViewportFrame', emailViewportFrame],
-        ['emailViewportStage', emailViewportStage]
+        ['emailViewportStage', emailViewportStage],
+        ['email-content-tab-source', emailSourceTab]
     ]);
     const notifications = [];
     const fetchRequests = [];
@@ -146,6 +150,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     };
     const document = {
         title: '',
+		activeElement: null,
         documentElement: { lang: '', dataset: {} },
         body: { classList: createClassList() },
         addEventListener(name, handler) { documentListeners.set(name, handler); },
@@ -158,6 +163,12 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         },
         createElement() { return createElement(); }
     };
+	for (const element of elements.values()) {
+		element.focus = function focus() {
+			this.focused = true;
+			document.activeElement = this;
+		};
+	}
     const navigator = { language: 'en-US' };
     if (serviceWorker) {
 		const activeRegistration = {
@@ -208,6 +219,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         emailViewportButtons,
         emailViewportFrame,
         emailViewportStage,
+        emailSourceTab,
         fetchRequests,
         historyCalls,
         notificationStatus,
@@ -351,6 +363,134 @@ test('HTML previews expose every responsive viewport preset', () => {
     assert.match(preview, /style="width: 100%;"/);
     assert.match(preview, /sandbox=""/);
     assert.match(preview, /referrerpolicy="no-referrer"/);
+});
+
+test('email detail offers HTML, text, headers, and source tabs', () => {
+    const harness = createHarness();
+    const markup = harness.run(`renderEmailContentTabs({ id: 'mail-1', html: '<p>hello</p>', text: 'hello', headers: { subject: 'hello' }, attachments: [] })`);
+    for (const tab of ['HTML', 'Plain text', 'Headers', 'Source']) {
+        assert.equal(markup.includes(tab), true);
+    }
+    assert.match(markup, /role="tablist" aria-label="Email content views"/);
+    assert.match(markup, /role="tabpanel"/);
+    assert.match(markup, /tabindex="0"/);
+    assert.match(markup, /onclick="setEmailContentTab\('source', true\)"/);
+    for (const locale of ['zh-CN', 'en', 'de', 'it', 'fr', 'ko', 'ja']) {
+        assert.equal(harness.run(`Boolean(i18n[${JSON.stringify(locale)}].contentSource)`), true);
+        assert.equal(harness.run(`Boolean(i18n[${JSON.stringify(locale)}].emailContentViews)`), true);
+    }
+});
+
+test('email content tabs support arrow-key navigation', () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'mail-1', html: '', text: 'hello', headers: {}, attachments: [] }; emailContentTab = 'text'`);
+    let prevented = false;
+    harness.run(`handleEmailContentTabKeydown({ key: 'ArrowRight', preventDefault() { globalThis.prevented = true; } }, 'text')`);
+    prevented = harness.run('globalThis.prevented');
+    assert.equal(prevented, true);
+    assert.equal(harness.run('emailContentTab'), 'headers');
+});
+
+test('source load failures replace the loading placeholder', async () => {
+    const harness = createHarness({
+        fetchImpl: async () => ({
+            ok: false,
+            status: 500,
+            headers: { get: () => 'application/json' },
+            async json() { return { message: 'source unavailable' }; },
+            async text() { return '{"message":"source unavailable"}'; }
+        })
+    });
+    harness.run(`state.currentEmail = { id: 'mail-1', html: '', text: 'hello', headers: {}, attachments: [] }`);
+    await harness.run(`setEmailContentTab('source')`);
+    assert.equal(harness.emailDetail.innerHTML.includes('Loading source'), false);
+    assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), true);
+});
+
+test('source retry clears the prior error before rendering loading state', async () => {
+    let attempt = 0;
+    let resolveRetry;
+    const retryResponse = new Promise((resolve) => { resolveRetry = resolve; });
+    const harness = createHarness({
+        fetchImpl: async () => {
+            attempt++;
+            if (attempt === 1) {
+                return {
+                    ok: false,
+                    status: 500,
+                    headers: { get: () => 'application/json' },
+                    async json() { return { message: 'source unavailable' }; },
+                    async text() { return '{"message":"source unavailable"}'; }
+                };
+            }
+            return retryResponse;
+        }
+    });
+    harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+    await harness.run(`setEmailContentTab('source')`);
+
+    const retry = harness.run(`setEmailContentTab('source')`);
+    assert.equal(harness.emailDetail.innerHTML.includes('source unavailable'), false);
+    assert.equal(harness.emailDetail.innerHTML.includes('Loading source'), true);
+    resolveRetry({ ok: true, status: 200, body: null, headers: { get: () => null }, async text() { return 'source'; } });
+    await retry;
+});
+
+test('source requests are deduplicated and keyboard focus survives completion', async () => {
+    let resolveFetch;
+    const response = new Promise((resolve) => { resolveFetch = resolve; });
+    const harness = createHarness({ fetchImpl: async () => response });
+    harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+
+    const first = harness.run(`setEmailContentTab('source', true)`);
+    const second = harness.run(`setEmailContentTab('source', true)`);
+    assert.equal(harness.fetchRequests.length, 1);
+    resolveFetch({
+        ok: true,
+        status: 200,
+        body: null,
+        headers: { get: () => null },
+        async text() { return 'Subject: hello\r\n\r\nbody'; }
+    });
+    await Promise.all([first, second]);
+
+    assert.equal(harness.run(`emailSourceCache.get('mail-1')`), 'Subject: hello\r\n\r\nbody');
+    assert.equal(harness.run('emailSourceRequests.size'), 0);
+    assert.equal(harness.emailSourceTab.focused, true);
+});
+
+test('source completion does not steal focus moved to another control', async () => {
+	let resolveFetch;
+	const response = new Promise((resolve) => { resolveFetch = resolve; });
+	const harness = createHarness({ fetchImpl: async () => response });
+	harness.run(`state.currentEmail = { id: 'mail-1', size: 128, html: '', text: 'hello', headers: {}, attachments: [] }`);
+
+	const loading = harness.run(`setEmailContentTab('source', true)`);
+	harness.emailSourceTab.focused = false;
+	harness.run(`document.activeElement = { id: 'another-control' }`);
+	resolveFetch({
+		ok: true,
+		status: 200,
+		body: null,
+		headers: { get: () => null },
+		async text() { return 'Subject: hello\r\n\r\nbody'; }
+	});
+	await loading;
+
+	assert.equal(harness.emailSourceTab.focused, false);
+	assert.equal(harness.run(`document.activeElement.id`), 'another-control');
+});
+
+test('large sources use the standalone view without an inline fetch', async () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'large-mail', size: EMAIL_SOURCE_INLINE_MAX_BYTES + 1, html: '', text: '', headers: {}, attachments: [] }`);
+
+    await harness.run(`setEmailContentTab('source')`);
+
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.equal(harness.run(`emailSourceOversized.has('large-mail')`), true);
+    assert.match(harness.emailDetail.innerHTML, /too large to display safely inline/);
+    assert.match(harness.emailDetail.innerHTML, /View Source/);
 });
 
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
