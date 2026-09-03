@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
@@ -35,13 +36,14 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	defer func() { _ = server.Close() }()
 	api.SetMailCatcherRESTCompat(true)
 	email := &types.Email{
-		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder/logo?theme#1@example.test"><img src="cid:foo&amp;bar@example.test">`,
+		ID: "mail-1", Subject: "MailCatcher", Text: "plain body", HTML: `<img src="cid:logo@example.test"><img src="cid:folder/logo?theme#1@example.test"><img src="cid:foo&amp;bar@example.test"><img src="cid:foo&amp;copy;@example.test">`,
 		Time: time.Date(2026, 9, 2, 12, 0, 0, 0, time.UTC), Size: 123,
 		Envelope: &types.Envelope{From: "sender@example.test", To: []string{"recipient@example.test"}},
 		Attachments: []*types.Attachment{
 			{ContentID: "logo@example.test", ContentType: "image/png", ContentDisposition: "attachment", FileName: "logo.png", GeneratedFileName: "safe-logo.png", Size: 4},
 			{ContentID: "folder/logo?theme#1@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "special.png", GeneratedFileName: "safe-special.png", Size: 7},
 			{ContentID: "foo&bar@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "amp.png", GeneratedFileName: "safe-amp.png", Size: 3},
+			{ContentID: "foo&copy;@example.test", ContentType: "image/png", ContentDisposition: "inline", FileName: "entity.png", GeneratedFileName: "safe-entity.png", Size: 6},
 		},
 	}
 	if err := os.WriteFile(filepath.Join(mailDir, "mail-1.eml"), []byte("Subject: MailCatcher\r\n\r\nsource"), 0600); err != nil {
@@ -57,6 +59,9 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-amp.png"), []byte("amp"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(mailDir, "mail-1", "safe-entity.png"), []byte("entity"), 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := server.SaveEmailToStore(email.ID, false, email.Envelope, email); err != nil {
@@ -83,7 +88,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.json")
 	var detail map[string]interface{}
 	decodeMailCatcherJSON(t, resp, &detail)
-	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 3 {
+	if len(detail["formats"].([]interface{})) != 3 || len(detail["attachments"].([]interface{})) != 4 {
 		t.Fatalf("unexpected detail: %#v", detail)
 	}
 	if detail["created_at"] == email.Time.Format(time.RFC3339) {
@@ -107,7 +112,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	if err != nil || !strings.Contains(string(htmlBody), url.PathEscape("folder/logo?theme#1@example.test")) {
 		t.Fatalf("HTML CID rewrite = %q, %v", htmlBody, err)
 	}
-	for _, path := range []string{"/messages/mail-1.plain", "/messages/mail-1.source", "/messages/mail-1.eml", "/messages/mail-1/parts/logo@example.test", "/messages/mail-1/parts/" + url.PathEscape("folder/logo?theme#1@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&bar@example.test")} {
+	for _, path := range []string{"/messages/mail-1.plain", "/messages/mail-1.source", "/messages/mail-1.eml", "/messages/mail-1/parts/logo@example.test", "/messages/mail-1/parts/" + url.PathEscape("folder/logo?theme#1@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&bar@example.test"), "/messages/mail-1/parts/" + url.PathEscape("foo&copy;@example.test")} {
 		resp = mailCatcherRequest(t, api, http.MethodGet, path)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("GET %s returned %d", path, resp.StatusCode)
@@ -116,6 +121,10 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	}
 	if strings.Contains(string(htmlBody), "foo&amp;amp;bar") {
 		t.Fatalf("HTML CID rewrite retained a serialized entity: %s", htmlBody)
+	}
+	entityURL := html.EscapeString("/messages/mail-1/parts/" + url.PathEscape("foo&copy;@example.test"))
+	if !strings.Contains(string(htmlBody), entityURL) {
+		t.Fatalf("HTML CID rewrite did not escape entity-like ampersand: %s", htmlBody)
 	}
 	if err := os.Remove(filepath.Join(mailDir, "mail-1", "safe-special.png")); err != nil {
 		t.Fatal(err)

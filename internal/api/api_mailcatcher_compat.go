@@ -123,7 +123,8 @@ func (api *API) mailCatcherHTML(c fiber.Ctx) error {
 	}
 	prefix := api.route("/messages/" + email.ID + "/parts/")
 	body := mailCatcherCIDReference.ReplaceAllStringFunc(email.HTML, func(reference string) string {
-		return prefix + url.PathEscape(html.UnescapeString(reference[len("cid:"):]))
+		rewritten := prefix + url.PathEscape(html.UnescapeString(reference[len("cid:"):]))
+		return html.EscapeString(rewritten)
 	})
 	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
 	return c.SendString(body)
