@@ -1897,6 +1897,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
             alert(t('relayError', { error: parseAPIError(error) }));
             return;
         }
+        if (!state.currentEmail || state.currentEmail.id !== id) return;
         confirmedRecipients = preflight && preflight.data && Array.isArray(preflight.data.recipients)
             ? preflight.data.recipients
             : [];
