@@ -60,6 +60,50 @@ func TestRelayJobsReloadQueuedWork(t *testing.T) {
 	}
 }
 
+func TestRelayJobsRemovePersistedRecordDurably(t *testing.T) {
+	mailDirectory := t.TempDir()
+	store, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	store.newID = func() (string, error) { return "00112233445566778899aabbccddeeff", nil }
+	job, err := store.create("mail-remove", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.remove(job.ID); err != nil {
+		t.Fatal(err)
+	}
+	reloaded, err := newPersistentRelayJobStore(mailDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := reloaded.get(job.ID); ok {
+		t.Fatal("removed relay job was recovered")
+	}
+}
+
+func TestRelayJobsEnforceAttemptLimitAtPersistenceBoundary(t *testing.T) {
+	store := newRelayJobStore()
+	store.newID = func() (string, error) { return "ffeeddccbbaa99887766554433221100", nil }
+	job, err := store.create("mail-attempts", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < defaultRelayMaxAttempts; attempt++ {
+		if _, err := store.beginAttempt(job.ID); err != nil {
+			t.Fatalf("attempt %d: %v", attempt+1, err)
+		}
+	}
+	if _, err := store.beginAttempt(job.ID); !errors.Is(err, errRelayAttemptsExhausted) {
+		t.Fatalf("fourth attempt error = %v, want errRelayAttemptsExhausted", err)
+	}
+	got, _ := store.get(job.ID)
+	if got.Attempts != defaultRelayMaxAttempts {
+		t.Fatalf("attempts = %d, want %d", got.Attempts, defaultRelayMaxAttempts)
+	}
+}
+
 func TestRelayJobRetryStateIsDurable(t *testing.T) {
 	mailDirectory := t.TempDir()
 	store, err := newPersistentRelayJobStore(mailDirectory)
@@ -121,5 +165,25 @@ func TestNewAPIRecoversPersistedQueuedJob(t *testing.T) {
 	got, ok := restarted.relayJobs.get(job.ID)
 	if !ok || got.Status != relayJobFailed || got.CompletedAt == nil {
 		t.Fatalf("recovered job = %#v, found %t", got, ok)
+	}
+}
+
+func TestNewAPIStopsRecoveringExhaustedRelayJob(t *testing.T) {
+	first, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	job, err := first.relayJobs.create("missing-message", "recipient@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for attempt := 0; attempt < defaultRelayMaxAttempts; attempt++ {
+		if _, err := first.relayJobs.beginAttempt(job.ID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	restarted := NewAPI(server, 0, "localhost")
+	got, ok := restarted.relayJobs.get(job.ID)
+	if !ok || got.Status != relayJobFailed || got.CompletedAt == nil || got.Attempts != defaultRelayMaxAttempts {
+		t.Fatalf("recovered exhausted job = %#v, found %t", got, ok)
 	}
 }

@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	errRelayJobCapacity      = errors.New("relay job status capacity reached")
-	errRelayRecipientTooLong = errors.New("relay recipient exceeds size limit")
+	errRelayJobCapacity       = errors.New("relay job status capacity reached")
+	errRelayRecipientTooLong  = errors.New("relay recipient exceeds size limit")
+	errRelayAttemptsExhausted = errors.New("relay job attempt limit reached")
 )
 
 const (
@@ -135,6 +136,9 @@ func (store *relayJobStore) beginAttempt(id string) (relayJob, error) {
 	if !ok || job.CompletedAt != nil {
 		return relayJob{}, fmt.Errorf("relay job is not queued")
 	}
+	if job.Attempts >= defaultRelayMaxAttempts {
+		return relayJob{}, errRelayAttemptsExhausted
+	}
 	job.Attempts++
 	job.UpdatedAt = store.now().UTC()
 	job.NextAttemptAt = nil
@@ -166,17 +170,20 @@ func (store *relayJobStore) queueRetry(id string, relayErr error, delay time.Dur
 	return job, true
 }
 
-func (store *relayJobStore) remove(id string) {
+func (store *relayJobStore) remove(id string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	if err := store.removePersistedLocked(id); err != nil {
+		return err
+	}
 	delete(store.jobs, id)
-	store.removePersistedLocked(id)
 	for index, item := range store.order {
 		if item == id {
 			store.order = append(store.order[:index], store.order[index+1:]...)
-			return
+			return nil
 		}
 	}
+	return nil
 }
 
 func (store *relayJobStore) get(id string) (relayJob, bool) {
@@ -195,8 +202,12 @@ func (store *relayJobStore) pruneLocked(now time.Time) {
 			continue
 		}
 		if job.CompletedAt != nil && now.Sub(*job.CompletedAt) > store.ttl {
+			if err := store.removePersistedLocked(id); err != nil {
+				common.Error("Remove expired relay job %s: %v", id, err)
+				kept = append(kept, id)
+				continue
+			}
 			delete(store.jobs, id)
-			store.removePersistedLocked(id)
 			continue
 		}
 		kept = append(kept, id)
@@ -218,8 +229,11 @@ func (store *relayJobStore) makeRoomLocked(now time.Time) bool {
 			return false
 		}
 		id := store.order[removeIndex]
+		if err := store.removePersistedLocked(id); err != nil {
+			common.Error("Remove relay job %s for capacity: %v", id, err)
+			return false
+		}
 		delete(store.jobs, id)
-		store.removePersistedLocked(id)
 		store.order = append(store.order[:removeIndex], store.order[removeIndex+1:]...)
 	}
 	return store.limit > 0
@@ -295,7 +309,9 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 	}
 	err, handled := api.submitRelayJob(job, email)
 	if err != nil && !handled {
-		api.relayJobs.remove(job.ID)
+		if removeErr := api.relayJobs.remove(job.ID); removeErr != nil {
+			return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeRelayFailed, "Unable to durably reject relay job"))
+		}
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 	}
 	current, _ := api.relayJobs.get(job.ID)
@@ -376,6 +392,10 @@ func (api *API) retryRelayJob(jobID string) {
 	if !ok || job.CompletedAt != nil {
 		return
 	}
+	if job.Attempts >= defaultRelayMaxAttempts {
+		api.relayJobs.complete(jobID, errRelayAttemptsExhausted)
+		return
+	}
 	email, err := api.mailServer.GetEmail(job.EmailID)
 	if err == nil {
 		var handled bool
@@ -391,6 +411,10 @@ func (api *API) retryRelayJob(jobID string) {
 
 func (api *API) recoverRelayJobs() {
 	for _, job := range api.relayJobs.queued() {
+		if job.Attempts >= defaultRelayMaxAttempts {
+			api.relayJobs.complete(job.ID, errRelayAttemptsExhausted)
+			continue
+		}
 		if job.NextAttemptAt != nil {
 			delay := time.Until(*job.NextAttemptAt)
 			if delay > 0 {

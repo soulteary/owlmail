@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 )
@@ -69,7 +70,9 @@ func (store *relayJobStore) load() error {
 	now := store.now().UTC()
 	for _, job := range jobs {
 		if job.CompletedAt != nil && now.Sub(*job.CompletedAt) > store.ttl {
-			store.removePersistedLocked(job.ID)
+			if err := store.removePersistedLocked(job.ID); err != nil {
+				return fmt.Errorf("remove expired relay job %s: %w", job.ID, err)
+			}
 			continue
 		}
 		if job.CompletedAt != nil {
@@ -135,7 +138,14 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	if err := os.Rename(temporaryPath, filepath.Join(store.directory, job.ID+".json")); err != nil {
 		return fmt.Errorf("commit relay job: %w", err)
 	}
-	directory, err := os.Open(store.directory)
+	return syncRelayJobDirectory(store.directory)
+}
+
+func syncRelayJobDirectory(path string) error {
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	directory, err := os.Open(path)
 	if err != nil {
 		return fmt.Errorf("open relay job directory for sync: %w", err)
 	}
@@ -149,15 +159,20 @@ func (store *relayJobStore) persistLocked(job relayJob) error {
 	return nil
 }
 
-func (store *relayJobStore) removePersistedLocked(id string) {
+func (store *relayJobStore) removePersistedLocked(id string) error {
 	if store.directory == "" {
-		return
+		return nil
 	}
-	if err := os.Remove(filepath.Join(store.directory, id+".json")); err != nil && !os.IsNotExist(err) {
-		// Removal is best effort during retention cleanup; a later startup prunes
-		// the same completed record again.
-		return
+	if err := os.Remove(filepath.Join(store.directory, id+".json")); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("remove relay job: %w", err)
 	}
+	if err := syncRelayJobDirectory(store.directory); err != nil {
+		return fmt.Errorf("sync relay job removal: %w", err)
+	}
+	return nil
 }
 
 func (store *relayJobStore) queued() []relayJob {
