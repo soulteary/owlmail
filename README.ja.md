@@ -127,7 +127,7 @@ OwlMail を使用する最も簡単な方法は、GitHub Container Registry か�
 docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # 特定コミットのイメージを取得（例）
-docker pull ghcr.io/soulteary/owlmail:sha-b130f33
+docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
 
 # コンテナを実行
 docker run -d \
@@ -140,7 +140,7 @@ docker run -d \
 
 **利用可能なタグ：**
 - `0.8.0` - 正確なリリースタグ。`0.8` と `0` は同じ系列の後続リリースで更新
-- `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-b130f33`）
+- `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-e3d2cfc`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - デフォルトブランチに追随する可変イメージで、安定版の指定には使用不可
 

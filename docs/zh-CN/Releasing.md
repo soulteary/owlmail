@@ -5,6 +5,7 @@
 
 ## 事实来源
 
+- `VERSION` 记录不带 `v` 前缀的当前稳定文档版本；发布标签必须与该值一致。
 - `CHANGELOG.md` 记录用户可感知的改动。
 - `docs/en/Release-X.Y.Z.md` 是 GitHub Release 使用的英文发布正文。
 - `docs/zh-CN/Release-X.Y.Z.md` 是对应的中文发布说明。
@@ -19,6 +20,7 @@
 ## 发布前检查
 
 - [ ] 功能、修复、依赖、Go Report Card 与发布文档 PR 均已合并。
+- [ ] `VERSION` 与准备创建的标签及 README 中的当前版本示例一致。
 - [ ] `CHANGELOG.md` 及中英文发布说明覆盖从上一个标签开始的最终差异。
 - [ ] 发布说明中没有未处理占位符或未经验证的兼容性承诺。
 - [ ] 精确 `main` 提交上的必要检查均通过。

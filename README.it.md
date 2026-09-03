@@ -128,7 +128,7 @@ Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da
 docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # Scarica l'immagine di un commit esatto (esempio)
-docker pull ghcr.io/soulteary/owlmail:sha-b130f33
+docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
 
 # Esegui container
 docker run -d \
@@ -141,7 +141,7 @@ docker run -d \
 
 **Tag disponibili:**
 - `0.8.0` - Tag di release esatto; `0.8` e `0` avanzano con le release successive della serie
-- `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-b130f33`)
+- `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-e3d2cfc`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Immagine mobile del branch predefinito, non un selettore di release stabile
 

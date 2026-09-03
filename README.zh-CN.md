@@ -135,7 +135,7 @@ export MAILDEV_WEB_PORT=1080
 docker pull ghcr.io/soulteary/owlmail:0.8.0
 
 # 拉取某个准确提交的镜像（示例）
-docker pull ghcr.io/soulteary/owlmail:sha-b130f33
+docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
 
 # 运行容器
 docker run -d \
@@ -148,7 +148,7 @@ docker run -d \
 
 **可用标签：**
 - `0.8.0` - 准确发布标签；`0.8` 与 `0` 会随对应版本系列的后续发布移动
-- `sha-<commit>` - 指定短提交 SHA 的镜像（例如 `sha-b130f33`）
+- `sha-<commit>` - 指定短提交 SHA 的镜像（例如 `sha-e3d2cfc`）
 - `main` - 随 `main` 分支最新构建移动的镜像
 - `latest` - 随默认分支移动的镜像，不是稳定版本选择器
 
