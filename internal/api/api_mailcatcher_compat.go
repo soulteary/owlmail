@@ -3,11 +3,9 @@ package api
 import (
 	"errors"
 	"fmt"
-	"html"
 	"mime"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strings"
 	"time"
 
@@ -15,9 +13,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
+	"golang.org/x/net/html"
+	"golang.org/x/net/html/atom"
 )
 
-var mailCatcherCIDReference = regexp.MustCompile(`(?i)cid:([^'" >]+)`)
+var mailCatcherURIAttributes = map[string]struct{}{
+	"action": {}, "background": {}, "cite": {}, "data": {}, "formaction": {},
+	"href": {}, "poster": {}, "src": {},
+}
+
 
 func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 	messages := app.Group(api.route("/messages"))
@@ -33,7 +37,7 @@ func (api *API) setupMailCatcherRESTCompatRoutes(app *fiber.App) {
 }
 
 func (api *API) mailCatcherMessages(c fiber.Ctx) error {
-	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "store", SortOrder: "desc", Limit: int(^uint(0) >> 1)})
+	summaries, _ := api.mailServer.QueryEmailSummaries(mailserver.EmailQuery{SortBy: "time", SortOrder: "desc", Limit: int(^uint(0) >> 1)})
 	result := make([]fiber.Map, 0, len(summaries))
 	for _, summary := range summaries {
 		result = append(result, mailCatcherSummaryDTO(summary))
@@ -55,7 +59,8 @@ func mailCatcherSummaryDTO(email mailserver.EmailSummary) fiber.Map {
 	if sender == "" && !email.SMTPEnvelope && len(email.From) > 0 {
 		sender = email.From[0].Address
 	}
-	if len(recipients) == 0 {
+	if !email.SMTPEnvelope {
+		recipients = recipients[:0]
 		for _, address := range append(append([]mailserver.EmailSummaryAddress{}, email.To...), email.CC...) {
 			recipients = append(recipients, address.Address)
 		}
@@ -78,7 +83,8 @@ func mailCatcherMessageDTO(email *types.Email, createdAt time.Time, detail bool)
 	if sender == "" && (email.Envelope == nil || !email.Envelope.SMTPTransaction) && len(email.From) > 0 && email.From[0] != nil {
 		sender = angleAddress(email.From[0].Address)
 	}
-	if len(recipients) == 0 {
+	if email.Envelope == nil || !email.Envelope.SMTPTransaction {
+		recipients = recipients[:0]
 		for _, recipient := range append(append([]*mail.Address{}, email.To...), email.CC...) {
 			if recipient != nil {
 				recipients = append(recipients, angleAddress(recipient.Address))
@@ -97,15 +103,64 @@ func mailCatcherMessageDTO(email *types.Email, createdAt time.Time, detail bool)
 		formats = append(formats, "plain")
 	}
 	attachments := make([]fiber.Map, 0, len(email.Attachments))
-	for _, attachment := range email.Attachments {
+	for index, attachment := range email.Attachments {
 		if attachment == nil {
 			continue
 		}
-		attachments = append(attachments, fiber.Map{"cid": strings.Trim(attachment.ContentID, "<>"), "type": attachment.ContentType, "filename": attachment.FileName, "size": attachment.Size})
+		attachments = append(attachments, fiber.Map{"cid": mailCatcherPartID(attachment, index), "type": attachment.ContentType, "filename": attachment.FileName, "size": attachment.Size})
 	}
 	result["formats"] = formats
 	result["attachments"] = attachments
 	return result
+}
+
+func mailCatcherPartID(attachment *types.Attachment, index int) string {
+	if cid := strings.Trim(attachment.ContentID, "<>"); cid != "" {
+		return cid
+	}
+	if attachment.GeneratedFileName != "" {
+		return "owlmail-attachment-" + attachment.GeneratedFileName
+	}
+	return fmt.Sprintf("owlmail-attachment-%d", index+1)
+}
+
+func rewriteMailCatcherCIDReferences(markup, prefix string) (string, error) {
+	contextNode := &html.Node{Type: html.ElementNode, Data: "div", DataAtom: atom.Div}
+	nodes, err := html.ParseFragment(strings.NewReader(markup), contextNode)
+	if err != nil {
+		return "", err
+	}
+	var rewrite func(*html.Node)
+	rewrite = func(node *html.Node) {
+		if node.Type == html.ElementNode {
+			for index := range node.Attr {
+				attribute := &node.Attr[index]
+				if _, ok := mailCatcherURIAttributes[strings.ToLower(attribute.Key)]; !ok {
+					continue
+				}
+				value := strings.TrimSpace(attribute.Val)
+				if len(value) < 4 || !strings.EqualFold(value[:4], "cid:") {
+					continue
+				}
+				cid := value[4:]
+				if decoded, decodeErr := url.PathUnescape(cid); decodeErr == nil {
+					cid = decoded
+				}
+				attribute.Val = prefix + url.PathEscape(strings.Trim(cid, "<>"))
+			}
+		}
+		for child := node.FirstChild; child != nil; child = child.NextSibling {
+			rewrite(child)
+		}
+	}
+	var body strings.Builder
+	for _, node := range nodes {
+		rewrite(node)
+		if err := html.Render(&body, node); err != nil {
+			return "", err
+		}
+	}
+	return body.String(), nil
 }
 
 func angleAddress(address string) string {
@@ -122,14 +177,10 @@ func (api *API) mailCatcherHTML(c fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).SendString("Message format does not exist")
 	}
 	prefix := api.route("/messages/" + email.ID + "/parts/")
-	body := mailCatcherCIDReference.ReplaceAllStringFunc(email.HTML, func(reference string) string {
-		cid := html.UnescapeString(reference[len("cid:"):])
-		if decoded, err := url.PathUnescape(cid); err == nil {
-			cid = decoded
-		}
-		rewritten := prefix + url.PathEscape(cid)
-		return html.EscapeString(rewritten)
-	})
+	body, err := rewriteMailCatcherCIDReferences(email.HTML, prefix)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).SendString("Message format could not be rendered")
+	}
 	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
 	return c.SendString(body)
 }
@@ -178,8 +229,8 @@ func (api *API) mailCatcherPart(c fiber.Ctx) error {
 	}
 	cid = strings.Trim(cid, "<>")
 	var selected *types.Attachment
-	for _, attachment := range email.Attachments {
-		if attachment != nil && strings.Trim(attachment.ContentID, "<>") == cid {
+	for index, attachment := range email.Attachments {
+		if attachment != nil && mailCatcherPartID(attachment, index) == cid {
 			selected = attachment
 			break
 		}
