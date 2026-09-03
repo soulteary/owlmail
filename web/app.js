@@ -61,6 +61,7 @@ const i18n = {
         relayRecipientPrompt: '输入中继收件人地址：',
         relayConfirm: '确定要中继这封邮件吗？实际邮件将发送到 {recipient}。',
         relayOriginalRecipients: '原始收件人',
+        relayNoOriginalRecipients: '这封邮件没有可供中继的 SMTP 信封收件人。',
         relayQueued: '中继任务已提交。任务 ID：{id}',
         relayError: '中继失败：{error}',
         // API Error Codes
@@ -149,6 +150,7 @@ const i18n = {
         relayRecipientPrompt: 'Enter the relay recipient address:',
         relayConfirm: 'Relay this message? A real email will be sent to {recipient}.',
         relayOriginalRecipients: 'the original recipients',
+        relayNoOriginalRecipients: 'This message has no SMTP envelope recipients to relay to.',
         relayQueued: 'Relay job accepted. Job ID: {id}',
         relayError: 'Relay failed: {error}',
         // API Error Codes
@@ -786,6 +788,7 @@ let state = {
 };
 let relayEnabled = false;
 const relayPending = new Set();
+const RELAY_STATUS_POLL_INTERVAL_MS = 1000;
 
 function currentEmailIDFromLocation() {
     try {
@@ -1197,6 +1200,11 @@ const API = {
         const response = await fetch(url, {
             method: 'POST'
         });
+        return await handleAPIResponse(response);
+    },
+
+    async getRelayJob(statusURL) {
+        const response = await fetch(new URL(statusURL, window.location.origin).toString());
         return await handleAPIResponse(response);
     }
 };
@@ -1650,19 +1658,49 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         relayTo = (prompt(t('relayRecipientPrompt')) || '').trim();
         if (!relayTo) return;
     }
-    const recipient = relayTo || t('relayOriginalRecipients');
+    let recipient = relayTo;
+    if (!askForRecipient) {
+        const envelopeRecipients = state.currentEmail && state.currentEmail.id === id
+            && state.currentEmail.envelope && Array.isArray(state.currentEmail.envelope.to)
+            ? state.currentEmail.envelope.to.filter((value) => String(value).trim() !== '')
+            : [];
+        if (envelopeRecipients.length === 0) {
+            alert(t('relayNoOriginalRecipients'));
+            return;
+        }
+        recipient = envelopeRecipients.join(', ');
+    }
     if (!confirm(t('relayConfirm', { recipient }))) return;
 
     relayPending.add(id);
     renderEmailDetail();
+    let releasePending = true;
     try {
         const result = await API.relayEmail(id, relayTo);
-        const job = result && result.data && result.data.job;
+        const data = result && result.data;
+        const job = data && data.job;
         alert(t('relayQueued', { id: job && job.id ? job.id : t('unknown') }));
+        if (!data || !data.statusUrl) {
+            releasePending = false;
+            throw new Error('Relay status URL is missing');
+        }
+        releasePending = false;
+        while (true) {
+            const statusResult = await API.getRelayJob(data.statusUrl);
+            const current = statusResult && statusResult.data;
+            if (current && (current.status === 'succeeded' || current.status === 'failed')) {
+                releasePending = true;
+                if (current.status === 'failed') {
+                    throw new Error(current.errorCategory || 'delivery failed');
+                }
+                break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+        }
     } catch (error) {
         alert(t('relayError', { error: parseAPIError(error) }));
     } finally {
-        relayPending.delete(id);
+        if (releasePending) relayPending.delete(id);
         if (state.currentEmail && state.currentEmail.id === id) renderEmailDetail();
     }
 }

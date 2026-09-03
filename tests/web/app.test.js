@@ -99,6 +99,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
     const webSocketURLs = [];
     const historyCalls = [];
     const alerts = [];
+    const confirmations = [];
 
     function Notification(title, options) {
         const instance = { title, options, closed: false, close() { this.closed = true; } };
@@ -195,13 +196,14 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         URLSearchParams,
         Blob,
         alert(message) { alerts.push(String(message)); },
-        confirm: () => true
+        confirm(message) { confirmations.push(String(message)); return true; }
     };
     vm.createContext(sandbox);
     vm.runInContext(appSource, sandbox, { filename: 'web/app.js' });
 
     return {
         alerts,
+        confirmations,
         documentListeners,
         emailDetail,
         emailList,
@@ -361,6 +363,48 @@ test('manual relay controls render only when outgoing mail is enabled', () => {
     harness.run(`relayEnabled = true; renderEmailDetail();`);
     assert.equal(harness.emailDetail.innerHTML.includes('Relay to original recipients'), true);
     assert.equal(harness.emailDetail.innerHTML.includes('Relay to…'), true);
+});
+
+test('manual relay confirms envelope recipients and stays pending until completion', async () => {
+    let resolveStatus;
+    const statusResponse = new Promise((resolve) => { resolveStatus = resolve; });
+    const harness = createHarness({
+        fetchImpl: async (url, options) => {
+            if (options && options.method === 'POST') {
+                return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
+            }
+            return statusResponse;
+        }
+    });
+    harness.run(`
+        relayEnabled = true;
+        state.currentEmail = {
+            id: 'mail-1', subject: 'hello', from: [], to: [], cc: [], attachments: [], text: 'body',
+            envelope: { to: ['hidden@example.test', 'redirect@example.test'] }
+        };
+    `);
+
+    const relay = harness.run(`relayCurrentEmail('mail-1')`);
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.match(harness.confirmations[0], /hidden@example\.test, redirect@example\.test/);
+    assert.equal(harness.run(`relayPending.has('mail-1')`), true);
+    await harness.run(`relayCurrentEmail('mail-1')`);
+    assert.equal(harness.fetchRequests.length, 2);
+
+    resolveStatus(jsonResponse({ data: { id: 'job-1', status: 'succeeded' } }));
+    await relay;
+    assert.equal(harness.run(`relayPending.has('mail-1')`), false);
+});
+
+test('manual relay refuses an unknown original envelope', async () => {
+    const harness = createHarness();
+    harness.run(`relayEnabled = true; state.currentEmail = { id: 'mail-1', envelope: null }`);
+
+    await harness.run(`relayCurrentEmail('mail-1')`);
+
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.match(harness.alerts[0], /no SMTP envelope recipients/);
 });
 
 test('changing the viewport resizes the existing frame without reloading or losing stage scroll', () => {
