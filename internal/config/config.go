@@ -270,19 +270,19 @@ type Config struct {
 	MailIndexPath       string
 
 	// Web API configuration
-	WebPort            int
-	WebHost            string
-	WebUser            string
-	WebPassword        string
-	WebExternalScheme  string
-	WebExternalURL     string
-	BasePathname       string
+	WebPort               int
+	WebHost               string
+	WebUser               string
+	WebPassword           string
+	WebExternalScheme     string
+	WebExternalURL        string
+	BasePathname          string
 	MailDevRESTCompat     bool
 	MailCatcherRESTCompat bool
 	MetricsEnabled        bool
-	MCPEnabled         bool
-	MCPSessionTimeout  string
-	MCPShutdownTimeout string
+	MCPEnabled            bool
+	MCPSessionTimeout     string
+	MCPShutdownTimeout    string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
