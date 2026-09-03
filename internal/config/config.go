@@ -1,11 +1,13 @@
 // Package config provides configuration parsing with MailDev environment variable compatibility.
 // It uses cli-kit for environment variable management and validation.
 //
-// Priority order: CLI flags > MAILDEV_* env vars > OWLMAIL_* env vars > default values
+// Priority order: CLI flags > MAILDEV_* env vars > OWLMAIL_* env vars > config file > default values
 package config
 
 import (
 	"flag"
+	"io"
+	"os"
 	"strconv"
 
 	"github.com/soulteary/cli-kit/env"
@@ -251,6 +253,7 @@ func ResolveLogLevel(fs *flag.FlagSet, flagName, defaultValue string) string {
 
 // Config holds all application configuration
 type Config struct {
+	ConfigFile string
 	// SMTP server configuration
 	SMTPPort            int
 	SMTPHost            string
@@ -267,19 +270,19 @@ type Config struct {
 	MailIndexPath       string
 
 	// Web API configuration
-	WebPort               int
-	WebHost               string
-	WebUser               string
-	WebPassword           string
-	WebExternalScheme     string
-	WebExternalURL        string
-	BasePathname          string
+	WebPort            int
+	WebHost            string
+	WebUser            string
+	WebPassword        string
+	WebExternalScheme  string
+	WebExternalURL     string
+	BasePathname       string
 	MailDevRESTCompat     bool
 	MailCatcherRESTCompat bool
 	MetricsEnabled        bool
-	MCPEnabled            bool
-	MCPSessionTimeout     string
-	MCPShutdownTimeout    string
+	MCPEnabled         bool
+	MCPSessionTimeout  string
+	MCPShutdownTimeout string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -347,6 +350,7 @@ type Config struct {
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
+		ConfigFile:                  "",
 		SMTPPort:                    1025,
 		SMTPHost:                    "localhost",
 		SMTPMaxMessageMB:            DefaultSMTPMaxMessageMB,
@@ -423,6 +427,7 @@ func DefaultConfig() *Config {
 
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
+	ConfigFile                  *string
 	SMTPPort                    *int
 	SMTPHost                    *string
 	SMTPMaxMessageMB            *int
@@ -498,8 +503,16 @@ type FlagRefs struct {
 // DefineFlags defines all configuration flags on the given FlagSet.
 // It returns FlagRefs which should be passed to ResolveConfig after parsing.
 func DefineFlags(fs *flag.FlagSet) *FlagRefs {
-	cfg := DefaultConfig()
+	return DefineFlagsWithDefaults(fs, DefaultConfig())
+}
+
+// DefineFlagsWithDefaults defines flags using a preloaded configuration layer.
+func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
+	if cfg == nil {
+		cfg = DefaultConfig()
+	}
 	return &FlagRefs{
+		ConfigFile:                  fs.String("config", cfg.ConfigFile, "YAML or JSON configuration file"),
 		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
 		SMTPHost:                    fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		SMTPMaxMessageMB:            fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
@@ -516,7 +529,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port"),
 		WebHost:                     fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
-		WebPassword:                 fs.String("web-password", cfg.WebPassword, "HTTP Basic Auth password"),
+		WebPassword:                 secretStringFlag(fs, "web-password", cfg.WebPassword, "HTTP Basic Auth password"),
 		WebExternalURL:              fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
 		BasePathname:                fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MailDevRESTCompat:           fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
@@ -531,7 +544,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		OutgoingHost:                fs.String("outgoing-host", cfg.OutgoingHost, "Outgoing SMTP server host"),
 		OutgoingPort:                fs.Int("outgoing-port", cfg.OutgoingPort, "Outgoing SMTP server port"),
 		OutgoingUser:                fs.String("outgoing-user", cfg.OutgoingUser, "Outgoing SMTP server username"),
-		OutgoingPass:                fs.String("outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
+		OutgoingPass:                secretStringFlag(fs, "outgoing-pass", cfg.OutgoingPass, "Outgoing SMTP server password"),
 		OutgoingSecure:              fs.Bool("outgoing-secure", cfg.OutgoingSecure, "Use implicit TLS/SMTPS for outgoing SMTP (MailDev compatibility)"),
 		OutgoingTLSMode:             fs.String("outgoing-tls-mode", cfg.OutgoingTLSMode, "Outgoing SMTP transport: plain, starttls, or smtps"),
 		OutgoingInsecureSkipVerify:  fs.Bool("outgoing-insecure-skip-verify", cfg.OutgoingInsecureSkipVerify, "Skip outgoing SMTP certificate verification (unsafe)"),
@@ -545,7 +558,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		AutoRelayAddr:               fs.String("auto-relay-addr", cfg.AutoRelayAddr, "Auto relay to specific address"),
 		AutoRelayRules:              fs.String("auto-relay-rules", cfg.AutoRelayRules, "JSON file path for auto relay rules"),
 		SMTPUser:                    fs.String("smtp-user", cfg.SMTPUser, "SMTP username; set with smtp-password to require authentication"),
-		SMTPPassword:                fs.String("smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
+		SMTPPassword:                secretStringFlag(fs, "smtp-password", cfg.SMTPPassword, "SMTP password; set with smtp-user to require authentication"),
 		SMTPAuthRequireTLS:          fs.Bool("smtp-auth-require-tls", cfg.SMTPAuthRequireTLS, "Require TLS before accepting SMTP AUTH"),
 		TLSEnabled:                  fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
 		TLSCertFile:                 fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
@@ -558,19 +571,29 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 		S3Region:                    fs.String("s3-region", cfg.S3Region, "S3 region"),
 		S3Bucket:                    fs.String("s3-bucket", cfg.S3Bucket, "S3 bucket for attachments"),
 		S3Prefix:                    fs.String("s3-prefix", cfg.S3Prefix, "S3 object key prefix for attachments"),
-		S3AccessKeyID:               fs.String("s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
-		S3SecretAccessKey:           fs.String("s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
-		S3SessionToken:              fs.String("s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
+		S3AccessKeyID:               secretStringFlag(fs, "s3-access-key", cfg.S3AccessKeyID, "S3 static access key (optional)"),
+		S3SecretAccessKey:           secretStringFlag(fs, "s3-secret-key", cfg.S3SecretAccessKey, "S3 static secret key (optional)"),
+		S3SessionToken:              secretStringFlag(fs, "s3-session-token", cfg.S3SessionToken, "S3 static credential session token (optional)"),
 		S3UsePathStyle:              fs.Bool("s3-use-path-style", cfg.S3UsePathStyle, "Use path-style S3 bucket addressing"),
 		S3StartupCheck:              fs.Bool("s3-startup-check", cfg.S3StartupCheck, "Fail startup when the initial S3 bucket check fails"),
 		S3HealthInterval:            fs.String("s3-health-check-interval", cfg.S3HealthInterval, "Background S3 health-check interval"),
 		S3HealthTimeout:             fs.String("s3-health-check-timeout", cfg.S3HealthTimeout, "Timeout for each S3 health check"),
 		WebhookConfig:               fs.String("webhook-config", cfg.WebhookConfig, "JSON file path for webhook forwarding targets"),
 		WebhookMaxConcurrency:       fs.Int("webhook-max-concurrency", cfg.WebhookMaxConcurrency, "Maximum concurrent webhook deliveries (0 = unlimited)"),
-		WebhookRedisURL:             fs.String("webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
+		WebhookRedisURL:             secretStringFlag(fs, "webhook-redis-url", cfg.WebhookRedisURL, "Redis URL for durable webhook delivery"),
 		WebhookRedisPrefix:          fs.String("webhook-redis-prefix", cfg.WebhookRedisPrefix, "Redis key prefix for webhook delivery"),
 		WebhookShutdownTimeout:      fs.String("webhook-shutdown-timeout", cfg.WebhookShutdownTimeout, "Maximum time to drain webhook delivery during shutdown"),
 	}
+}
+
+// secretStringFlag retains a preloaded secret for resolution without exposing
+// it through flag.PrintDefaults on help or parse errors.
+func secretStringFlag(fs *flag.FlagSet, name, value, usage string) *string {
+	ref := fs.String(name, value, usage)
+	if option := fs.Lookup(name); option != nil {
+		option.DefValue = ""
+	}
+	return ref
 }
 
 // ResolveConfig resolves configuration from flag values and environment variables.
@@ -579,6 +602,7 @@ func DefineFlags(fs *flag.FlagSet) *FlagRefs {
 func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	outgoingSecure, outgoingTLSMode := resolveOutgoingTransport(fs, *refs.OutgoingSecure, *refs.OutgoingTLSMode)
 	return &Config{
+		ConfigFile:          resolveStringWithFlag(fs, "config", "OWLMAIL_CONFIG_FILE", *refs.ConfigFile),
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),
 		SMTPMaxMessageMB:    resolveIntWithFlag(fs, "smtp-max-message-mb", "OWLMAIL_SMTP_MAX_MESSAGE_MB", *refs.SMTPMaxMessageMB),
@@ -593,19 +617,19 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
 		MailIndexPath:       resolveStringWithFlag(fs, "mail-index-path", "OWLMAIL_MAIL_INDEX_PATH", *refs.MailIndexPath),
 
-		WebPort:               resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
-		WebHost:               resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
-		WebUser:               resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
-		WebPassword:           resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
-		WebExternalScheme:     ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
-		WebExternalURL:        resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
-		BasePathname:          resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
+		WebPort:            resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
+		WebHost:            resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
+		WebUser:            resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
+		WebPassword:        resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
+		WebExternalScheme:  ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
+		WebExternalURL:     resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
+		BasePathname:       resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
 		MailDevRESTCompat:     resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
 		MailCatcherRESTCompat: resolveBoolWithFlag(fs, "mailcatcher-rest-compat", "OWLMAIL_MAILCATCHER_REST_COMPAT", *refs.MailCatcherRESTCompat),
-		MetricsEnabled:        resolveBoolWithFlag(fs, "metrics-enabled", "OWLMAIL_METRICS_ENABLED", *refs.MetricsEnabled),
-		MCPEnabled:            resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
-		MCPSessionTimeout:     resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
-		MCPShutdownTimeout:    resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
+		MetricsEnabled:     resolveBoolWithFlag(fs, "metrics-enabled", "OWLMAIL_METRICS_ENABLED", *refs.MetricsEnabled),
+		MCPEnabled:         resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
+		MCPSessionTimeout:  resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
+		MCPShutdownTimeout: resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),
@@ -718,11 +742,27 @@ func resolveSMTPMaxRecipientsWithFlag(fs *flag.FlagSet, flagValue int) int {
 // ParseFlags is a convenience function that defines flags, parses arguments, and resolves config.
 // Note: This uses flag.CommandLine, so it should only be used in main().
 // For tests, use DefineFlags and ResolveConfig separately.
-func ParseFlags() *Config {
+func ParseFlags() (*Config, error) {
 	fs := flag.CommandLine
-	refs := DefineFlags(fs)
+	defaults := DefaultConfig()
+	helpScan := flag.NewFlagSet("help-scan", flag.ContinueOnError)
+	helpScan.SetOutput(io.Discard)
+	DefineFlags(helpScan)
+	if !HelpRequested(os.Args[1:], helpScan) {
+		configPath, err := configFileFromArgs(os.Args[1:])
+		if err != nil {
+			return nil, err
+		}
+		if configPath != "" {
+			defaults, err = LoadConfigFile(configPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	refs := DefineFlagsWithDefaults(fs, defaults)
 	flag.Parse()
-	return ResolveConfig(fs, refs)
+	return ResolveConfig(fs, refs), nil
 }
 
 // resolveStringWithFlag resolves a string value considering CLI flag was already parsed
