@@ -235,24 +235,22 @@ func (ms *MailServer) readOnlyEmailVisible(id string) (bool, error) {
 		return false, nil
 	}
 
-	// Transaction fences are the final publication gate. In particular, a
-	// deletion started after the source stat must win over this stale source
-	// observation because writers commit the deletion fence before unlinking
-	// the EML.
+	// Transaction fences are the final publication gate. In particular, the
+	// deletion fence is checked last so a deletion started after either the
+	// source stat or rollback-fence read wins over the stale source observation.
 	if ms.beforeReadOnlyPublish != nil {
 		ms.beforeReadOnlyPublish(id)
 	}
-	if _, err := os.Lstat(deletionFencePath(ms.mailDir, id)); err == nil {
-		return false, nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return false, err
-	}
-
 	rollbackPath := rollbackFencePath(ms.mailDir, id)
 	if state, err := readRollbackFenceState(rollbackPath); err == nil {
 		if state != acceptedFenceState && state != localFenceState {
 			return false, nil
 		}
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, err
+	}
+	if _, err := os.Lstat(deletionFencePath(ms.mailDir, id)); err == nil {
+		return false, nil
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return false, err
 	}
