@@ -224,10 +224,16 @@ function extractAPIRoutes() {
     path.join(root, "internal/api/api_maildev_compat.go"),
     "utf8",
   );
+  const mailCatcherCompatSource = fs.readFileSync(
+    path.join(root, "internal/api/api_mailcatcher_compat.go"),
+    "utf8",
+  );
   const sections = [
     source.slice(source.indexOf("func (api *API) setupImprovedAPIRoutes"), source.indexOf("// Start starts the API server")),
     source.slice(source.indexOf("func (api *API) setupMailDevCompatibleRoutes")),
     mailDevCompatSource.slice(mailDevCompatSource.indexOf("func (api *API) setupMailDevRESTCompatRoutes")),
+    mailCatcherCompatSource.slice(mailCatcherCompatSource.indexOf("func (api *API) setupMailCatcherRESTCompatRoutes")),
+    source.slice(source.indexOf("api.setupImprovedAPIRoutes(app)"), source.indexOf("// Browser UI and local help.")),
   ];
   const routes = [];
 
@@ -238,7 +244,7 @@ function extractAPIRoutes() {
       assert.ok(prefixes.has(parent), `unknown API route group ${parent}`);
       prefixes.set(name, prefixes.get(parent) + segment);
     }
-    for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete)\((?:api\.route\()?"([^"]*)"/g)) {
+    for (const match of section.matchAll(/(\w+)\.(Get|Post|Put|Patch|Delete|All)\((?:api\.route\()?"([^"]*)"/g)) {
       const [, group, method, route] = match;
       assert.ok(prefixes.has(group), `unknown API route group ${group}`);
       routes.push(`${method.toUpperCase()} ${prefixes.get(group)}${route}`);
@@ -398,7 +404,7 @@ test("security-sensitive SMTP authentication modes remain explicit", () => {
   }
 });
 
-test("English and Chinese API references cover every registered API route", () => {
+test("English and Chinese API references cover every registered machine-facing route", () => {
   const routes = extractAPIRoutes();
   assert.ok(routes.length > 0, "no API routes found");
 

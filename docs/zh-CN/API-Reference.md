@@ -191,6 +191,16 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 | `GET /api/v1/openapi.json` | 支持 base path 的 OpenAPI 3.1 JSON 合约 |
 | `GET /api/v1/openapi.yaml` | 支持 base path 的 OpenAPI 3.1 YAML 合约 |
 
+### 可选服务端点
+
+以下端点只在对应功能启用时注册，并跟随配置的基础路径和 Web Basic Auth
+策略。
+
+| 方法与路径 | 用途 |
+|---|---|
+| `GET /metrics` | 设置 `-metrics-enabled` 后提供 Prometheus 指标 |
+| `ALL /mcp` | 设置 `-mcp-enabled` 后提供 Streamable HTTP MCP Transport；由 Transport 校验允许的 HTTP 方法 |
+
 WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 连接前返回
 纯文本 `400`。
 
@@ -366,7 +376,7 @@ Auth 策略。
 | `GET /messages/:id.plain` | 返回纯文本正文 |
 | `GET /messages/:id.source` | 返回 RFC 822 源码 |
 | `GET /messages/:id.eml` | 下载 RFC 822 邮件 |
-| `GET /messages/:id/parts/:cid` | 按内容 ID 返回附件或内联 MIME 部分 |
+| `GET /messages/:id/parts/*` | 使用通配内容 ID 路径返回附件或内联 MIME 部分 |
 | `DELETE /messages/:id` | 删除单封消息 |
 
 这是 REST 迁移辅助层，不模拟 MailCatcher 的 WebSocket 总线或整数 ID 分配；客户端应将
