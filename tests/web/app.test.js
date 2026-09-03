@@ -364,12 +364,13 @@ test('email detail offers HTML, text, headers, and source tabs', () => {
     for (const tab of ['HTML', 'Plain text', 'Headers', 'Source']) {
         assert.equal(markup.includes(tab), true);
     }
-    assert.match(markup, /role="tablist"/);
+    assert.match(markup, /role="tablist" aria-label="Email content views"/);
     assert.match(markup, /role="tabpanel"/);
     assert.match(markup, /tabindex="0"/);
     assert.match(markup, /onclick="setEmailContentTab\('source', true\)"/);
     for (const locale of ['zh-CN', 'en', 'de', 'it', 'fr', 'ko', 'ja']) {
         assert.equal(harness.run(`Boolean(i18n[${JSON.stringify(locale)}].contentSource)`), true);
+        assert.equal(harness.run(`Boolean(i18n[${JSON.stringify(locale)}].emailContentViews)`), true);
     }
 });
 

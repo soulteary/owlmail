@@ -13,6 +13,7 @@ const i18n = {
         searchPlaceholder: '搜索邮件...',
         search: '搜索',
         emailList: '邮件列表',
+        emailContentViews: '邮件内容视图',
         emailCount: '{count} 封邮件',
         loading: '加载中...',
         noEmails: '暂无邮件',
@@ -94,6 +95,7 @@ const i18n = {
         searchPlaceholder: 'Search emails...',
         search: 'Search',
         emailList: 'Email List',
+        emailContentViews: 'Email content views',
         emailCount: '{count} emails',
         emailCount_one: '{count} email',
         loading: 'Loading...',
@@ -181,6 +183,7 @@ const i18n = {
         searchPlaceholder: 'E-Mails suchen...',
         search: 'Suchen',
         emailList: 'E-Mail-Liste',
+        emailContentViews: 'E-Mail-Inhaltsansichten',
         emailCount: '{count} E-Mails',
         loading: 'Laden...',
         noEmails: 'Keine E-Mails',
@@ -262,6 +265,7 @@ const i18n = {
         searchPlaceholder: 'Cerca email...',
         search: 'Cerca',
         emailList: 'Elenco Email',
+        emailContentViews: 'Visualizzazioni contenuto email',
         emailCount: '{count} email',
         loading: 'Caricamento...',
         noEmails: 'Nessuna email',
@@ -343,6 +347,7 @@ const i18n = {
         searchPlaceholder: 'Rechercher des emails...',
         search: 'Rechercher',
         emailList: 'Liste des Emails',
+        emailContentViews: 'Vues du contenu de l\'email',
         emailCount: '{count} emails',
         loading: 'Chargement...',
         noEmails: 'Aucun email',
@@ -424,6 +429,7 @@ const i18n = {
         searchPlaceholder: '이메일 검색...',
         search: '검색',
         emailList: '이메일 목록',
+        emailContentViews: '이메일 콘텐츠 보기',
         emailCount: '{count}개의 이메일',
         loading: '로딩 중...',
         noEmails: '이메일 없음',
@@ -505,6 +511,7 @@ const i18n = {
         searchPlaceholder: 'メールを検索...',
         search: '検索',
         emailList: 'メール一覧',
+        emailContentViews: 'メール内容表示',
         emailCount: '{count}通のメール',
         loading: '読み込み中...',
         noEmails: 'メールなし',
@@ -1500,7 +1507,7 @@ function renderEmailContentTabs(email) {
     }
     const labels = { html: 'contentHTML', text: 'contentText', headers: 'contentHeaders', source: 'contentSource' };
     return `
-        <div class="email-content-tabs" role="tablist" aria-label="${t('emailList')}">
+        <div class="email-content-tabs" role="tablist" aria-label="${t('emailContentViews')}">
             ${availableTabs.map((tab) => `
                 <button type="button" role="tab" class="email-content-tab"
                     id="email-content-tab-${tab}" aria-controls="email-content-panel"
