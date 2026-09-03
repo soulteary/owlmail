@@ -338,3 +338,37 @@ func TestNativeRelayRetainsJobWhenSynchronousRejectionCannotBeDurablyRemoved(t *
 		t.Fatalf("retained jobs = %d, want 1", len(api.relayJobs.jobs))
 	}
 }
+
+func TestNativeRelayRejectsSynchronousDisabledCallback(t *testing.T) {
+	directory := t.TempDir()
+	server, err := mailserver.NewMailServerWithOutgoing(1025, "localhost", directory, &outgoing.OutgoingConfig{Host: "smtp.example.test", Port: 25})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "disabled-relay", Subject: "Disabled relay", Time: time.Now()}
+	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: Disabled relay\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{}); err != nil {
+		t.Fatal(err)
+	}
+	api := NewAPI(server, 1080, "localhost")
+
+	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
+	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatal(err)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("disabled relay status = %d, body = %s", resp.StatusCode, body)
+	}
+	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+		t.Fatalf("disabled relay retained a job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	}
+}

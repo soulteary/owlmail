@@ -362,6 +362,12 @@ func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string) error {
 		time.AfterFunc(defaultRelayRetryBaseDelay, func() { api.retryRelayJob(job.ID) })
 	} else {
 		err, handled := api.submitRelayJob(job, email)
+		if err != nil && handled && !relayFailureIsRetryable(err) && !errors.Is(err, outgoing.ErrClosed) {
+			if removeErr := api.relayJobs.remove(job.ID); removeErr == nil {
+				return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+			}
+			common.Error("Relay job %s remains accepted after synchronous rejection could not be durably removed", job.ID)
+		}
 		if err != nil && !handled {
 			if errors.Is(err, errRelayJobPersistence) {
 				if removeErr := api.relayJobs.remove(job.ID); removeErr == nil {
