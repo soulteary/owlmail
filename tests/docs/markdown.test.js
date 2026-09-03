@@ -105,6 +105,44 @@ function localDestinations(markdown) {
   return destinations;
 }
 
+function fencedBlocks(markdown, acceptedLanguages) {
+  const blocks = [];
+  const expression = /^```([^\r\n]*)\r?\n([\s\S]*?)^```\s*$/gm;
+  for (const match of markdown.matchAll(expression)) {
+    const language = match[1].trim().toLowerCase();
+    if (acceptedLanguages === undefined || acceptedLanguages.includes(language)) {
+      blocks.push({ language, body: match[2] });
+    }
+  }
+  return blocks;
+}
+
+function shellCommands(markdown) {
+  const commands = [];
+  for (const { body } of fencedBlocks(markdown, ["bash", "sh", "shell"])) {
+    let command = "";
+    for (const sourceLine of body.split(/\r?\n/)) {
+      const line = sourceLine.trim();
+      if (line === "" || line.startsWith("#")) continue;
+      command += `${command === "" ? "" : " "}${line.replace(/\\$/, "").trim()}`;
+      if (!line.endsWith("\\")) {
+        commands.push(command);
+        command = "";
+      }
+    }
+    if (command !== "") commands.push(command);
+  }
+  return commands;
+}
+
+function assertPrivateDockerPorts(command, label) {
+  const published = [...command.matchAll(/(?:^|\s)-p\s+(\S+)/g)].map((match) => match[1]);
+  assert.ok(published.length > 0, `${label} does not publish any ports`);
+  for (const port of published) {
+    assert.match(port, /^127\.0\.0\.1:\d+:\d+$/, `${label} publishes ${port} beyond loopback`);
+  }
+}
+
 function githubHeadingAnchors(markdown) {
   const { text } = withoutFencedCode(markdown);
   const anchors = new Set();
@@ -768,26 +806,63 @@ test("release history and generated reports avoid stale documentation", () => {
 test("0.8.0 examples are pinned, private by default, persistent, and bounded", () => {
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
-    assert.ok(markdown.includes("--branch v0.8.0 --depth 1"), `${readme} does not pin the source tag`);
-    assert.ok(markdown.includes("cmd/owlmail@v0.8.0"), `${readme} does not pin go install`);
-    assert.doesNotMatch(markdown, /cmd\/owlmail@latest/, `${readme} uses a moving Go install`);
-    assert.doesNotMatch(markdown, /^\s*-p\s+(?:1025|1080):/m, `${readme} publishes a port on every interface`);
-    assert.ok(markdown.includes("-v owlmail-data:/app/mail"), `${readme} omits mailbox persistence`);
+    const commands = shellCommands(markdown);
+    const clone = commands.find((command) => command.startsWith("git clone "));
+    assert.ok(clone, `${readme} has no source clone command`);
+    assert.match(clone, /(?:^|\s)--branch\s+v0\.8\.0(?:\s|$)/, `${readme} does not pin the source tag`);
+    assert.match(clone, /(?:^|\s)--depth\s+1(?:\s|$)/, `${readme} does not use a shallow release clone`);
+
+    const installs = commands.filter((command) => command.startsWith("go install "));
+    assert.deepEqual(
+      installs,
+      ["go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0"],
+      `${readme} must contain exactly one release-pinned Go install`,
+    );
+
+    const dockerRuns = commands.filter((command) => command.startsWith("docker run "));
+    assert.equal(dockerRuns.length, 2, `${readme} has an unexpected number of Docker run examples`);
+    for (const [index, command] of dockerRuns.entries()) {
+      assertPrivateDockerPorts(command, `${readme} docker run #${index + 1}`);
+      assert.match(
+        command,
+        /(?:^|\s)-v\s+owlmail-data:\/app\/mail(?:\s|$)/,
+        `${readme} docker run #${index + 1} omits mailbox persistence`,
+      );
+    }
   }
 
   for (const locale of ["en", "zh-CN"]) {
     const release = fs.readFileSync(path.join(root, `docs/${locale}/Release-0.8.0.md`), "utf8");
-    assert.ok(release.includes("grep ' owlmail-linux-amd64$' checksums.txt | sha256sum -c -"));
-    assert.ok(release.includes("chmod +x owlmail-linux-amd64"));
+    const releaseCommands = shellCommands(release);
+    const downloads = releaseCommands
+      .filter((command) => command.startsWith("curl "))
+      .map((command) => command.match(/\/([^/\s]+)$/)?.[1]);
+    assert.deepEqual(downloads, [
+      "owlmail-linux-amd64",
+      "checksums.txt",
+      "checksums.txt.sigstore.json",
+    ]);
+    const checksum = releaseCommands.find((command) => command.includes("sha256sum -c -"));
+    assert.match(checksum || "", /grep ' owlmail-linux-amd64\$' checksums\.txt \| sha256sum -c -/);
+    assert.ok(releaseCommands.includes("chmod +x owlmail-linux-amd64"));
+    assert.ok(releaseCommands.includes("./owlmail-linux-amd64"));
 
     const operations = fs.readFileSync(path.join(root, `docs/${locale}/Operations.md`), "utf8");
-    assert.doesNotMatch(operations, /^\s*-p\s+(?:1025|1080|465):/m);
+    for (const [index, command] of shellCommands(operations).filter((item) => item.startsWith("docker run ")).entries()) {
+      assertPrivateDockerPorts(command, `docs/${locale}/Operations.md docker run #${index + 1}`);
+    }
 
     const ci = fs.readFileSync(path.join(root, `docs/${locale}/CI-Quickstart.md`), "utf8");
-    assert.ok(ci.includes("OWLMAIL_RUN_INTEGRATION_TEST=1 go test ./examples/testing/go -v"));
-    assert.ok(ci.includes("--connect-timeout 2 --max-time 3"));
-    assert.ok(!ci.includes("./scripts/test-integration"));
-    assert.doesNotMatch(ci, /actions\/(?:checkout|setup-go|upload-artifact)@v\d/);
+    const workflow = fencedBlocks(ci, ["yaml", "yml"])[0]?.body || "";
+    const actionRefs = [...workflow.matchAll(/uses:\s+actions\/(checkout|setup-go|upload-artifact)@(\S+)/g)];
+    assert.deepEqual(actionRefs.map((match) => match[1]).sort(), ["checkout", "setup-go", "upload-artifact"]);
+    for (const [, action, ref] of actionRefs) {
+      assert.match(ref, /^[0-9a-f]{40}$/, `actions/${action} is not pinned to a full commit SHA`);
+    }
+    assert.match(workflow, /for attempt in \$\(seq 1 30\); do/);
+    assert.match(workflow, /curl .*--connect-timeout 2 --max-time 3/);
+    assert.match(workflow, /OWLMAIL_RUN_INTEGRATION_TEST=1 go test \.\/examples\/testing\/go -v/);
+    assert.doesNotMatch(workflow, /\.\/scripts\/test-integration/);
 
     const ai = fs.readFileSync(path.join(root, `docs/${locale}/AI-Agent-Testing.md`), "utf8");
     assert.ok(ai.includes("get_latest_email"));
