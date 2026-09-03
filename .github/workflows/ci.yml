@@ -53,6 +53,9 @@ jobs:
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
 
+      - name: Test Python integration example helpers
+        run: python3 -m unittest examples.testing.python.email_cleanup_test
+
       - name: Build coverage report
         run: |
           go tool cover -html=coverage.out -o coverage.html
