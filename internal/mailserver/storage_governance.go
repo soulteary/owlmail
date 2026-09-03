@@ -82,6 +82,7 @@ type emailMetadata struct {
 	ID          string               `json:"id"`
 	Read        bool                 `json:"read"`
 	Sequence    time.Time            `json:"sequence"`
+	Envelope    *Envelope            `json:"envelope,omitempty"`
 	Attachments []attachmentMetadata `json:"attachments,omitempty"`
 }
 
@@ -308,6 +309,7 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 		ID:          email.ID,
 		Read:        email.Read,
 		Sequence:    receivedAt,
+		Envelope:    cloneEnvelope(email.Envelope),
 		Attachments: make([]attachmentMetadata, 0, len(email.Attachments)),
 	}
 	for _, attachment := range email.Attachments {
