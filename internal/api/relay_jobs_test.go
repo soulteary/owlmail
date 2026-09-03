@@ -273,3 +273,30 @@ func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 		t.Fatalf("relay capacity response = %s", body)
 	}
 }
+
+func TestDeleteEndpointsRejectMessagesWithPendingRelayJobs(t *testing.T) {
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "relay-delete-mail", Subject: "Protected source", Time: time.Now()}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := api.relayJobs.create(email.ID, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{"/api/v1/emails/" + email.ID, "/api/v1/emails"} {
+		req, _ := http.NewRequest(http.MethodDelete, path, nil)
+		resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusConflict {
+			t.Fatalf("DELETE %s returned %d, want 409", path, resp.StatusCode)
+		}
+	}
+	if _, err := server.GetEmail(email.ID); err != nil {
+		t.Fatalf("pending relay source was deleted: %v", err)
+	}
+}

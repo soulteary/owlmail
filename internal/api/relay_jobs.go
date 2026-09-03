@@ -17,6 +17,7 @@ import (
 var (
 	errRelayJobCapacity      = errors.New("relay job status capacity reached")
 	errRelayRecipientTooLong = errors.New("relay recipient exceeds size limit")
+	errRelaySourceInUse      = errors.New("email has a pending relay job")
 )
 
 const (
@@ -40,6 +41,31 @@ type relayJob struct {
 	UpdatedAt     time.Time  `json:"updatedAt"`
 	CompletedAt   *time.Time `json:"completedAt,omitempty"`
 	retainUntil   time.Time
+}
+
+// protectSourceDeletion serializes acceptance and deletion so a relay cannot
+// become pending after the deletion check but before its source is removed.
+// A nil ID set protects deletion of the entire mailbox.
+func (store *relayJobStore) protectSourceDeletion(ids []string, deleteSource func() error) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	store.pruneLocked(store.now().UTC())
+	targets := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		targets[id] = struct{}{}
+	}
+	for _, job := range store.jobs {
+		if job.CompletedAt != nil {
+			continue
+		}
+		if ids == nil {
+			return errRelaySourceInUse
+		}
+		if _, targeted := targets[job.EmailID]; targeted {
+			return errRelaySourceInUse
+		}
+	}
+	return deleteSource()
 }
 
 type relayJobStore struct {

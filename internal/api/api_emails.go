@@ -3,6 +3,7 @@ package api
 import (
 	"archive/zip"
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -117,7 +118,11 @@ func (api *API) getEmailSource(c fiber.Ctx) error {
 // deleteEmail handles DELETE /api/v1/emails/:id
 func (api *API) deleteEmail(c fiber.Ctx) error {
 	id := c.Params("id")
-	if err := api.mailServer.DeleteEmail(id); err != nil {
+	err := api.relayJobs.protectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
+	if errors.Is(err, errRelaySourceInUse) {
+		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "Email has a pending relay job"))
+	}
+	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, err.Error()))
 	}
 	return c.JSON(SuccessResponse(SuccessCodeEmailDeleted, "Email deleted", nil))
@@ -125,7 +130,11 @@ func (api *API) deleteEmail(c fiber.Ctx) error {
 
 // deleteAllEmails handles DELETE /api/v1/emails
 func (api *API) deleteAllEmails(c fiber.Ctx) error {
-	if err := api.mailServer.DeleteAllEmail(); err != nil {
+	err := api.relayJobs.protectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
+	if errors.Is(err, errRelaySourceInUse) {
+		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "An email has a pending relay job"))
+	}
+	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, err.Error()))
 	}
 	return c.JSON(SuccessResponse(SuccessCodeAllEmailsDeleted, "All emails deleted", nil))
@@ -228,18 +237,21 @@ func (api *API) batchDeleteEmails(c fiber.Ctx) error {
 	if len(request.IDs) == 0 {
 		return c.Status(fiber.StatusBadRequest).JSON(ErrorResponse(ErrorCodeNoEmailIDsProvided, "No email IDs provided"))
 	}
-
 	successCount := 0
 	failedCount := 0
 	failedIDs := make([]string, 0)
-
-	for _, id := range request.IDs {
-		if err := api.mailServer.DeleteEmail(id); err != nil {
-			failedCount++
-			failedIDs = append(failedIDs, id)
-		} else {
-			successCount++
+	if err := api.relayJobs.protectSourceDeletion(request.IDs, func() error {
+		for _, id := range request.IDs {
+			if err := api.mailServer.DeleteEmail(id); err != nil {
+				failedCount++
+				failedIDs = append(failedIDs, id)
+			} else {
+				successCount++
+			}
 		}
+		return nil
+	}); errors.Is(err, errRelaySourceInUse) {
+		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "An email has a pending relay job"))
 	}
 
 	return c.JSON(fiber.Map{
