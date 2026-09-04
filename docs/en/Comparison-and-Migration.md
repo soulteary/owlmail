@@ -5,9 +5,9 @@
 
 **Review baseline:** 2026-09-03.
 
-- OwlMail: release 0.8.0 at
-  e3d2cfcaf5580a7d914d1d27142a9edf43eaf8e9; the reviewed main commit
-  1ef3cb32063a12a73fdc68f8c434d7ba143cefc4 adds documentation only.
+- OwlMail: 0.9.0 release baseline at
+  112f0d0f33b8fa040cdc8699d300118c96c09cf8. Changes after the 0.8.0 tag and
+  through this baseline affect documentation, examples, tests, and CI only.
 - MailDev: release candidate maildev@3.0.0-rc.3; main at
   9d4141f42b0acedfa544a306f96a5373ded8c8a3. The latest stable 2.x release is
   2.2.1 and differs materially from the 3.x codebase.
@@ -32,7 +32,7 @@ but optimize for different workflows:
 - **MailCatcher** emphasizes a small Ruby workflow, a simple browser inbox, and
   the catchmail sendmail analogue.
 
-OwlMail is not a universal drop-in replacement for either project. In 0.8.0,
+OwlMail is not a universal drop-in replacement for either project. In 0.9.0,
 its optional MailDev REST facade covers the current MailDev REST contract, but
 does not implement Socket.IO or the Node API. Its separate MailCatcher facade
 covers a bounded subset of the messages API without emulating MailCatcher's
@@ -40,7 +40,7 @@ live-update protocol.
 
 ## Feature comparison
 
-| Capability | OwlMail 0.8.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
+| Capability | OwlMail 0.9.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 |
 |---|---|---|---|
 | Runtime | Go single binary with embedded Web assets | Node.js 20+, TypeScript monorepo and React UI | Ruby 3.3+, EventMachine/Sinatra |
 | Primary strength | AI-assisted testing, recoverable storage, automation, and explicit resource limits | Interactive email inspection and integration breadth | Minimal Ruby/sendmail workflow |
@@ -80,7 +80,7 @@ parsing, disk pressure, TLS, S3, webhook, or browser workloads.
 | Live events | Socket.IO | Native WebSocket, not Socket.IO | Project-specific WebSocket/polling |
 | Embedded API | Node MailDev class | None | None |
 
-In OwlMail 0.8.0, enable the MailDev facade explicitly with
+In OwlMail 0.9.0, enable the MailDev facade explicitly with
 OWLMAIL_MAILDEV_REST_COMPAT=true or -maildev-rest-compat. It shares the normal
 Basic Auth, HTTPS, storage, and base-path boundary. It does not enable Socket.IO.
 
@@ -90,7 +90,7 @@ delivery.
 
 ## Agent integration
 
-OwlMail 0.8.0 provides a default-off MCP endpoint at `/mcp` for a root
+OwlMail 0.9.0 provides a default-off MCP endpoint at `/mcp` for a root
 deployment and `<base-pathname>/mcp` when a base pathname is configured. Local
 clients can instead launch `owlmail mcp-stdio -mail-directory DIR`; both
 transports expose the same seven closed-world, read-only tools: list, search,
@@ -130,7 +130,7 @@ database-backed production mailbox service.
 
 ## Selection guide
 
-Choose **OwlMail 0.8.0** when a single binary, ARM/cross-platform deployment,
+Choose **OwlMail 0.9.0** when a single binary, ARM/cross-platform deployment,
 AI-assisted integration testing, durable webhook automation, recoverable disk
 storage, optional S3 attachments, SMTP resource controls, or a bounded
 read-only agent surface matters most.
@@ -147,7 +147,7 @@ inventorying REST and live-event consumers. For MailCatcher, treat SMTP capture
 and the sendmail analogue as the portable concepts; adapt every HTTP or
 WebSocket integration.
 
-## Known OwlMail 0.8.0 boundaries at this baseline
+## Known OwlMail 0.9.0 boundaries at this baseline
 
 - The native WebSocket endpoint is not Socket.IO.
 - There is no public stable Go embedding SDK; `internal/` packages are not a

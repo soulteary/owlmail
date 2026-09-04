@@ -9,7 +9,7 @@ OwlMail 原生 v1 API，断言内容，并且只删除这一封邮件。
 docker compose -f examples/testing/compose.yaml up -d --wait
 ```
 
-Compose 固定 OwlMail 0.8.0，并只在 loopback 发布两个端口。需要严格可复现的 CI
+Compose 固定 OwlMail 0.9.0，并只在 loopback 发布两个端口。需要严格可复现的 CI
 应把镜像标签替换为发布 manifest digest。
 
 ## 运行示例

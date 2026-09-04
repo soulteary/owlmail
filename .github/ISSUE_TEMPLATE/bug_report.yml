@@ -65,7 +65,7 @@ body:
       placeholder: |
         - OS: [e.g., macOS 14.0, Linux Ubuntu 22.04, Windows 11]
         - Go Version (source builds only): [e.g., go1.27.0]
-        - OwlMail Version: [e.g., v0.8.0 or commit hash]
+        - OwlMail Version: [e.g., v0.9.0 or commit hash]
         - Container image or binary checksum (if available):
     validations:
       required: true

@@ -65,7 +65,7 @@ body:
       placeholder: |
         - 操作系统: [例如 macOS 14.0, Linux Ubuntu 22.04, Windows 11]
         - Go 版本（仅源码构建）: [例如 go1.27.0]
-        - OwlMail 版本: [例如 v0.8.0 或 commit hash]
+        - OwlMail 版本: [例如 v0.9.0 或 commit hash]
         - 容器镜像或二进制校验和（如有）:
     validations:
       required: true

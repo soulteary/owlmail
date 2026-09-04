@@ -60,17 +60,18 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
   erstellen und Altprogramme über den [Sendmail-Leitfaden](./docs/de/Sendmail.md)
   anbinden. Quell- und Browsertests verwenden Bun; die Binärdatei benötigt keine Laufzeit.
 
-## 🆕 OwlMail 0.8.0
+## 🆕 OwlMail 0.9.0
 
-`v0.8.0` ist die aktuelle stabile Version. Sie ergänzt native Relay-Aufträge,
-die mit konfiguriertem Mail-Verzeichnis persistiert werden, geschichtete
-YAML/JSON-Konfiguration, optionales SQLite-Indexing, Prometheus-
-Metriken, strukturierte Logs, MailCatcher REST, MCP stdio und strengere Grenzen.
+`v0.9.0` ist die aktuelle stabile Version. Sie verbessert den AI-nativen
+Integrationstest-Workflow mit ausführbaren JavaScript-, Python- und Go-
+Beispielen, End-to-End-CI, zuverlässiger Bereinigung bei Fehlern sowie
+umfassenderen API- und MCP-Dokumentationsverträgen. Laufzeit-APIs und
+Speicherformate bleiben mit 0.8.0 kompatibel.
 
-Alle Installationsbeispiele verwenden `ghcr.io/soulteary/owlmail:0.8.0`.
+Alle Installationsbeispiele verwenden `ghcr.io/soulteary/owlmail:0.9.0`.
 Für reproduzierbare CI sollte die vollständige Version oder
 `ghcr.io/soulteary/owlmail@sha256:<digest>` verwendet werden.
-Details stehen in den [Versionshinweisen 0.8.0](./docs/en/Release-0.8.0.md).
+Details stehen in den [Versionshinweisen 0.9.0](./docs/en/Release-0.9.0.md).
 
 > [!IMPORTANT]
 > OwlMail ist für Entwicklung, Tests, CI und vertrauenswürdige interne Netze
@@ -84,7 +85,7 @@ Details stehen in den [Versionshinweisen 0.8.0](./docs/en/Release-0.8.0.md).
 
 ```bash
 # Repository klonen
-git clone --branch v0.8.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.9.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Kompilieren
@@ -97,7 +98,7 @@ go build -o owlmail ./cmd/owlmail
 #### Mit Go installieren
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.8.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.9.0
 owlmail
 ```
 
@@ -123,11 +124,11 @@ export MAILDEV_WEB_PORT=1080
 Der einfachste Weg, OwlMail zu verwenden, ist das Abrufen des vorgefertigten Images von GitHub Container Registry:
 
 ```bash
-# Release 0.8.0 abrufen
-docker pull ghcr.io/soulteary/owlmail:0.8.0
+# Release 0.9.0 abrufen
+docker pull ghcr.io/soulteary/owlmail:0.9.0
 
 # Image für einen exakten Commit abrufen (Beispiel)
-docker pull ghcr.io/soulteary/owlmail:sha-e3d2cfc
+docker pull ghcr.io/soulteary/owlmail:sha-112f0d0
 
 # Container ausführen
 docker run -d \
@@ -135,12 +136,12 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.8.0
+  ghcr.io/soulteary/owlmail:0.9.0
 ```
 
 **Verfügbare Tags:**
-- `0.8.0` - Exaktes Release-Tag; `0.8` und `0` werden mit späteren Releases der Reihe aktualisiert
-- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-e3d2cfc`)
+- `0.9.0` - Exaktes Release-Tag; `0.9` und `0` werden mit späteren Releases der Reihe aktualisiert
+- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-112f0d0`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderliches Standard-Branch-Image, kein stabiles Release-Tag
 
@@ -691,11 +692,11 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe [LICENSE](LICENSE)-Da
 
 ## 📚 Verwandte Dokumentation
 
-- [Versionshinweise zu OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [Versionshinweise zu OwlMail 0.9.0](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
 - [Integration, CI und AI-Agenten](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP-Referenz](./docs/en/MCP-Reference.md), [Architektur](./docs/en/Architecture.md) und [Sicherheitsmodell](./docs/en/Security-Model.md)
 - [Ausführbare Testbeispiele](./examples/testing/README.md)
-- [Versionshinweise zu OwlMail 0.7.0](./docs/en/Release-0.7.0.md) ([中文](./docs/zh-CN/Release-0.7.0.md))
+- [Versionshinweise zu OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [Änderungsprotokoll](./CHANGELOG.md)
 - [OwlMail × MailDev: Vollständiger Funktions- und API-Vergleich und Migrations-Whitepaper](./docs/de/Comparison-and-Migration.md)
 - [API-Referenz (English)](./docs/en/API-Reference.md)

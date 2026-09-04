@@ -1,7 +1,7 @@
 # CI quickstart
 
 Run OwlMail as a disposable sidecar, wait for readiness, execute the test
-suite, and preserve logs when the job fails. The example uses the 0.8.0 image
+suite, and preserve logs when the job fails. The example uses the 0.9.0 image
 tag for readability; record and pin its manifest digest when exact
 reproducibility is required.
 
@@ -19,12 +19,12 @@ jobs:
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
-      - name: Start OwlMail 0.8.0
+      - name: Start OwlMail 0.9.0
         run: |
           docker run -d --name owlmail-ci \
             -p 127.0.0.1:1025:1025 \
             -p 127.0.0.1:1080:1080 \
-            ghcr.io/soulteary/owlmail:0.8.0
+            ghcr.io/soulteary/owlmail:0.9.0
           for attempt in $(seq 1 30); do
             curl --fail --silent --connect-timeout 2 --max-time 3 \
               http://127.0.0.1:1080/readyz && exit 0

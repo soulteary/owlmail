@@ -40,8 +40,8 @@ in eigenen Verzeichnissen organisiert.
 
 ### Veröffentlichungen
 
+- **[Versionshinweise 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
 - **[Versionshinweise 0.8.0](../en/Release-0.8.0.md)** (English, [中文](../zh-CN/Release-0.8.0.md))
-- **[Versionshinweise 0.7.0](../en/Release-0.7.0.md)** (English, [中文](../zh-CN/Release-0.7.0.md))
 - **[Veröffentlichungsprozess](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
 ### Vergleich und Migration

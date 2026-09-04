@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "OwlMail HTTP API",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "summary": "Versioned OwlMail mailbox, relay, settings, and operational API",
     "description": "The contract for OwlMail's native `/api/v1` interface. Unversioned MailDev-style compatibility routes are intentionally excluded because their protocol behavior is not an exact MailDev contract. Configure `-base-pathname` (or `OWLMAIL_BASE_PATHNAME`) to place the server and this contract below a reverse-proxy prefix. The served documents rewrite the relative server URL to include that prefix. HTTP Basic authentication is optional at deployment time; when enabled it protects every operation except liveness and readiness. The unversioned `/healthz` and `/readyz` probes are also public but remain outside this versioned contract."
   },
@@ -1495,10 +1495,10 @@
                   "$ref": "#/components/schemas/Version"
                 },
                 "example": {
-                  "version": "0.8.0",
+                  "version": "0.9.0",
                   "commit": "0123456789abcdef",
                   "build_date": "2026-09-02T12:00:00Z",
-                  "branch": "v0.8.0",
+                  "branch": "v0.9.0",
                   "go_version": "go1.27.0",
                   "platform": "linux/amd64",
                   "compiler": "gc"

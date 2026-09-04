@@ -29,8 +29,8 @@ Select your preferred language:
 - [Testing Recipes](./en/Testing-Recipes.md)
 - [Architecture](./en/Architecture.md) and [Security Model](./en/Security-Model.md)
 - [Runnable JavaScript, Go, Python, and Compose examples](../examples/testing/README.md)
+- [OwlMail 0.9.0 Release Notes](./en/Release-0.9.0.md)
 - [OwlMail 0.8.0 Release Notes](./en/Release-0.8.0.md)
-- [OwlMail 0.7.0 Release Notes](./en/Release-0.7.0.md)
 - [API Reference](./en/API-Reference.md)
 - [OpenAPI 3.1 Contract (JSON)](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)
 - [Operations and Troubleshooting](./en/Operations.md)
@@ -54,8 +54,8 @@ Select your preferred language:
 - [测试配方](./zh-CN/Testing-Recipes.md)
 - [架构](./zh-CN/Architecture.md)与[安全模型](./zh-CN/Security-Model.md)
 - [JavaScript、Go、Python 与 Compose 可运行示例](../examples/testing/README.zh-CN.md)
+- [OwlMail 0.9.0 发布说明](./zh-CN/Release-0.9.0.md)
 - [OwlMail 0.8.0 发布说明](./zh-CN/Release-0.8.0.md)
-- [OwlMail 0.7.0 发布说明](./zh-CN/Release-0.7.0.md)
 - [API 参考](./zh-CN/API-Reference.md)
 - [OpenAPI 3.1 合约（JSON）](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)
 - [运维与排障](./zh-CN/Operations.md)
@@ -76,7 +76,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev - Vollständiger Funktions- und API-Vergleich sowie Migrations-Whitepaper](./de/Comparison-and-Migration.md)
 - [API-Refactoring-Aufzeichnung](./de/internal/API_Refactoring_Record.md)
-- Gemeinsame Referenzen: [0.8.0 Release Notes (English)](./en/Release-0.8.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
+- Gemeinsame Referenzen: [0.9.0 Release Notes (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [Sendmail-kompatible CLI](./de/Sendmail.md)
 
 ---
@@ -89,7 +89,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev : Livre blanc complet sur les fonctionnalités, l'API et la migration](./fr/Comparison-and-Migration.md)
 - [Enregistrement de la refactorisation de l'API](./fr/internal/API_Refactoring_Record.md)
-- Références partagées : [Notes de version 0.8.0 (English)](./en/Release-0.8.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
+- Références partagées : [Notes de version 0.9.0 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [CLI compatible sendmail](./fr/Sendmail.md)
 
 ---
@@ -102,7 +102,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev: Libro bianco completo su funzionalità, API e migrazione](./it/Comparison-and-Migration.md)
 - [Registro della Refactorizzazione dell'API](./it/internal/API_Refactoring_Record.md)
-- Riferimenti condivisi: [Note di rilascio 0.8.0 (English)](./en/Release-0.8.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
+- Riferimenti condivisi: [Note di rilascio 0.9.0 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [CLI compatibile con sendmail](./it/Sendmail.md)
 
 ---
@@ -115,7 +115,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev: 完全な機能と API の比較および移行ホワイトペーパー](./ja/Comparison-and-Migration.md)
 - [API リファクタリング記録](./ja/internal/API_Refactoring_Record.md)
-- 共通リファレンス：[0.8.0 リリースノート (English)](./en/Release-0.8.0.md)、[API (English)](./en/API-Reference.md)、[OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)、[Operations (English)](./en/Operations.md)、[Webhook (English)](./en/Webhook-Forwarding.md)
+- 共通リファレンス：[0.9.0 リリースノート (English)](./en/Release-0.9.0.md)、[API (English)](./en/API-Reference.md)、[OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)、[Operations (English)](./en/Operations.md)、[Webhook (English)](./en/Webhook-Forwarding.md)
 - [sendmail 互換 CLI](./ja/Sendmail.md)
 
 ---
@@ -128,7 +128,7 @@ Select your preferred language:
 
 - [OwlMail × MailDev: 전체 기능 및 API 비교 및 마이그레이션 화이트페이퍼](./ko/Comparison-and-Migration.md)
 - [API 리팩토링 기록](./ko/internal/API_Refactoring_Record.md)
-- 공통 참조: [0.8.0 릴리스 노트 (English)](./en/Release-0.8.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
+- 공통 참조: [0.9.0 릴리스 노트 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [sendmail 호환 CLI](./ko/Sendmail.md)
 
 ---
