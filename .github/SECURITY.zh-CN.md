@@ -1,14 +1,18 @@
 # 安全策略
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## 支持的版本
 
 我们目前支持以下版本的安全更新：
 
 | 版本 | 支持状态 |
 | ---- | -------- |
+| 0.9.x | ✅ 支持 |
 | 0.8.x | ✅ 支持 |
-| 0.7.x | ✅ 支持 |
-| 0.6.x 及更早版本 | ❌ 不支持 |
+| 0.7.x 及更早版本 | ❌ 不支持 |
 
 ## 报告安全漏洞
 

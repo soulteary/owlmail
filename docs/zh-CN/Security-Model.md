@@ -54,7 +54,7 @@ Agent 必须把邮件内容视为数据而非指令。邮件内嵌的 Prompt 不
 - 测试数据与生产账户、生产基础设施隔离。
 - 安全敏感 CI 按 manifest digest 固定发布镜像。
 - 升级前备份完整邮件目录。
-- 漏洞报告前阅读 [SECURITY.zh-CN.md](../../SECURITY.zh-CN.md)，通过私有 Advisory
+- 漏洞报告前阅读 [SECURITY.zh-CN.md](../../.github/SECURITY.zh-CN.md)，通过私有 Advisory
   或安全邮箱提交，不要创建公开 Issue。
 
 配置细节见[运维与排障](./Operations.md)，API 认证与 Origin 行为见

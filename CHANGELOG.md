@@ -6,6 +6,12 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Security policies now live with the other GitHub community health files in
+  `.github`, provide navigation across all seven translations, and document
+  support for the current `0.9.x` and previous `0.8.x` release series.
+
 ## [0.9.0] - 2026-09-03
 
 ### Added

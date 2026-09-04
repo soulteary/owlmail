@@ -17,6 +17,15 @@ const translatedReadmes = [
   "README.ja.md",
   "README.ko.md",
 ];
+const securityFiles = [
+  "SECURITY.md",
+  "SECURITY.zh-CN.md",
+  "SECURITY.de.md",
+  "SECURITY.fr.md",
+  "SECURITY.it.md",
+  "SECURITY.ja.md",
+  "SECURITY.ko.md",
+];
 
 test("current documentation version is a semantic version", () => {
   assert.match(
@@ -804,6 +813,17 @@ test("GitHub community files match repository features and supported conventions
     assert.ok(pullRequest.includes(command), `pull request template is missing ${command}`);
   }
 
+  for (const security of securityFiles) {
+    assert.ok(!fs.existsSync(path.join(root, security)), `${security} should not remain in the repository root`);
+    const markdown = fs.readFileSync(path.join(root, ".github", security), "utf8");
+    for (const translatedSecurity of securityFiles) {
+      assert.ok(markdown.includes(`](${translatedSecurity})`), `${security} does not link ${translatedSecurity}`);
+    }
+    for (const marker of ["0.9.x", "0.8.x", "0.7.x"]) {
+      assert.ok(markdown.includes(marker), `${security} is missing ${marker}`);
+    }
+  }
+
   for (const locale of ["de", "fr", "it", "ja", "ko"]) {
     const contributing = fs.readFileSync(path.join(root, `.github/CONTRIBUTING.${locale}.md`), "utf8");
     const conduct = fs.readFileSync(path.join(root, `.github/CODE_OF_CONDUCT.${locale}.md`), "utf8");
@@ -812,15 +832,9 @@ test("GitHub community files match repository features and supported conventions
     assert.ok(contributing.includes("CONTRIBUTING.md"), `${locale} contribution summary lacks canonical link`);
     assert.ok(conduct.includes("CODE_OF_CONDUCT.md"), `${locale} conduct summary lacks canonical link`);
 
-    const security = fs.readFileSync(path.join(root, `SECURITY.${locale}.md`), "utf8");
-    for (const marker of ["0.8.x", "0.7.x", "0.6.x", "srcdoc", 'referrerpolicy="no-referrer"', "CSP", "CID"]) {
+    const security = fs.readFileSync(path.join(root, `.github/SECURITY.${locale}.md`), "utf8");
+    for (const marker of ["srcdoc", 'referrerpolicy="no-referrer"', "CSP", "CID"]) {
       assert.ok(security.includes(marker), `SECURITY.${locale}.md is missing ${marker}`);
-    }
-  }
-  for (const security of ["SECURITY.md", "SECURITY.zh-CN.md"]) {
-    const markdown = fs.readFileSync(path.join(root, security), "utf8");
-    for (const marker of ["0.8.x", "0.7.x", "0.6.x"]) {
-      assert.ok(markdown.includes(marker), `${security} is missing ${marker}`);
     }
   }
 });

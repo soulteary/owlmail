@@ -1,14 +1,18 @@
 # Security Policy
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## Supported Versions
 
 We currently provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.9.x | ✅ Yes |
 | 0.8.x | ✅ Yes |
-| 0.7.x | ✅ Yes |
-| 0.6.x and older | ❌ No |
+| 0.7.x and older | ❌ No |
 
 ## Reporting a Vulnerability
 

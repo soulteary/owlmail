@@ -1,14 +1,18 @@
 # セキュリティポリシー
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## サポートされているバージョン
 
 現在、以下のバージョンに対してセキュリティアップデートを提供しています：
 
 | バージョン | サポート |
 |-----------|---------|
+| 0.9.x | ✅ はい |
 | 0.8.x | ✅ はい |
-| 0.7.x | ✅ はい |
-| 0.6.x 以前 | ❌ いいえ |
+| 0.7.x 以前 | ❌ いいえ |
 
 ## 脆弱性の報告
 
