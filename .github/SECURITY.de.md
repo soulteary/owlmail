@@ -1,14 +1,18 @@
 # Sicherheitsrichtlinie
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## Unterstützte Versionen
 
 Wir bieten derzeit Sicherheitsupdates für die folgenden Versionen:
 
 | Version | Unterstützt |
 |---------|-------------|
+| 0.9.x | ✅ Ja |
 | 0.8.x | ✅ Ja |
-| 0.7.x | ✅ Ja |
-| 0.6.x und älter | ❌ Nein |
+| 0.7.x und älter | ❌ Nein |
 
 ## Meldung einer Sicherheitslücke
 

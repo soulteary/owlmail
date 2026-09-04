@@ -1,14 +1,18 @@
 # 보안 정책
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## 지원되는 버전
 
 현재 다음 버전에 대한 보안 업데이트를 제공합니다:
 
 | 버전 | 지원 여부 |
 |------|----------|
+| 0.9.x | ✅ 예 |
 | 0.8.x | ✅ 예 |
-| 0.7.x | ✅ 예 |
-| 0.6.x 이하 | ❌ 아니오 |
+| 0.7.x 이하 | ❌ 아니오 |
 
 ## 취약점 보고
 

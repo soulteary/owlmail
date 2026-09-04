@@ -65,7 +65,7 @@ errors are bounded and do not expose raw downstream errors through status.
 - Separate test data from production accounts and infrastructure.
 - Pin the release image by manifest digest for sensitive CI.
 - Back up the complete mail directory before upgrades.
-- Review [SECURITY.md](../../SECURITY.md) before reporting a vulnerability; use
+- Review [SECURITY.md](../../.github/SECURITY.md) before reporting a vulnerability; use
   a private advisory or the documented security email, not a public Issue.
 
 Configuration details are in [Operations](./Operations.md); exact API auth and

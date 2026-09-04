@@ -1,14 +1,18 @@
 # Politica di Sicurezza
 
+## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+
+[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+
 ## Versioni Supportate
 
 Attualmente forniamo aggiornamenti di sicurezza per le seguenti versioni:
 
 | Versione | Supportata |
 |----------|------------|
+| 0.9.x | ✅ Sì |
 | 0.8.x | ✅ Sì |
-| 0.7.x | ✅ Sì |
-| 0.6.x e precedenti | ❌ No |
+| 0.7.x e precedenti | ❌ No |
 
 ## Segnalazione di una Vulnerabilità
 
