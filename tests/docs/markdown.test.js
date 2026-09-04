@@ -26,6 +26,8 @@ const securityFiles = [
   "SECURITY.ja.md",
   "SECURITY.ko.md",
 ];
+const securityPolicyURL = "https://github.com/soulteary/owlmail/security/policy";
+const securityTranslationBaseURL = "https://github.com/soulteary/owlmail/blob/main/.github/";
 
 test("current documentation version is a semantic version", () => {
   assert.match(
@@ -817,10 +819,20 @@ test("GitHub community files match repository features and supported conventions
     assert.ok(!fs.existsSync(path.join(root, security)), `${security} should not remain in the repository root`);
     const markdown = fs.readFileSync(path.join(root, ".github", security), "utf8");
     for (const translatedSecurity of securityFiles) {
-      assert.ok(markdown.includes(`](${translatedSecurity})`), `${security} does not link ${translatedSecurity}`);
+      const destination = translatedSecurity === "SECURITY.md"
+        ? securityPolicyURL
+        : `${securityTranslationBaseURL}${translatedSecurity}`;
+      assert.ok(markdown.includes(`](${destination})`), `${security} does not link ${destination}`);
     }
     for (const marker of ["0.9.x", "0.8.x", "0.7.x"]) {
       assert.ok(markdown.includes(marker), `${security} is missing ${marker}`);
+    }
+  }
+
+  for (const readme of translatedReadmes) {
+    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    for (const translatedReadme of translatedReadmes) {
+      assert.ok(markdown.includes(`](${translatedReadme})`), `${readme} does not link ${translatedReadme}`);
     }
   }
 

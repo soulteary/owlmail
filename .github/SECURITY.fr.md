@@ -2,7 +2,7 @@
 
 ## Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
-[English](SECURITY.md) | [简体中文](SECURITY.zh-CN.md) | [Deutsch](SECURITY.de.md) | [Français](SECURITY.fr.md) | [Italiano](SECURITY.it.md) | [日本語](SECURITY.ja.md) | [한국어](SECURITY.ko.md)
+[English](https://github.com/soulteary/owlmail/security/policy) | [简体中文](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.zh-CN.md) | [Deutsch](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.de.md) | [Français](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.fr.md) | [Italiano](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.it.md) | [日本語](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.ja.md) | [한국어](https://github.com/soulteary/owlmail/blob/main/.github/SECURITY.ko.md)
 
 ## Versions Prise en Charge
 
