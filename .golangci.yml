@@ -1,0 +1,71 @@
+# OwlMail lint contract.
+#
+# CI pins golangci-lint itself (.github/workflows/ci.yml); this file pins the
+# rules it runs, so upgrading the linter cannot silently add or drop a check.
+# Every linter enabled here reports zero issues on the current tree, which
+# keeps `golangci-lint run` a pass/fail gate rather than a backlog to triage.
+version: "2"
+
+run:
+  timeout: 5m
+  # Build tags are not used to hide code from review; lint what CI builds.
+  tests: true
+
+linters:
+  # The standard set is errcheck, govet, ineffassign, staticcheck, and unused.
+  # Naming it explicitly means a future release cannot change the baseline.
+  default: standard
+  enable:
+    # Correctness
+    - asasalint          # []any accidentally passed to a variadic any
+    - durationcheck      # time.Duration multiplications that silently overflow
+    - makezero           # make([]T, n) followed by append, losing the prefix
+    - reassign           # writes to another package's exported variables
+    - rowserrcheck       # sql.Rows.Err() left unchecked
+    - sqlclosecheck      # sql.Rows and sql.Stmt left open
+    - wastedassign       # values assigned and then overwritten unread
+
+    # Correctness in tests, which are over half of this repository
+    - usetesting         # os.Setenv/MkdirTemp where t.Setenv/t.TempDir belongs
+
+    # Supply chain and source integrity
+    - asciicheck         # non-ASCII identifiers
+    - bidichk            # bidirectional-override characters in source
+    - gocheckcompilerdirectives  # malformed //go: directives that do nothing
+
+    # Readability
+    - copyloopvar        # loop-variable copies made redundant by Go 1.22
+    - misspell
+    - nakedret
+
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        # Reports struct field order for memory packing. OwlMail's structs are
+        # grouped by concern for readability and are not hot-path allocations.
+        - fieldalignment
+        # Flags every intentional inner-scope err, which this codebase uses
+        # deliberately around rollback and cleanup paths.
+        - shadow
+        # Fires on table-driven test fixtures that build a complete value and
+        # assert on a subset of its fields.
+        - unusedwrite
+    misspell:
+      locale: US
+      ignore-rules:
+        # relayFailureCategory matches both spellings on purpose: downstream
+        # SMTP servers and Go releases differ on "canceled" vs "cancelled".
+        - cancelled
+    nakedret:
+      max-func-lines: 0
+
+formatters:
+  # `golangci-lint fmt` applies these; `golangci-lint run` reports them. The CI
+  # gofmt gate stays as the independent check.
+  enable:
+    - gofmt
+    - goimports
+  settings:
+    gofmt:
+      simplify: true

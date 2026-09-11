@@ -85,8 +85,11 @@ If you find a bug or have a feature suggestion, please:
 ### Go Code Style
 
 - Follow [Effective Go](https://go.dev/doc/effective_go) and [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)
-- Use `gofmt` to format code
-- Run `golangci-lint run --timeout=5m` to match the lint workflow
+- Use `gofmt` to format code, or `golangci-lint fmt` to apply the same
+  formatters the lint configuration declares
+- Run `golangci-lint run --timeout=5m` to match the lint workflow. The rule set
+  lives in [`.golangci.yml`](../.golangci.yml); every linter it enables reports
+  zero issues on `main`, so a finding is always from the change under review
 - Keep functions concise with single responsibility
 
 ### Testing Requirements

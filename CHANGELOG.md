@@ -12,6 +12,13 @@ All notable changes to OwlMail are documented in this file. The format follows
   protocol and legacy stateful protocol revisions concurrently on the same
   authenticated route, with request cancellation and waiter quotas adapted to
   the sessionless model.
+- `.golangci.yml` pins the lint rule set that CI has been running implicitly
+  and extends it with fourteen linters that report zero issues on the current
+  tree, so upgrading golangci-lint can no longer silently add or drop a check.
+- `.github/dependabot.yml` schedules weekly Go module, GitHub Actions, and
+  Docker base-image updates. Routine version updates are grouped by dependency
+  family; security advisories stay ungrouped so each arrives with its own
+  context.
 
 ### Changed
 
