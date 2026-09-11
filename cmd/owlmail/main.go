@@ -564,7 +564,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		protocol = "https"
 	}
 	if cfg.MCPEnabled {
-		common.Log("Read-only MCP enabled at %s://%s:%d%s/mcp (idle timeout: %s)", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname, cfg.MCPSessionTimeout)
+		common.Log("Read-only MCP enabled at %s://%s:%d%s/mcp (modern stateless; legacy idle timeout: %s)", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname, cfg.MCPSessionTimeout)
 	}
 	if cfg.MailDevRESTCompat {
 		common.Log("MailDev REST compatibility facade enabled at %s://%s:%d%s/api", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)

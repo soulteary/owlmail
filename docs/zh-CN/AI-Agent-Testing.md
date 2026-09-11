@@ -22,7 +22,8 @@ OwlMail 为编码 Agent 提供有界、只读的测试邮件视图。Agent 可�
 让 MCP 客户端连接 `http://127.0.0.1:1080/mcp` 并提供 Basic Auth。配置
 `-base-pathname=/owlmail` 后，端点变为
 `http://127.0.0.1:1080/owlmail/mcp`，无前缀路径仍不可用。非本地访问必须配合
-HTTPS 与网络访问控制。
+HTTPS 与网络访问控制。同一端点会自动协商现代无状态 `2026-07-28` 客户端和旧版
+有状态客户端。
 
 ### stdio
 

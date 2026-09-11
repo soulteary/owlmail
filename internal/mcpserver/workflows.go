@@ -301,10 +301,7 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 		subject: foldPattern(input.Subject),
 		text:    foldPattern(input.Text),
 	}
-	sessionID := ""
-	if request != nil && request.Session != nil {
-		sessionID = request.Session.ID()
-	}
+	sessionID := waiterSessionID(request)
 	waiter, err := service.waiters.add(sessionID, filter)
 	if err != nil {
 		return waitForEmailOutput{}, err
@@ -338,6 +335,20 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 		return waitForEmailOutput{}, ctx.Err()
 	}
 	return output, waitErr
+}
+
+func waiterSessionID(request *mcp.CallToolRequest) string {
+	if request == nil || request.Session == nil {
+		return ""
+	}
+	if sessionID := request.Session.ID(); sessionID != "" {
+		return sessionID
+	}
+	// Modern HTTP requests are sessionless, but each request still receives a
+	// short-lived SDK ServerSession. Its address preserves the per-connection
+	// limit for stdio while preventing unrelated stateless HTTP requests from
+	// sharing one synthetic "sessionless" quota bucket.
+	return fmt.Sprintf("connection:%p", request.Session)
 }
 
 func (service *Service) makeSummaries(previews []mailserver.EmailPreview) []emailSummary {

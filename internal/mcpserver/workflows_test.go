@@ -266,6 +266,50 @@ func TestWorkflowInputBoundsAndProtocolSessionLimit(t *testing.T) {
 	waitForWaiterCount(t, service, 0)
 }
 
+func TestModernWaitersUseIndependentRequestScopes(t *testing.T) {
+	mailbox := newTestMailbox(t)
+	service, err := New(mailbox, Options{
+		SessionTimeout: time.Minute, ShutdownTimeout: time.Second,
+		MaxWaiters: 2, MaxWaitersPerSession: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = service.Close() })
+	httpServer := httptest.NewServer(service)
+	t.Cleanup(httpServer.Close)
+	session := connectModernTestClient(t, httpServer.URL)
+	t.Cleanup(func() { _ = session.Close() })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	finished := make(chan error, 2)
+	for _, recipient := range []string{"first@example.test", "second@example.test"} {
+		go func() {
+			_, callErr := session.CallTool(ctx, &mcp.CallToolParams{
+				Name: "wait_for_email", Arguments: map[string]any{"to": recipient, "timeout_seconds": 5},
+			})
+			finished <- callErr
+		}()
+	}
+	waitForWaiterCount(t, service, 2)
+
+	third, err := session.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "wait_for_email", Arguments: map[string]any{"to": "third@example.test", "timeout_seconds": 5},
+	})
+	if err != nil || third == nil || !third.IsError {
+		t.Fatalf("modern process limit result = %#v, error = %v", third, err)
+	}
+
+	cancel()
+	for range 2 {
+		if err := <-finished; err == nil {
+			t.Fatal("canceled modern wait unexpectedly succeeded")
+		}
+	}
+	waitForWaiterCount(t, service, 0)
+}
+
 func TestReadOnlyResourcesAndPrompts(t *testing.T) {
 	mailbox := newTestMailbox(t)
 	service, err := New(mailbox, Options{

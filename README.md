@@ -245,8 +245,8 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | Enable the opt-in MailCatcher `/messages` REST facade |
 | `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Expose Prometheus metrics at the base-path-aware `/metrics` endpoint; protected by Web Basic Auth when configured |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
-| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle MCP sessions |
-| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP sessions during shutdown |
+| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle legacy MCP sessions and cap waits |
+| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP work during shutdown |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
@@ -328,7 +328,8 @@ MCP is disabled by default. Enable the official Streamable HTTP endpoint with
 `http://localhost:1080/mcp`. With `-base-pathname /owlmail`, the endpoint is
 `/owlmail/mcp`. It shares the Web listener, HTTPS settings, and HTTP Basic Auth;
 an authenticated Web deployment therefore requires the same Basic Auth
-credentials for every MCP request.
+credentials for every MCP request. The endpoint serves modern stateless
+`2026-07-28` and legacy stateful clients concurrently.
 
 Local MCP clients may instead launch `owlmail mcp-stdio -mail-directory DIR`.
 This reuses the same read-only tools over stdio without opening a listener;

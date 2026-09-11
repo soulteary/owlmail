@@ -6,6 +6,13 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The read-only MCP HTTP endpoint now serves the modern stateless `2026-07-28`
+  protocol and legacy stateful protocol revisions concurrently on the same
+  authenticated route, with request cancellation and waiter quotas adapted to
+  the sessionless model.
+
 ### Changed
 
 - Security policies now live with the other GitHub community health files in

@@ -1,6 +1,6 @@
 # MCP reference
 
-OwlMail 0.9.0 exposes the same read-only MCP server through optional stateful
+OwlMail 0.9.0 exposes the same read-only MCP server through dual-era
 Streamable HTTP and through `owlmail mcp-stdio`. MCP is an inspection surface,
 not a mailbox administration API.
 
@@ -8,11 +8,30 @@ not a mailbox administration API.
 
 | Mode | Enable or launch | Endpoint and behavior |
 |---|---|---|
-| HTTP | `-mcp-enabled` or `OWLMAIL_MCP_ENABLED=true` | `/mcp` or `<base-pathname>/mcp`; shares Web Basic Auth and HTTPS |
+| HTTP | `-mcp-enabled` or `OWLMAIL_MCP_ENABLED=true` | `/mcp` or `<base-pathname>/mcp`; modern stateless and legacy stateful clients share Web Basic Auth and HTTPS |
 | stdio | `owlmail mcp-stdio -mail-directory DIR` | Reads committed EML files from an existing directory; protocol on stdout, logs on stderr |
 
-HTTP sessions expire after `-mcp-session-timeout` (default `30m`). Shutdown
-waits up to `-mcp-shutdown-timeout` (default `5s`).
+## Protocol compatibility
+
+The MCP specification uses date-based protocol versions. The informal names
+“MCP 2.0” and “MCP 1.x” refer to two protocol eras, not official semantic
+versions. JSON-RPC remains version 2.0 in both eras.
+
+| Era | Protocol versions | HTTP behavior |
+|---|---|---|
+| Modern, often called “MCP 2.0” | `2026-07-28` | `server/discover`, per-request `_meta`, stateless `POST`; no protocol session, standalone `GET`, or session `DELETE` |
+| Legacy, often called “MCP 1.x” | `2025-11-25` and earlier supported revisions | `initialize` / `notifications/initialized`, stateful `POST`, optional standalone `GET`, and session `DELETE` |
+
+Both eras use the same HTTP path and tool catalog. Requests carrying
+`Mcp-Protocol-Version: 2026-07-28` use the modern handler; legacy initialization
+and session requests retain the existing stateful handler. The official SDK
+negotiates the highest mutually supported version. The stdio transport also
+supports modern discovery and legacy initialization on the same process.
+
+Legacy HTTP sessions expire after `-mcp-session-timeout` (default `30m`). The
+same value remains an upper bound for `wait_for_email` in either era. Modern
+HTTP request cancellation is propagated when the response stream closes.
+Shutdown waits up to `-mcp-shutdown-timeout` (default `5s`).
 
 ## Tools
 
@@ -28,7 +47,9 @@ waits up to `-mcp-shutdown-timeout` (default `5s`).
 
 `sort_by` accepts `time`, `subject`, `from`, or `size`; `sort_order` accepts
 `asc` or `desc`. Date filters use `YYYY-MM-DD`. Every wait filter is limited to
-1024 bytes. A session may hold four waits and the process may hold 64.
+1024 bytes. A legacy or stdio session may hold four waits. Each modern HTTP
+request has an independent quota scope, while the process-wide limit remains
+64 waits.
 
 `get_email_source.max_bytes` counts decoded bytes, so the returned base64 JSON
 is larger. The result includes `returned_bytes`, full `size`, and `truncated`.

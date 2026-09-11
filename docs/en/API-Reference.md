@@ -218,9 +218,9 @@ enabled. They follow the configured base pathname and Web Basic Auth policy.
 | Method and path | Purpose |
 |---|---|
 | `GET /metrics` | Prometheus metrics when `-metrics-enabled` is set |
-| `GET /mcp` | Open the optional standalone SSE stream for the MCP Streamable HTTP transport |
-| `POST /mcp` | Send MCP JSON-RPC messages over the Streamable HTTP transport |
-| `DELETE /mcp` | Terminate an MCP Streamable HTTP session |
+| `GET /mcp` | Open the optional standalone SSE stream for a legacy MCP session |
+| `POST /mcp` | Send modern stateless or legacy stateful MCP JSON-RPC messages |
+| `DELETE /mcp` | Terminate a legacy MCP session |
 
 Malformed WebSocket upgrade headers or handshake keys return a plain-text
 `400` response before a WebSocket connection is established.

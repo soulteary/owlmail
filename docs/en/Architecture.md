@@ -22,7 +22,7 @@ flowchart TD
 | `internal/mailserver` | SMTP sessions, MIME parsing, transactional storage, queries, retention, and optional SQLite index |
 | `internal/attachmentstore` | Local and optional S3-compatible attachment storage and readiness |
 | `internal/api` | Web UI, native and compatibility HTTP routes, WebSocket, metrics, and relay jobs |
-| `internal/mcpserver` | Bounded read-only MCP tools, resources, prompts, HTTP sessions, and stdio transport |
+| `internal/mcpserver` | Bounded read-only MCP tools, resources, prompts, dual-era HTTP routing, and stdio transport |
 | `internal/webhook` | Filtered delivery, local outbox, optional Redis Streams, retry, and drain |
 | `internal/outgoing` | Streaming outbound SMTP transport and TLS policy |
 | `internal/sendmail` | Sendmail-compatible SMTP client subcommand |

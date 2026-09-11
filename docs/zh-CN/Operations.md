@@ -319,8 +319,9 @@ Service Worker scope 为 `/owlmail/`。
 
 ## 供测试代理使用的只读 MCP
 
-MCP 默认关闭，使用官方 Go SDK 的有状态 Streamable HTTP transport。通过
-`-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 开启。根路径部署的端点为
+MCP 默认关闭，使用官方 Go SDK 兼容两个协议时代的 Streamable HTTP transport。
+现代 `2026-07-28` 请求无状态运行，`2025-11-25` 及更早客户端在同一路径保留
+有状态会话。通过 `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 开启。根路径部署的端点为
 `/mcp`；配置 base pathname 后，端点为 `<base-pathname>/mcp`。
 
 MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，因此继承以下边界：
@@ -350,8 +351,9 @@ MCP 服务严格只提供七个封闭域、只读工具：
 返回内部可变指针。
 
 `wait_for_email` 默认等待 30 秒，硬上限为 2 分钟；若 MCP session timeout
-更短，则以后者为上限。每个 session 最多同时等待 4 个调用，全进程最多 64 个。
-客户端取消、session 删除或超时以及进程关闭都会立即移除 waiter。waiter 表有界，
+更短，则以后者为上限。旧版或 stdio session 最多同时等待 4 个调用，全进程最多
+64 个；每个现代 HTTP 请求使用独立配额范围。客户端取消、现代响应流关闭、旧版
+session 删除或超时以及进程关闭都会立即移除 waiter。waiter 表有界，
 并通过单个邮箱 listener 接收已提交的 `new` 事件，不会高频轮询，也不会为每个
 waiter 启动后台 goroutine。
 
@@ -368,10 +370,11 @@ Resource 的文本最多 32 KiB 并标明是否截断，且不包含 HTML、head
 fragment 和 path 的 HTTP(S) origin。代理子路径继续通过 `-base-pathname` 单独
 设置，例如 `/owlmail`。
 
-多个客户端可以维持相互独立的会话。未知 session ID 返回 HTTP 404；客户端
+旧版客户端可以维持相互独立的会话。未知 session ID 返回 HTTP 404；客户端
 `DELETE` 会关闭会话；空闲会话在 `-mcp-session-timeout` 后关闭（默认 `30m`）。
-进程关闭时拒绝新的 MCP 工作、清理活动会话，并最多等待
-`-mcp-shutdown-timeout`（默认 `5s`）。
+现代 `2026-07-28` 客户端仅使用请求级无状态 `POST`，不发送 `GET`、`DELETE` 或
+`Mcp-Session-Id`。进程关闭时拒绝新的 MCP 工作、清理旧版活动会话、取消活动 wait，
+并最多等待 `-mcp-shutdown-timeout`（默认 `5s`）。
 
 `get_email_source` 返回 `encoding: "base64"`、`source_base64`、解码后的
 `returned_bytes` 数量、完整 source 的 `size` 和 `truncated` 状态。

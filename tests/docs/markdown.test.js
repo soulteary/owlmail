@@ -775,6 +775,9 @@ test("integration and AI-first guides are complete, bilingual, and runnable", ()
     "owlmail://inbox",
     "owlmail://stats",
     "owlmail://email/{id}",
+    "2026-07-28",
+    "2025-11-25",
+    "dual-era",
   ]) {
     assert.ok(mcp.includes(marker), `MCP reference is missing ${marker}`);
   }
