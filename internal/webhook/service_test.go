@@ -239,6 +239,35 @@ func TestServiceCloseWaitsForStagedHandoffDecision(t *testing.T) {
 	}
 }
 
+// blockOutboxDirectory replaces the outbox directory with a regular file so
+// that promotion fails.
+//
+// Writing the file straight after renaming the directory aside races the
+// service: runOutbox calls flushOutbox on every pass, flushOutbox calls
+// deliveryOutbox.List, and List calls ensureDirectory, which recreates the
+// directory with MkdirAll. A pass landing between the rename and the write
+// leaves the path a directory again, and the write fails with
+// "is a directory" -- rarely on an idle machine, but reproducibly enough on a
+// loaded CI runner to turn an unrelated pull request red.
+//
+// Retrying keeps the test deterministic without pausing the worker or relying
+// on file modes, which a container running as root ignores. The recreated
+// directory is empty while promotion is blocked, so removing it reopens the
+// window for the next attempt.
+func blockOutboxDirectory(t *testing.T, dir string) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if err := os.WriteFile(dir, []byte("blocks outbox directory"), 0600); err == nil {
+			return
+		} else if time.Now().After(deadline) {
+			t.Fatalf("could not replace outbox directory %s with a blocking file: %v", dir, err)
+		}
+		_ = os.Remove(dir)
+		time.Sleep(time.Millisecond)
+	}
+}
+
 func TestServiceCloseRetainsFailedPromotionUntilRetrySucceeds(t *testing.T) {
 	receiver := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
 		writer.WriteHeader(http.StatusNoContent)
@@ -262,9 +291,7 @@ func TestServiceCloseRetainsFailedPromotionUntilRetrySucceeds(t *testing.T) {
 	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	blockOutboxDirectory(t, service.outbox.dir)
 	if err := service.Commit(email.ID); err == nil {
 		t.Fatal("blocked outbox promotion unexpectedly succeeded")
 	}
@@ -316,9 +343,7 @@ func TestServiceCloseTimeoutCancelsPersistentlyFailedPromotion(t *testing.T) {
 	if err := os.Rename(service.outbox.dir, backupDir); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(service.outbox.dir, []byte("blocks outbox directory"), 0600); err != nil {
-		t.Fatal(err)
-	}
+	blockOutboxDirectory(t, service.outbox.dir)
 	if err := service.Commit(email.ID); err == nil {
 		t.Fatal("blocked outbox promotion unexpectedly succeeded")
 	}
