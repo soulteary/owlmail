@@ -501,3 +501,79 @@ func TestMCPWildcardOptOutAcceptsOpaqueBrowserOrigins(t *testing.T) {
 		t.Fatalf("strict status for Origin null = %d, want 403", status)
 	}
 }
+
+func TestMCPOriginMatchingCanonicalizesInternationalizedHostnames(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+
+	// A browser serializes a Unicode domain in its IDNA ASCII form, so an
+	// operator who configures the Unicode spelling must still match the origin
+	// the browser actually sends.
+	if err := api.SetMCPAllowedOrigins([]string{"https://例え.テスト"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://xn--r8jz45g.xn--zckzah", "https://例え.テスト"} {
+		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
+			t.Fatalf("status for %q = %d, want 204", origin, status)
+		}
+	}
+
+	// Configuring the ASCII form matches both spellings too.
+	ascii := newMCPOriginTestAPI(t, "", "")
+	if err := ascii.SetMCPAllowedOrigins([]string{"https://xn--r8jz45g.xn--zckzah"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://例え.テスト", "https://xn--r8jz45g.xn--zckzah"} {
+		if status, _ := mcpStatusForOrigin(t, ascii, origin); status != http.StatusNoContent {
+			t.Fatalf("ascii-configured status for %q = %d, want 204", origin, status)
+		}
+	}
+	// A different domain is still a different origin.
+	if status, _ := mcpStatusForOrigin(t, ascii, "https://evil.example"); status != http.StatusForbidden {
+		t.Fatalf("status for an unrelated origin = %d, want 403", status)
+	}
+}
+
+func TestMCPOriginMatchingKeepsHostsTheIDNAProfileRejects(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// An underscore label is refused by the IDNA lookup profile but occurs in
+	// container and CI hostnames. Such a host must keep the spelling it was
+	// given rather than being dropped, so nothing that matches today stops
+	// matching to gain IDNA support.
+	if err := api.SetMCPAllowedOrigins([]string{"http://under_score.example:8080"}); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "http://under_score.example:8080"); status != http.StatusNoContent {
+		t.Fatalf("status for an underscore host = %d, want 204", status)
+	}
+	// IP origins keep working alongside it.
+	if status, _ := mcpStatusForOrigin(t, api, "http://127.0.0.1:1080"); status != http.StatusNoContent {
+		t.Fatalf("status for the loopback origin = %d, want 204", status)
+	}
+}
+
+func TestMCPAllowedOriginsAccessorReportsTheComparedForm(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	if err := api.SetMCPAllowedOrigins([]string{"https://例え.テスト", "https://Inspector.Example:443"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Startup logs this so an operator can compare it against a refused
+	// request. It has to be the form a browser sends, not the configured
+	// spelling, which may be percent-encoded or carry a default port.
+	origins := api.MCPAllowedOrigins()
+	want := []string{"https://xn--r8jz45g.xn--zckzah", "https://inspector.example"}
+	if len(origins) != len(want) {
+		t.Fatalf("MCPAllowedOrigins() = %v, want %v", origins, want)
+	}
+	for index, origin := range origins {
+		if origin != want[index] {
+			t.Fatalf("MCPAllowedOrigins() = %v, want %v", origins, want)
+		}
+	}
+
+	// The caller gets a copy; mutating it must not change the policy.
+	origins[0] = "https://evil.example"
+	if status, _ := mcpStatusForOrigin(t, api, "https://evil.example"); status != http.StatusForbidden {
+		t.Fatal("mutating the returned slice changed the allow list")
+	}
+}

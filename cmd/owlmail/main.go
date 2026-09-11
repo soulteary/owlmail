@@ -559,7 +559,11 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 			_ = mcpService.Close()
 			return nil, err
 		}
-		mcpBrowserOrigins = allowedOrigins
+		// Read the list back from the API: it stores the canonical form the
+		// guard compares against, which is what an operator needs to see when
+		// a request is refused. The configured spelling may be percent-encoded
+		// or use a different but equivalent notation.
+		mcpBrowserOrigins = apiServer.MCPAllowedOrigins()
 		if err := apiServer.SetMCPHandler(mcpService); err != nil {
 			_ = mcpService.Close()
 			return nil, err

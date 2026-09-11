@@ -105,7 +105,11 @@ so a typo never silently widens a narrow list.
 Origins are compared the way a browser serializes them, so `https://host:443`
 and `https://host` are the same value, and an IPv6 literal matches whichever of
 its equivalent spellings is configured (`https://[2001:0db8::1]` and
-`https://[2001:db8::1]` are one origin). Either spelling may be used.
+`https://[2001:db8::1]` are one origin), and a Unicode domain matches the IDNA
+ASCII origin a browser sends (`https://例え.テスト` and
+`https://xn--r8jz45g.xn--zckzah` are one origin). Either spelling may be used.
+Startup logs the configured origins in that compared form, so a refused request
+can be checked against them.
 
 An allowed origin is answered with a CORS policy naming it exactly, never the
 `Access-Control-Allow-Origin: *` the rest of the unauthenticated development API

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"golang.org/x/net/idna"
 )
 
 // originMatchesRequest implements the browser same-origin check used for
@@ -84,12 +85,23 @@ const mcpAllowAnyOrigin = "*"
 func canonicalOrigin(scheme, host, port string) string {
 	scheme = strings.ToLower(scheme)
 	host = strings.ToLower(host)
-	// An IPv6 literal has many equivalent spellings and a browser serializes the
-	// compressed one, so "[2001:0db8::1]" must not compare as a different origin
-	// from "[2001:db8::1]". IPv4, IPv4-mapped, and zoned addresses are left
-	// exactly as written rather than rewritten into a different notation.
-	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
-		host = ip.String()
+	if ip := net.ParseIP(host); ip != nil {
+		// An IPv6 literal has many equivalent spellings and a browser
+		// serializes the compressed one, so "[2001:0db8::1]" must not compare
+		// as a different origin from "[2001:db8::1]". IPv4 and IPv4-mapped
+		// addresses are left exactly as written rather than rewritten into a
+		// different notation.
+		if ip.To4() == nil {
+			host = ip.String()
+		}
+	} else if ascii, err := idna.Lookup.ToASCII(host); err == nil && ascii != "" {
+		// A browser serializes a domain in its IDNA ASCII form, so a Unicode
+		// spelling such as "例え.テスト" has to match the "xn--" origin it
+		// actually sends. Already-ASCII hosts are unchanged by this. A host the
+		// profile rejects -- an underscore label or a zoned address, say --
+		// keeps the spelling it was given rather than being dropped, so nothing
+		// that matches today stops matching.
+		host = ascii
 	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"

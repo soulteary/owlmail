@@ -81,6 +81,16 @@ func (api *API) SetMCPAllowedOrigins(origins []string) error {
 	return nil
 }
 
+// MCPAllowedOrigins returns the configured extra origins in the canonical form
+// the guard compares against, which is also the form a browser sends. It is
+// what an operator needs to read back when a request is refused; the values as
+// written in configuration may be percent-encoded or spelled differently.
+func (api *API) MCPAllowedOrigins() []string {
+	origins := make([]string, len(api.mcpAllowedOrigins))
+	copy(origins, api.mcpAllowedOrigins)
+	return origins
+}
+
 // mcpOriginAllowList returns every origin accepted on the MCP endpoint: the
 // configured extras plus the origins this listener answers on. It is computed
 // per request because the external scheme and base pathname are configured
