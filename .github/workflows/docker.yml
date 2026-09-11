@@ -7,19 +7,146 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.github/goreportcard.svg'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/goreportcard.svg'
   workflow_dispatch:
 
 concurrency:
   group: docker-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  verify:
+    name: Verify Image
+    # Every other pull request check builds with the toolchain in go.mod, so a
+    # change that only touches the Dockerfile used to merge without anything
+    # having built it. This job runs the packaged image before it can reach the
+    # moving `latest` tag that the publish job below pushes from `main`.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SMOKE_IMAGE: owlmail:pr-verify
+      SMOKE_VERSION: pr-${{ github.event.pull_request.number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Prepare build metadata
+        id: build-meta
+        shell: bash
+        run: echo "build-date=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "${GITHUB_OUTPUT}"
+
+      - name: Build image for the runner architecture
+        # Single architecture: `load` hands the image to the local daemon so the
+        # next step can run it, and a manifest list cannot be loaded. The
+        # release workflow remains the place where both architectures build.
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          build-args: |
+            VERSION=${{ env.SMOKE_VERSION }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.build-meta.outputs.build-date }}
+            BRANCH=${{ github.head_ref }}
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ env.SMOKE_IMAGE }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+
+      - name: Exercise the packaged image
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ env.SMOKE_VERSION }}
+          EXPECTED_COMMIT: ${{ github.sha }}
+          TEST_SMTP_HOST: 127.0.0.1
+          TEST_SMTP_PORT: "11025"
+          TEST_MAIL_API: http://127.0.0.1:11080
+        run: |
+          set -euo pipefail
+          container=""
+          cleanup() {
+            status=$?
+            if [ -n "$container" ]; then
+              if [ "$status" -ne 0 ]; then
+                docker logs "$container" || true
+              fi
+              docker rm --force "$container" >/dev/null 2>&1 || true
+            fi
+            exit "$status"
+          }
+          trap cleanup EXIT
+
+          container="$(docker run --detach \
+            --publish 127.0.0.1:11025:1025 \
+            --publish 127.0.0.1:11080:1080 \
+            "${SMOKE_IMAGE}")"
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --connect-timeout 2 --max-time 3 \
+              "${TEST_MAIL_API}/readyz" >/dev/null; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then
+            echo "::error::The packaged image did not become ready"
+            exit 1
+          fi
+
+          # The build arguments reach the binary through -ldflags, so a base
+          # image whose toolchain drops them still starts but reports nothing.
+          version_json="$(curl --fail --silent --show-error "${TEST_MAIL_API}/api/v1/version")"
+          if ! grep -Fq "\"version\":\"${EXPECTED_VERSION}\"" <<<"$version_json"; then
+            echo "::error::Expected embedded version ${EXPECTED_VERSION}, got ${version_json}"
+            exit 1
+          fi
+          if ! grep -Fq "\"commit\":\"${EXPECTED_COMMIT}\"" <<<"$version_json"; then
+            echo "::error::Expected embedded commit ${EXPECTED_COMMIT}, got ${version_json}"
+            exit 1
+          fi
+
+          # The binary reports the toolchain it was compiled with, so this is
+          # the base image bump itself being confirmed rather than assumed.
+          expected_go="$(sed -n 's/^FROM golang:\([0-9.]*\)-alpine.* AS builder$/\1/p' Dockerfile)"
+          if [ -z "$expected_go" ]; then
+            echo "::error::Could not read the builder Go version from the Dockerfile"
+            exit 1
+          fi
+          if ! grep -Fq "\"go_version\":\"go${expected_go}\"" <<<"$version_json"; then
+            echo "::error::Expected an image built with Go ${expected_go}, got ${version_json}"
+            exit 1
+          fi
+
+          # Captures mail over SMTP, reads it back through the API, and deletes
+          # it again, so the container is exercised end to end rather than only
+          # answering its health probe.
+          python3 examples/testing/python/email_test.py
+
   build-and-push:
     name: Build and Push Docker Image
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: read

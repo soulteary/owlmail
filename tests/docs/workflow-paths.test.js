@@ -17,14 +17,18 @@ test("badge-only commits do not rebuild binaries or container images", () => {
   const docker = fs.readFileSync(path.join(root, ".github/workflows/docker.yml"), "utf8");
 
   for (const [name, workflow] of [["Build", build], ["Docker", docker]]) {
-    const push = triggerBlock(workflow, "push", name === "Build" ? "pull_request" : "workflow_dispatch");
+    const push = triggerBlock(workflow, "push", "pull_request");
     assert.match(
       push,
       /^\s+- ['"]?\.github\/goreportcard\.svg['"]?$/m,
       `${name} push trigger does not ignore the generated badge`,
     );
-  }
 
-  const pullRequest = triggerBlock(build, "pull_request", "workflow_dispatch");
-  assert.match(pullRequest, /^\s+- ['"]?\.github\/goreportcard\.svg['"]?$/m);
+    const pullRequest = triggerBlock(workflow, "pull_request", "workflow_dispatch");
+    assert.match(
+      pullRequest,
+      /^\s+- ['"]?\.github\/goreportcard\.svg['"]?$/m,
+      `${name} pull request trigger does not ignore the generated badge`,
+    );
+  }
 });
