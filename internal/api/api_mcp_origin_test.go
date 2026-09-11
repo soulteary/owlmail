@@ -675,13 +675,30 @@ func TestMCPOriginMatchingCanonicalizesIPv4MappedLiterals(t *testing.T) {
 	if err := api.SetMCPAllowedOrigins([]string{"https://[::ffff:192.0.2.1]"}); err != nil {
 		t.Fatal(err)
 	}
-	for _, origin := range []string{"https://[::ffff:c000:201]", "https://[::ffff:192.0.2.1]", "https://192.0.2.1"} {
+	for _, origin := range []string{"https://[::ffff:c000:201]", "https://[::ffff:192.0.2.1]"} {
 		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
 			t.Fatalf("status for %q = %d, want 204", origin, status)
 		}
 	}
+	// The dotted form is a different origin to a browser -- an IPv4 host rather
+	// than an IPv6 one -- so configuring the mapped literal must not also admit
+	// it. Rendering the mapped address in dotted form would merge the two.
+	if status, _ := mcpStatusForOrigin(t, api, "https://192.0.2.1"); status != http.StatusForbidden {
+		t.Fatalf("the plain IPv4 origin was admitted by a mapped IPv6 entry: status = %d, want 403", status)
+	}
 	if status, _ := mcpStatusForOrigin(t, api, "https://192.0.2.2"); status != http.StatusForbidden {
 		t.Fatalf("status for a different address = %d, want 403", status)
+	}
+	// Configuring the dotted form admits it, and not the mapped literal.
+	dotted := newMCPOriginTestAPI(t, "", "")
+	if err := dotted.SetMCPAllowedOrigins([]string{"https://192.0.2.1"}); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := mcpStatusForOrigin(t, dotted, "https://192.0.2.1"); status != http.StatusNoContent {
+		t.Fatalf("dotted origin status = %d, want 204", status)
+	}
+	if status, _ := mcpStatusForOrigin(t, dotted, "https://[::ffff:c000:201]"); status != http.StatusForbidden {
+		t.Fatalf("mapped literal admitted by a dotted entry: status = %d, want 403", status)
 	}
 	// A plain IPv4 origin is unchanged by the canonicalization.
 	plain := newMCPOriginTestAPI(t, "", "")

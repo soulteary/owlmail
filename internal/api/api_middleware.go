@@ -99,10 +99,24 @@ func canonicalOrigin(scheme, host, port string) string {
 		// origin from "[2001:db8::1]", nor "[::ffff:192.0.2.1]" from
 		// "[::ffff:c000:201]". Rewriting is safe because both sides of the
 		// comparison pass through here, so it can only make genuinely equal
-		// addresses match; a plain IPv4 address is unchanged by it. A spelling
-		// Go will not parse -- a leading-zero IPv4 such as "127.0.0.01", or a
-		// zoned address -- is left alone and must be configured as written.
-		host = ip.String()
+		// addresses match. A spelling Go will not parse -- a leading-zero IPv4
+		// such as "127.0.0.01", or a zoned address -- is left alone and must be
+		// configured as written.
+		//
+		// An IPv4-mapped address written in IPv6 notation stays an IPv6 host.
+		// net.IP.String renders it in dotted form, which would make
+		// "[::ffff:192.0.2.1]" and "192.0.2.1" one value, but a browser keeps
+		// them apart: one is an IPv6 host and the other an IPv4 host, so they
+		// are different origins. Compression is unambiguous for this shape --
+		// five leading zero groups are always the longest run -- so it is
+		// rendered directly rather than through a general IPv6 serializer.
+		if v4 := ip.To4(); v4 != nil && strings.Contains(host, ":") {
+			host = "::ffff:" +
+				strconv.FormatUint(uint64(v4[0])<<8|uint64(v4[1]), 16) + ":" +
+				strconv.FormatUint(uint64(v4[2])<<8|uint64(v4[3]), 16)
+		} else {
+			host = ip.String()
+		}
 	} else if ascii, err := idna.Lookup.ToASCII(host); err == nil && ascii != "" {
 		// A browser serializes a domain in its IDNA ASCII form, so a Unicode
 		// spelling such as "例え.テスト" has to match the "xn--" origin it
