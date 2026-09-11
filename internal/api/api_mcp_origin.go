@@ -26,7 +26,7 @@ var loopbackOriginHosts = []string{"localhost", "127.0.0.1", "::1"}
 
 // isMCPPath reports whether a request path reaches the MCP handler. The router
 // is neither strict about a trailing slash nor case sensitive, so every
-// spelling it dispatches must be recognised by the middleware that treats the
+// spelling it dispatches must be recognized by the middleware that treats the
 // endpoint specially. A byte-exact test would let "/MCP" reach the handler
 // while the middleware still treated it as an ordinary route.
 func (api *API) isMCPPath(path string) bool {
@@ -45,7 +45,7 @@ func (api *API) isMCPPreflight(c fiber.Ctx) bool {
 		api.isMCPPath(c.Path())
 }
 
-// originHost canonicalises a listen address for use in an origin. An operator
+// originHost canonicalizes a listen address for use in an origin. An operator
 // may spell an IPv6 address with brackets, and net.JoinHostPort adds its own,
 // so they are stripped first rather than deriving "[[::1]]:1080".
 func originHost(host string) string {
