@@ -5,6 +5,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -86,14 +87,15 @@ func canonicalOrigin(scheme, host, port string) string {
 	scheme = strings.ToLower(scheme)
 	host = strings.ToLower(host)
 	if ip := net.ParseIP(host); ip != nil {
-		// An IPv6 literal has many equivalent spellings and a browser
-		// serializes the compressed one, so "[2001:0db8::1]" must not compare
-		// as a different origin from "[2001:db8::1]". IPv4 and IPv4-mapped
-		// addresses are left exactly as written rather than rewritten into a
-		// different notation.
-		if ip.To4() == nil {
-			host = ip.String()
-		}
+		// An IP address has many equivalent spellings and a browser serializes
+		// one of them, so "[2001:0db8::1]" must not compare as a different
+		// origin from "[2001:db8::1]", nor "[::ffff:192.0.2.1]" from
+		// "[::ffff:c000:201]". Rewriting is safe because both sides of the
+		// comparison pass through here, so it can only make genuinely equal
+		// addresses match; a plain IPv4 address is unchanged by it. A spelling
+		// Go will not parse -- a leading-zero IPv4 such as "127.0.0.01", or a
+		// zoned address -- is left alone and must be configured as written.
+		host = ip.String()
 	} else if ascii, err := idna.Lookup.ToASCII(host); err == nil && ascii != "" {
 		// A browser serializes a domain in its IDNA ASCII form, so a Unicode
 		// spelling such as "例え.テスト" has to match the "xn--" origin it
@@ -105,6 +107,13 @@ func canonicalOrigin(scheme, host, port string) string {
 	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"
+	}
+	// A port is a number, not a string: a browser drops "0443" to the default
+	// and renders "08443" as "8443", so the padding must go before the default
+	// is recognized. url.Parse has already rejected a non-numeric port, so the
+	// error path only guards a caller passing one directly.
+	if number, err := strconv.Atoi(port); err == nil {
+		port = strconv.Itoa(number)
 	}
 	if port == "" || (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
 		return scheme + "://" + host

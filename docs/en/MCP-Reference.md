@@ -107,7 +107,12 @@ and `https://host` are the same value, and an IPv6 literal matches whichever of
 its equivalent spellings is configured (`https://[2001:0db8::1]` and
 `https://[2001:db8::1]` are one origin), and a Unicode domain matches the IDNA
 ASCII origin a browser sends (`https://例え.テスト` and
-`https://xn--r8jz45g.xn--zckzah` are one origin). Either spelling may be used.
+`https://xn--r8jz45g.xn--zckzah` are one origin). Ports are compared as numbers
+and IP addresses as addresses, so `:0443` and `:443` are one port and
+`[::ffff:192.0.2.1]` and `[::ffff:c000:201]` are one host. Either spelling may
+be used. A numeric spelling that only a browser normalizes -- a leading-zero
+IPv4 such as `127.0.0.01`, or a zoned address -- is compared as written, so
+configure those in the form the browser sends.
 Startup logs the configured origins in that compared form, so a refused request
 can be checked against them.
 

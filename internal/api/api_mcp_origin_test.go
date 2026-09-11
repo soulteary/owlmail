@@ -648,3 +648,44 @@ func TestMCPOriginAllowListFollowsAnHTTPSListener(t *testing.T) {
 		t.Fatalf("HTTPS listener accepted a plain HTTP origin: %v", api.mcpOriginAllowList())
 	}
 }
+
+func TestMCPOriginMatchingCanonicalizesNumericPorts(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// A browser renders a port as a number, so a zero-padded spelling has to
+	// reduce before the default-port rule is applied.
+	if err := api.SetMCPAllowedOrigins([]string{"https://padded.example:0443", "https://other.example:08443"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://padded.example", "https://padded.example:443", "https://other.example:8443"} {
+		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
+			t.Fatalf("status for %q = %d, want 204", origin, status)
+		}
+	}
+	// A genuinely different port is still a different origin.
+	if status, _ := mcpStatusForOrigin(t, api, "https://other.example:8444"); status != http.StatusForbidden {
+		t.Fatalf("status for a different port = %d, want 403", status)
+	}
+}
+
+func TestMCPOriginMatchingCanonicalizesIPv4MappedLiterals(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// "::ffff:192.0.2.1" and "::ffff:c000:201" are one address written two
+	// ways, and a browser picks the hex form. Both sides of the comparison are
+	// canonicalized, so either spelling may be configured.
+	if err := api.SetMCPAllowedOrigins([]string{"https://[::ffff:192.0.2.1]"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://[::ffff:c000:201]", "https://[::ffff:192.0.2.1]", "https://192.0.2.1"} {
+		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
+			t.Fatalf("status for %q = %d, want 204", origin, status)
+		}
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://192.0.2.2"); status != http.StatusForbidden {
+		t.Fatalf("status for a different address = %d, want 403", status)
+	}
+	// A plain IPv4 origin is unchanged by the canonicalization.
+	plain := newMCPOriginTestAPI(t, "", "")
+	if status, _ := mcpStatusForOrigin(t, plain, "http://127.0.0.1:1080"); status != http.StatusNoContent {
+		t.Fatalf("loopback IPv4 status = %d, want 204", status)
+	}
+}
