@@ -530,6 +530,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := apiServer.SetExternalScheme(externalScheme); err != nil {
 		return nil, err
 	}
+	var mcpBrowserOrigins []string
 	if cfg.MCPEnabled {
 		sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
 		if err != nil || sessionTimeout <= 0 {
@@ -558,6 +559,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 			_ = mcpService.Close()
 			return nil, err
 		}
+		mcpBrowserOrigins = allowedOrigins
 		if err := apiServer.SetMCPHandler(mcpService); err != nil {
 			_ = mcpService.Close()
 			return nil, err
@@ -574,6 +576,11 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 	if cfg.MCPEnabled {
 		common.Log("Read-only MCP enabled at %s://%s:%d%s/mcp (modern stateless; legacy idle timeout: %s)", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname, cfg.MCPSessionTimeout)
+		// A rejected browser origin answers 403 with no list attached, so record
+		// the configured extras once instead of leaving operators to guess.
+		if len(mcpBrowserOrigins) > 0 {
+			common.Log("Read-only MCP also accepts browser origins: %s (OwlMail's own origins are always accepted)", strings.Join(mcpBrowserOrigins, ", "))
+		}
 	}
 	if cfg.MailDevRESTCompat {
 		common.Log("MailDev REST compatibility facade enabled at %s://%s:%d%s/api", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)

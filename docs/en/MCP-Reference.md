@@ -93,6 +93,11 @@ or by re-binding an attacker-controlled hostname to the loopback address.
 | `Origin` listed in `-mcp-allowed-origins` | Allowed. Comma-separated absolute `http` or `https` origins, added to the origins above rather than replacing them |
 | Any other `Origin` | `403` with a plain-text reason |
 
+On `/mcp` this check replaces, rather than follows, the global same-origin
+middleware that Basic Auth installs: that middleware accepts any `Origin` which
+echoes the request's own `Host`, so the allow list above is strictly narrower
+and `-mcp-allowed-origins` keeps working on an authenticated deployment.
+
 `-mcp-allowed-origins '*'` turns the check off for deployments that control
 browser access at another layer; it cannot be combined with an explicit origin,
 so a typo never silently widens a narrow list. The endpoint also never returns

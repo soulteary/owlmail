@@ -196,6 +196,12 @@ func (api *API) setupRoutes() {
 		// Browsers must not reuse cached Basic Auth credentials from an unrelated
 		// origin. Non-browser API clients normally omit Origin and remain allowed.
 		app.Use(func(c fiber.Ctx) error {
+			// The MCP endpoint runs its own, strictly narrower origin check.
+			// Letting this middleware answer first would overrule an origin the
+			// operator allowed there on purpose.
+			if api.mcpHandler != nil && api.isMCPPath(c.Path()) {
+				return c.Next()
+			}
 			return sameOriginMiddleware(api.requestScheme())(c)
 		})
 	} else {
@@ -204,7 +210,7 @@ func (api *API) setupRoutes() {
 		app.Use(cors.New(cors.Config{
 			// The MCP endpoint performs its own origin validation and must not
 			// advertise a wildcard that would let any page read the mailbox.
-			Next:         func(c fiber.Ctx) bool { return c.Path() == api.route("/mcp") },
+			Next:         func(c fiber.Ctx) bool { return api.mcpHandler != nil && api.isMCPPath(c.Path()) },
 			AllowOrigins: []string{"*"},
 			AllowHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
 			AllowMethods: []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},

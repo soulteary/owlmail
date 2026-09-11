@@ -399,7 +399,16 @@ one must name an OwlMail origin (the configured Web host and the loopback names
 at the Web port, plus `-web-external-url` when set) or an origin listed in
 `-mcp-allowed-origins`, and is otherwise answered with `403`. The endpoint also
 stays out of the wildcard CORS policy that the unauthenticated development API
-still uses, so it never returns `Access-Control-Allow-Origin: *`.
+still uses, so it never returns `Access-Control-Allow-Origin: *`. Both apply to
+the trailing-slash spelling of the path as well, since the router accepts it.
+
+On this path the check also replaces the global same-origin middleware that
+Basic Auth installs. That middleware accepts any `Origin` echoing the request's
+own `Host`, which is what a re-bound hostname produces, so the MCP allow list is
+strictly narrower; routing `/mcp` through it alone also keeps
+`-mcp-allowed-origins` meaningful on an authenticated deployment instead of
+being overruled before it is consulted. Every other route keeps the same-origin
+middleware unchanged.
 
 Set `-mcp-allowed-origins` (or `OWLMAIL_MCP_ALLOWED_ORIGINS`) to a
 comma-separated list when a browser on another origin must reach the endpoint,

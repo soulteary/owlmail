@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/soulteary/owlmail/internal/mailserver"
@@ -77,9 +78,22 @@ func TestMCPOriginValidationAppliesWithoutBasicAuth(t *testing.T) {
 func TestMCPEndpointNeverAdvertisesWildcardCORS(t *testing.T) {
 	api := newMCPOriginTestAPI(t, "", "")
 
-	_, header := mcpStatusForOrigin(t, api, "http://evil.example")
-	if value := header.Get("Access-Control-Allow-Origin"); value != "" {
-		t.Fatalf("MCP Access-Control-Allow-Origin = %q, want empty", value)
+	// The router is not strict about a trailing slash, so both spellings reach
+	// the MCP handler and both must stay out of the wildcard CORS policy.
+	for _, path := range []string{"/mcp", "/mcp/"} {
+		request, _ := http.NewRequest(http.MethodPost, path, nil)
+		request.Header.Set("Origin", "http://evil.example")
+		response, err := api.app.Test(request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = response.Body.Close()
+		if response.StatusCode != http.StatusForbidden {
+			t.Fatalf("MCP status for %q = %d, want 403", path, response.StatusCode)
+		}
+		if value := response.Header.Get("Access-Control-Allow-Origin"); value != "" {
+			t.Fatalf("MCP Access-Control-Allow-Origin for %q = %q, want empty", path, value)
+		}
 	}
 
 	// The rest of the unauthenticated API keeps its open development CORS.
@@ -108,6 +122,80 @@ func TestMCPOriginValidationAppliesWithBasicAuth(t *testing.T) {
 	_ = response.Body.Close()
 	if response.StatusCode != http.StatusForbidden {
 		t.Fatalf("authenticated cross-origin MCP status = %d, want 403", response.StatusCode)
+	}
+}
+
+func TestMCPAllowedOriginsSurviveBasicAuthSameOriginMiddleware(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "agent", "secret")
+	if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The global same-origin middleware would reject this before the guard is
+	// consulted, making -mcp-allowed-origins inert on authenticated deployments.
+	request, _ := http.NewRequest(http.MethodPost, "/mcp", nil)
+	request.Header.Set("Origin", "https://inspector.example")
+	request.SetBasicAuth("agent", "secret")
+	response, err := api.app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("allowed cross-origin MCP status with auth = %d, want 204", response.StatusCode)
+	}
+
+	// Every other route keeps the same-origin middleware it had.
+	request, _ = http.NewRequest(http.MethodGet, "/api/v1/emails", nil)
+	request.Header.Set("Origin", "https://inspector.example")
+	request.SetBasicAuth("agent", "secret")
+	response, err = api.app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = response.Body.Close()
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("versioned API cross-origin status = %d, want 403", response.StatusCode)
+	}
+}
+
+func TestMCPOriginAllowListAcceptsBracketedIPv6WebHost(t *testing.T) {
+	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mailbox.Close() }()
+
+	// net.JoinHostPort adds its own brackets, so a bracketed listen address must
+	// not derive "http://[[2001:db8::1]]:1080" and reject the browser's real
+	// origin. A non-loopback address is used deliberately: ::1 would be covered
+	// by the loopback entries even if the derivation were wrong.
+	api := NewAPI(mailbox, 1080, "[2001:db8::1]")
+	allowed := api.mcpOriginAllowList()
+	if !originAllowed("http://[2001:db8::1]:1080", allowed) {
+		t.Fatalf("derived allow list rejected its own origin: %v", allowed)
+	}
+	for _, origin := range allowed {
+		if strings.Contains(origin, "[[") {
+			t.Fatalf("derived allow list double-bracketed a host: %v", allowed)
+		}
+	}
+}
+
+func TestMCPOriginAllowListHasNoDuplicates(t *testing.T) {
+	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mailbox.Close() }()
+
+	api := NewAPI(mailbox, 1080, "localhost")
+	seen := make(map[string]struct{})
+	for _, origin := range api.mcpOriginAllowList() {
+		if _, exists := seen[origin]; exists {
+			t.Fatalf("derived allow list repeats %q: %v", origin, api.mcpOriginAllowList())
+		}
+		seen[origin] = struct{}{}
 	}
 }
 

@@ -339,7 +339,14 @@ MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，�
 （配置的 Web 主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该
 来源）或 `-mcp-allowed-origins` 中列出的来源，否则返回 `403`。该端点同时被排除在
 未启用认证时仍然生效的通配 CORS 策略之外，因此永远不会返回
-`Access-Control-Allow-Origin: *`。
+`Access-Control-Allow-Origin: *`。由于路由同样接受带尾部斜杠的写法，以上两点
+对该写法一并生效。
+
+在这条路径上，该校验还取代了 Basic Auth 安装的全局同源中间件。那个中间件接受
+任何与请求自身 `Host` 相同的 `Origin`——而这正是重绑定域名会产生的结果——因此
+MCP 的允许列表严格更窄；只让 `/mcp` 走这一道校验，也使 `-mcp-allowed-origins`
+在启用认证的部署上依然有效，而不会在被读取之前就遭否决。其余路由的同源中间件
+保持不变。
 
 当确实需要让其他来源的浏览器访问该端点时，用逗号分隔设置
 `-mcp-allowed-origins`（或 `OWLMAIL_MCP_ALLOWED_ORIGINS`），例如
