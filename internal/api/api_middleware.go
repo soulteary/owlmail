@@ -75,9 +75,26 @@ func basicAuthMiddleware(username, password string, skippedPaths ...string) fibe
 // documented opt-out for deployments that control browser access elsewhere.
 const mcpAllowAnyOrigin = "*"
 
+// canonicalOrigin renders one origin the way a browser serializes it: lower
+// case, and with no port when the port is the scheme's default. Comparing
+// canonical forms means a configured "https://host:443" still matches the
+// "https://host" a browser actually sends. The host is expected unbracketed;
+// an IPv6 literal is bracketed here.
+func canonicalOrigin(scheme, host, port string) string {
+	scheme = strings.ToLower(scheme)
+	host = strings.ToLower(host)
+	if strings.Contains(host, ":") {
+		host = "[" + host + "]"
+	}
+	if port == "" || (scheme == "http" && port == "80") || (scheme == "https" && port == "443") {
+		return scheme + "://" + host
+	}
+	return scheme + "://" + host + ":" + port
+}
+
 // normalizeOrigin reduces a browser Origin header or a configured allow-list
-// entry to its canonical scheme://host[:port] form. Values that are not an
-// absolute http or https origin are rejected rather than partially matched.
+// entry to its canonical form. Values that are not an absolute http or https
+// origin are rejected rather than partially matched.
 func normalizeOrigin(value string) (string, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -97,7 +114,10 @@ func normalizeOrigin(value string) (string, bool) {
 	if parsed.Path != "" && parsed.Path != "/" {
 		return "", false
 	}
-	return scheme + "://" + strings.ToLower(parsed.Host), true
+	if parsed.Hostname() == "" {
+		return "", false
+	}
+	return canonicalOrigin(scheme, parsed.Hostname(), parsed.Port()), true
 }
 
 // originAllowed reports whether a browser Origin may reach the MCP endpoint.

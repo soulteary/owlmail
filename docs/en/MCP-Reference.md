@@ -100,9 +100,29 @@ and `-mcp-allowed-origins` keeps working on an authenticated deployment.
 
 `-mcp-allowed-origins '*'` turns the check off for deployments that control
 browser access at another layer; it cannot be combined with an explicit origin,
-so a typo never silently widens a narrow list. The endpoint also never returns
-`Access-Control-Allow-Origin: *`, which the rest of the unauthenticated
-development API still does.
+so a typo never silently widens a narrow list.
+
+Origins are compared the way a browser serializes them, so `https://host:443`
+and `https://host` are the same value and either spelling may be configured.
+
+An allowed origin is answered with a CORS policy naming it exactly, never the
+`Access-Control-Allow-Origin: *` the rest of the unauthenticated development API
+still returns. Allowing an origin without those response headers would let the
+request reach the handler but leave the browser refusing to hand the response to
+the client, so the endpoint owns the whole policy:
+
+| Response header | Value |
+|---|---|
+| `Access-Control-Allow-Origin` | the request's own origin, never a wildcard |
+| `Access-Control-Allow-Credentials` | `true`, so Basic Auth works from an allowed origin |
+| `Access-Control-Expose-Headers` | `Mcp-Session-Id, Mcp-Protocol-Version` |
+| `Vary` | `Origin`, so a shared cache cannot serve one origin's response to another |
+
+A preflight `OPTIONS` from an allowed origin is answered with `204`, the
+`GET, POST, DELETE, OPTIONS` method list, the MCP request headers, and a
+ten-minute `Access-Control-Max-Age`. Basic Auth does not challenge it, because a
+preflight carries no credentials by design; a preflight from any other origin is
+still refused with `403` and no CORS headers.
 
 The stdio transport opens no listener and has no origin to validate.
 

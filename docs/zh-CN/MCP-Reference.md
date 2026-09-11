@@ -90,8 +90,27 @@ HTTP 端点在每个请求上校验浏览器的 `Origin` 头，且与 Web Basic 
 `-mcp-allowed-origins` 在启用认证的部署上依然有效。
 
 `-mcp-allowed-origins '*'` 供浏览器访问已由其他层控制的部署关闭该校验；它不能与
-具体来源同时出现，因此一个笔误不会悄悄放宽一份收紧过的列表。该端点也永远不会
-返回 `Access-Control-Allow-Origin: *`——未启用认证的其余开发 API 仍会返回。
+具体来源同时出现，因此一个笔误不会悄悄放宽一份收紧过的列表。
+
+来源按浏览器序列化 `Origin` 的写法比较，因此 `https://host:443` 与
+`https://host` 是同一个值，配置成任一写法都能匹配。
+
+被放行的来源会得到一份精确指名该来源的 CORS 策略，而不是未启用认证的其余开发
+API 仍会返回的 `Access-Control-Allow-Origin: *`。只放行而不给出这些响应头，请求
+虽然能到达 handler，浏览器却仍会拒绝把响应交给客户端，因此该端点自行承担完整
+策略：
+
+| 响应头 | 值 |
+|---|---|
+| `Access-Control-Allow-Origin` | 请求自身的来源，绝不使用通配符 |
+| `Access-Control-Allow-Credentials` | `true`，使 Basic Auth 能从放行来源使用 |
+| `Access-Control-Expose-Headers` | `Mcp-Session-Id, Mcp-Protocol-Version` |
+| `Vary` | `Origin`，避免共享缓存把一个来源的响应发给另一个来源 |
+
+来自放行来源的 `OPTIONS` 预检返回 `204`，附带 `GET, POST, DELETE, OPTIONS`
+方法列表、MCP 所需请求头，以及十分钟的 `Access-Control-Max-Age`。Basic Auth
+不会对预检发起质询——预检按设计不携带凭据；其他来源的预检仍然返回 `403` 且不
+带任何 CORS 头。
 
 stdio 传输不监听端口，没有需要校验的 Origin。
 

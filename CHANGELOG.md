@@ -17,7 +17,10 @@ All notable changes to OwlMail are documented in this file. The format follows
   captured mail through `/mcp`. New `-mcp-allowed-origins` and
   `OWLMAIL_MCP_ALLOWED_ORIGINS` list additional browser origins, and a single
   `*` disables validation for deployments that control browser access
-  elsewhere.
+  elsewhere. An allowed origin is answered with a CORS policy naming it
+  exactly, including credentials, the exposed MCP session headers, and an
+  unchallenged preflight, so a permitted browser client can actually read the
+  response.
 
 ### Added
 

@@ -78,9 +78,9 @@ func TestMCPOriginValidationAppliesWithoutBasicAuth(t *testing.T) {
 func TestMCPEndpointNeverAdvertisesWildcardCORS(t *testing.T) {
 	api := newMCPOriginTestAPI(t, "", "")
 
-	// The router is not strict about a trailing slash, so both spellings reach
-	// the MCP handler and both must stay out of the wildcard CORS policy.
-	for _, path := range []string{"/mcp", "/mcp/"} {
+	// The router is neither strict about a trailing slash nor case sensitive, so
+	// every spelling it dispatches must stay out of the wildcard CORS policy.
+	for _, path := range []string{"/mcp", "/mcp/", "/MCP", "/Mcp/"} {
 		request, _ := http.NewRequest(http.MethodPost, path, nil)
 		request.Header.Set("Origin", "http://evil.example")
 		response, err := api.app.Test(request)
@@ -250,5 +250,120 @@ func TestMCPOriginAllowListCoversDefaultPortsAndWildcardBinds(t *testing.T) {
 	}
 	if originAllowed("http://0.0.0.0:80", allowed) {
 		t.Fatal("derived allow list accepted the wildcard bind address as an origin")
+	}
+}
+
+// mcpRequest issues one MCP request with an optional Origin and preflight
+// headers, and returns the response for header assertions.
+func mcpRequest(t *testing.T, api *API, method, path, origin string, preflightFor string) *http.Response {
+	t.Helper()
+	request, _ := http.NewRequest(method, path, nil)
+	if origin != "" {
+		request.Header.Set("Origin", origin)
+	}
+	if preflightFor != "" {
+		request.Header.Set("Access-Control-Request-Method", preflightFor)
+		request.Header.Set("Access-Control-Request-Headers", "content-type, mcp-protocol-version")
+	}
+	response, err := api.app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = response.Body.Close() })
+	return response
+}
+
+func TestMCPAllowedOriginReceivesUsableCORSHeaders(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Reaching the handler is not enough: without matching CORS response
+	// headers the browser refuses to hand the response to the MCP client, which
+	// would make -mcp-allowed-origins useless for the clients it exists for.
+	response := mcpRequest(t, api, http.MethodPost, "/mcp", "https://inspector.example", "")
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("allowed origin status = %d, want 204", response.StatusCode)
+	}
+	if value := response.Header.Get("Access-Control-Allow-Origin"); value != "https://inspector.example" {
+		t.Fatalf("Access-Control-Allow-Origin = %q, want the exact origin", value)
+	}
+	if value := response.Header.Get("Access-Control-Allow-Credentials"); value != "true" {
+		t.Fatalf("Access-Control-Allow-Credentials = %q, want true", value)
+	}
+	for _, header := range []string{"Mcp-Session-Id", "Mcp-Protocol-Version"} {
+		if !strings.Contains(response.Header.Get("Access-Control-Expose-Headers"), header) {
+			t.Fatalf("Access-Control-Expose-Headers = %q, want it to expose %s",
+				response.Header.Get("Access-Control-Expose-Headers"), header)
+		}
+	}
+	// An exact-origin policy must vary by Origin so a shared cache cannot serve
+	// one origin's response to another.
+	if !strings.Contains(response.Header.Get("Vary"), "Origin") {
+		t.Fatalf("Vary = %q, want it to include Origin", response.Header.Get("Vary"))
+	}
+}
+
+func TestMCPPreflightIsAnsweredForAllowedOriginsOnly(t *testing.T) {
+	for _, credentials := range []bool{false, true} {
+		user, password := "", ""
+		if credentials {
+			user, password = "agent", "secret"
+		}
+		api := newMCPOriginTestAPI(t, user, password)
+		if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
+			t.Fatal(err)
+		}
+
+		// A preflight carries no credentials, so Basic Auth must not answer it
+		// with 401 before the endpoint's own policy replies.
+		response := mcpRequest(t, api, http.MethodOptions, "/mcp", "https://inspector.example", http.MethodPost)
+		if response.StatusCode != http.StatusNoContent {
+			t.Fatalf("preflight status (auth=%v) = %d, want 204", credentials, response.StatusCode)
+		}
+		if value := response.Header.Get("Access-Control-Allow-Origin"); value != "https://inspector.example" {
+			t.Fatalf("preflight Access-Control-Allow-Origin (auth=%v) = %q", credentials, value)
+		}
+		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
+			if !strings.Contains(response.Header.Get("Access-Control-Allow-Methods"), method) {
+				t.Fatalf("preflight Access-Control-Allow-Methods (auth=%v) = %q, want %s",
+					credentials, response.Header.Get("Access-Control-Allow-Methods"), method)
+			}
+		}
+		for _, header := range []string{"Authorization", "Content-Type", "Mcp-Session-Id", "Mcp-Protocol-Version"} {
+			if !strings.Contains(response.Header.Get("Access-Control-Allow-Headers"), header) {
+				t.Fatalf("preflight Access-Control-Allow-Headers (auth=%v) = %q, want %s",
+					credentials, response.Header.Get("Access-Control-Allow-Headers"), header)
+			}
+		}
+
+		// A preflight from any other origin is refused, and the exemption above
+		// must not become an unauthenticated way through to the handler.
+		response = mcpRequest(t, api, http.MethodOptions, "/mcp", "https://evil.example", http.MethodPost)
+		if response.StatusCode != http.StatusForbidden {
+			t.Fatalf("preflight status for a rejected origin (auth=%v) = %d, want 403", credentials, response.StatusCode)
+		}
+		if value := response.Header.Get("Access-Control-Allow-Origin"); value != "" {
+			t.Fatalf("rejected preflight Access-Control-Allow-Origin (auth=%v) = %q, want empty", credentials, value)
+		}
+	}
+}
+
+func TestMCPOriginMatchingCanonicalizesDefaultPorts(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// Browsers omit a default port when serializing Origin, so a configured
+	// origin that spells it out must still match.
+	if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example:443", "http://plain.example:80"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://inspector.example", "http://plain.example"} {
+		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
+			t.Fatalf("status for %q = %d, want 204", origin, status)
+		}
+	}
+	// The reverse spelling matches too, and a non-default port still does not.
+	if status, _ := mcpStatusForOrigin(t, api, "https://inspector.example:8443"); status != http.StatusForbidden {
+		t.Fatalf("status for a non-default port = %d, want 403", status)
 	}
 }

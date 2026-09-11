@@ -398,9 +398,12 @@ MCP endpoint is exactly the one a browser can reach. A request without an
 one must name an OwlMail origin (the configured Web host and the loopback names
 at the Web port, plus `-web-external-url` when set) or an origin listed in
 `-mcp-allowed-origins`, and is otherwise answered with `403`. The endpoint also
-stays out of the wildcard CORS policy that the unauthenticated development API
-still uses, so it never returns `Access-Control-Allow-Origin: *`. Both apply to
-the trailing-slash spelling of the path as well, since the router accepts it.
+owns its own CORS policy instead of the wildcard one the unauthenticated
+development API still uses: an allowed origin is named exactly and never with
+`Access-Control-Allow-Origin: *`, credentials are permitted so Basic Auth works
+from it, the MCP session headers are exposed, and a preflight is answered
+without an authentication challenge. All of this applies to every spelling of
+the path the router dispatches, including a trailing slash and a case variant.
 
 On this path the check also replaces the global same-origin middleware that
 Basic Auth installs. That middleware accepts any `Origin` echoing the request's

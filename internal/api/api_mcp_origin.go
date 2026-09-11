@@ -2,7 +2,6 @@ package api
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -26,11 +25,24 @@ var wildcardBindHosts = map[string]struct{}{
 var loopbackOriginHosts = []string{"localhost", "127.0.0.1", "::1"}
 
 // isMCPPath reports whether a request path reaches the MCP handler. The router
-// is not strict about a trailing slash, so both spellings must be recognised by
-// the middleware that treats the endpoint specially.
+// is neither strict about a trailing slash nor case sensitive, so every
+// spelling it dispatches must be recognised by the middleware that treats the
+// endpoint specially. A byte-exact test would let "/MCP" reach the handler
+// while the middleware still treated it as an ordinary route.
 func (api *API) isMCPPath(path string) bool {
 	route := api.route("/mcp")
-	return path == route || path == route+"/"
+	return strings.EqualFold(path, route) || strings.EqualFold(path, route+"/")
+}
+
+// isMCPPreflight reports a browser CORS preflight for the MCP endpoint. A
+// preflight carries no credentials by design, so Basic Auth must not answer it
+// with 401 before the endpoint's own origin policy can reply.
+func (api *API) isMCPPreflight(c fiber.Ctx) bool {
+	return api.mcpHandler != nil &&
+		c.Method() == fiber.MethodOptions &&
+		c.Get(fiber.HeaderOrigin) != "" &&
+		c.Get(fiber.HeaderAccessControlRequestMethod) != "" &&
+		api.isMCPPath(c.Path())
 }
 
 // originHost canonicalises a listen address for use in an origin. An operator
@@ -96,12 +108,7 @@ func (api *API) mcpOriginAllowList() []string {
 	hosts = append(hosts, loopbackOriginHosts...)
 
 	for _, host := range hosts {
-		add(scheme + "://" + net.JoinHostPort(host, strconv.Itoa(api.port)))
-		// A browser omits the port when it is the scheme default, so the
-		// port-less spelling of the same origin must match as well.
-		if (scheme == "http" && api.port == 80) || (scheme == "https" && api.port == 443) {
-			add(scheme + "://" + host)
-		}
+		add(canonicalOrigin(scheme, host, strconv.Itoa(api.port)))
 	}
 	return allowed
 }
@@ -111,8 +118,24 @@ func isWildcardBindHost(host string) bool {
 	return wildcard
 }
 
-// mcpOriginGuard validates the browser Origin header on every MCP request,
-// whether or not Web Basic Auth is configured.
+// mcpCORSAllowedHeaders are the request headers a browser MCP client sends:
+// the Streamable HTTP session and protocol headers, resumption, negotiated
+// content types, and Basic Auth.
+const mcpCORSAllowedHeaders = "Authorization, Content-Type, Accept, Last-Event-ID, Mcp-Session-Id, Mcp-Protocol-Version"
+
+// mcpCORSExposedHeaders are the response headers a browser MCP client must be
+// able to read; without them a session cannot be established from a page.
+const mcpCORSExposedHeaders = "Mcp-Session-Id, Mcp-Protocol-Version"
+
+// mcpCORSAllowedMethods matches the documented MCP HTTP contract.
+const mcpCORSAllowedMethods = "GET, POST, DELETE, OPTIONS"
+
+// mcpCORSMaxAge caps how long a browser may reuse one preflight result.
+const mcpCORSMaxAge = "600"
+
+// mcpOriginGuard is the MCP endpoint's complete browser policy: it validates
+// the Origin header on every request, whether or not Web Basic Auth is
+// configured, and answers allowed origins with an exact-origin CORS policy.
 //
 // Without it, any page the developer happens to visit can read the local test
 // mailbox through /mcp: an unauthenticated deployment answers cross-origin
@@ -122,24 +145,43 @@ func isWildcardBindHost(host string) bool {
 // mail routinely holds password-reset links, verification codes, and tokens,
 // so the MCP specification requires this check for local HTTP servers.
 //
-// On this path the guard also supersedes the global same-origin middleware,
-// which only runs when Basic Auth is configured and accepts any Origin that
-// echoes the request's own Host. The allow list below is strictly narrower, and
-// routing /mcp through it alone keeps -mcp-allowed-origins meaningful on an
-// authenticated deployment instead of being overruled before it is consulted.
+// On this path the guard also supersedes both the wildcard CORS middleware and
+// the global same-origin middleware. The wildcard would make every response
+// readable by any site; the same-origin check only runs when Basic Auth is
+// configured and accepts any Origin that echoes the request's own Host, which
+// is what a re-bound hostname produces. The allow list below is strictly
+// narrower than either, and owning the whole policy here is what lets
+// -mcp-allowed-origins actually work: an allowed origin needs matching CORS
+// response headers, or the browser refuses to hand the response to the client.
 //
 // Requests without an Origin header are non-browser clients and stay allowed.
 func (api *API) mcpOriginGuard() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Deriving the allow list is pointless for the common case: every
 		// non-browser client reaches this without an Origin header.
-		if strings.TrimSpace(c.Get(fiber.HeaderOrigin)) == "" {
+		origin := strings.TrimSpace(c.Get(fiber.HeaderOrigin))
+		if origin == "" {
 			return c.Next()
 		}
-		if originAllowed(c.Get(fiber.HeaderOrigin), api.mcpOriginAllowList()) {
-			return c.Next()
+		if !originAllowed(origin, api.mcpOriginAllowList()) {
+			return c.Status(http.StatusForbidden).
+				SendString("MCP request origin is not allowed; configure -mcp-allowed-origins to permit this browser origin")
 		}
-		return c.Status(http.StatusForbidden).
-			SendString("MCP request origin is not allowed; configure -mcp-allowed-origins to permit this browser origin")
+
+		// The origin is one the operator trusts, so it is named exactly rather
+		// than with a wildcard. That keeps the response unreadable by any other
+		// site and is also what allows credentials to be sent at all.
+		c.Set(fiber.HeaderAccessControlAllowOrigin, origin)
+		c.Set(fiber.HeaderAccessControlAllowCredentials, "true")
+		c.Set(fiber.HeaderAccessControlExposeHeaders, mcpCORSExposedHeaders)
+		c.Response().Header.Add(fiber.HeaderVary, fiber.HeaderOrigin)
+
+		if c.Method() == fiber.MethodOptions && c.Get(fiber.HeaderAccessControlRequestMethod) != "" {
+			c.Set(fiber.HeaderAccessControlAllowMethods, mcpCORSAllowedMethods)
+			c.Set(fiber.HeaderAccessControlAllowHeaders, mcpCORSAllowedHeaders)
+			c.Set(fiber.HeaderAccessControlMaxAge, mcpCORSMaxAge)
+			return c.SendStatus(http.StatusNoContent)
+		}
+		return c.Next()
 	}
 }

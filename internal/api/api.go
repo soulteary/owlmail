@@ -226,7 +226,16 @@ func (api *API) setupRoutes() {
 		if api.basePathname != "" {
 			healthRoutes = append(healthRoutes, "/healthz")
 		}
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...))
+		authMiddleware := basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...)
+		app.Use(func(c fiber.Ctx) error {
+			// A CORS preflight carries no credentials, so answering it with 401
+			// would stop a browser origin the operator allowed on purpose from
+			// ever reaching the MCP endpoint's own policy.
+			if api.isMCPPreflight(c) {
+				return c.Next()
+			}
+			return authMiddleware(c)
+		})
 	}
 	if api.basePathname != "" {
 		// Register the fixed image health check before the bare-base redirect.
