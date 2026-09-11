@@ -17,8 +17,9 @@ updates:
       timezone: "Asia/Shanghai"
     open-pull-requests-limit: 5
     commit-message:
+      # No "include: scope": the Go ecosystem's only scope is "deps", which
+      # would stutter against the prefix as "deps(deps): ...".
       prefix: "deps"
-      include: "scope"
     groups:
       # Dependabot assigns a dependency to the first group it matches, so the
       # families that release in lockstep are listed before the catch-all.

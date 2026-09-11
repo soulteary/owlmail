@@ -48,9 +48,8 @@ linters:
         # Flags every intentional inner-scope err, which this codebase uses
         # deliberately around rollback and cleanup paths.
         - shadow
-        # Fires on table-driven test fixtures that build a complete value and
-        # assert on a subset of its fields.
-        - unusedwrite
+        # unusedwrite stays enabled: it is excluded for tests below rather than
+        # disabled outright, so production code keeps the check.
     misspell:
       locale: US
       ignore-rules:
@@ -58,7 +57,19 @@ linters:
         # SMTP servers and Go releases differ on "canceled" vs "cancelled".
         - cancelled
     nakedret:
+      # 0 reports a naked return in a function of any length, rather than
+      # disabling the linter. This tree has none today.
       max-func-lines: 0
+
+  exclusions:
+    rules:
+      # unusedwrite fires on table-driven fixtures that build a complete value
+      # and assert on a subset of its fields. That is the point of a fixture,
+      # so it is excluded here instead of being switched off everywhere.
+      - path: '_test\.go'
+        linters:
+          - govet
+        text: '^unusedwrite:'
 
 formatters:
   # `golangci-lint fmt` applies these; `golangci-lint run` reports them. The CI
