@@ -91,8 +91,13 @@ updates:
           - "minor"
           - "patch"
     # The builder image tracks the Go toolchain in go.mod, so a major or minor
-    # Go bump is reviewed with that file rather than applied on its own.
+    # Go bump is reviewed with that file rather than applied on its own. Patch
+    # bumps still arrive here, and tests/docs/container-image.test.js holds them
+    # to the same rule: the pull request stays red until go.mod names the Go
+    # release the image is about to build with, so the container and the release
+    # binaries can never ship a tag on two different toolchains.
     ignore:
       - dependency-name: "golang"
         update-types:
           - "version-update:semver-major"
+          - "version-update:semver-minor"

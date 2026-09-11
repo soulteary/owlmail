@@ -39,6 +39,21 @@ All notable changes to OwlMail are documented in this file. The format follows
   Docker base-image updates. Routine version updates are grouped by dependency
   family; security advisories stay ungrouped so each arrives with its own
   context.
+- Pull requests that change the container image now build and run it. CI loads
+  the single-architecture image into the runner's daemon, waits for the
+  container's readiness probe, checks the release metadata that the build
+  arguments embed through `-ldflags`, confirms the running binary reports the Go
+  release the `Dockerfile` pins, and captures a message over SMTP that it reads
+  back and deletes through the API. Every other pull request check builds
+  with the toolchain in `go.mod`, so a change confined to the `Dockerfile` used
+  to merge without anything having built it and first ran on `main`, where the
+  same workflow moves the `latest` tag.
+- A documentation test holds the builder image and `go.mod` to a single Go
+  release, and both `Dockerfile` stages to a single Alpine release. The Go
+  version is declared in two files that nothing connected before, so a base
+  image bump could leave the published container and the released binaries of
+  one tag on different toolchains, with `govulncheck` only ever seeing one of
+  them.
 
 ### Changed
 
@@ -46,6 +61,10 @@ All notable changes to OwlMail are documented in this file. The format follows
   `.github`, provide navigation across all seven translations from both file
   views and GitHub's Security policy view, and document support for the current
   `0.9.x` and previous `0.8.x` release series.
+- `.github/dependabot.yml` now ignores minor Go base-image updates as well as
+  major ones, which is what its own comment already described. Only patch bumps
+  arrive on their own, and each one has to carry the matching `go.mod` toolchain
+  line before it can merge.
 
 ## [0.9.0] - 2026-09-03
 
