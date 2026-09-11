@@ -103,7 +103,9 @@ browser access at another layer; it cannot be combined with an explicit origin,
 so a typo never silently widens a narrow list.
 
 Origins are compared the way a browser serializes them, so `https://host:443`
-and `https://host` are the same value and either spelling may be configured.
+and `https://host` are the same value, and an IPv6 literal matches whichever of
+its equivalent spellings is configured (`https://[2001:0db8::1]` and
+`https://[2001:db8::1]` are one origin). Either spelling may be used.
 
 An allowed origin is answered with a CORS policy naming it exactly, never the
 `Access-Control-Allow-Origin: *` the rest of the unauthenticated development API
@@ -127,7 +129,9 @@ ten-minute `Access-Control-Max-Age`. Basic Auth does not challenge it, because a
 preflight carries no credentials by design; a preflight from any other origin is
 still refused with `403` and no CORS headers.
 
-Under `-mcp-allowed-origins '*'` no origin has been vouched for, so the endpoint
+Under `-mcp-allowed-origins '*'` validation is off for every browser context,
+including the opaque `Origin: null` a page sends from a local file, a data URL,
+or a sandboxed document. No origin has been vouched for, so the endpoint
 returns the plain `Access-Control-Allow-Origin: *` and **no**
 `Access-Control-Allow-Credentials`. Echoing the caller with credentials would
 make the opt-out a stronger grant than the wildcard CORS this endpoint used to

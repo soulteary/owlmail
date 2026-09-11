@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/base64"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -83,6 +84,13 @@ const mcpAllowAnyOrigin = "*"
 func canonicalOrigin(scheme, host, port string) string {
 	scheme = strings.ToLower(scheme)
 	host = strings.ToLower(host)
+	// An IPv6 literal has many equivalent spellings and a browser serializes the
+	// compressed one, so "[2001:0db8::1]" must not compare as a different origin
+	// from "[2001:db8::1]". IPv4, IPv4-mapped, and zoned addresses are left
+	// exactly as written rather than rewritten into a different notation.
+	if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+		host = ip.String()
+	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"
 	}
@@ -124,6 +132,12 @@ func normalizeOrigin(value string) (string, bool) {
 // An absent Origin identifies a non-browser client such as curl, the MCP SDK's
 // HTTP client, or another server, and stays allowed; browsers always send the
 // header on cross-origin requests.
+//
+// The "*" opt-out is deliberately not handled here. Recognizing it in two
+// places is what let it sit behind this parse gate, where an opaque browser
+// origin such as "null" was refused before the opt-out was ever consulted.
+// mcpAllowsAnyOrigin is the single authority, and its caller answers before
+// reaching this function.
 func originAllowed(origin string, allowed []string) bool {
 	if strings.TrimSpace(origin) == "" {
 		return true
@@ -133,9 +147,6 @@ func originAllowed(origin string, allowed []string) bool {
 		return false
 	}
 	for _, candidate := range allowed {
-		if candidate == mcpAllowAnyOrigin {
-			return true
-		}
 		if candidate == normalized {
 			return true
 		}

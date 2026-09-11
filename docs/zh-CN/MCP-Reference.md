@@ -93,7 +93,9 @@ HTTP 端点在每个请求上校验浏览器的 `Origin` 头，且与 Web Basic 
 具体来源同时出现，因此一个笔误不会悄悄放宽一份收紧过的列表。
 
 来源按浏览器序列化 `Origin` 的写法比较，因此 `https://host:443` 与
-`https://host` 是同一个值，配置成任一写法都能匹配。
+`https://host` 是同一个值；IPv6 字面量也会匹配其各种等价写法
+（`https://[2001:0db8::1]` 与 `https://[2001:db8::1]` 是同一个来源）。
+配置成任一写法都能匹配。
 
 被放行的来源会得到一份精确指名该来源的 CORS 策略，而不是未启用认证的其余开发
 API 仍会返回的 `Access-Control-Allow-Origin: *`。只放行而不给出这些响应头，请求
@@ -115,7 +117,8 @@ API 仍会返回的 `Access-Control-Allow-Origin: *`。只放行而不给出这�
 不会对预检发起质询——预检按设计不携带凭据；其他来源的预检仍然返回 `403` 且不
 带任何 CORS 头。
 
-在 `-mcp-allowed-origins '*'` 下没有任何来源被担保，因此该端点返回朴素的
+在 `-mcp-allowed-origins '*'` 下，校验对所有浏览器上下文一并关闭，包括本地文件、
+data URL 或沙箱文档发出的不透明 `Origin: null`。此时没有任何来源被担保，因此该端点返回朴素的
 `Access-Control-Allow-Origin: *`，且**不**返回 `Access-Control-Allow-Credentials`。
 回显调用方并允许携带凭据，会让这个"关闭校验"的选项比该端点原本所处的通配 CORS
 授权更强——浏览器根本不允许通配符携带凭据。关闭校验不应该成为一次升级。

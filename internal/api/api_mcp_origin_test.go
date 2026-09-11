@@ -444,3 +444,60 @@ func TestMCPOriginMatchingCanonicalizesDefaultPorts(t *testing.T) {
 		t.Fatalf("status for a non-default port = %d, want 403", status)
 	}
 }
+
+func TestMCPOriginMatchingCanonicalizesIPv6Literals(t *testing.T) {
+	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mailbox.Close() }()
+
+	// A browser serializes an IPv6 origin in its compressed form, so a listen
+	// address written out in full must still match its own origin.
+	api := NewAPI(mailbox, 1080, "[2001:0db8::1]")
+	if !originAllowed("http://[2001:db8::1]:1080", api.mcpOriginAllowList()) {
+		t.Fatalf("derived allow list rejected its own compressed origin: %v", api.mcpOriginAllowList())
+	}
+
+	// The same holds for a configured entry, in either direction and either case.
+	configured := NewAPIWithAuth(mailbox, 1080, "localhost", "", "")
+	if err := configured.SetMCPAllowedOrigins([]string{"https://[2001:0DB8::1]"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://[2001:db8::1]", "https://[2001:0db8:0000::1]"} {
+		if !originAllowed(origin, configured.mcpOriginAllowList()) {
+			t.Fatalf("configured allow list rejected %q: %v", origin, configured.mcpOriginAllowList())
+		}
+	}
+	// A different address is still a different origin.
+	if originAllowed("https://[2001:db8::2]", configured.mcpOriginAllowList()) {
+		t.Fatal("configured allow list accepted an unrelated IPv6 address")
+	}
+	// An IPv4 host is left exactly as written rather than rewritten.
+	if !originAllowed("http://127.0.0.1:1080", api.mcpOriginAllowList()) {
+		t.Fatalf("derived allow list rejected the loopback IPv4 origin: %v", api.mcpOriginAllowList())
+	}
+}
+
+func TestMCPWildcardOptOutAcceptsOpaqueBrowserOrigins(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	if err := api.SetMCPAllowedOrigins([]string{"*"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A page from a local file, a data URL, or a sandboxed document sends
+	// "null". Turning validation off has to cover those too, or the opt-out
+	// does not opt out; recognizing the wildcard inside originAllowed put it
+	// behind a parse gate that refused such values first.
+	for _, origin := range []string{"null", "http://evil.example"} {
+		if status, _ := mcpStatusForOrigin(t, api, origin); status != http.StatusNoContent {
+			t.Fatalf("wildcard status for Origin %q = %d, want 204", origin, status)
+		}
+	}
+
+	// Without the opt-out, "null" stays refused.
+	strict := newMCPOriginTestAPI(t, "", "")
+	if status, _ := mcpStatusForOrigin(t, strict, "null"); status != http.StatusForbidden {
+		t.Fatalf("strict status for Origin null = %d, want 403", status)
+	}
+}
