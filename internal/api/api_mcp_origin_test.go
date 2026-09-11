@@ -766,7 +766,7 @@ func TestMCPOriginAllowListDerivesListenHostsWithoutPreLowering(t *testing.T) {
 	if !originAllowed("http://[2001:db8::1]:1080", bracketed.mcpOriginAllowList()) {
 		t.Fatalf("bracketed upper-case IPv6 rejected its own origin: %v", bracketed.mcpOriginAllowList())
 	}
-	// A wildcard bind is still recognised whatever its case.
+	// A wildcard bind is still recognized whatever its case.
 	for _, host := range []string{"0.0.0.0", "::", "[::]"} {
 		if !isWildcardBindHost(host) {
 			t.Fatalf("isWildcardBindHost(%q) = false", host)
