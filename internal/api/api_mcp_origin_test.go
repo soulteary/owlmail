@@ -689,3 +689,50 @@ func TestMCPOriginMatchingCanonicalizesIPv4MappedLiterals(t *testing.T) {
 		t.Fatalf("loopback IPv4 status = %d, want 204", status)
 	}
 }
+
+func TestMCPOriginMatchingDoesNotWidenOnUnicodeCaseMapping(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// strings.ToLower uses simple, per-rune case mapping, which collapses
+	// "İ" (U+0130) to a plain "i". Applying it before IDNA would store this
+	// origin as "https://i.com": the intended browser, which sends
+	// "xn--i-9bb.com", would be refused, and an unrelated domain anyone can
+	// register would be accepted in its place. The widening is the point of
+	// this test, not the missed match.
+	if err := api.SetMCPAllowedOrigins([]string{"https://İ.com"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := api.MCPAllowedOrigins(); len(got) != 1 || got[0] != "https://xn--i-9bb.com" {
+		t.Fatalf("MCPAllowedOrigins() = %v, want [https://xn--i-9bb.com]", got)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://xn--i-9bb.com"); status != http.StatusNoContent {
+		t.Fatalf("status for the browser's spelling = %d, want 204", status)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://i.com"); status != http.StatusForbidden {
+		t.Fatalf("an unrelated domain was accepted: status = %d, want 403", status)
+	}
+
+	// Ordinary ASCII hosts are still matched case-insensitively, which the IDNA
+	// profile does itself.
+	mixed := newMCPOriginTestAPI(t, "", "")
+	if err := mixed.SetMCPAllowedOrigins([]string{"https://Inspector.EXAMPLE"}); err != nil {
+		t.Fatal(err)
+	}
+	for _, origin := range []string{"https://inspector.example", "https://INSPECTOR.example"} {
+		if status, _ := mcpStatusForOrigin(t, mixed, origin); status != http.StatusNoContent {
+			t.Fatalf("status for %q = %d, want 204", origin, status)
+		}
+	}
+
+	// An upper-case IP literal and a host the IDNA profile rejects both still
+	// compare case-insensitively, since each branch lower-cases its own output.
+	if !originAllowed("http://[2001:0DB8::1]:1080", []string{"http://[2001:db8::1]:1080"}) {
+		t.Fatal("upper-case IPv6 literal did not match its canonical form")
+	}
+	rejected := newMCPOriginTestAPI(t, "", "")
+	if err := rejected.SetMCPAllowedOrigins([]string{"http://Under_Score.example:8080"}); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := mcpStatusForOrigin(t, rejected, "http://under_score.example:8080"); status != http.StatusNoContent {
+		t.Fatalf("status for an underscore host = %d, want 204", status)
+	}
+}

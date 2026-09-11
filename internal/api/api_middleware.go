@@ -85,7 +85,14 @@ const mcpAllowAnyOrigin = "*"
 // an IPv6 literal is bracketed here.
 func canonicalOrigin(scheme, host, port string) string {
 	scheme = strings.ToLower(scheme)
-	host = strings.ToLower(host)
+	// The host is deliberately not lower-cased before this point.
+	// strings.ToLower applies simple, per-rune case mapping, which destroys
+	// information the IDNA profile needs: it collapses "İ" (U+0130) to a plain
+	// "i", so "İ.com" would be stored as "i.com" -- refusing the browser, which
+	// sends "xn--i-9bb.com", while accepting an unrelated domain anyone can
+	// register. IDNA folds case correctly as part of its own mapping, and
+	// net.ParseIP accepts upper-case hex, so each branch below lower-cases only
+	// what it produces.
 	if ip := net.ParseIP(host); ip != nil {
 		// An IP address has many equivalent spellings and a browser serializes
 		// one of them, so "[2001:0db8::1]" must not compare as a different
@@ -99,11 +106,14 @@ func canonicalOrigin(scheme, host, port string) string {
 	} else if ascii, err := idna.Lookup.ToASCII(host); err == nil && ascii != "" {
 		// A browser serializes a domain in its IDNA ASCII form, so a Unicode
 		// spelling such as "例え.テスト" has to match the "xn--" origin it
-		// actually sends. Already-ASCII hosts are unchanged by this. A host the
-		// profile rejects -- an underscore label or a zoned address, say --
-		// keeps the spelling it was given rather than being dropped, so nothing
-		// that matches today stops matching.
-		host = ascii
+		// actually sends. The profile also folds case, so an already-ASCII host
+		// comes back lower-cased and unchanged otherwise.
+		host = strings.ToLower(ascii)
+	} else {
+		// A host the profile rejects -- an underscore label or a zoned address,
+		// say -- keeps the spelling it was given rather than being dropped, so
+		// nothing that matches today stops matching.
+		host = strings.ToLower(host)
 	}
 	if strings.Contains(host, ":") {
 		host = "[" + host + "]"

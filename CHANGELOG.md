@@ -22,7 +22,9 @@ All notable changes to OwlMail are documented in this file. The format follows
   unchallenged preflight, so a permitted browser client can actually read the
   response. The `*` opt-out returns a plain wildcard without credentials, so
   disabling validation never grants more than the wildcard CORS the endpoint
-  previously fell under.
+  previously fell under. Origins are compared the way a browser serializes
+  them: default and zero-padded ports, equivalent IP spellings, and
+  internationalized domain names all match their canonical form.
 
 ### Added
 
