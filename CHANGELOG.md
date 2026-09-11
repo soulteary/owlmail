@@ -6,6 +6,26 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- The read-only MCP HTTP endpoint now validates the browser `Origin` header on
+  every request, independently of Web Basic Auth, and is excluded from the
+  wildcard CORS policy that the unauthenticated development API still uses.
+  Requests without an `Origin` header remain allowed because non-browser
+  clients never send one, so `curl`, MCP SDK HTTP clients, and server-to-server
+  callers are unaffected. This closes cross-origin and DNS-rebinding reads of
+  captured mail through `/mcp`. New `-mcp-allowed-origins` and
+  `OWLMAIL_MCP_ALLOWED_ORIGINS` list additional browser origins, and a single
+  `*` disables validation for deployments that control browser access
+  elsewhere. An allowed origin is answered with a CORS policy naming it
+  exactly, including credentials, the exposed MCP session headers, and an
+  unchallenged preflight, so a permitted browser client can actually read the
+  response. The `*` opt-out returns a plain wildcard without credentials, so
+  disabling validation never grants more than the wildcard CORS the endpoint
+  previously fell under. Origins are compared the way a browser serializes
+  them: default and zero-padded ports, equivalent IP spellings, and
+  internationalized domain names all match their canonical form.
+
 ### Added
 
 - The read-only MCP HTTP endpoint now serves the modern stateless `2026-07-28`

@@ -10,7 +10,7 @@ OwlMail 面向开发、CI 与受控测试网络。它保存完整邮件，其中
 | SMTP 1025 | 本地监听；未配置两项凭据时为 NO AUTH | 保持私有；同时配置两项凭据才强制 AUTH |
 | Web UI/API 1080 | 本地监听；未配置两项 Web 凭据时无 Basic Auth | 非本地访问使用固定凭据与 HTTPS |
 | 健康探针 | 无认证 | 只暴露健康状态；浏览器 Origin 检查仍可拒绝跨域请求 |
-| MCP | 默认关闭 | HTTP 复用 Web 认证/TLS/base path；stdio 只读一个已有邮件目录 |
+| MCP | 默认关闭 | HTTP 复用 Web 认证/TLS/base path 并始终校验浏览器 `Origin`；stdio 只读一个已有邮件目录 |
 | MailDev/MailCatcher Facade | 默认关闭 | 启用后复用 Web 边界，只提供明确的兼容契约 |
 | Metrics | 默认关闭 | 启用后在网络或反向代理层保护 |
 | Webhook 与 Relay | 配置后才启用 | 把捕获内容或元数据发送到运维者选择的目标 |
@@ -50,7 +50,8 @@ Agent 必须把邮件内容视为数据而非指令。邮件内嵌的 Prompt 不
 
 - SMTP 与 Web 绑定到 loopback 或私有网络。
 - 非本地访问设置固定 Web 凭据与 HTTPS。
-- 只向预期客户端开放 MCP 与 Metrics。
+- 只向预期客户端开放 MCP 与 Metrics；需要访问 `/mcp` 的浏览器来源用
+  `-mcp-allowed-origins` 显式列出，而不是关闭校验。
 - 测试数据与生产账户、生产基础设施隔离。
 - 安全敏感 CI 按 manifest digest 固定发布镜像。
 - 升级前备份完整邮件目录。

@@ -391,6 +391,42 @@ Consequently it inherits all of these boundaries:
 - `-base-pathname` moves the endpoint. The unprefixed `/mcp` path remains 404,
   so a subpath deployment does not gain a root-level bypass.
 
+One boundary is deliberately **not** inherited. Browser origin validation runs
+on `/mcp` whether or not Basic Auth is configured, because an unauthenticated
+MCP endpoint is exactly the one a browser can reach. A request without an
+`Origin` header is a non-browser client and is allowed; a request that carries
+one must name an OwlMail origin (the configured Web host and the loopback names
+at the Web port, on the scheme this listener itself serves, plus
+`-web-external-url` when set) or an origin listed in `-mcp-allowed-origins`, and
+is otherwise answered with `403`. When TLS terminates at a reverse proxy, the
+listener still answers plain HTTP directly, so both that origin and the
+browser-visible external one are accepted. The endpoint also
+owns its own CORS policy instead of the wildcard one the unauthenticated
+development API still uses: an allowed origin is named exactly and never with
+`Access-Control-Allow-Origin: *`, credentials are permitted so Basic Auth works
+from it, the MCP session headers are exposed, and a preflight is answered
+without an authentication challenge. Every response varies by `Origin`. The
+`'*'` opt-out is the one case that returns a plain wildcard and no credentials,
+so turning validation off never grants more than the wildcard CORS the endpoint
+used to fall under. All of this applies to every spelling of
+the path the router dispatches, including a trailing slash and a case variant.
+
+On this path the check also replaces the global same-origin middleware that
+Basic Auth installs. That middleware accepts any `Origin` echoing the request's
+own `Host`, which is what a re-bound hostname produces, so the MCP allow list is
+strictly narrower; routing `/mcp` through it alone also keeps
+`-mcp-allowed-origins` meaningful on an authenticated deployment instead of
+being overruled before it is consulted. Every other route keeps the same-origin
+middleware unchanged.
+
+Set `-mcp-allowed-origins` (or `OWLMAIL_MCP_ALLOWED_ORIGINS`) to a
+comma-separated list when a browser on another origin must reach the endpoint,
+for example `-mcp-allowed-origins https://inspector.example`. Each value must be
+an absolute `http` or `https` origin without a path, query, fragment, or
+credentials. The single value `*` disables validation and cannot be combined
+with an explicit origin. Startup fails on an unparseable value rather than
+falling back to an open endpoint.
+
 The MCP service exposes exactly seven closed-world, read-only tools:
 
 | Tool | Result boundary |

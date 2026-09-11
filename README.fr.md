@@ -219,6 +219,7 @@ docker buildx build \
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Active le point d'accès MCP Streamable HTTP en lecture seule sous `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Ferme les sessions MCP inactives |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Délai de fermeture des sessions MCP à l'arrêt |
+| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | Origines de navigateur supplémentaires acceptées sur `/mcp`, en plus de celles d'OwlMail ; `*` désactive la validation d'origine |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |

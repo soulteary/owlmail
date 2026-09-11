@@ -46,6 +46,7 @@ type API struct {
 	metricsEnabled          bool
 	metrics                 *prometheusMetrics
 	mcpHandler              http.Handler
+	mcpAllowedOrigins       []string
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
 	relayRecoveryOnce       sync.Once
@@ -195,12 +196,21 @@ func (api *API) setupRoutes() {
 		// Browsers must not reuse cached Basic Auth credentials from an unrelated
 		// origin. Non-browser API clients normally omit Origin and remain allowed.
 		app.Use(func(c fiber.Ctx) error {
+			// The MCP endpoint runs its own, strictly narrower origin check.
+			// Letting this middleware answer first would overrule an origin the
+			// operator allowed there on purpose.
+			if api.mcpHandler != nil && api.isMCPPath(c.Path()) {
+				return c.Next()
+			}
 			return sameOriginMiddleware(api.requestScheme())(c)
 		})
 	} else {
 		// Preserve the open development API's cross-origin compatibility. There
 		// are no browser credentials to expose when authentication is disabled.
 		app.Use(cors.New(cors.Config{
+			// The MCP endpoint performs its own origin validation and must not
+			// advertise a wildcard that would let any page read the mailbox.
+			Next:         func(c fiber.Ctx) bool { return api.mcpHandler != nil && api.isMCPPath(c.Path()) },
 			AllowOrigins: []string{"*"},
 			AllowHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
 			AllowMethods: []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
@@ -216,7 +226,16 @@ func (api *API) setupRoutes() {
 		if api.basePathname != "" {
 			healthRoutes = append(healthRoutes, "/healthz")
 		}
-		app.Use(basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...))
+		authMiddleware := basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...)
+		app.Use(func(c fiber.Ctx) error {
+			// A CORS preflight carries no credentials, so answering it with 401
+			// would stop a browser origin the operator allowed on purpose from
+			// ever reaching the MCP endpoint's own policy.
+			if api.isMCPPreflight(c) {
+				return c.Next()
+			}
+			return authMiddleware(c)
+		})
 	}
 	if api.basePathname != "" {
 		// Register the fixed image health check before the bare-base redirect.
@@ -269,7 +288,9 @@ func (api *API) setupRoutes() {
 		app.Get(api.route("/metrics"), api.prometheusMetrics)
 	}
 	if api.mcpHandler != nil {
-		app.All(api.route("/mcp"), adaptor.HTTPHandler(api.mcpHandler))
+		// The origin guard is deliberately independent of Basic Auth: an
+		// unauthenticated MCP endpoint is exactly the one a browser can reach.
+		app.All(api.route("/mcp"), api.mcpOriginGuard(), adaptor.HTTPHandler(api.mcpHandler))
 	}
 
 	// Browser UI and local help.

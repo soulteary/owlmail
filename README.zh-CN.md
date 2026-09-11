@@ -234,6 +234,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲旧版 MCP 会话并限制 wait |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 工作的期限 |
+| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外,`/mcp` 额外接受的浏览器来源;`*` 关闭来源校验 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
@@ -317,6 +318,15 @@ Streamable HTTP 端点，然后连接 `http://localhost:1080/mcp`。若设置
 HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请求也必须携带
 同一组 Basic Auth 凭据。该端点可并发服务现代无状态 `2026-07-28` 与旧版有状态
 客户端。
+
+无论是否配置 Basic Auth，该端点都会校验浏览器的 `Origin` 头。不带 `Origin` 的
+请求来自 `curl`、MCP SDK 的 HTTP 客户端或其他服务端等非浏览器客户端，行为不
+受影响。携带 `Origin` 的请求必须匹配 OwlMail 自身的浏览器可见来源——配置的 Web
+主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该来源——否则
+返回 `403`。这可以阻止开发者顺手访问的无关页面读取已捕获的邮件，包括把自己
+控制的域名重绑定到回环地址的页面。需要放行其他浏览器来源时使用
+`-mcp-allowed-origins https://inspector.example`（逗号分隔）；若浏览器访问已由
+其他层控制，可设为 `*` 关闭该校验。
 
 服务提供七个只读工具：在原有轻量查询、深复制详情、有界 source 和附件元数据
 能力上，增加 `get_latest_email` 与事件驱动的 `wait_for_email`。同时提供有界的

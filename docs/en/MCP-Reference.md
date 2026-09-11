@@ -78,6 +78,77 @@ uses the smaller of 30 seconds and that effective maximum.
 All prompts compose the read-only tools. They do not grant capabilities beyond
 the tool list.
 
+## Browser origin validation
+
+The HTTP endpoint validates the browser `Origin` header on every request,
+independently of Web Basic Auth. The specification requires this check for
+local HTTP servers: without it any page a developer visits can read the test
+mailbox through `/mcp`, either directly when the deployment is unauthenticated
+or by re-binding an attacker-controlled hostname to the loopback address.
+
+| Request | Outcome |
+|---|---|
+| No `Origin` header | Allowed. Non-browser clients such as `curl`, MCP SDK HTTP clients, and server-to-server callers never send it |
+| `Origin` matching an OwlMail origin | Allowed. The configured Web host and the loopback names at the Web port, on the scheme this listener itself serves, plus `-web-external-url` when it is set |
+| `Origin` listed in `-mcp-allowed-origins` | Allowed. Comma-separated absolute `http` or `https` origins, added to the origins above rather than replacing them |
+| Any other `Origin` | `403` with a plain-text reason |
+
+On `/mcp` this check replaces, rather than follows, the global same-origin
+middleware that Basic Auth installs: that middleware accepts any `Origin` which
+echoes the request's own `Host`, so the allow list above is strictly narrower
+and `-mcp-allowed-origins` keeps working on an authenticated deployment.
+
+`-mcp-allowed-origins '*'` turns the check off for deployments that control
+browser access at another layer; it cannot be combined with an explicit origin,
+so a typo never silently widens a narrow list.
+
+Origins are compared the way a browser serializes them, so `https://host:443`
+and `https://host` are the same value, and an IPv6 literal matches whichever of
+its equivalent spellings is configured (`https://[2001:0db8::1]` and
+`https://[2001:db8::1]` are one origin), and a Unicode domain matches the IDNA
+ASCII origin a browser sends (`https://例え.テスト` and
+`https://xn--r8jz45g.xn--zckzah` are one origin). Ports are compared as numbers
+and IP addresses as addresses, so `:0443` and `:443` are one port and
+`[::ffff:192.0.2.1]` and `[::ffff:c000:201]` are one host. Either spelling may
+be used. A numeric spelling that only a browser normalizes -- a leading-zero
+IPv4 such as `127.0.0.01`, or a zoned address -- is compared as written, so
+configure those in the form the browser sends.
+Startup logs the configured origins in that compared form, so a refused request
+can be checked against them.
+
+An allowed origin is answered with a CORS policy naming it exactly, never the
+`Access-Control-Allow-Origin: *` the rest of the unauthenticated development API
+still returns. Allowing an origin without those response headers would let the
+request reach the handler but leave the browser refusing to hand the response to
+the client, so the endpoint owns the whole policy:
+
+| Response header | Value |
+|---|---|
+| `Access-Control-Allow-Origin` | the request's own origin, never a wildcard |
+| `Access-Control-Allow-Credentials` | `true`, so Basic Auth works from an allowed origin |
+| `Access-Control-Expose-Headers` | `Mcp-Session-Id, Mcp-Protocol-Version` |
+| `Vary` | `Origin`, so a shared cache cannot serve one origin's response to another |
+
+`Vary: Origin` is set on every response from this path, refusals included, so
+a shared cache cannot reuse one origin's outcome for another.
+
+A preflight `OPTIONS` from an allowed origin is answered with `204`, the
+`GET, POST, DELETE, OPTIONS` method list, the MCP request headers, and a
+ten-minute `Access-Control-Max-Age`. Basic Auth does not challenge it, because a
+preflight carries no credentials by design; a preflight from any other origin is
+still refused with `403` and no CORS headers.
+
+Under `-mcp-allowed-origins '*'` validation is off for every browser context,
+including the opaque `Origin: null` a page sends from a local file, a data URL,
+or a sandboxed document. No origin has been vouched for, so the endpoint
+returns the plain `Access-Control-Allow-Origin: *` and **no**
+`Access-Control-Allow-Credentials`. Echoing the caller with credentials would
+make the opt-out a stronger grant than the wildcard CORS this endpoint used to
+fall under, which browsers refuse to use with credentials at all; turning the
+check off must not be an upgrade.
+
+The stdio transport opens no listener and has no origin to validate.
+
 ## Explicitly unsupported
 
 MCP cannot delete mail, change read state, relay or forward a message, download
