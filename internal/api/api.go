@@ -36,6 +36,7 @@ type API struct {
 	wsClientsLock           sync.RWMutex
 	authUser                string
 	authPassword            string
+	authVerifier            *common.CredentialVerifier
 	httpsEnabled            bool
 	httpsCertFile           string
 	httpsKeyFile            string
@@ -75,6 +76,19 @@ func NewAPIWithHTTPS(mailServer *mailserver.MailServer, port int, host, user, pa
 // leaves delivery recovery paused until StartRelayRecovery is called.
 func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int, host, user, password string, httpsEnabled bool, certFile, keyFile string) *API {
 	authEnabled := user != "" && password != ""
+	var authVerifier *common.CredentialVerifier
+	if authEnabled {
+		verifier, err := common.NewCredentialVerifier(user, password)
+		if err != nil {
+			// Falling back to a direct comparison would reintroduce the timing
+			// oracle this verifier exists to close, so the API refuses every
+			// authenticated request instead. crypto/rand failing is a broken
+			// system, not a condition to degrade around.
+			common.Error("Initialize Web credential verifier: %v; authenticated requests will be rejected", err)
+		} else {
+			authVerifier = verifier
+		}
+	}
 	relayJobs, err := newPersistentRelayJobStore(mailServer.GetMailDir())
 	persistenceErr := err
 	if err != nil {
@@ -89,6 +103,7 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 		metrics:                 newPrometheusMetrics(),
 		authUser:                user,
 		authPassword:            password,
+		authVerifier:            authVerifier,
 		httpsEnabled:            httpsEnabled,
 		httpsCertFile:           certFile,
 		httpsKeyFile:            keyFile,
@@ -226,7 +241,7 @@ func (api *API) setupRoutes() {
 		if api.basePathname != "" {
 			healthRoutes = append(healthRoutes, "/healthz")
 		}
-		authMiddleware := basicAuthMiddleware(api.authUser, api.authPassword, healthRoutes...)
+		authMiddleware := basicAuthMiddleware(api.authVerifier, healthRoutes...)
 		app.Use(func(c fiber.Ctx) error {
 			// A CORS preflight carries no credentials, so answering it with 401
 			// would stop a browser origin the operator allowed on purpose from

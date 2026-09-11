@@ -67,10 +67,10 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if options.AuthConfig != nil && options.AuthConfig.Enabled && (options.AuthConfig.Username == "" || options.AuthConfig.Password == "") {
 		return nil, fmt.Errorf("SMTP username and password are both required when authentication is enabled")
 	}
-	var authVerifier *credentialVerifier
+	var authVerifier *common.CredentialVerifier
 	if options.AuthConfig != nil && options.AuthConfig.Enabled {
 		var err error
-		authVerifier, err = newCredentialVerifier(options.AuthConfig.Username, options.AuthConfig.Password)
+		authVerifier, err = common.NewCredentialVerifier(options.AuthConfig.Username, options.AuthConfig.Password)
 		if err != nil {
 			return nil, fmt.Errorf("failed to initialize SMTP credential verifier: %w", err)
 		}

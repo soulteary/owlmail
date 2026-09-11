@@ -1,8 +1,6 @@
 package mailserver
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -13,45 +11,6 @@ import (
 	"github.com/emersion/go-sasl"
 	"github.com/emersion/go-smtp"
 )
-
-func TestCredentialVerifier(t *testing.T) {
-	verifier, err := newCredentialVerifier("user", "pass")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !verifier.credentialsEqual("user", "pass") {
-		t.Fatal("matching credentials were rejected")
-	}
-	for _, test := range []struct {
-		username string
-		password string
-	}{
-		{username: "uses", password: "pass"},
-		{username: "other", password: "pass"},
-		{username: "user", password: "fail"},
-		{username: "user", password: "other"},
-		{username: "", password: ""},
-	} {
-		if verifier.credentialsEqual(test.username, test.password) {
-			t.Fatalf("credentials %q/%q unexpectedly matched", test.username, test.password)
-		}
-	}
-
-	shortTag := verifier.tag("x")
-	longTag := verifier.tag(strings.Repeat("x", 1024))
-	if len(shortTag) != sha256.Size || len(longTag) != sha256.Size {
-		t.Fatalf("credential tag lengths = %d/%d, want %d", len(shortTag), len(longTag), sha256.Size)
-	}
-	if bytes.Equal(shortTag[:], longTag[:]) {
-		t.Fatal("different credentials produced matching tags")
-	}
-	if !verifier.stringsEqual("identity", "identity") {
-		t.Fatal("matching authorization identities were rejected")
-	}
-	if verifier.stringsEqual("same", "different-length") {
-		t.Fatal("different authorization identities unexpectedly matched")
-	}
-}
 
 func TestLoginServerWithoutInitialResponse(t *testing.T) {
 	var gotUsername, gotPassword string

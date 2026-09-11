@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/common"
 	"golang.org/x/net/idna"
 )
 
@@ -35,8 +36,15 @@ func sameOriginMiddleware(scheme string) fiber.Handler {
 	}
 }
 
-// basicAuthMiddleware creates HTTP Basic Auth middleware for Fiber
-func basicAuthMiddleware(username, password string, skippedPaths ...string) fiber.Handler {
+// basicAuthMiddleware creates HTTP Basic Auth middleware for Fiber.
+//
+// The credential check is delegated to a common.CredentialVerifier rather than
+// comparing the decoded values directly: Go's == returns at the first differing
+// byte, which times a near-miss differently from a first-byte miss and lets the
+// configured password be recovered one byte at a time. A nil verifier means the
+// process failed to build one, and every authenticated request is refused
+// rather than falling back to a comparison that leaks.
+func basicAuthMiddleware(verifier *common.CredentialVerifier, skippedPaths ...string) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		path := c.Path()
 		for _, p := range skippedPaths {
@@ -66,7 +74,7 @@ func basicAuthMiddleware(username, password string, skippedPaths ...string) fibe
 			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 
-		if credentials[0] != username || credentials[1] != password {
+		if verifier == nil || !verifier.CredentialsEqual(credentials[0], credentials[1]) {
 			return c.SendStatus(fiber.StatusUnauthorized)
 		}
 

@@ -1,10 +1,6 @@
 package mailserver
 
 import (
-	"crypto/hmac"
-	"crypto/rand"
-	"crypto/sha256"
-	"crypto/subtle"
 	"strings"
 
 	"github.com/emersion/go-sasl"
@@ -34,7 +30,7 @@ func (s *Session) Auth(mechanism string) (sasl.Server, error) {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
 			if s.mailServer.authRequired() && identity != "" {
-				if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.stringsEqual(identity, username) {
+				if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.StringsEqual(identity, username) {
 					return smtp.ErrAuthFailed
 				}
 			}
@@ -49,7 +45,7 @@ func (s *Session) Auth(mechanism string) (sasl.Server, error) {
 
 func (s *Session) authenticate(username, password string) error {
 	if s.mailServer.authRequired() {
-		if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.credentialsEqual(username, password) {
+		if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.CredentialsEqual(username, password) {
 			return smtp.ErrAuthFailed
 		}
 	}
@@ -66,47 +62,6 @@ func (s *Session) requireAuthentication() error {
 
 func (ms *MailServer) authRequired() bool {
 	return ms.authConfig != nil && ms.authConfig.Enabled
-}
-
-// credentialVerifier normalizes credentials into fixed-size, keyed tags. The
-// expected tags are computed once at startup so request timing does not depend
-// on the configured username or password length.
-type credentialVerifier struct {
-	key                 [sha256.Size]byte
-	expectedUsernameTag [sha256.Size]byte
-	expectedPasswordTag [sha256.Size]byte
-}
-
-func newCredentialVerifier(username, password string) (*credentialVerifier, error) {
-	verifier := &credentialVerifier{}
-	if _, err := rand.Read(verifier.key[:]); err != nil {
-		return nil, err
-	}
-	verifier.expectedUsernameTag = verifier.tag(username)
-	verifier.expectedPasswordTag = verifier.tag(password)
-	return verifier, nil
-}
-
-func (v *credentialVerifier) credentialsEqual(username, password string) bool {
-	usernameTag := v.tag(username)
-	passwordTag := v.tag(password)
-	usernameMatches := subtle.ConstantTimeCompare(usernameTag[:], v.expectedUsernameTag[:])
-	passwordMatches := subtle.ConstantTimeCompare(passwordTag[:], v.expectedPasswordTag[:])
-	return usernameMatches&passwordMatches == 1
-}
-
-func (v *credentialVerifier) stringsEqual(value, expected string) bool {
-	valueTag := v.tag(value)
-	expectedTag := v.tag(expected)
-	return subtle.ConstantTimeCompare(valueTag[:], expectedTag[:]) == 1
-}
-
-func (v *credentialVerifier) tag(value string) [sha256.Size]byte {
-	mac := hmac.New(sha256.New, v.key[:])
-	_, _ = mac.Write([]byte(value))
-	var tag [sha256.Size]byte
-	mac.Sum(tag[:0])
-	return tag
 }
 
 type loginServer struct {
