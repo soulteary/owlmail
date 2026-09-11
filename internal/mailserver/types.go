@@ -9,6 +9,7 @@ import (
 
 	"github.com/emersion/go-smtp"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
+	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/outgoing"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -135,7 +136,7 @@ type MailServer struct {
 	outgoingMutex       sync.RWMutex
 	outgoingClosed      bool
 	authConfig          *SMTPAuthConfig
-	authVerifier        *credentialVerifier
+	authVerifier        *common.CredentialVerifier
 	authRequireTLS      bool
 	tlsConfig           *TLSConfig
 	useUUIDForID        bool

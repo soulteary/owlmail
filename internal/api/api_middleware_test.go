@@ -421,3 +421,130 @@ func TestHealthzSkippedAuth(t *testing.T) {
 		t.Errorf("GET /healthz with matching base path returned status %d, body %s", resp.StatusCode, body)
 	}
 }
+
+// newAuthTestAPI builds an authenticated API over a throwaway mail server.
+func newAuthTestAPI(t *testing.T, user, password string) *API {
+	t.Helper()
+	server, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatalf("Failed to create mail server: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := server.Close(); err != nil {
+			t.Errorf("Failed to close server: %v", err)
+		}
+	})
+	return NewAPIWithAuth(server, 1080, "localhost", user, password)
+}
+
+// TestBasicAuthUsesConstantTimeVerifier pins the wiring: the middleware must
+// receive a verifier, because it has no other way to check credentials. A
+// verifier built per request would also defeat the point -- the expected tags
+// exist so that per-request work does not depend on the configured secrets.
+func TestBasicAuthUsesConstantTimeVerifier(t *testing.T) {
+	api := newAuthTestAPI(t, "user", "pass")
+	if api.authVerifier == nil {
+		t.Fatal("authenticated API has no credential verifier")
+	}
+	if !api.authVerifier.CredentialsEqual("user", "pass") {
+		t.Fatal("the API's verifier rejects its own configured credentials")
+	}
+
+	open := newAuthTestAPI(t, "", "")
+	if open.authVerifier != nil {
+		t.Fatal("an API without Basic Auth built a credential verifier")
+	}
+}
+
+// TestBasicAuthMiddlewareWithoutVerifierFailsClosed covers the path taken when
+// crypto/rand cannot seed a verifier. Refusing the request is the only safe
+// answer; comparing the raw values instead would quietly restore the leak.
+func TestBasicAuthMiddlewareWithoutVerifierFailsClosed(t *testing.T) {
+	app := fiber.New()
+	app.Use(basicAuthMiddleware(nil))
+	app.Get("/", func(c fiber.Ctx) error { return c.SendString("reached") })
+
+	req, _ := http.NewRequest(http.MethodGet, "/", nil)
+	req.SetBasicAuth("user", "pass")
+	resp, err := app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+	if err != nil {
+		t.Fatalf("Test request failed: %v", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Errorf("status without a verifier = %d, want 401", resp.StatusCode)
+	}
+}
+
+// TestBasicAuthMiddlewareCredentialVariants checks that moving the comparison
+// behind the verifier did not change which credentials are accepted. The
+// near-miss rows are the ones a timing attack walks through: under a
+// byte-at-a-time comparison each of them is measurably distinct, and they must
+// all be answered the same way.
+func TestBasicAuthMiddlewareCredentialVariants(t *testing.T) {
+	const user = "owl"
+	const password = "s3cret-password"
+	api := newAuthTestAPI(t, user, password)
+
+	for _, test := range []struct {
+		name     string
+		username string
+		password string
+		want     int
+	}{
+		{name: "exact match", username: user, password: password, want: http.StatusOK},
+		{name: "password prefix", username: user, password: password[:len(password)-1], want: http.StatusUnauthorized},
+		{name: "password with extra byte", username: user, password: password + "x", want: http.StatusUnauthorized},
+		{name: "password last byte differs", username: user, password: password[:len(password)-1] + "X", want: http.StatusUnauthorized},
+		{name: "password first byte differs", username: user, password: "X" + password[1:], want: http.StatusUnauthorized},
+		{name: "empty password", username: user, password: "", want: http.StatusUnauthorized},
+		{name: "username prefix", username: user[:len(user)-1], password: password, want: http.StatusUnauthorized},
+		{name: "username differs, password right", username: "owm", password: password, want: http.StatusUnauthorized},
+		{name: "username right, password wrong", username: user, password: "wrong", want: http.StatusUnauthorized},
+		{name: "both wrong", username: "nobody", password: "wrong", want: http.StatusUnauthorized},
+		{name: "credentials swapped", username: password, password: user, want: http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodGet, "/api/v1/emails", nil)
+			req.SetBasicAuth(test.username, test.password)
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatalf("Test request failed: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != test.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, test.want)
+			}
+		})
+	}
+}
+
+// TestBasicAuthMiddlewarePasswordContainingColon guards the decoding around the
+// comparison. RFC 7617 forbids a colon in the user-id but allows one in the
+// password, so the split stays limited to the first separator.
+func TestBasicAuthMiddlewarePasswordContainingColon(t *testing.T) {
+	api := newAuthTestAPI(t, "owl", "pa:ss:word")
+
+	for _, test := range []struct {
+		name     string
+		username string
+		password string
+		want     int
+	}{
+		{name: "full password", username: "owl", password: "pa:ss:word", want: http.StatusOK},
+		{name: "truncated at first colon", username: "owl", password: "pa", want: http.StatusUnauthorized},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodGet, "/api/v1/emails", nil)
+			req.SetBasicAuth(test.username, test.password)
+			resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
+			if err != nil {
+				t.Fatalf("Test request failed: %v", err)
+			}
+			defer func() { _ = resp.Body.Close() }()
+			if resp.StatusCode != test.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, test.want)
+			}
+		})
+	}
+}
