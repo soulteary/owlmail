@@ -1,0 +1,98 @@
+# Automated dependency updates.
+#
+# Security updates are deliberately left ungrouped: no group below declares
+# `applies-to: security-updates`, so every advisory Dependabot acts on arrives
+# as its own pull request with its own CVE context. The groups here only batch
+# routine version updates, which otherwise produce one pull request per module
+# across a dependency tree with more than seventy entries.
+version: 2
+
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    commit-message:
+      # No "include: scope": the Go ecosystem's only scope is "deps", which
+      # would stutter against the prefix as "deps(deps): ...".
+      prefix: "deps"
+    groups:
+      # Dependabot assigns a dependency to the first group it matches, so the
+      # families that release in lockstep are listed before the catch-all.
+      aws-sdk:
+        patterns:
+          - "github.com/aws/*"
+        update-types:
+          - "minor"
+          - "patch"
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
+        update-types:
+          - "minor"
+          - "patch"
+      modernc:
+        patterns:
+          - "modernc.org/*"
+        update-types:
+          - "minor"
+          - "patch"
+      soulteary-kits:
+        patterns:
+          - "github.com/soulteary/*"
+        update-types:
+          - "minor"
+          - "patch"
+      go-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Major upgrades change contracts OwlMail documents (SMTP, MIME, Fiber,
+    # MCP, SQLite), so they stay as individual, reviewable pull requests.
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+    # Workflows pin actions by commit SHA. Dependabot updates the SHA and
+    # refreshes the trailing version comment, so the pinning survives.
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "Asia/Shanghai"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "docker"
+    groups:
+      docker-base-images:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # The builder image tracks the Go toolchain in go.mod, so a major or minor
+    # Go bump is reviewed with that file rather than applied on its own.
+    ignore:
+      - dependency-name: "golang"
+        update-types:
+          - "version-update:semver-major"
