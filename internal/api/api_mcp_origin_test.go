@@ -577,3 +577,74 @@ func TestMCPAllowedOriginsAccessorReportsTheComparedForm(t *testing.T) {
 		t.Fatal("mutating the returned slice changed the allow list")
 	}
 }
+
+func TestMCPAllowedOriginsRejectsMixedWildcardLists(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// The wildcard turns validation off for everything, so pairing it with a
+	// named origin silently opens a list meant to stay narrow. The setter is
+	// reachable without the configuration parser that refuses this, so it has
+	// to refuse it too -- and must not half-apply the bad list.
+	if err := api.SetMCPAllowedOrigins([]string{"*", "https://inspector.example"}); err == nil {
+		t.Fatal("SetMCPAllowedOrigins accepted a wildcard combined with an explicit origin")
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://evil.example"); status != http.StatusForbidden {
+		t.Fatalf("a refused list still widened the policy: status = %d, want 403", status)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://inspector.example"); status != http.StatusNoContent {
+		t.Fatalf("a refused list disturbed the previous policy: status = %d, want 204", status)
+	}
+
+	// The wildcard on its own, in any spelling, still opts out.
+	if err := api.SetMCPAllowedOrigins([]string{"*", "", "  "}); err != nil {
+		t.Fatalf("SetMCPAllowedOrigins rejected a lone wildcard: %v", err)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "https://evil.example"); status != http.StatusNoContent {
+		t.Fatalf("lone wildcard status = %d, want 204", status)
+	}
+}
+
+func TestMCPOriginAllowListUsesTheListenerScheme(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+	// TLS terminated at a reverse proxy: the browser-visible scheme is https,
+	// but this listener still answers plain HTTP on the loopback. Deriving the
+	// listener's own origins from the external scheme locks a browser out of
+	// the listener it is actually talking to.
+	if err := api.SetExternalScheme("https"); err != nil {
+		t.Fatal(err)
+	}
+	if err := api.SetMCPAllowedOrigins([]string{"https://mail.example"}); err != nil {
+		t.Fatal(err)
+	}
+	if status, _ := mcpStatusForOrigin(t, api, "http://localhost:1080"); status != http.StatusNoContent {
+		t.Fatalf("direct listener origin status = %d, want 204", status)
+	}
+	// The browser-visible origin still works, from configuration.
+	if status, _ := mcpStatusForOrigin(t, api, "https://mail.example"); status != http.StatusNoContent {
+		t.Fatalf("external origin status = %d, want 204", status)
+	}
+	// The scheme still has to match: an https loopback origin is not this
+	// listener's, and is not silently accepted for being "close enough".
+	if status, _ := mcpStatusForOrigin(t, api, "https://localhost:1080"); status != http.StatusForbidden {
+		t.Fatalf("mismatched-scheme loopback status = %d, want 403", status)
+	}
+}
+
+func TestMCPOriginAllowListFollowsAnHTTPSListener(t *testing.T) {
+	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mailbox.Close() }()
+
+	api := NewAPIWithHTTPS(mailbox, 1080, "localhost", "", "", true, "cert.pem", "key.pem")
+	if !originAllowed("https://localhost:1080", api.mcpOriginAllowList()) {
+		t.Fatalf("HTTPS listener rejected its own origin: %v", api.mcpOriginAllowList())
+	}
+	if originAllowed("http://localhost:1080", api.mcpOriginAllowList()) {
+		t.Fatalf("HTTPS listener accepted a plain HTTP origin: %v", api.mcpOriginAllowList())
+	}
+}

@@ -336,8 +336,10 @@ MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，�
 有一项边界**刻意不继承**：无论是否配置 Basic Auth，`/mcp` 都会执行浏览器 Origin
 校验——因为未启用认证的 MCP 端点恰恰是浏览器能够访问的那一个。不带 `Origin` 的
 请求属于非浏览器客户端，直接放行；携带 `Origin` 的请求必须匹配 OwlMail 自身来源
-（配置的 Web 主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该
-来源）或 `-mcp-allowed-origins` 中列出的来源，否则返回 `403`。该端点同时被排除在
+（配置的 Web 主机与 Web 端口上的回环名称，按本监听器自身实际提供的 scheme，以及
+设置了 `-web-external-url` 时的该来源）或 `-mcp-allowed-origins` 中列出的来源，
+否则返回 `403`。当 TLS 在反向代理终止时，监听器本身仍直接提供明文 HTTP，因此该
+来源与浏览器可见的外部来源都会被接受。该端点同时被排除在
 未启用认证时仍然生效的通配 CORS 策略之外，因此永远不会返回
 `Access-Control-Allow-Origin: *`，而是自行承担一份 CORS 策略：精确指名放行的
 来源、允许携带凭据以便从该来源使用 Basic Auth、暴露 MCP 会话头，并在不发起认证

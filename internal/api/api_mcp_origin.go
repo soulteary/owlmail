@@ -62,13 +62,14 @@ func originHost(host string) string {
 // documented opt-out. It must be called before the API server starts.
 func (api *API) SetMCPAllowedOrigins(origins []string) error {
 	normalized := make([]string, 0, len(origins))
+	wildcard := false
 	for _, origin := range origins {
 		origin = strings.TrimSpace(origin)
 		if origin == "" {
 			continue
 		}
 		if origin == mcpAllowAnyOrigin {
-			normalized = append(normalized, mcpAllowAnyOrigin)
+			wildcard = true
 			continue
 		}
 		canonical, ok := normalizeOrigin(origin)
@@ -77,8 +78,31 @@ func (api *API) SetMCPAllowedOrigins(origins []string) error {
 		}
 		normalized = append(normalized, canonical)
 	}
+	// The wildcard turns validation off for every origin, so pairing it with a
+	// named one can only be a mistake -- and exactly the mistake that silently
+	// opens a list its author meant to keep narrow. The configuration parser
+	// refuses the combination; so must the setter that applies the policy,
+	// which is reachable without going through that parser.
+	if wildcard {
+		if len(normalized) > 0 {
+			return fmt.Errorf("MCP allowed origins cannot combine %q with an explicit origin", mcpAllowAnyOrigin)
+		}
+		normalized = []string{mcpAllowAnyOrigin}
+	}
 	api.mcpAllowedOrigins = normalized
 	return nil
+}
+
+// listenerScheme is the scheme this process actually answers on. It is
+// deliberately not requestScheme: when TLS terminates at a reverse proxy,
+// -web-external-url makes the browser-visible scheme https while this listener
+// still serves plain HTTP, and the origins derived from it describe the
+// listener. The browser-visible origin is added separately, from configuration.
+func (api *API) listenerScheme() string {
+	if api.httpsEnabled {
+		return "https"
+	}
+	return "http"
 }
 
 // MCPAllowedOrigins returns the configured extra origins in the canonical form
@@ -110,7 +134,7 @@ func (api *API) mcpOriginAllowList() []string {
 		add(origin)
 	}
 
-	scheme := api.requestScheme()
+	scheme := api.listenerScheme()
 	hosts := make([]string, 0, len(loopbackOriginHosts)+1)
 	if host := originHost(api.host); !isWildcardBindHost(host) {
 		hosts = append(hosts, host)

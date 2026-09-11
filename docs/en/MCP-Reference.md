@@ -89,7 +89,7 @@ or by re-binding an attacker-controlled hostname to the loopback address.
 | Request | Outcome |
 |---|---|
 | No `Origin` header | Allowed. Non-browser clients such as `curl`, MCP SDK HTTP clients, and server-to-server callers never send it |
-| `Origin` matching an OwlMail origin | Allowed. The configured Web host and the loopback names at the Web port, plus `-web-external-url` when it is set |
+| `Origin` matching an OwlMail origin | Allowed. The configured Web host and the loopback names at the Web port, on the scheme this listener itself serves, plus `-web-external-url` when it is set |
 | `Origin` listed in `-mcp-allowed-origins` | Allowed. Comma-separated absolute `http` or `https` origins, added to the origins above rather than replacing them |
 | Any other `Origin` | `403` with a plain-text reason |
 

@@ -81,7 +81,7 @@ HTTP 端点在每个请求上校验浏览器的 `Origin` 头，且与 Web Basic 
 | 请求 | 结果 |
 |---|---|
 | 不带 `Origin` | 放行。`curl`、MCP SDK 的 HTTP 客户端和服务端到服务端的调用方都不会发送该头 |
-| `Origin` 是 OwlMail 自身来源 | 放行。包括配置的 Web 主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该来源 |
+| `Origin` 是 OwlMail 自身来源 | 放行。包括配置的 Web 主机与 Web 端口上的回环名称（按本监听器自身实际提供的 scheme），以及设置了 `-web-external-url` 时的该来源 |
 | `Origin` 在 `-mcp-allowed-origins` 中 | 放行。逗号分隔的绝对 `http`/`https` 来源，与上述来源相加而非替换 |
 | 其他 `Origin` | 返回 `403` 与纯文本原因 |
 

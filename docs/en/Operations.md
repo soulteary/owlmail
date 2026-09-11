@@ -396,8 +396,11 @@ on `/mcp` whether or not Basic Auth is configured, because an unauthenticated
 MCP endpoint is exactly the one a browser can reach. A request without an
 `Origin` header is a non-browser client and is allowed; a request that carries
 one must name an OwlMail origin (the configured Web host and the loopback names
-at the Web port, plus `-web-external-url` when set) or an origin listed in
-`-mcp-allowed-origins`, and is otherwise answered with `403`. The endpoint also
+at the Web port, on the scheme this listener itself serves, plus
+`-web-external-url` when set) or an origin listed in `-mcp-allowed-origins`, and
+is otherwise answered with `403`. When TLS terminates at a reverse proxy, the
+listener still answers plain HTTP directly, so both that origin and the
+browser-visible external one are accepted. The endpoint also
 owns its own CORS policy instead of the wildcard one the unauthenticated
 development API still uses: an allowed origin is named exactly and never with
 `Access-Control-Allow-Origin: *`, credentials are permitted so Basic Auth works
