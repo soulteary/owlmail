@@ -21,7 +21,7 @@ flowchart TD
 | `internal/mailserver` | SMTP、MIME 解析、事务存储、查询、保留策略与可选 SQLite 索引 |
 | `internal/attachmentstore` | 本地及可选 S3 兼容附件存储与就绪探测 |
 | `internal/api` | Web UI、原生/兼容 HTTP、WebSocket、指标与 Relay Job |
-| `internal/mcpserver` | 有界只读工具、资源、Prompt、HTTP 会话与 stdio Transport |
+| `internal/mcpserver` | 有界只读工具、资源、Prompt、双时代 HTTP 路由与 stdio Transport |
 | `internal/webhook` | 过滤投递、本地 outbox、可选 Redis Streams、重试与排空 |
 | `internal/outgoing` | 流式出站 SMTP 与 TLS 策略 |
 | `internal/sendmail` | Sendmail 兼容 SMTP 客户端子命令 |

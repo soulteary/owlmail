@@ -24,7 +24,9 @@ or reconfigure the mailbox.
 Connect the MCP client to `http://127.0.0.1:1080/mcp` and supply the Basic Auth
 credentials. With `-base-pathname=/owlmail`, the endpoint is
 `http://127.0.0.1:1080/owlmail/mcp`; the unprefixed path stays unavailable.
-Use HTTPS and network access controls for any non-local endpoint.
+The same endpoint negotiates modern stateless `2026-07-28` clients and legacy
+stateful clients automatically. Use HTTPS and network access controls for any
+non-local endpoint.
 
 ### stdio
 

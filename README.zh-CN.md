@@ -232,8 +232,8 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | 显式启用 MailDev `/api` REST 兼容 facade；仍不支持 Socket.IO |
 | `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | 在跟随基础路径的 `/metrics` 端点暴露 Prometheus 指标；配置 Web Basic Auth 后同样受其保护 |
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
-| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲 MCP 会话 |
-| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 会话的期限 |
+| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲旧版 MCP 会话并限制 wait |
+| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 工作的期限 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
@@ -315,7 +315,8 @@ MCP 默认关闭。使用 `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 启用�
 Streamable HTTP 端点，然后连接 `http://localhost:1080/mcp`。若设置
 `-base-pathname /owlmail`，端点随之变为 `/owlmail/mcp`。MCP 与 Web 共用监听器、
 HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请求也必须携带
-同一组 Basic Auth 凭据。
+同一组 Basic Auth 凭据。该端点可并发服务现代无状态 `2026-07-28` 与旧版有状态
+客户端。
 
 服务提供七个只读工具：在原有轻量查询、深复制详情、有界 source 和附件元数据
 能力上，增加 `get_latest_email` 与事件驱动的 `wait_for_email`。同时提供有界的

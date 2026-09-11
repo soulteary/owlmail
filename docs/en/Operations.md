@@ -372,8 +372,10 @@ CLI flag has highest priority.
 
 ## Read-only MCP for test agents
 
-The MCP server is opt-in and uses the official Go SDK's stateful Streamable
-HTTP transport. Enable it with `-mcp-enabled` or
+The MCP server is opt-in and uses the official Go SDK's dual-era Streamable
+HTTP transport. Modern `2026-07-28` requests are stateless while
+`2025-11-25` and earlier clients retain stateful sessions on the same path.
+Enable it with `-mcp-enabled` or
 `OWLMAIL_MCP_ENABLED=true`. The endpoint is `/mcp` for a root deployment and
 `<base-pathname>/mcp` when a base pathname is configured.
 
@@ -409,8 +411,10 @@ maintaining a second index or returning internal pointers.
 
 `wait_for_email` defaults to 30 seconds and has a hard two-minute maximum; a
 shorter MCP session timeout is also an upper bound. At most four calls per
-session and 64 calls per process may wait concurrently. Client cancellation,
-session deletion or timeout, and process shutdown remove waiters immediately.
+legacy or stdio session and 64 calls per process may wait concurrently. Each
+modern HTTP request has an independent quota scope. Client cancellation,
+modern response-stream closure, legacy session deletion or timeout, and
+process shutdown remove waiters immediately.
 The waiter registry is bounded and receives committed `new` events through one
 mailbox listener, so it neither performs high-frequency polling nor creates a
 background goroutine per waiter.
@@ -430,10 +434,13 @@ the normalized base pathname. For a public reverse-proxy address, set
 HTTP(S) origin without credentials, query, fragment, or path. Continue to set
 the proxy path with `-base-pathname`, for example `/owlmail`.
 
-Multiple clients may hold independent sessions. Unknown IDs return HTTP 404,
+Legacy clients may hold independent sessions. Unknown IDs return HTTP 404,
 client `DELETE` closes a session, and idle sessions close after
-`-mcp-session-timeout` (default `30m`). Process shutdown rejects new MCP work,
-closes active sessions, and waits up to `-mcp-shutdown-timeout` (default `5s`).
+`-mcp-session-timeout` (default `30m`). Modern `2026-07-28` clients use
+request-scoped stateless `POST` calls and do not send `GET`, `DELETE`, or
+`Mcp-Session-Id`. Process shutdown rejects new MCP work, closes active legacy
+sessions, cancels active waits, and waits up to `-mcp-shutdown-timeout`
+(default `5s`).
 
 `get_email_source` reports `encoding: "base64"`, `source_base64`, the number of
 decoded `returned_bytes`, the full source `size`, and whether the read was

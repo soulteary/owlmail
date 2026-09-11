@@ -28,6 +28,8 @@ const (
 	defaultSessionWaiters = 4
 	defaultWaitTimeout    = 30 * time.Second
 	maximumWaitTimeout    = 2 * time.Minute
+	modernProtocolVersion = "2026-07-28"
+	protocolVersionHeader = "Mcp-Protocol-Version"
 )
 
 // Options configures the read-only MCP endpoint.
@@ -40,11 +42,13 @@ type Options struct {
 	MaxWaitTimeout       time.Duration
 }
 
-// Service owns the SDK server, Streamable HTTP handler, and active sessions.
+// Service owns the SDK server, dual-era Streamable HTTP handlers, and active
+// legacy sessions.
 type Service struct {
 	mailbox         *mailserver.MailServer
 	server          *mcp.Server
-	handler         *mcp.StreamableHTTPHandler
+	legacyHandler   *mcp.StreamableHTTPHandler
+	modernHandler   *mcp.StreamableHTTPHandler
 	sessionTimeout  time.Duration
 	shutdownTimeout time.Duration
 	maxWaitTimeout  time.Duration
@@ -123,11 +127,17 @@ func New(mailbox *mailserver.MailServer, options Options) (*Service, error) {
 	if err := mailbox.OnWithConcurrency("new", 1, service.waiters.notify); err != nil {
 		return nil, fmt.Errorf("register MCP new-email listener: %w", err)
 	}
-	service.handler = mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+	getServer := func(*http.Request) *mcp.Server {
 		return server
-	}, &mcp.StreamableHTTPOptions{
+	}
+	service.legacyHandler = mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
 		JSONResponse:   true,
 		SessionTimeout: options.SessionTimeout,
+	})
+	service.modernHandler = mcp.NewStreamableHTTPHandler(getServer, &mcp.StreamableHTTPOptions{
+		JSONResponse:                 true,
+		Stateless:                    true,
+		PropagateRequestCancellation: true,
 	})
 	return service, nil
 }
@@ -141,19 +151,31 @@ func (service *Service) RunStdio(ctx context.Context) error {
 	return service.server.Run(ctx, &mcp.StdioTransport{})
 }
 
-// ServeHTTP serves the official MCP Streamable HTTP transport.
+// ServeHTTP serves both MCP eras on the same Streamable HTTP endpoint. Modern
+// 2026-07-28 requests carry their version on every request and are stateless;
+// legacy clients retain their initialize handshake and server-side session.
 func (service *Service) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	if !service.beginRequest(writer, request) {
+	handler, legacy := service.handlerForRequest(request)
+	if !service.beginRequest(writer, request, legacy) {
 		return
 	}
 	defer service.requests.Done()
 
 	response := &statusWriter{ResponseWriter: writer}
-	service.handler.ServeHTTP(response, request)
-	service.finishRequest(request, response.Header().Get("Mcp-Session-Id"), response.statusCode())
+	handler.ServeHTTP(response, request)
+	if legacy {
+		service.finishRequest(request, response.Header().Get("Mcp-Session-Id"), response.statusCode())
+	}
 }
 
-func (service *Service) beginRequest(writer http.ResponseWriter, request *http.Request) bool {
+func (service *Service) handlerForRequest(request *http.Request) (*mcp.StreamableHTTPHandler, bool) {
+	if request.Header.Get(protocolVersionHeader) >= modernProtocolVersion {
+		return service.modernHandler, false
+	}
+	return service.legacyHandler, true
+}
+
+func (service *Service) beginRequest(writer http.ResponseWriter, request *http.Request, legacy bool) bool {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	if service.closing {
@@ -161,7 +183,7 @@ func (service *Service) beginRequest(writer http.ResponseWriter, request *http.R
 		return false
 	}
 	service.requests.Add(1)
-	if request.Method == http.MethodPost {
+	if legacy && request.Method == http.MethodPost {
 		if timer := service.sessions[request.Header.Get("Mcp-Session-Id")]; timer != nil {
 			timer.Stop()
 		}
@@ -232,7 +254,7 @@ func (service *Service) terminateSession(sessionID string) {
 		return
 	}
 	request.Header.Set("Mcp-Session-Id", sessionID)
-	service.handler.ServeHTTP(&discardResponseWriter{header: make(http.Header)}, request)
+	service.legacyHandler.ServeHTTP(&discardResponseWriter{header: make(http.Header)}, request)
 	service.forgetSession(sessionID)
 }
 

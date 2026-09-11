@@ -182,6 +182,47 @@ func TestEmailQueryNormalizesSortAndInclusiveDateTo(t *testing.T) {
 	}
 }
 
+func TestHTTPServesModernAndLegacyProtocolsConcurrently(t *testing.T) {
+	mailbox := newTestMailbox(t)
+	service := newTestService(t, mailbox, time.Minute)
+	httpServer := httptest.NewServer(service)
+	t.Cleanup(httpServer.Close)
+
+	modern := connectModernTestClient(t, httpServer.URL)
+	if got := modern.InitializeResult().ProtocolVersion; got != modernProtocolVersion {
+		t.Fatalf("modern protocol = %q, want %q", got, modernProtocolVersion)
+	}
+	waitForSessionCount(t, service, 0)
+
+	legacy := connectTestClient(t, httpServer.URL)
+	if got := legacy.InitializeResult().ProtocolVersion; got != "2025-11-25" {
+		t.Fatalf("legacy protocol = %q, want 2025-11-25", got)
+	}
+	waitForSessionCount(t, service, 1)
+
+	for name, session := range map[string]*mcp.ClientSession{
+		"modern": modern,
+		"legacy": legacy,
+	} {
+		var page emailPage
+		callTool(t, session, "list_emails", map[string]any{"limit": 1}, &page)
+		if page.Total != 2 || len(page.Emails) != 1 {
+			t.Fatalf("%s list result = %#v", name, page)
+		}
+	}
+
+	if err := modern.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// Closing a stateless modern client must not touch the concurrently active
+	// legacy session.
+	waitForSessionCount(t, service, 1)
+	if err := legacy.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForSessionCount(t, service, 0)
+}
+
 func TestConcurrentSessionsUnknownIDsAndClientClose(t *testing.T) {
 	mailbox := newTestMailbox(t)
 	service := newTestService(t, mailbox, time.Minute)
@@ -192,13 +233,14 @@ func TestConcurrentSessionsUnknownIDsAndClientClose(t *testing.T) {
 	sessions := make([]*mcp.ClientSession, sessionCount)
 	var wait sync.WaitGroup
 	errorsBySession := make(chan error, sessionCount)
+	httpClient := newLegacyHTTPClient()
 	for index := range sessions {
 		wait.Add(1)
 		go func(index int) {
 			defer wait.Done()
 			client := mcp.NewClient(&mcp.Implementation{Name: fmt.Sprintf("test-%d", index), Version: "1"}, nil)
 			session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
-				Endpoint: httpServer.URL, DisableStandaloneSSE: true,
+				Endpoint: httpServer.URL, HTTPClient: httpClient, DisableStandaloneSSE: true,
 			}, nil)
 			if err == nil {
 				sessions[index] = session
@@ -379,7 +421,22 @@ func newTestService(t *testing.T, mailbox *mailserver.MailServer, sessionTimeout
 
 func connectTestClient(t *testing.T, endpoint string) *mcp.ClientSession {
 	t.Helper()
+	// The public v1.7 SDK does not expose its protocol-version test override.
+	// Reject its initial modern discovery request locally to model a legacy
+	// client that starts directly with initialize.
 	client := mcp.NewClient(&mcp.Implementation{Name: "owlmail-test", Version: "1"}, nil)
+	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
+		Endpoint: endpoint, HTTPClient: newLegacyHTTPClient(), DisableStandaloneSSE: true,
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return session
+}
+
+func connectModernTestClient(t *testing.T, endpoint string) *mcp.ClientSession {
+	t.Helper()
+	client := mcp.NewClient(&mcp.Implementation{Name: "owlmail-modern-test", Version: "1"}, nil)
 	session, err := client.Connect(context.Background(), &mcp.StreamableClientTransport{
 		Endpoint: endpoint, DisableStandaloneSSE: true,
 	}, nil)
@@ -387,6 +444,30 @@ func connectTestClient(t *testing.T, endpoint string) *mcp.ClientSession {
 		t.Fatal(err)
 	}
 	return session
+}
+
+type legacyClientTransport struct {
+	next http.RoundTripper
+}
+
+func newLegacyHTTPClient() *http.Client {
+	return &http.Client{Transport: legacyClientTransport{next: http.DefaultTransport}}
+}
+
+func (transport legacyClientTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if request.Header.Get("Mcp-Method") == "server/discover" {
+		_ = request.Body.Close()
+		body := "legacy client does not issue server/discover"
+		return &http.Response{
+			StatusCode:    http.StatusNotFound,
+			Status:        "404 Not Found",
+			Header:        http.Header{"Content-Type": {"text/plain; charset=utf-8"}},
+			Body:          io.NopCloser(strings.NewReader(body)),
+			ContentLength: int64(len(body)),
+			Request:       request,
+		}, nil
+	}
+	return transport.next.RoundTrip(request)
 }
 
 func callTool(t *testing.T, session *mcp.ClientSession, name string, arguments map[string]any, output any) {

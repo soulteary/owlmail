@@ -1,17 +1,33 @@
 # MCP 参考
 
-OwlMail 0.9.0 通过可选的有状态 Streamable HTTP 与 `owlmail mcp-stdio`
+OwlMail 0.9.0 通过兼容两个协议时代的 Streamable HTTP 与 `owlmail mcp-stdio`
 提供同一套只读 MCP。MCP 是检查接口，不是邮箱管理 API。
 
 ## Transport
 
 | 模式 | 启用或启动 | 端点与行为 |
 |---|---|---|
-| HTTP | `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` | `/mcp` 或 `<base-pathname>/mcp`；复用 Web Basic Auth 与 HTTPS |
+| HTTP | `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` | `/mcp` 或 `<base-pathname>/mcp`；现代无状态与旧版有状态客户端复用 Web Basic Auth 与 HTTPS |
 | stdio | `owlmail mcp-stdio -mail-directory DIR` | 从已有目录读取已提交 EML；协议走 stdout，日志走 stderr |
 
-HTTP 会话在 `-mcp-session-timeout` 后过期，默认 `30m`；关闭最多等待
-`-mcp-shutdown-timeout`，默认 `5s`。
+## 协议兼容性
+
+MCP 规范使用日期作为协议版本。社区常说的“MCP 2.0”和“MCP 1.x”指两个协议时代，
+并不是官方语义版本；两个时代底层都使用 JSON-RPC 2.0。
+
+| 时代 | 协议版本 | HTTP 行为 |
+|---|---|---|
+| 现代，常被称为“MCP 2.0” | `2026-07-28` | 使用 `server/discover` 与逐请求 `_meta`；仅使用无状态 `POST`，没有协议会话、独立 `GET` 或会话 `DELETE` |
+| 旧版，常被称为“MCP 1.x” | `2025-11-25` 及更早的受支持修订 | 使用 `initialize` / `notifications/initialized`、有状态 `POST`、可选独立 `GET` 与会话 `DELETE` |
+
+两个时代共用同一 HTTP 路径和工具目录。携带
+`Mcp-Protocol-Version: 2026-07-28` 的请求进入现代 handler；旧版初始化与会话请求
+继续进入现有有状态 handler。官方 SDK 会协商双方支持的最高版本。stdio transport
+也可在同一进程中处理现代 discovery 与旧版 initialization。
+
+旧版 HTTP 会话在 `-mcp-session-timeout` 后过期，默认 `30m`；该值在两个时代中
+仍作为 `wait_for_email` 的等待上限。现代 HTTP 客户端关闭响应流时，请求取消会向下
+传递。进程关闭最多等待 `-mcp-shutdown-timeout`，默认 `5s`。
 
 ## 工具
 
@@ -26,8 +42,9 @@ HTTP 会话在 `-mcp-session-timeout` 后过期，默认 `30m`；关闭最多等
 | `wait_for_email` | 可选 `to`、`subject`、`text`、`timeout_seconds` | 只匹配新投递；事件驱动；默认 30 秒，最长 120 秒 |
 
 `sort_by` 接受 `time`、`subject`、`from`、`size`；`sort_order` 接受 `asc`、
-`desc`；日期格式为 `YYYY-MM-DD`。每个 wait 过滤器最多 1024 字节，每会话最多
-4 个并发 wait，每进程最多 64 个。
+`desc`；日期格式为 `YYYY-MM-DD`。每个 wait 过滤器最多 1024 字节；旧版或 stdio
+会话最多 4 个并发 wait，现代 HTTP 的每个请求使用独立配额范围，全进程仍最多
+64 个 wait。
 
 `get_email_source.max_bytes` 计算解码后字节，因此返回的 base64 JSON 更大。结果包含
 `returned_bytes`、完整 `size` 与 `truncated`。
