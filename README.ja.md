@@ -217,6 +217,7 @@ docker buildx build \
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | `/mcp` で読み取り専用 MCP Streamable HTTP エンドポイントを有効化 |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | アイドル状態の MCP セッションを終了 |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | シャットダウン時に MCP セッションを終了する期限 |
+| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | OwlMail 自身のオリジンに加えて `/mcp` で受け入れるブラウザーオリジン。`*` はオリジン検証を無効化 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |

@@ -78,6 +78,29 @@ uses the smaller of 30 seconds and that effective maximum.
 All prompts compose the read-only tools. They do not grant capabilities beyond
 the tool list.
 
+## Browser origin validation
+
+The HTTP endpoint validates the browser `Origin` header on every request,
+independently of Web Basic Auth. The specification requires this check for
+local HTTP servers: without it any page a developer visits can read the test
+mailbox through `/mcp`, either directly when the deployment is unauthenticated
+or by re-binding an attacker-controlled hostname to the loopback address.
+
+| Request | Outcome |
+|---|---|
+| No `Origin` header | Allowed. Non-browser clients such as `curl`, MCP SDK HTTP clients, and server-to-server callers never send it |
+| `Origin` matching an OwlMail origin | Allowed. The configured Web host and the loopback names at the Web port, plus `-web-external-url` when it is set |
+| `Origin` listed in `-mcp-allowed-origins` | Allowed. Comma-separated absolute `http` or `https` origins, added to the origins above rather than replacing them |
+| Any other `Origin` | `403` with a plain-text reason |
+
+`-mcp-allowed-origins '*'` turns the check off for deployments that control
+browser access at another layer; it cannot be combined with an explicit origin,
+so a typo never silently widens a narrow list. The endpoint also never returns
+`Access-Control-Allow-Origin: *`, which the rest of the unauthenticated
+development API still does.
+
+The stdio transport opens no listener and has no origin to validate.
+
 ## Explicitly unsupported
 
 MCP cannot delete mail, change read state, relay or forward a message, download

@@ -46,6 +46,7 @@ type API struct {
 	metricsEnabled          bool
 	metrics                 *prometheusMetrics
 	mcpHandler              http.Handler
+	mcpAllowedOrigins       []string
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
 	relayRecoveryOnce       sync.Once
@@ -201,6 +202,9 @@ func (api *API) setupRoutes() {
 		// Preserve the open development API's cross-origin compatibility. There
 		// are no browser credentials to expose when authentication is disabled.
 		app.Use(cors.New(cors.Config{
+			// The MCP endpoint performs its own origin validation and must not
+			// advertise a wildcard that would let any page read the mailbox.
+			Next:         func(c fiber.Ctx) bool { return c.Path() == api.route("/mcp") },
 			AllowOrigins: []string{"*"},
 			AllowHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
 			AllowMethods: []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
@@ -269,7 +273,9 @@ func (api *API) setupRoutes() {
 		app.Get(api.route("/metrics"), api.prometheusMetrics)
 	}
 	if api.mcpHandler != nil {
-		app.All(api.route("/mcp"), adaptor.HTTPHandler(api.mcpHandler))
+		// The origin guard is deliberately independent of Basic Auth: an
+		// unauthenticated MCP endpoint is exactly the one a browser can reach.
+		app.All(api.route("/mcp"), api.mcpOriginGuard(), adaptor.HTTPHandler(api.mcpHandler))
 	}
 
 	// Browser UI and local help.

@@ -333,6 +333,20 @@ MCP 被挂载在现有 Web router 内，而不是额外启动独立监听器，�
 - `-base-pathname` 会同时移动 MCP 端点。此时无前缀 `/mcp` 保持 404，不会产生
   根路径认证旁路。
 
+有一项边界**刻意不继承**：无论是否配置 Basic Auth，`/mcp` 都会执行浏览器 Origin
+校验——因为未启用认证的 MCP 端点恰恰是浏览器能够访问的那一个。不带 `Origin` 的
+请求属于非浏览器客户端，直接放行；携带 `Origin` 的请求必须匹配 OwlMail 自身来源
+（配置的 Web 主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该
+来源）或 `-mcp-allowed-origins` 中列出的来源，否则返回 `403`。该端点同时被排除在
+未启用认证时仍然生效的通配 CORS 策略之外，因此永远不会返回
+`Access-Control-Allow-Origin: *`。
+
+当确实需要让其他来源的浏览器访问该端点时，用逗号分隔设置
+`-mcp-allowed-origins`（或 `OWLMAIL_MCP_ALLOWED_ORIGINS`），例如
+`-mcp-allowed-origins https://inspector.example`。每个值必须是不含路径、查询、
+片段和凭据的绝对 `http`/`https` 来源。单独的 `*` 会关闭校验，且不能与具体来源
+同时出现。无法解析的值会让启动失败，而不是退化成开放端点。
+
 MCP 服务严格只提供七个封闭域、只读工具：
 
 | 工具 | 输出边界 |

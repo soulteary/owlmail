@@ -549,6 +549,15 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		if err != nil {
 			return nil, fmt.Errorf("create MCP service: %w", err)
 		}
+		allowedOrigins, err := mcpAllowedOrigins(cfg)
+		if err != nil {
+			_ = mcpService.Close()
+			return nil, err
+		}
+		if err := apiServer.SetMCPAllowedOrigins(allowedOrigins); err != nil {
+			_ = mcpService.Close()
+			return nil, err
+		}
 		if err := apiServer.SetMCPHandler(mcpService); err != nil {
 			_ = mcpService.Close()
 			return nil, err
@@ -589,6 +598,28 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	return apiServer, nil
+}
+
+// mcpAllowedOrigins collects the browser origins accepted on /mcp beyond the
+// ones the listener already answers on. A configured browser-visible external
+// URL is one of them: telling OwlMail where browsers reach it also tells it
+// which origin is legitimate behind a reverse proxy.
+func mcpAllowedOrigins(cfg *config.Config) ([]string, error) {
+	origins, err := config.ParseMCPAllowedOrigins(cfg.MCPAllowedOrigins)
+	if err != nil {
+		return nil, err
+	}
+	if len(origins) == 1 && origins[0] == config.MCPAllowAnyOrigin {
+		return origins, nil
+	}
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return nil, err
+	}
+	if externalURL != "" {
+		origins = append(origins, externalURL)
+	}
+	return origins, nil
 }
 
 func normalizedWebExternalScheme(cfg *config.Config) (string, error) {

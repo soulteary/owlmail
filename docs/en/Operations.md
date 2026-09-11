@@ -391,6 +391,24 @@ Consequently it inherits all of these boundaries:
 - `-base-pathname` moves the endpoint. The unprefixed `/mcp` path remains 404,
   so a subpath deployment does not gain a root-level bypass.
 
+One boundary is deliberately **not** inherited. Browser origin validation runs
+on `/mcp` whether or not Basic Auth is configured, because an unauthenticated
+MCP endpoint is exactly the one a browser can reach. A request without an
+`Origin` header is a non-browser client and is allowed; a request that carries
+one must name an OwlMail origin (the configured Web host and the loopback names
+at the Web port, plus `-web-external-url` when set) or an origin listed in
+`-mcp-allowed-origins`, and is otherwise answered with `403`. The endpoint also
+stays out of the wildcard CORS policy that the unauthenticated development API
+still uses, so it never returns `Access-Control-Allow-Origin: *`.
+
+Set `-mcp-allowed-origins` (or `OWLMAIL_MCP_ALLOWED_ORIGINS`) to a
+comma-separated list when a browser on another origin must reach the endpoint,
+for example `-mcp-allowed-origins https://inspector.example`. Each value must be
+an absolute `http` or `https` origin without a path, query, fragment, or
+credentials. The single value `*` disables validation and cannot be combined
+with an explicit origin. Startup fails on an unparseable value rather than
+falling back to an open endpoint.
+
 The MCP service exposes exactly seven closed-world, read-only tools:
 
 | Tool | Result boundary |

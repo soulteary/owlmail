@@ -122,6 +122,9 @@ func ValidateConfig(cfg *Config) error {
 	if shutdownTimeout, err := time.ParseDuration(cfg.MCPShutdownTimeout); err != nil || shutdownTimeout <= 0 {
 		return fmt.Errorf("MCP shutdown timeout must be a positive duration")
 	}
+	if _, err := ParseMCPAllowedOrigins(cfg.MCPAllowedOrigins); err != nil {
+		return err
+	}
 	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
 		return fmt.Errorf("mail retention limits cannot be negative")
 	}
@@ -240,6 +243,36 @@ func NormalizeWebExternalURL(value string) (string, error) {
 	parsed.Path = ""
 	parsed.RawPath = ""
 	return parsed.String(), nil
+}
+
+// MCPAllowAnyOrigin disables MCP browser origin validation. It is an explicit
+// opt-out for deployments that control browser access at another layer.
+const MCPAllowAnyOrigin = "*"
+
+// ParseMCPAllowedOrigins converts the comma-separated extra origins accepted on
+// the MCP endpoint into normalized scheme://host[:port] values. OwlMail's own
+// browser-visible origins are always accepted and need not be listed. The
+// wildcard turns validation off entirely and cannot be combined with an origin,
+// so a typo can never silently widen a narrow list.
+func ParseMCPAllowedOrigins(value string) ([]string, error) {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || unicode.IsSpace(r)
+	})
+	origins := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if field == MCPAllowAnyOrigin {
+			if len(fields) != 1 {
+				return nil, fmt.Errorf("MCP allowed origins cannot combine %q with an explicit origin", MCPAllowAnyOrigin)
+			}
+			return []string{MCPAllowAnyOrigin}, nil
+		}
+		origin, err := NormalizeWebExternalURL(field)
+		if err != nil || origin == "" {
+			return nil, fmt.Errorf("MCP allowed origin %q must be an absolute http or https origin without a path", field)
+		}
+		origins = append(origins, origin)
+	}
+	return origins, nil
 }
 
 // NormalizeBasePathname converts a browser-visible URL prefix to the canonical

@@ -98,3 +98,58 @@ func TestValidateMCPTimeouts(t *testing.T) {
 		})
 	}
 }
+
+func TestParseMCPAllowedOrigins(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{name: "empty", value: "", want: []string{}},
+		{name: "single", value: "https://inspector.example", want: []string{"https://inspector.example"}},
+		{
+			name:  "comma and whitespace separated",
+			value: "https://a.example:8443, http://b.example\nhttps://c.example",
+			want:  []string{"https://a.example:8443", "http://b.example", "https://c.example"},
+		},
+		{name: "wildcard", value: "*", want: []string{MCPAllowAnyOrigin}},
+		{name: "trailing slash is a bare origin", value: "https://a.example/", want: []string{"https://a.example"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			origins, err := ParseMCPAllowedOrigins(test.value)
+			if err != nil {
+				t.Fatalf("ParseMCPAllowedOrigins(%q) error = %v", test.value, err)
+			}
+			if len(origins) != len(test.want) {
+				t.Fatalf("ParseMCPAllowedOrigins(%q) = %v, want %v", test.value, origins, test.want)
+			}
+			for index, origin := range origins {
+				if origin != test.want[index] {
+					t.Fatalf("ParseMCPAllowedOrigins(%q) = %v, want %v", test.value, origins, test.want)
+				}
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{name: "not a URL", value: "inspector.example"},
+		{name: "unsupported scheme", value: "ws://inspector.example"},
+		{name: "carries a path", value: "https://inspector.example/mcp"},
+		{name: "carries credentials", value: "https://user:pass@inspector.example"},
+		{name: "wildcard combined with an origin", value: "*,https://inspector.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := ParseMCPAllowedOrigins(test.value); err == nil {
+				t.Fatalf("ParseMCPAllowedOrigins(%q) accepted an invalid value", test.value)
+			}
+			cfg := DefaultConfig()
+			cfg.MCPAllowedOrigins = test.value
+			if err := ValidateConfig(cfg); err == nil {
+				t.Fatal("ValidateConfig accepted an invalid MCP allowed origin")
+			}
+		})
+	}
+}

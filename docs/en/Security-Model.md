@@ -12,7 +12,7 @@ transfer agent or a safe public archive.
 | SMTP 1025 | Listens locally; NO AUTH when both credentials are absent | Keep private; configure both credentials to require AUTH |
 | Web UI and API 1080 | Local listener; no Basic Auth when both Web credentials are absent | Use fixed credentials and HTTPS outside localhost |
 | Health probes | Unauthenticated | Reveal health only; browser origin checks can still reject cross-origin requests |
-| MCP | Disabled | HTTP shares Web auth/TLS/base path; stdio reads one existing mail directory |
+| MCP | Disabled | HTTP shares Web auth/TLS/base path and always validates the browser `Origin`; stdio reads one existing mail directory |
 | MailDev/MailCatcher facades | Disabled | Share the Web boundary and expose compatibility contracts only when enabled |
 | Metrics | Disabled | Protect at the network or reverse-proxy layer when enabled |
 | Webhooks and Relay | Disabled until configured | Send captured content and metadata to operator-selected destinations |
@@ -61,7 +61,8 @@ errors are bounded and do not expose raw downstream errors through status.
 
 - Bind SMTP and Web ports to loopback or a private network.
 - Configure fixed Web credentials and HTTPS for non-local access.
-- Restrict MCP and metrics to intended clients.
+- Restrict MCP and metrics to intended clients; list any browser origin that
+  must reach `/mcp` with `-mcp-allowed-origins` instead of disabling the check.
 - Separate test data from production accounts and infrastructure.
 - Pin the release image by manifest digest for sensitive CI.
 - Back up the complete mail directory before upgrades.

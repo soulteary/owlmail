@@ -283,6 +283,7 @@ type Config struct {
 	MCPEnabled            bool
 	MCPSessionTimeout     string
 	MCPShutdownTimeout    string
+	MCPAllowedOrigins     string
 
 	// HTTPS configuration
 	HTTPSEnabled  bool
@@ -377,6 +378,7 @@ func DefaultConfig() *Config {
 		MCPEnabled:                  false,
 		MCPSessionTimeout:           DefaultMCPSessionTimeout,
 		MCPShutdownTimeout:          DefaultMCPShutdownTimeout,
+		MCPAllowedOrigins:           "",
 		HTTPSEnabled:                false,
 		HTTPSCertFile:               "",
 		HTTPSKeyFile:                "",
@@ -453,6 +455,7 @@ type FlagRefs struct {
 	MCPEnabled                  *bool
 	MCPSessionTimeout           *string
 	MCPShutdownTimeout          *string
+	MCPAllowedOrigins           *string
 	HTTPSEnabled                *bool
 	HTTPSCertFile               *string
 	HTTPSKeyFile                *string
@@ -538,6 +541,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		MCPEnabled:                  fs.Bool("mcp-enabled", cfg.MCPEnabled, "Enable the read-only MCP Streamable HTTP endpoint"),
 		MCPSessionTimeout:           fs.String("mcp-session-timeout", cfg.MCPSessionTimeout, "Idle timeout for legacy MCP sessions and upper bound for waits"),
 		MCPShutdownTimeout:          fs.String("mcp-shutdown-timeout", cfg.MCPShutdownTimeout, "Maximum time to close MCP work during shutdown"),
+		MCPAllowedOrigins:           fs.String("mcp-allowed-origins", cfg.MCPAllowedOrigins, "Comma-separated extra browser origins accepted on /mcp; \"*\" disables origin validation"),
 		HTTPSEnabled:                fs.Bool("https", cfg.HTTPSEnabled, "Enable HTTPS for Web API"),
 		HTTPSCertFile:               fs.String("https-cert", cfg.HTTPSCertFile, "HTTPS certificate file path"),
 		HTTPSKeyFile:                fs.String("https-key", cfg.HTTPSKeyFile, "HTTPS private key file path"),
@@ -630,6 +634,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MCPEnabled:            resolveBoolWithFlag(fs, "mcp-enabled", "OWLMAIL_MCP_ENABLED", *refs.MCPEnabled),
 		MCPSessionTimeout:     resolveStringWithFlag(fs, "mcp-session-timeout", "OWLMAIL_MCP_SESSION_TIMEOUT", *refs.MCPSessionTimeout),
 		MCPShutdownTimeout:    resolveStringWithFlag(fs, "mcp-shutdown-timeout", "OWLMAIL_MCP_SHUTDOWN_TIMEOUT", *refs.MCPShutdownTimeout),
+		MCPAllowedOrigins:     resolveStringWithFlag(fs, "mcp-allowed-origins", "OWLMAIL_MCP_ALLOWED_ORIGINS", *refs.MCPAllowedOrigins),
 
 		HTTPSEnabled:  resolveBoolWithFlag(fs, "https", "OWLMAIL_HTTPS_ENABLED", *refs.HTTPSEnabled),
 		HTTPSCertFile: resolveStringWithFlag(fs, "https-cert", "OWLMAIL_HTTPS_CERT", *refs.HTTPSCertFile),

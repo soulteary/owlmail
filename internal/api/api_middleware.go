@@ -70,3 +70,55 @@ func basicAuthMiddleware(username, password string, skippedPaths ...string) fibe
 		return c.Next()
 	}
 }
+
+// mcpAllowAnyOrigin disables MCP browser origin validation. It is an explicit,
+// documented opt-out for deployments that control browser access elsewhere.
+const mcpAllowAnyOrigin = "*"
+
+// normalizeOrigin reduces a browser Origin header or a configured allow-list
+// entry to its canonical scheme://host[:port] form. Values that are not an
+// absolute http or https origin are rejected rather than partially matched.
+func normalizeOrigin(value string) (string, bool) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return "", false
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.User != nil {
+		return "", false
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return "", false
+	}
+	if parsed.Opaque != "" || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" {
+		return "", false
+	}
+	if parsed.Path != "" && parsed.Path != "/" {
+		return "", false
+	}
+	return scheme + "://" + strings.ToLower(parsed.Host), true
+}
+
+// originAllowed reports whether a browser Origin may reach the MCP endpoint.
+// An absent Origin identifies a non-browser client such as curl, the MCP SDK's
+// HTTP client, or another server, and stays allowed; browsers always send the
+// header on cross-origin requests.
+func originAllowed(origin string, allowed []string) bool {
+	if strings.TrimSpace(origin) == "" {
+		return true
+	}
+	normalized, ok := normalizeOrigin(origin)
+	if !ok {
+		return false
+	}
+	for _, candidate := range allowed {
+		if candidate == mcpAllowAnyOrigin {
+			return true
+		}
+		if candidate == normalized {
+			return true
+		}
+	}
+	return false
+}

@@ -247,6 +247,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
 | `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle legacy MCP sessions and cap waits |
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP work during shutdown |
+| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | Extra browser origins accepted on `/mcp`, in addition to OwlMail's own; `*` disables origin validation |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
 | `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
 | `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
@@ -330,6 +331,18 @@ MCP is disabled by default. Enable the official Streamable HTTP endpoint with
 an authenticated Web deployment therefore requires the same Basic Auth
 credentials for every MCP request. The endpoint serves modern stateless
 `2026-07-28` and legacy stateful clients concurrently.
+
+The endpoint validates the browser `Origin` header on every request, whether
+or not Basic Auth is configured. Requests without an `Origin` header are
+non-browser clients such as `curl`, an MCP SDK HTTP client, or another server,
+and are unaffected. A request that carries an `Origin` must name one of
+OwlMail's own browser-visible origins — the configured Web host, the loopback
+names at the Web port, and `-web-external-url` when it is set — otherwise the
+endpoint answers `403`. This stops an unrelated page the developer happens to
+visit, including one that re-binds a hostname it controls to the loopback
+address, from reading captured mail. Add other browser origins with
+`-mcp-allowed-origins https://inspector.example` (comma-separated), or set it
+to `*` to turn the check off when browser access is controlled elsewhere.
 
 Local MCP clients may instead launch `owlmail mcp-stdio -mail-directory DIR`.
 This reuses the same read-only tools over stdio without opening a listener;
