@@ -118,11 +118,21 @@ the client, so the endpoint owns the whole policy:
 | `Access-Control-Expose-Headers` | `Mcp-Session-Id, Mcp-Protocol-Version` |
 | `Vary` | `Origin`, so a shared cache cannot serve one origin's response to another |
 
+`Vary: Origin` is set on every response from this path, refusals included, so
+a shared cache cannot reuse one origin's outcome for another.
+
 A preflight `OPTIONS` from an allowed origin is answered with `204`, the
 `GET, POST, DELETE, OPTIONS` method list, the MCP request headers, and a
 ten-minute `Access-Control-Max-Age`. Basic Auth does not challenge it, because a
 preflight carries no credentials by design; a preflight from any other origin is
 still refused with `403` and no CORS headers.
+
+Under `-mcp-allowed-origins '*'` no origin has been vouched for, so the endpoint
+returns the plain `Access-Control-Allow-Origin: *` and **no**
+`Access-Control-Allow-Credentials`. Echoing the caller with credentials would
+make the opt-out a stronger grant than the wildcard CORS this endpoint used to
+fall under, which browsers refuse to use with credentials at all; turning the
+check off must not be an upgrade.
 
 The stdio transport opens no listener and has no origin to validate.
 

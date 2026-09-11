@@ -20,7 +20,9 @@ All notable changes to OwlMail are documented in this file. The format follows
   elsewhere. An allowed origin is answered with a CORS policy naming it
   exactly, including credentials, the exposed MCP session headers, and an
   unchallenged preflight, so a permitted browser client can actually read the
-  response.
+  response. The `*` opt-out returns a plain wildcard without credentials, so
+  disabling validation never grants more than the wildcard CORS the endpoint
+  previously fell under.
 
 ### Added
 

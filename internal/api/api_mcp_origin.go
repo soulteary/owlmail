@@ -155,26 +155,53 @@ const mcpCORSMaxAge = "600"
 // response headers, or the browser refuses to hand the response to the client.
 //
 // Requests without an Origin header are non-browser clients and stay allowed.
+// mcpAllowsAnyOrigin reports the documented opt-out, where the operator has
+// turned origin validation off entirely rather than naming any origin.
+func (api *API) mcpAllowsAnyOrigin() bool {
+	for _, origin := range api.mcpAllowedOrigins {
+		if origin == mcpAllowAnyOrigin {
+			return true
+		}
+	}
+	return false
+}
+
 func (api *API) mcpOriginGuard() fiber.Handler {
 	return func(c fiber.Ctx) error {
+		// Every response from this path depends on the Origin header, the
+		// refusals included, so a shared cache must never reuse one origin's
+		// outcome for another.
+		c.Response().Header.Add(fiber.HeaderVary, fiber.HeaderOrigin)
+
 		// Deriving the allow list is pointless for the common case: every
 		// non-browser client reaches this without an Origin header.
 		origin := strings.TrimSpace(c.Get(fiber.HeaderOrigin))
 		if origin == "" {
 			return c.Next()
 		}
-		if !originAllowed(origin, api.mcpOriginAllowList()) {
+
+		anyOrigin := api.mcpAllowsAnyOrigin()
+		if !anyOrigin && !originAllowed(origin, api.mcpOriginAllowList()) {
 			return c.Status(http.StatusForbidden).
 				SendString("MCP request origin is not allowed; configure -mcp-allowed-origins to permit this browser origin")
 		}
 
-		// The origin is one the operator trusts, so it is named exactly rather
-		// than with a wildcard. That keeps the response unreadable by any other
-		// site and is also what allows credentials to be sent at all.
-		c.Set(fiber.HeaderAccessControlAllowOrigin, origin)
-		c.Set(fiber.HeaderAccessControlAllowCredentials, "true")
+		if anyOrigin {
+			// Validation is off, so no origin has been vouched for. Echoing the
+			// caller and allowing credentials would hand every site a
+			// credentialed grant -- strictly more than the wildcard CORS this
+			// endpoint used to fall under, which browsers refuse to use with
+			// credentials at all. The opt-out must not be an upgrade, so it
+			// keeps that weaker, uncredentialed wildcard.
+			c.Set(fiber.HeaderAccessControlAllowOrigin, mcpAllowAnyOrigin)
+		} else {
+			// The origin is one the operator named, so it is echoed exactly
+			// rather than with a wildcard. That keeps the response unreadable by
+			// any other site and is also what allows credentials to be sent.
+			c.Set(fiber.HeaderAccessControlAllowOrigin, origin)
+			c.Set(fiber.HeaderAccessControlAllowCredentials, "true")
+		}
 		c.Set(fiber.HeaderAccessControlExposeHeaders, mcpCORSExposedHeaders)
-		c.Response().Header.Add(fiber.HeaderVary, fiber.HeaderOrigin)
 
 		if c.Method() == fiber.MethodOptions && c.Get(fiber.HeaderAccessControlRequestMethod) != "" {
 			c.Set(fiber.HeaderAccessControlAllowMethods, mcpCORSAllowedMethods)

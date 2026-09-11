@@ -107,10 +107,18 @@ API 仍会返回的 `Access-Control-Allow-Origin: *`。只放行而不给出这�
 | `Access-Control-Expose-Headers` | `Mcp-Session-Id, Mcp-Protocol-Version` |
 | `Vary` | `Origin`，避免共享缓存把一个来源的响应发给另一个来源 |
 
+该路径的**每个**响应都会设置 `Vary: Origin`，包括被拒绝的响应，避免共享缓存把
+一个来源的结果复用给另一个来源。
+
 来自放行来源的 `OPTIONS` 预检返回 `204`，附带 `GET, POST, DELETE, OPTIONS`
 方法列表、MCP 所需请求头，以及十分钟的 `Access-Control-Max-Age`。Basic Auth
 不会对预检发起质询——预检按设计不携带凭据；其他来源的预检仍然返回 `403` 且不
 带任何 CORS 头。
+
+在 `-mcp-allowed-origins '*'` 下没有任何来源被担保，因此该端点返回朴素的
+`Access-Control-Allow-Origin: *`，且**不**返回 `Access-Control-Allow-Credentials`。
+回显调用方并允许携带凭据，会让这个"关闭校验"的选项比该端点原本所处的通配 CORS
+授权更强——浏览器根本不允许通配符携带凭据。关闭校验不应该成为一次升级。
 
 stdio 传输不监听端口，没有需要校验的 Origin。
 

@@ -402,7 +402,10 @@ owns its own CORS policy instead of the wildcard one the unauthenticated
 development API still uses: an allowed origin is named exactly and never with
 `Access-Control-Allow-Origin: *`, credentials are permitted so Basic Auth works
 from it, the MCP session headers are exposed, and a preflight is answered
-without an authentication challenge. All of this applies to every spelling of
+without an authentication challenge. Every response varies by `Origin`. The
+`'*'` opt-out is the one case that returns a plain wildcard and no credentials,
+so turning validation off never grants more than the wildcard CORS the endpoint
+used to fall under. All of this applies to every spelling of
 the path the router dispatches, including a trailing slash and a case variant.
 
 On this path the check also replaces the global same-origin middleware that

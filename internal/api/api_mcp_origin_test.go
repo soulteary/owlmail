@@ -231,6 +231,83 @@ func TestMCPAllowedOriginsWildcardDisablesValidation(t *testing.T) {
 	}
 }
 
+// credentialedMCPRequest issues an authenticated cross-origin MCP request. The
+// credentials matter: without them Basic Auth answers 401 before the endpoint's
+// own policy runs, and an assertion about CORS headers would pass vacuously.
+func credentialedMCPRequest(t *testing.T, api *API, origin string) *http.Response {
+	t.Helper()
+	request, _ := http.NewRequest(http.MethodPost, "/mcp", nil)
+	request.Header.Set("Origin", origin)
+	request.SetBasicAuth("agent", "secret")
+	response, err := api.app.Test(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = response.Body.Close() })
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("credentialed request for %q reached status %d, want 204 from the stub handler", origin, response.StatusCode)
+	}
+	return response
+}
+
+func TestMCPWildcardOptOutNeverGrantsCredentialedCORS(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "agent", "secret")
+	if err := api.SetMCPAllowedOrigins([]string{"*"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Turning validation off must not be an upgrade on the wildcard CORS this
+	// endpoint used to fall under. Echoing the caller with credentials would
+	// hand every site a credentialed grant, which a wildcard cannot carry: the
+	// opt-out would then be a bigger hole than the one origin validation closes.
+	response := credentialedMCPRequest(t, api, "https://evil.example")
+	if value := response.Header.Get("Access-Control-Allow-Origin"); value != "*" {
+		t.Fatalf("wildcard Access-Control-Allow-Origin = %q, want *", value)
+	}
+	if value := response.Header.Get("Access-Control-Allow-Credentials"); value != "" {
+		t.Fatalf("wildcard Access-Control-Allow-Credentials = %q, want empty", value)
+	}
+
+	// A named origin still gets the stronger, exact-origin grant.
+	named := newMCPOriginTestAPI(t, "agent", "secret")
+	if err := named.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
+		t.Fatal(err)
+	}
+	response = credentialedMCPRequest(t, named, "https://inspector.example")
+	if value := response.Header.Get("Access-Control-Allow-Origin"); value != "https://inspector.example" {
+		t.Fatalf("named Access-Control-Allow-Origin = %q", value)
+	}
+	if value := response.Header.Get("Access-Control-Allow-Credentials"); value != "true" {
+		t.Fatalf("named Access-Control-Allow-Credentials = %q, want true", value)
+	}
+}
+
+func TestMCPResponsesAlwaysVaryByOrigin(t *testing.T) {
+	api := newMCPOriginTestAPI(t, "", "")
+
+	// A refusal and a pass-through depend on the Origin header just as much as
+	// an allowed response does, so a shared cache must not reuse either.
+	for _, test := range []struct {
+		name   string
+		origin string
+		status int
+	}{
+		{name: "rejected", origin: "https://evil.example", status: http.StatusForbidden},
+		{name: "non-browser", origin: "", status: http.StatusNoContent},
+		{name: "own origin", origin: "http://localhost:1080", status: http.StatusNoContent},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			response := mcpRequest(t, api, http.MethodPost, "/mcp", test.origin, "")
+			if response.StatusCode != test.status {
+				t.Fatalf("status = %d, want %d", response.StatusCode, test.status)
+			}
+			if !strings.Contains(response.Header.Get("Vary"), "Origin") {
+				t.Fatalf("Vary = %q, want it to include Origin", response.Header.Get("Vary"))
+			}
+		})
+	}
+}
+
 func TestMCPOriginAllowListCoversDefaultPortsAndWildcardBinds(t *testing.T) {
 	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
 	if err != nil {
