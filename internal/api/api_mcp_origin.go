@@ -45,11 +45,16 @@ func (api *API) isMCPPreflight(c fiber.Ctx) bool {
 		api.isMCPPath(c.Path())
 }
 
-// originHost canonicalizes a listen address for use in an origin. An operator
-// may spell an IPv6 address with brackets, and net.JoinHostPort adds its own,
-// so they are stripped first rather than deriving "[[::1]]:1080".
+// originHost prepares a listen address for use in an origin. An operator may
+// spell an IPv6 address with brackets, and net.JoinHostPort adds its own, so
+// they are stripped here rather than deriving "[[::1]]:1080".
+//
+// Case is deliberately left alone: canonicalOrigin owns it, and lowering it
+// early is the same mistake that made a configured "İ.com" resolve to the
+// unrelated "i.com". Applying the rule in one path and not the other is how
+// that class of defect survives a fix.
 func originHost(host string) string {
-	host = strings.ToLower(strings.TrimSpace(host))
+	host = strings.TrimSpace(host)
 	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
 		host = strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")
 	}
@@ -148,7 +153,9 @@ func (api *API) mcpOriginAllowList() []string {
 }
 
 func isWildcardBindHost(host string) bool {
-	_, wildcard := wildcardBindHosts[host]
+	// The keys hold no letters today, but folding here keeps this correct
+	// without depending on a caller having lower-cased first.
+	_, wildcard := wildcardBindHosts[strings.ToLower(host)]
 	return wildcard
 }
 

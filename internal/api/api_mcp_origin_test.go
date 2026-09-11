@@ -736,3 +736,40 @@ func TestMCPOriginMatchingDoesNotWidenOnUnicodeCaseMapping(t *testing.T) {
 		t.Fatalf("status for an underscore host = %d, want 204", status)
 	}
 }
+
+func TestMCPOriginAllowListDerivesListenHostsWithoutPreLowering(t *testing.T) {
+	mailbox, err := mailserver.NewMailServer(1025, "localhost", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = mailbox.Close() }()
+
+	// The listen address takes the same path as a configured origin, so it must
+	// not be lower-cased before IDNA either: "İ" collapses to a plain "i" under
+	// simple case mapping, which would derive an origin for a domain the
+	// operator never named.
+	api := NewAPI(mailbox, 1080, "İ.example")
+	allowed := api.mcpOriginAllowList()
+	if !originAllowed("http://xn--i-9bb.example:1080", allowed) {
+		t.Fatalf("derived allow list rejected the browser's spelling: %v", allowed)
+	}
+	if originAllowed("http://i.example:1080", allowed) {
+		t.Fatalf("derived allow list accepted an unrelated domain: %v", allowed)
+	}
+
+	// Ordinary mixed-case and bracketed spellings still derive correctly.
+	mixed := NewAPI(mailbox, 1080, "LocalHost")
+	if !originAllowed("http://localhost:1080", mixed.mcpOriginAllowList()) {
+		t.Fatalf("mixed-case listen host rejected its own origin: %v", mixed.mcpOriginAllowList())
+	}
+	bracketed := NewAPI(mailbox, 1080, "[2001:0DB8::1]")
+	if !originAllowed("http://[2001:db8::1]:1080", bracketed.mcpOriginAllowList()) {
+		t.Fatalf("bracketed upper-case IPv6 rejected its own origin: %v", bracketed.mcpOriginAllowList())
+	}
+	// A wildcard bind is still recognised whatever its case.
+	for _, host := range []string{"0.0.0.0", "::", "[::]"} {
+		if !isWildcardBindHost(host) {
+			t.Fatalf("isWildcardBindHost(%q) = false", host)
+		}
+	}
+}
