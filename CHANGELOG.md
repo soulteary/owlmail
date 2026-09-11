@@ -25,6 +25,32 @@ All notable changes to OwlMail are documented in this file. The format follows
   previously fell under. Origins are compared the way a browser serializes
   them: default and zero-padded ports, equivalent IP spellings, and
   internationalized domain names all match their canonical form.
+- Captured mail is no longer written into a world-listable directory, and every
+  artifact the storage layer commits now pins its own mode. The mail directory
+  was created `0755`, so any other local account could list the mailbox: message
+  identifiers, `.eml` filenames, sizes, timestamps, and which messages carried
+  attachments. That listing is the exposure this closes, and the mail directory
+  defaults to a path under the shared system temporary directory, so it was the
+  out-of-the-box arrangement rather than an unusual one. Attachment files were
+  additionally created `0644`; on the SMTP capture path their bytes stayed
+  unreachable because the per-message directory holding them was `0700`, but a
+  world-readable mode a directory happens to cover is a latent hole rather than
+  a protection, and `saveAttachmentReaderInDirectory` created that directory
+  `0755` on its own. The mail directory is now `0750`, per-message attachment
+  directories `0700`, and attachment files `0600`. The message body, the
+  metadata sidecar, and the staging file each message is committed through are
+  now pinned with an explicit `chmod` as well, so none of them depends on
+  `os.CreateTemp`'s default or on the umask OwlMail was started under.
+- The tightened modes apply only to artifacts written after the upgrade.
+  Nothing is chmod-ed retroactively, because silently rewriting the modes of an
+  existing mail directory is a surprising side effect of a version bump and
+  would break a deployment that deliberately shares the volume with another
+  container. Operators who want an existing directory tightened can run
+  `chmod 0750 "$MAIL_DIR"`, then
+  `find "$MAIL_DIR" -mindepth 1 -type d -exec chmod 0700 {} +` and
+  `find "$MAIL_DIR" -mindepth 1 -type f -exec chmod 0600 {} +`. No mode is
+  widened: every change here is a tightening or pins a mode that was already
+  correct by accident.
 
 ### Added
 

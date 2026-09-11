@@ -179,7 +179,12 @@ func (ms *MailServer) saveAttachment(id string, attachment *Attachment, data []b
 // transactions pass their private staging directory here; the directory is
 // promoted only after every attachment is durable.
 func (ms *MailServer) saveAttachmentReaderInDirectory(attachmentDir string, attachment *Attachment, data io.Reader) error {
-	if err := os.MkdirAll(attachmentDir, 0755); err != nil {
+	// Attachments carry the same sensitive material as the message bodies
+	// stored beside them, and nothing outside OwlMail's own account needs to
+	// traverse a per-message directory, so it is created stricter than the
+	// 0750 mail directory that contains it. The SMTP path reaches the same
+	// mode by chmod-ing its staging directory before promoting it.
+	if err := os.MkdirAll(attachmentDir, 0700); err != nil {
 		return fmt.Errorf("failed to create attachment directory: %w", err)
 	}
 
@@ -204,7 +209,13 @@ func (ms *MailServer) saveAttachmentReaderInDirectory(attachmentDir string, atta
 			_ = os.Remove(tmpPath)
 		}
 	}()
-	if err := tmp.Chmod(0644); err != nil {
+	// Chmod pins the mode independently of two things the storage layer does
+	// not control: os.CreateTemp's default, which a later standard library
+	// change could widen or narrow, and the operator's umask, which is applied
+	// to that default through open(2) but not to chmod. The attachment is 0600
+	// on every host either way, so the protection is a property of this code
+	// rather than of how OwlMail happens to be launched.
+	if err := tmp.Chmod(0600); err != nil {
 		return fmt.Errorf("failed to set attachment permissions: %w", err)
 	}
 	destination := io.Writer(tmp)

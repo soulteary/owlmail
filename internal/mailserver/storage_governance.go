@@ -321,6 +321,13 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
+	// The sidecar repeats the envelope addresses and attachment names of the
+	// message it describes, so it is pinned to the same mode as the body
+	// instead of being left at os.CreateTemp's default.
+	if err := tmp.Chmod(0600); err != nil {
+		_ = tmp.Close()
+		return err
+	}
 	if _, err := tmp.Write(encoded); err != nil {
 		_ = tmp.Close()
 		return err

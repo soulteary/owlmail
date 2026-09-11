@@ -53,6 +53,27 @@ sidecars are authoritative; S3 policies should be restricted to the configured
 bucket and prefix. Test retention and deletion against a copy before enabling
 limits.
 
+OwlMail writes every durable artifact with a restrictive mode. Message bodies,
+attachments, the metadata sidecars, the webhook outbox, the relay job journal,
+and the SQLite index are `0600`; the per-message attachment directories and the
+relay job directory are `0700`; the mail directory and the quarantine directory
+are `0750`. The owning group can therefore list the mail directory but cannot
+read any captured message or enter a per-message attachment directory, and no
+other local account can do either. An untrusted co-tenant still needs a
+separate account or container, because the group retains that listing.
+
+Every file mode above is pinned with an explicit `chmod` rather than left to
+the mode `os.CreateTemp` requests, because that request is reduced by whatever
+umask OwlMail was started under. The directory modes come from the create call
+and a stricter umask can only narrow them further.
+
+These modes apply to artifacts OwlMail creates. It never changes the mode of a
+directory that already exists, so an upgrade does not rewrite a mail directory
+from an earlier release or a volume whose permissions you set deliberately.
+Tighten an existing directory yourself with `chmod 0750 "$MAIL_DIR"`, then
+`find "$MAIL_DIR" -mindepth 1 -type d -exec chmod 0700 {} +` and
+`find "$MAIL_DIR" -mindepth 1 -type f -exec chmod 0600 {} +`.
+
 Webhook and Relay receivers must tolerate duplicate delivery around crashes.
 Mandatory STARTTLS and SMTPS do not fall back to plaintext. Native v1 Relay job
 errors are bounded and do not expose raw downstream errors through status.

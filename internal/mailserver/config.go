@@ -99,6 +99,12 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		maxRecipients = defaultSMTPMaxRecipients
 	}
 
+	// The mail directory holds every captured message, its attachments, and
+	// the sidecars derived from them, and it defaults to a path under the
+	// shared system temporary directory, so a world-listable mode would expose
+	// the mailbox to every other local account on the host. A directory that
+	// already exists keeps the mode the operator gave it: silently tightening
+	// a mounted volume would break a deployment that deliberately shares it.
 	if options.ReadOnly {
 		info, err := os.Stat(mailDir)
 		if err != nil {
@@ -107,7 +113,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		if !info.IsDir() {
 			return nil, fmt.Errorf("read-only mail path is not a directory")
 		}
-	} else if err := os.MkdirAll(mailDir, 0755); err != nil {
+	} else if err := os.MkdirAll(mailDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create mail directory: %w", err)
 	}
 
