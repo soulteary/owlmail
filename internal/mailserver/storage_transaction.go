@@ -46,11 +46,33 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 		return fmt.Errorf("create temporary email: %w", err)
 	}
 	rawPath := raw.Name()
+	// This file is renamed into place as the committed .eml, so its mode is
+	// the committed message body's mode. Chmod pins it independently of both
+	// os.CreateTemp's default and the operator's umask, so the body's
+	// protection does not rest on either.
+	if err := raw.Chmod(0600); err != nil {
+		_ = raw.Close()
+		_ = os.Remove(rawPath)
+		return fmt.Errorf("secure temporary email: %w", err)
+	}
 	stagedAttachments, err := os.MkdirTemp(ms.mailDir, storageTempPrefix+id+"-attachments-")
 	if err != nil {
 		_ = raw.Close()
 		_ = os.Remove(rawPath)
 		return fmt.Errorf("create temporary attachment directory: %w", err)
+	}
+	// This directory is renamed into place as the committed attachment
+	// directory on the local path, and is the window during which an S3-bound
+	// attachment exists on disk, so its mode is the committed directory's
+	// mode. 0700 is deliberately stricter than the 0750 mail directory holding
+	// it: no account other than OwlMail's own needs to traverse it. Chmod pins
+	// that independently of os.MkdirTemp's default and of the umask, so the
+	// committed mode is not left to whatever those two happened to agree on.
+	if err := os.Chmod(stagedAttachments, 0700); err != nil {
+		_ = raw.Close()
+		_ = os.Remove(rawPath)
+		_ = os.RemoveAll(stagedAttachments)
+		return fmt.Errorf("secure temporary attachment directory: %w", err)
 	}
 	committedAttachments := false
 	committedEML := false
