@@ -31,10 +31,13 @@ func NewMailServerWithConfig(port int, host, mailDir string, outgoingConfig *out
 // NewMailServerWithFullConfig creates a new mail server instance with full configuration including UUID option
 func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig *outgoing.OutgoingConfig, authConfig *SMTPAuthConfig, tlsConfig *TLSConfig, useUUIDForID bool) (*MailServer, error) {
 	return NewMailServerWithOptions(port, host, mailDir, ServerOptions{
-		OutgoingConfig:  outgoingConfig,
-		AuthConfig:      authConfig,
-		TLSConfig:       tlsConfig,
-		UseUUIDForID:    useUUIDForID,
+		OutgoingConfig: outgoingConfig,
+		AuthConfig:     authConfig,
+		TLSConfig:      tlsConfig,
+		UseUUIDForID:   useUUIDForID,
+		// These constructors predate the configurable SMTPS port, so they keep
+		// requesting the listener their callers already rely on.
+		SMTPSPort:       DefaultSMTPSPort,
 		MaxMessageBytes: DefaultMaxMessageBytes,
 	})
 }
@@ -60,6 +63,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	}
 	if options.MaxRecipients < 0 {
 		return nil, fmt.Errorf("SMTP max recipients must be zero or greater")
+	}
+	if options.SMTPSPort < 0 || options.SMTPSPort > 65535 {
+		return nil, fmt.Errorf("SMTPS port must be between 0 and 65535")
 	}
 	if options.AuthRequireTLS && (options.TLSConfig == nil || !options.TLSConfig.Enabled) {
 		return nil, fmt.Errorf("SMTP AUTH cannot require TLS without an enabled TLS configuration")
@@ -130,6 +136,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		readTimeout:             readTimeout,
 		writeTimeout:            writeTimeout,
 		maxRecipients:           maxRecipients,
+		smtpsPort:               options.SMTPSPort,
 		dataLimiter:             newDataLimiter(options.MaxDataConcurrency),
 		attachmentStore:         options.AttachmentStore,
 		attachmentHealth:        options.AttachmentHealth,
@@ -225,10 +232,12 @@ func (ms *MailServer) setupSMTPServer() error {
 
 	ms.smtpServer = s
 
-	// Setup SMTPS server (direct TLS on 465) if TLS is enabled
-	if ms.tlsConfig != nil && ms.tlsConfig.Enabled {
+	// Setup the implicit-TLS (SMTPS) server unless its port is disabled. A
+	// disabled port leaves STARTTLS on the main port as the only encrypted
+	// path, which is what a process that cannot bind a privileged port needs.
+	if ms.tlsConfig != nil && ms.tlsConfig.Enabled && ms.smtpsPort != 0 {
 		smtps := smtp.NewServer(be)
-		smtps.Addr = fmt.Sprintf("%s:465", ms.host)
+		smtps.Addr = fmt.Sprintf("%s:%d", ms.host, ms.smtpsPort)
 		smtps.Domain = "localhost"
 		smtps.ReadTimeout = ms.readTimeout
 		smtps.WriteTimeout = ms.writeTimeout

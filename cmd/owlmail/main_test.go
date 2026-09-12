@@ -1224,6 +1224,67 @@ func TestCreateMailServerRejectsNegativeRecipientLimit(t *testing.T) {
 	}
 }
 
+func TestCreateMailServerUsesConfiguredSMTPSPort(t *testing.T) {
+	tests := []struct {
+		name      string
+		smtpsPort int
+		want      int
+	}{
+		{name: "configured port reaches the server", smtpsPort: 2465, want: 2465},
+		{name: "zero starts no implicit TLS listener", smtpsPort: 0, want: 0},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.MailDir = t.TempDir()
+			cfg.TLSEnabled = true
+			cfg.SMTPSPort = testCase.smtpsPort
+			server, err := createMailServer(cfg)
+			if err != nil {
+				t.Fatalf("createMailServer() error = %v", err)
+			}
+			defer func() { _ = server.Close() }()
+			if got := server.GetSMTPSPort(); got != testCase.want {
+				t.Fatalf("SMTPS port = %d, want %d", got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestDescribeServerStartErrorNamesTheSMTPSRemedy pins the layering: the mail
+// server reports what failed to bind, and this layer is where the flag
+// spellings that fix it are added. Nothing else in OwlMail teaches an operator
+// how to move that listener, so if this wrapping is lost the error becomes a
+// bind failure with no stated remedy.
+func TestDescribeServerStartErrorNamesTheSMTPSRemedy(t *testing.T) {
+	wrapped := describeServerStartError(fmt.Errorf("%w on 127.0.0.1:465: permission denied", mailserver.ErrSMTPSBind))
+	for _, fragment := range []string{"127.0.0.1:465", "permission denied", "-smtps-port", "-smtps-port 0", "STARTTLS"} {
+		if !strings.Contains(wrapped.Error(), fragment) {
+			t.Fatalf("SMTPS start error %q does not mention %q", wrapped, fragment)
+		}
+	}
+	if !errors.Is(wrapped, mailserver.ErrSMTPSBind) {
+		t.Fatal("wrapping dropped the ErrSMTPSBind sentinel")
+	}
+
+	other := describeServerStartError(errors.New("listen tcp 127.0.0.1:1025: address already in use"))
+	if strings.Contains(other.Error(), "-smtps-port") {
+		t.Fatalf("a plain SMTP failure was given the SMTPS remedy: %v", other)
+	}
+}
+
+// TestSMTPSDefaultPortsAgree keeps the two copies of the default from drifting.
+// internal/mailserver deliberately does not import internal/config, so neither
+// package can assert this; cmd/owlmail sees both. The documentation test
+// derives the README default from the config-side constant alone, so a drift
+// would leave the documented default describing a port the server never uses.
+func TestSMTPSDefaultPortsAgree(t *testing.T) {
+	if config.DefaultSMTPSPort != mailserver.DefaultSMTPSPort {
+		t.Fatalf("config.DefaultSMTPSPort = %d, mailserver.DefaultSMTPSPort = %d", config.DefaultSMTPSPort, mailserver.DefaultSMTPSPort)
+	}
+}
+
 // TestStartServers tests the startServers function
 func TestStartServers(t *testing.T) {
 	// Test with nil server

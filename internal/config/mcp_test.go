@@ -2,6 +2,9 @@ package config
 
 import (
 	"flag"
+	"io"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -209,5 +212,67 @@ func TestParseWebAllowedOrigins(t *testing.T) {
 				t.Fatal("ValidateConfig accepted an invalid Web allowed origin")
 			}
 		})
+	}
+}
+
+// TestSMTPSPortConfiguredTracksProvenance covers the distinction the startup
+// warning depends on: whether an operator gave the SMTPS port a value, not what
+// the value is. An explicit 465 with TLS off is a setting the process ignores,
+// and it is identical by value to the default nobody chose.
+func TestSMTPSPortConfiguredTracksProvenance(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		env  map[string]string
+		want bool
+		port int
+	}{
+		{name: "nothing set", want: false, port: DefaultSMTPSPort},
+		{name: "explicit default via flag", args: []string{"-smtps-port", "465"}, want: true, port: 465},
+		{name: "explicit other via flag", args: []string{"-smtps-port", "2465"}, want: true, port: 2465},
+		{name: "explicit zero via flag", args: []string{"-smtps-port", "0"}, want: true, port: 0},
+		{name: "explicit default via env", env: map[string]string{"OWLMAIL_SMTPS_PORT": "465"}, want: true, port: 465},
+		{name: "explicit other via env", env: map[string]string{"OWLMAIL_SMTPS_PORT": "2465"}, want: true, port: 2465},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			for key, value := range testCase.env {
+				t.Setenv(key, value)
+			}
+			fs := flag.NewFlagSet("provenance", flag.ContinueOnError)
+			fs.SetOutput(io.Discard)
+			refs := DefineFlags(fs)
+			if err := fs.Parse(testCase.args); err != nil {
+				t.Fatal(err)
+			}
+			cfg := ResolveConfig(fs, refs)
+			if cfg.SMTPSPortConfigured != testCase.want {
+				t.Fatalf("SMTPSPortConfigured = %v, want %v", cfg.SMTPSPortConfigured, testCase.want)
+			}
+			if cfg.SMTPSPort != testCase.port {
+				t.Fatalf("SMTPSPort = %d, want %d", cfg.SMTPSPort, testCase.port)
+			}
+		})
+	}
+}
+
+// TestSMTPSPortConfiguredFromConfigFile covers the third source. A config file
+// becomes the flag defaults, so without carrying provenance forward a value it
+// supplied would look like one nobody set.
+func TestSMTPSPortConfiguredFromConfigFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "owlmail.yaml")
+	if err := os.WriteFile(path, []byte("smtps-port: 465\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := LoadConfigFile(path)
+	if err != nil {
+		t.Fatalf("LoadConfigFile() error = %v", err)
+	}
+	if !cfg.SMTPSPortConfigured {
+		t.Fatal("a config file that sets smtps-port did not record it as configured")
+	}
+	if cfg.SMTPSPort != 465 {
+		t.Fatalf("SMTPSPort = %d, want 465", cfg.SMTPSPort)
 	}
 }

@@ -882,6 +882,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		ReadTimeout:        readTimeout,
 		WriteTimeout:       writeTimeout,
 		MaxRecipients:      maxRecipients,
+		SMTPSPort:          cfg.SMTPSPort,
 		RetainAllHeaders:   cfg.MailDevRESTCompat,
 		AttachmentStore:    attachmentStore,
 		AttachmentHealth:   healthProvider,
@@ -947,6 +948,18 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	if cfg.TLSEnabled {
 		common.Log("TLS enabled for SMTP server")
 		common.Verbose("TLS certificate: %s, Key: %s", cfg.TLSCertFile, cfg.TLSKeyFile)
+		if cfg.SMTPSPort == 0 {
+			common.Log("Implicit TLS (SMTPS) listener disabled; STARTTLS remains available on the SMTP port")
+		}
+	} else if cfg.SMTPSPortConfigured && cfg.SMTPSPort != 0 {
+		// A configured SMTPS port with TLS off is a configuration that cannot
+		// do what its author asked for. Saying so at startup is the same
+		// contract as failing loudly on a bind: the process must not look like
+		// it honored a setting it ignored. The test is provenance rather than
+		// value, so that an explicit "-smtps-port 465" -- the case most likely
+		// to be a mistake, because it reads as if it enabled something -- is
+		// reported, while the default nobody chose stays quiet.
+		common.Log("SMTPS port %d is ignored because SMTP TLS is not enabled; enable it with -tls", cfg.SMTPSPort)
 	}
 	smtpReady := make(chan struct{})
 	smtpResult := make(chan error, 1)
@@ -956,7 +969,7 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	select {
 	case <-smtpReady:
 	case err := <-smtpResult:
-		return fmt.Errorf("failed to start server: %w", err)
+		return describeServerStartError(err)
 	}
 
 	// Start the API only after inbound SMTP has bound successfully. Relay
@@ -971,10 +984,22 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 	}()
 
 	if err := <-smtpResult; err != nil {
-		return fmt.Errorf("failed to start server: %w", err)
+		return describeServerStartError(err)
 	}
 
 	return nil
+}
+
+// describeServerStartError turns a start failure into something an operator can
+// act on. internal/mailserver reports which listener failed and why, and
+// deliberately names no flag: the spellings that move or disable the
+// implicit-TLS listener belong to this layer, which is where every other
+// flag-named error in OwlMail is written.
+func describeServerStartError(err error) error {
+	if errors.Is(err, mailserver.ErrSMTPSBind) {
+		return fmt.Errorf("failed to start server: %w; the address must be free, and a port below 1024 also requires elevated privileges, so move the listener with -smtps-port or start none with -smtps-port 0 and use STARTTLS on the SMTP port", err)
+	}
+	return fmt.Errorf("failed to start server: %w", err)
 }
 
 type reportedMCPStdioError struct{ err error }

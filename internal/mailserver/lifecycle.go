@@ -10,6 +10,13 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 )
 
+// ErrSMTPSBind reports that the implicit-TLS listener could not take its
+// address. The error states only what this package knows -- which listener
+// failed, at which address, and why. The remedy is a CLI flag, and no other
+// error in this package names one: cmd/owlmail wraps this error and adds the
+// flags that move or disable the listener.
+var ErrSMTPSBind = errors.New("SMTPS listener bind failed")
+
 // AddCloser registers a component whose lifecycle is owned by the mail server.
 func (ms *MailServer) AddCloser(closer io.Closer) error {
 	if closer == nil {
@@ -26,8 +33,9 @@ func (ms *MailServer) Listen() error {
 	return ms.ListenWithReady(nil)
 }
 
-// ListenWithReady binds the primary SMTP listener before calling ready and
-// serving. Binding failures are returned without calling ready.
+// ListenWithReady binds every configured SMTP listener before calling ready
+// and serving. Binding failures are returned without calling ready, so a
+// listener that never came up cannot be reported as a successful start.
 func (ms *MailServer) ListenWithReady(ready func()) error {
 	listener, err := net.Listen("tcp", ms.smtpServer.Addr)
 	if err != nil {
@@ -35,16 +43,26 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	}
 	defer func() { _ = listener.Close() }()
 
-	// Start SMTPS server (465) if configured
+	// The implicit-TLS listener binds here rather than inside the serving
+	// goroutine. Deferring the bind hid its failure behind a log line and left
+	// startup and readiness reporting success with nothing accepting SMTPS,
+	// which clients could only discover as a refused connection. The deferred
+	// close above releases the plain listener when this bind fails, so a
+	// rejected start leaves no port bound.
 	if ms.smtpsServer != nil {
-		go func() {
-			common.Log("owlmail SMTPS Server running at %s:465", ms.host)
-			ln, err := net.Listen("tcp", ms.smtpsServer.Addr)
-			if err != nil {
-				common.Error("Failed to start SMTPS server: %v", err)
-				return
+		smtpsListener, smtpsErr := net.Listen("tcp", ms.smtpsServer.Addr)
+		if smtpsErr != nil {
+			return fmt.Errorf("%w on %s: %w", ErrSMTPSBind, ms.smtpsServer.Addr, smtpsErr)
+		}
+		tlsListener := tls.NewListener(smtpsListener, ms.smtpsServer.TLSConfig)
+		ms.setSMTPSListener(tlsListener)
+		defer func() {
+			if bound := ms.takeSMTPSListener(); bound != nil {
+				_ = bound.Close()
 			}
-			tlsListener := tls.NewListener(ln, ms.smtpsServer.TLSConfig)
+		}()
+		common.Log("owlmail SMTPS Server running at %s", ms.smtpsServer.Addr)
+		go func() {
 			if err := ms.smtpsServer.Serve(tlsListener); err != nil {
 				common.Error("SMTPS server error: %v", err)
 			}
@@ -92,6 +110,17 @@ func (ms *MailServer) Close() error {
 		if err := ms.smtpsServer.Close(); err != nil {
 			closeErrors = append(closeErrors, err)
 		}
+		// smtp.Server.Close only closes the listeners Serve has registered, and
+		// startup hands Serve the implicit-TLS listener from a goroutine. A
+		// shutdown that wins that race would otherwise leave the SMTPS port
+		// bound for the life of the process. In the ordinary case Serve did
+		// register it and the Close above already closed it, so this close
+		// reports "use of closed network connection"; that is the expected
+		// outcome of the race rather than a shutdown failure, which is why it
+		// is not collected.
+		if bound := ms.takeSMTPSListener(); bound != nil {
+			_ = bound.Close()
+		}
 	}
 	if err := ms.smtpServer.Close(); err != nil {
 		closeErrors = append(closeErrors, err)
@@ -125,4 +154,23 @@ func (ms *MailServer) Close() error {
 	}()
 
 	return errors.Join(closeErrors...)
+}
+
+// setSMTPSListener records the bound implicit-TLS listener for shutdown.
+func (ms *MailServer) setSMTPSListener(listener net.Listener) {
+	ms.smtpsListenerMutex.Lock()
+	defer ms.smtpsListenerMutex.Unlock()
+	ms.smtpsListener = listener
+}
+
+// takeSMTPSListener hands the bound implicit-TLS listener to the first caller
+// that asks for it. Both the startup path and Close have to be able to release
+// the port, and neither can know which of them runs first; clearing the field
+// under the mutex gives the listener exactly one owner.
+func (ms *MailServer) takeSMTPSListener() net.Listener {
+	ms.smtpsListenerMutex.Lock()
+	defer ms.smtpsListenerMutex.Unlock()
+	listener := ms.smtpsListener
+	ms.smtpsListener = nil
+	return listener
 }

@@ -63,6 +63,7 @@ func TestNewMailServerWithCustomMessageLimit(t *testing.T) {
 	server, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{
 		MaxMessageBytes: limit,
 		TLSConfig:       &TLSConfig{Enabled: true},
+		SMTPSPort:       DefaultSMTPSPort,
 	})
 	if err != nil {
 		t.Fatalf("NewMailServerWithOptions() error = %v", err)
@@ -212,5 +213,54 @@ func TestNewMailServerWithFullConfigControlsGeneratedIDs(t *testing.T) {
 				t.Fatalf("generated ID length = %d, want 8", len(emails[0].ID))
 			}
 		})
+	}
+}
+
+func TestSMTPSPortSelectsListenerAddress(t *testing.T) {
+	tests := []struct {
+		name         string
+		smtpsPort    int
+		wantAddress  string
+		wantDisabled bool
+	}{
+		{name: "default port keeps the historical listener", smtpsPort: DefaultSMTPSPort, wantAddress: "127.0.0.1:465"},
+		{name: "unprivileged port replaces it", smtpsPort: 2465, wantAddress: "127.0.0.1:2465"},
+		{name: "zero starts no listener", smtpsPort: 0, wantDisabled: true},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			server, err := NewMailServerWithOptions(1025, "127.0.0.1", t.TempDir(), ServerOptions{
+				TLSConfig: &TLSConfig{Enabled: true},
+				SMTPSPort: testCase.smtpsPort,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = server.Close() }()
+			if testCase.wantDisabled {
+				if server.smtpsServer != nil {
+					t.Fatalf("SMTPS server was configured at %s, want none", server.smtpsServer.Addr)
+				}
+				return
+			}
+			if server.smtpsServer == nil {
+				t.Fatal("SMTPS server was not configured")
+			}
+			if server.smtpsServer.Addr != testCase.wantAddress {
+				t.Fatalf("SMTPS address = %q, want %q", server.smtpsServer.Addr, testCase.wantAddress)
+			}
+		})
+	}
+}
+
+func TestNewMailServerRejectsUnusableSMTPSPort(t *testing.T) {
+	for _, smtpsPort := range []int{-1, 65536} {
+		_, err := NewMailServerWithOptions(1025, "127.0.0.1", t.TempDir(), ServerOptions{
+			TLSConfig: &TLSConfig{Enabled: true},
+			SMTPSPort: smtpsPort,
+		})
+		if err == nil || !strings.Contains(err.Error(), "SMTPS port") {
+			t.Fatalf("SMTPS port %d error = %v, want clear configuration error", smtpsPort, err)
+		}
 	}
 }

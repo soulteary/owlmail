@@ -1,12 +1,17 @@
 package mailserver
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
@@ -139,7 +144,11 @@ func TestListenWithTLS(t *testing.T) {
 		// CertFile and KeyFile are empty, so it will generate self-signed cert
 	}
 
-	server, err := NewMailServerWithConfig(0, "localhost", tmpDir, nil, nil, tlsConfig)
+	// The default SMTPS port is privileged, and this test binds it for real.
+	server, err := NewMailServerWithOptions(0, "localhost", tmpDir, ServerOptions{
+		TLSConfig: tlsConfig,
+		SMTPSPort: freePort(t),
+	})
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
@@ -196,7 +205,11 @@ func TestListenWithAuthAndTLS(t *testing.T) {
 		Enabled: true,
 	}
 
-	server, err := NewMailServerWithConfig(0, "localhost", tmpDir, nil, authConfig, tlsConfig)
+	server, err := NewMailServerWithOptions(0, "localhost", tmpDir, ServerOptions{
+		AuthConfig: authConfig,
+		TLSConfig:  tlsConfig,
+		SMTPSPort:  freePort(t),
+	})
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
@@ -460,7 +473,10 @@ func TestListenWithSMTPSErrorHandling(t *testing.T) {
 		Enabled: true,
 	}
 
-	server, err := NewMailServerWithConfig(0, "localhost", tmpDir, nil, nil, tlsConfig)
+	server, err := NewMailServerWithOptions(0, "localhost", tmpDir, ServerOptions{
+		TLSConfig: tlsConfig,
+		SMTPSPort: freePort(t),
+	})
 	if err != nil {
 		t.Fatalf("Failed to create mail server: %v", err)
 	}
@@ -520,4 +536,232 @@ func TestCloseEventChan(t *testing.T) {
 	default:
 		t.Error("eventChan should be closed and readable")
 	}
+}
+
+// freePort reserves an ephemeral port and releases it again. Tests that need a
+// bind to succeed use it instead of the privileged default SMTPS port, which a
+// non-root test runner cannot bind at all.
+func freePort(t *testing.T) int {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return port
+}
+
+func TestListenWithReadyReturnsSMTPSBindFailure(t *testing.T) {
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = occupied.Close() }()
+	smtpsPort := occupied.Addr().(*net.TCPAddr).Port
+
+	server, err := NewMailServerWithOptions(freePort(t), "127.0.0.1", t.TempDir(), ServerOptions{
+		TLSConfig: &TLSConfig{Enabled: true},
+		SMTPSPort: smtpsPort,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+
+	// ListenWithReady runs off the test goroutine so a regression that goes
+	// back to serving the plain listener fails on this deadline rather than
+	// blocking in Serve until the package timeout kills the whole run.
+	ready := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+	select {
+	case err = <-result:
+	case <-ready:
+		t.Fatal("ready callback ran even though the SMTPS listener never bound")
+	case <-time.After(5 * time.Second):
+		t.Fatal("ListenWithReady neither returned nor reported ready")
+	}
+	if err == nil {
+		t.Fatal("ListenWithReady succeeded with an occupied SMTPS address")
+	}
+	if !errors.Is(err, ErrSMTPSBind) {
+		t.Fatalf("SMTPS bind failure = %v, want it to wrap ErrSMTPSBind", err)
+	}
+	if !strings.Contains(err.Error(), occupied.Addr().String()) {
+		t.Fatalf("SMTPS bind error %q does not name the address it failed on", err)
+	}
+
+	reclaimed, err := net.Listen("tcp", server.smtpServer.Addr)
+	if err != nil {
+		t.Fatalf("plain SMTP listener stayed bound after the SMTPS bind failed: %v", err)
+	}
+	_ = reclaimed.Close()
+}
+
+func TestListenWithReadyStartsNoSMTPSListenerWhenPortIsZero(t *testing.T) {
+	server, err := NewMailServerWithOptions(freePort(t), "127.0.0.1", t.TempDir(), ServerOptions{
+		TLSConfig: &TLSConfig{Enabled: true},
+		SMTPSPort: 0,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if server.smtpsServer != nil {
+		t.Fatal("SMTPS port 0 still configured an implicit-TLS server")
+	}
+	if server.smtpServer.TLSConfig == nil {
+		t.Fatal("disabling SMTPS also removed STARTTLS from the SMTP port")
+	}
+
+	ready := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+	select {
+	case <-ready:
+	case err := <-result:
+		t.Fatalf("ListenWithReady returned before signaling ready: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListenWithReady never signaled ready")
+	}
+	if listener := server.takeSMTPSListener(); listener != nil {
+		_ = listener.Close()
+		t.Fatal("SMTPS port 0 still bound a listener")
+	}
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	select {
+	case <-result:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListenWithReady did not return after Close")
+	}
+}
+
+func TestCloseReleasesSMTPSPortBoundByListen(t *testing.T) {
+	smtpsPort := freePort(t)
+	server, err := NewMailServerWithOptions(freePort(t), "127.0.0.1", t.TempDir(), ServerOptions{
+		TLSConfig: &TLSConfig{Enabled: true},
+		SMTPSPort: smtpsPort,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+	select {
+	case <-ready:
+	case err := <-result:
+		t.Fatalf("ListenWithReady returned before signaling ready: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListenWithReady never signaled ready")
+	}
+	// Reclaiming the port is not on its own evidence that startup handed Close
+	// something to release: when the listener is opened inside the serving
+	// goroutine instead, that goroutine usually wins the race and registers it
+	// with go-smtp, so Close frees the port anyway and the port check passes.
+	// The registration below is what makes the release deterministic, and it
+	// never happens under that arrangement.
+	server.smtpsListenerMutex.Lock()
+	registered := server.smtpsListener != nil
+	server.smtpsListenerMutex.Unlock()
+	if !registered {
+		t.Fatal("startup did not register the SMTPS listener for Close to release")
+	}
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	select {
+	case <-result:
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListenWithReady did not return after Close")
+	}
+
+	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(smtpsPort))
+	reclaimed, err := net.Listen("tcp", address)
+	if err != nil {
+		t.Fatalf("SMTPS listener stayed bound after Close: %v", err)
+	}
+	_ = reclaimed.Close()
+}
+
+// TestListenWithReadyLogsSMTPSOnlyAfterBinding pins the half of the fix the
+// port assertions cannot see. Announcing the listener before the bind, and
+// announcing a port the code had hardcoded rather than the one it took, is how
+// the old arrangement told operators a listener was running when none was: the
+// log was the only evidence they had, and it was written unconditionally.
+func TestListenWithReadyLogsSMTPSOnlyAfterBinding(t *testing.T) {
+	captured := captureServerLog(t)
+
+	smtpsPort := freePort(t)
+	server, err := NewMailServerWithOptions(0, "127.0.0.1", t.TempDir(), ServerOptions{
+		TLSConfig: &TLSConfig{Enabled: true},
+		SMTPSPort: smtpsPort,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ready := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+	select {
+	case <-ready:
+	case err := <-result:
+		t.Fatalf("ListenWithReady returned before signaling ready: %v", err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("ListenWithReady never signaled ready")
+	}
+	if err := server.Close(); err != nil {
+		t.Fatalf("Close failed: %v", err)
+	}
+	<-result
+
+	logged := captured.String()
+	if want := "SMTPS Server running at 127.0.0.1:" + strconv.Itoa(smtpsPort); !strings.Contains(logged, want) {
+		t.Fatalf("startup log does not announce the bound SMTPS port %q:\n%s", want, logged)
+	}
+
+	captured.Reset()
+	occupied, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = occupied.Close() }()
+
+	failing, err := NewMailServerWithOptions(0, "127.0.0.1", t.TempDir(), ServerOptions{
+		TLSConfig: &TLSConfig{Enabled: true},
+		SMTPSPort: occupied.Addr().(*net.TCPAddr).Port,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = failing.Close() }()
+
+	failed := make(chan error, 1)
+	go func() { failed <- failing.ListenWithReady(func() {}) }()
+	select {
+	case err := <-failed:
+		if err == nil {
+			t.Fatal("ListenWithReady succeeded with an occupied SMTPS address")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("ListenWithReady did not return after the SMTPS bind failed")
+	}
+	if strings.Contains(captured.String(), "SMTPS Server running") {
+		t.Fatalf("a failed SMTPS bind still announced a running listener:\n%s", captured.String())
+	}
+}
+
+// captureServerLog redirects the package-level logger for one test and puts it
+// back afterwards. The logger is process-global, so this is safe only because
+// no test in this package calls t.Parallel.
+func captureServerLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	captured := &bytes.Buffer{}
+	common.InitLoggerOutput(common.LogLevelNormal, captured)
+	t.Cleanup(func() { common.InitLogger(common.LogLevelNormal) })
+	return captured
 }
