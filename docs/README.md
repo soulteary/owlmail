@@ -36,7 +36,7 @@ Select your preferred language:
 - [Operations and Troubleshooting](./en/Operations.md)
 - [Sendmail-compatible CLI](./en/Sendmail.md)
 - [Release Process](./en/Releasing.md)
-- [OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./en/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit - Feature, API, and Migration Guide](./en/Comparison-and-Migration.md)
 - [API Refactoring Record (historical)](./en/internal/API_Refactoring_Record.md)
 - [Webhook Forwarding](./en/Webhook-Forwarding.md)
 - [Webhook Scenario Examples](../examples/webhooks/README.md)
@@ -61,7 +61,7 @@ Select your preferred language:
 - [运维与排障](./zh-CN/Operations.md)
 - [Sendmail 兼容 CLI](./zh-CN/Sendmail.md)
 - [发布流程](./zh-CN/Releasing.md)
-- [OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./zh-CN/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit - 功能、API 与迁移指南](./zh-CN/Comparison-and-Migration.md)
 - [API 重构记录（历史资料）](./zh-CN/internal/API_Refactoring_Record.md)
 - [Webhook 消息转发](./zh-CN/Webhook-Forwarding.md)
 - [Webhook 场景示例](../examples/webhooks/README.zh-CN.md)
@@ -74,7 +74,7 @@ Select your preferred language:
 
 ### Verfügbare Dokumente
 
-- [OwlMail × MailDev - Vollständiger Funktions- und API-Vergleich sowie Migrations-Whitepaper](./de/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit - Funktions-, API- und Migrationsleitfaden](./de/Comparison-and-Migration.md)
 - [API-Refactoring-Aufzeichnung](./de/internal/API_Refactoring_Record.md)
 - Gemeinsame Referenzen: [0.9.0 Release Notes (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [Sendmail-kompatible CLI](./de/Sendmail.md)
@@ -87,7 +87,7 @@ Select your preferred language:
 
 ### Documents disponibles
 
-- [OwlMail × MailDev : Livre blanc complet sur les fonctionnalités, l'API et la migration](./fr/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit : guide des fonctionnalités, de l'API et de la migration](./fr/Comparison-and-Migration.md)
 - [Enregistrement de la refactorisation de l'API](./fr/internal/API_Refactoring_Record.md)
 - Références partagées : [Notes de version 0.9.0 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [CLI compatible sendmail](./fr/Sendmail.md)
@@ -100,7 +100,7 @@ Select your preferred language:
 
 ### Documenti disponibili
 
-- [OwlMail × MailDev: Libro bianco completo su funzionalità, API e migrazione](./it/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit: guida a funzionalità, API e migrazione](./it/Comparison-and-Migration.md)
 - [Registro della Refactorizzazione dell'API](./it/internal/API_Refactoring_Record.md)
 - Riferimenti condivisi: [Note di rilascio 0.9.0 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [CLI compatibile con sendmail](./it/Sendmail.md)
@@ -113,7 +113,7 @@ Select your preferred language:
 
 ### 利用可能なドキュメント
 
-- [OwlMail × MailDev: 完全な機能と API の比較および移行ホワイトペーパー](./ja/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit: 機能・API・移行ガイド](./ja/Comparison-and-Migration.md)
 - [API リファクタリング記録](./ja/internal/API_Refactoring_Record.md)
 - 共通リファレンス：[0.9.0 リリースノート (English)](./en/Release-0.9.0.md)、[API (English)](./en/API-Reference.md)、[OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)、[Operations (English)](./en/Operations.md)、[Webhook (English)](./en/Webhook-Forwarding.md)
 - [sendmail 互換 CLI](./ja/Sendmail.md)
@@ -126,7 +126,7 @@ Select your preferred language:
 
 ### 사용 가능한 문서
 
-- [OwlMail × MailDev: 전체 기능 및 API 비교 및 마이그레이션 화이트페이퍼](./ko/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit: 기능, API 및 마이그레이션 가이드](./ko/Comparison-and-Migration.md)
 - [API 리팩토링 기록](./ko/internal/API_Refactoring_Record.md)
 - 공통 참조: [0.9.0 릴리스 노트 (English)](./en/Release-0.9.0.md), [API (English)](./en/API-Reference.md), [OpenAPI JSON](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml), [Operations (English)](./en/Operations.md), [Webhook (English)](./en/Webhook-Forwarding.md)
 - [sendmail 호환 CLI](./ko/Sendmail.md)

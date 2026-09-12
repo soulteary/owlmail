@@ -68,8 +68,8 @@
   - **可运行示例**：[最小、过滤、自定义、多目标、纯文本与 Compose 联动](../../examples/webhooks/README.zh-CN.md)
   - **其他语言**：[English](../en/Webhook-Forwarding.md)
 
-- **[OwlMail × MailDev - 功能与 API 完整对比与迁移白皮书](./Comparison-and-Migration.md)**
-  - 基于源码核对两者的能力差异、API 不兼容项与迁移检查清单。
+- **[OwlMail × MailDev × MailCatcher × Mailpit - 功能、API 与迁移指南](./Comparison-and-Migration.md)**
+  - 基于源码核对四者的能力差异、API 不兼容项与迁移检查清单，每个项目都固定到已审查的提交。
   - **其他语言**: [English](../en/Comparison-and-Migration.md) | [Deutsch](../de/Comparison-and-Migration.md) | [Français](../fr/Comparison-and-Migration.md) | [Italiano](../it/Comparison-and-Migration.md) | [日本語](../ja/Comparison-and-Migration.md) | [한국어](../ko/Comparison-and-Migration.md)
 
 ### 历史内部文档
@@ -88,7 +88,7 @@
 
 文档按语言组织在不同的目录中。每个语言目录包含：
 - `README.md` - 该语言的文档索引
-- 主要文档（如迁移白皮书）
+- 主要文档（如对比与迁移指南）
 - `internal/` 子目录 - 历史实现记录
 
 要切换语言，请使用本页顶部的语言选择器或访问[主文档索引](../README.md)。

@@ -410,4 +410,4 @@ ID 视为不透明字符串。
 5. 在预发布环境验证删除、中继、附件、鉴权和错误路径。
 
 更完整的功能比较见
-[迁移白皮书](./Comparison-and-Migration.md)。
+[功能、API 与迁移指南](./Comparison-and-Migration.md)。

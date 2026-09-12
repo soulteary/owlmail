@@ -1,4 +1,4 @@
-# OwlMail × MailDev × MailCatcher: 完全な機能と API の比較および移行ホワイトペーパー
+# OwlMail × MailDev × MailCatcher × Mailpit: 機能・API・移行ガイド
 
 > **ソースコードレベルの詳細比較 + ユーザーと開発者向けの移行ガイド**
 
@@ -14,12 +14,12 @@
 
 ## 📋 エグゼクティブサマリー
 
-OwlMail、MailDev、MailCatcher は基本的な開発ワークフローを共有しますが、**プロトコルが
+OwlMail、MailDev、MailCatcher、Mailpit は基本的な開発ワークフローを共有しますが、**プロトコルが
 同一ではなく、検証なしに置き換えることはできません**。API プレフィックス、
 レスポンス、既読状態、リアルタイム通信が異なります。現在の境界は
 [API リファレンス](../en/API-Reference.md)を参照してください。
 
-OwlMail 0.9.0 は、既定で無効の読み取り専用 MCP インターフェースを Streamable HTTP と stdio で提供します。MailDev 3 の MCP はより広範で、MailCatcher に組み込み MCP はありません。既定で無効の `-maildev-rest-compat` を有効にすると、現在の MailDev REST
+OwlMail 0.9.0 は、既定で無効の読み取り専用 MCP インターフェースを Streamable HTTP と stdio で提供します。MailDev 3 の MCP はより広範で、MailCatcher と Mailpit に組み込み MCP はありません。Mailpit 向けの互換 facade もありません。既定で無効の `-maildev-rest-compat` を有効にすると、現在の MailDev REST
 ルートが `/api` 配下に追加されます。Socket.IO 互換性は提供されません。
 
 > **注**：翻訳が完了すると、完全なコンテンツが利用可能になります。それまでの間、完全な詳細については英語版を参照してください。

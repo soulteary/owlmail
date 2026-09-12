@@ -65,6 +65,23 @@ All notable changes to OwlMail are documented in this file. The format follows
   major ones, which is what its own comment already described. Only patch bumps
   arrive on their own, and each one has to carry the matching `go.mod` toolchain
   line before it can merge.
+- The comparison and migration guide now covers Mailpit alongside MailDev and
+  MailCatcher, pinned to the reviewed commit
+  `0bbbb233db56b185035ec3d1730228506dbb8f04` the same way the other projects
+  are. Mailpit is the closest widely used alternative in OwlMail's space — a
+  single Go binary with SMTP capture, a Web UI, a REST API, webhooks, and a
+  sendmail analogue — and a comparison that never named it invited the reader
+  to assume it had been avoided rather than examined. Every Mailpit cell was
+  read out of that checkout, cells the source could not settle say so instead
+  of guessing, and the guide states plainly where Mailpit covers ground OwlMail
+  does not: HTML, link, and SpamAssassin checks, POP3 retrieval, message
+  tagging, SMTP fault injection, a send API, and a tenant-partitioned shared
+  database. It also cross-references Mailpit's `--allowed-hosts` Host allowlist
+  with OwlMail's MCP `Origin` validation, because both answer the same
+  DNS-rebinding problem at different scopes. No Mailpit compatibility facade
+  exists and none is claimed. The document title, executive summary, and
+  navigation entries across both documentation indexes and all seven root
+  READMEs were widened to match the new scope.
 
 ## [0.9.0] - 2026-09-03
 

@@ -46,7 +46,7 @@ langue dans des répertoires distincts.
 
 ### Comparaison et migration
 
-- **[OwlMail × MailDev – Comparaison et guide de migration](./Comparison-and-Migration.md)**
+- **[OwlMail × MailDev × MailCatcher × Mailpit – Comparaison et guide de migration](./Comparison-and-Migration.md)**
   - Cette traduction est incomplète. Consultez la version complète en
     [anglais](../en/Comparison-and-Migration.md)
     ou en [chinois](../zh-CN/Comparison-and-Migration.md).

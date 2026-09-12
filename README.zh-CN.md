@@ -735,7 +735,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-详细迁移指南请参考：[OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/Comparison-and-Migration.md)
+详细迁移指南请参考：[OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南](./docs/zh-CN/Comparison-and-Migration.md)
 
 ## 🧪 测试
 
@@ -804,7 +804,7 @@ OwlMail/
 - [架构](./docs/zh-CN/Architecture.md)与[安全模型](./docs/zh-CN/Security-Model.md)
 - [OwlMail 0.8.0 发布说明](./docs/zh-CN/Release-0.8.0.md)
 - [变更日志](./CHANGELOG.md)
-- [OwlMail × MailDev：功能与 API 完整对比与迁移白皮书](./docs/zh-CN/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南](./docs/zh-CN/Comparison-and-Migration.md)
 - [API 参考](./docs/zh-CN/API-Reference.md)
 - [运维与排障](./docs/zh-CN/Operations.md)
 - [Webhook 消息转发](./docs/zh-CN/Webhook-Forwarding.md)
