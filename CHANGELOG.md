@@ -28,6 +28,23 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Added
 
+- Go fuzz targets now cover the four places where OwlMail parses fully
+  attacker-controlled input: the MIME entry point every captured message goes
+  through, the HTML sanitizer whose output the web UI preview renders, the
+  `Date` header fallback that supplies a message's sort key and retention age,
+  and the hand-written glob matcher that decides which webhook targets a
+  message reaches. Each target asserts properties rather than absence of
+  panics -- the sanitized body is re-parsed as a browser would read it and must
+  hold no active element, event handler, or executable URL scheme; the message
+  parser must never return a nil email with a nil error, because four of its
+  five callers dereference the result immediately after checking only the
+  error; and the
+  webhook matcher is compared against `path.Match`, whose grammar it
+  reimplements without the separator role. The seed corpora are built from the
+  existing test fixtures plus truncated transfers, unterminated boundaries and
+  quoted strings, and absurd transfer encodings. A CI job replays every seed
+  and fuzzes each target for thirty seconds on each pull request, and uploads
+  any failing input as the reproducer.
 - The read-only MCP HTTP endpoint now serves the modern stateless `2026-07-28`
   protocol and legacy stateful protocol revisions concurrently on the same
   authenticated route, with request cancellation and waiter quotas adapted to
@@ -65,6 +82,35 @@ All notable changes to OwlMail are documented in this file. The format follows
   major ones, which is what its own comment already described. Only patch bumps
   arrive on their own, and each one has to carry the matching `go.mod` toolchain
   line before it can merge.
+
+### Fixed
+
+- A `Date` header of `Mon, 01 Jan 0001 00:00:00 +0000` no longer becomes a
+  message's timestamp. That value parses cleanly against RFC 1123 with a
+  numeric zone, the first layout OwlMail tries, so it was returned as the
+  parsed date and bypassed the current-time fallback the function otherwise
+  applies to anything it cannot read. The zero time is not a timestamp anywhere
+  else in the storage layer: it is how "no time recorded" is spelled, the
+  read-only loader substitutes a file's modification time when it sees one, and
+  a message carrying it sorts ahead of every real message for as long as the
+  mailbox lives. Because the value arrives in a header, any sender could choose
+  it. A parsed date is now accepted only when it is non-zero, so a year-0001
+  header takes the same fallback as any other unreadable one. The fuzz target
+  added in this release found this on its first run, and both spellings are
+  permanent seeds.
+- The HTML sanitizer no longer discards a stylesheet `<link>` when a body is
+  sanitized more than once. bluemonday appends its own `nofollow` and
+  `noreferrer` tokens to the `rel` of every element carrying an `href`,
+  `<link>` included, and the resulting `rel="stylesheet nofollow noreferrer"`
+  no longer matched the policy that had just produced it: the second pass
+  dropped the `rel`, the post-processing step then found no stylesheet token,
+  and the element disappeared. The sanitizer's output is now accepted by its
+  own policy. No shipping path sanitized a body twice, so no released version
+  rendered a message wrongly because of this; what it means is that the
+  sanitizer's output was outside the language its own policy accepts, which is
+  the shape every mutation-XSS bug takes and the property any future re-render
+  path would have depended on. A fuzz target found it on a seed taken verbatim
+  from the existing test suite.
 
 ## [0.9.0] - 2026-09-03
 

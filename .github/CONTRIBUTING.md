@@ -98,6 +98,13 @@ If you find a bug or have a feature suggestion, please:
 - Bug fixes should include regression tests
 - Test coverage should not decrease
 - Use table-driven tests for multiple test cases
+- Parsers that read untrusted input carry Go fuzz targets alongside their unit
+  tests. `go test ./...` replays only their seed corpus; run a target directly
+  with `go test -run '^$' -fuzz FuzzSanitizeHTML -fuzztime=60s ./internal/mailserver`
+  when changing MIME parsing, HTML sanitizing, date parsing, or the webhook
+  pattern matcher. A failing input is written under the package's
+  `testdata/fuzz/` directory; commit it with the fix so it becomes a permanent
+  seed.
 
 ### Documentation Requirements
 

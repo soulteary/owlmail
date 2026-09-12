@@ -95,6 +95,12 @@
 - Bug 修复应包含回归测试
 - 测试覆盖率不应降低
 - 使用表驱动测试（Table-Driven Tests）处理多个测试用例
+- 解析不可信输入的代码除单元测试外还配有 Go 模糊测试目标。`go test ./...` 只会
+  重放它们的种子语料；修改 MIME 解析、HTML 净化、日期解析或 Webhook 模式匹配时，
+  请直接运行目标，例如
+  `go test -run '^$' -fuzz FuzzSanitizeHTML -fuzztime=60s ./internal/mailserver`。
+  失败的输入会被写入该包的 `testdata/fuzz/` 目录；请连同修复一起提交，使其成为
+  永久种子。
 
 ### 文档要求
 
