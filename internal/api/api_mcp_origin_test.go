@@ -96,7 +96,9 @@ func TestMCPEndpointNeverAdvertisesWildcardCORS(t *testing.T) {
 		}
 	}
 
-	// The rest of the unauthenticated API keeps its open development CORS.
+	// The rest of the unauthenticated API no longer answers that origin either:
+	// /mcp used to be the only locked door on a process that serves the same
+	// mail bodies, and a narrower door is not a policy.
 	request, _ := http.NewRequest(http.MethodGet, "/api/v1/emails", nil)
 	request.Header.Set("Origin", "http://evil.example")
 	response, err := api.app.Test(request)
@@ -104,8 +106,11 @@ func TestMCPEndpointNeverAdvertisesWildcardCORS(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = response.Body.Close()
-	if value := response.Header.Get("Access-Control-Allow-Origin"); value != "*" {
-		t.Fatalf("versioned API Access-Control-Allow-Origin = %q, want *", value)
+	if response.StatusCode != http.StatusForbidden {
+		t.Fatalf("versioned API cross-origin status = %d, want 403", response.StatusCode)
+	}
+	if value := response.Header.Get("Access-Control-Allow-Origin"); value != "" {
+		t.Fatalf("versioned API Access-Control-Allow-Origin = %q, want empty", value)
 	}
 }
 
@@ -125,14 +130,15 @@ func TestMCPOriginValidationAppliesWithBasicAuth(t *testing.T) {
 	}
 }
 
-func TestMCPAllowedOriginsSurviveBasicAuthSameOriginMiddleware(t *testing.T) {
+func TestMCPAllowedOriginsSurviveTheWebOriginGuard(t *testing.T) {
 	api := newMCPOriginTestAPI(t, "agent", "secret")
 	if err := api.SetMCPAllowedOrigins([]string{"https://inspector.example"}); err != nil {
 		t.Fatal(err)
 	}
 
-	// The global same-origin middleware would reject this before the guard is
-	// consulted, making -mcp-allowed-origins inert on authenticated deployments.
+	// The Web origin guard runs first on every route, so it would reject this
+	// before the MCP guard is consulted, making -mcp-allowed-origins inert on
+	// any deployment that did not also name the origin for the Web API.
 	request, _ := http.NewRequest(http.MethodPost, "/mcp", nil)
 	request.Header.Set("Origin", "https://inspector.example")
 	request.SetBasicAuth("agent", "secret")
@@ -145,7 +151,7 @@ func TestMCPAllowedOriginsSurviveBasicAuthSameOriginMiddleware(t *testing.T) {
 		t.Fatalf("allowed cross-origin MCP status with auth = %d, want 204", response.StatusCode)
 	}
 
-	// Every other route keeps the same-origin middleware it had.
+	// Every other route is still decided by the Web origin guard.
 	request, _ = http.NewRequest(http.MethodGet, "/api/v1/emails", nil)
 	request.Header.Set("Origin", "https://inspector.example")
 	request.SetBasicAuth("agent", "secret")

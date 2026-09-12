@@ -530,6 +530,14 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := apiServer.SetExternalScheme(externalScheme); err != nil {
 		return nil, err
 	}
+	webBrowserOrigins, err := webAllowedOrigins(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err := apiServer.SetWebAllowedOrigins(webBrowserOrigins); err != nil {
+		return nil, err
+	}
+	webBrowserOrigins = apiServer.WebAllowedOrigins()
 	var mcpBrowserOrigins []string
 	if cfg.MCPEnabled {
 		sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
@@ -593,6 +601,14 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		common.Log("MailCatcher REST compatibility facade enabled at %s://%s:%d%s/messages", protocol, cfg.WebHost, cfg.WebPort, cfg.BasePathname)
 	}
 	common.Log("Starting OwlMail Web API on %s://%s:%d", protocol, cfg.WebHost, cfg.WebPort)
+	// A rejected browser origin answers 403 with no list attached, and the
+	// wildcard opt-out leaves no visible trace at all, so both are recorded
+	// once rather than left for an operator to infer from a failing page.
+	if len(webBrowserOrigins) == 1 && webBrowserOrigins[0] == config.WebAllowAnyOrigin {
+		common.Log("Web browser origin validation is disabled by -web-allowed-origins '*'; any page a browser visits can read the mailbox")
+	} else if len(webBrowserOrigins) > 0 {
+		common.Log("Web API also accepts browser origins: %s (OwlMail's own origins are always accepted)", strings.Join(webBrowserOrigins, ", "))
+	}
 	if cfg.WebUser != "" && cfg.WebPassword != "" {
 		common.Log("HTTP Basic Auth enabled for user: %s", cfg.WebUser)
 	}
@@ -609,6 +625,28 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	return apiServer, nil
+}
+
+// webAllowedOrigins collects the browser origins accepted on the Web UI and
+// REST API beyond the ones the listener already answers on. A configured
+// browser-visible external URL is one of them: telling OwlMail where browsers
+// reach it also tells it which origin is legitimate behind a reverse proxy.
+func webAllowedOrigins(cfg *config.Config) ([]string, error) {
+	origins, err := config.ParseWebAllowedOrigins(cfg.WebAllowedOrigins)
+	if err != nil {
+		return nil, err
+	}
+	if len(origins) == 1 && origins[0] == config.WebAllowAnyOrigin {
+		return origins, nil
+	}
+	externalURL, err := config.NormalizeWebExternalURL(cfg.WebExternalURL)
+	if err != nil {
+		return nil, err
+	}
+	if externalURL != "" {
+		origins = append(origins, externalURL)
+	}
+	return origins, nil
 }
 
 // mcpAllowedOrigins collects the browser origins accepted on /mcp beyond the

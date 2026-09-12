@@ -25,15 +25,45 @@ credential is configured. The effective behavior for partial credentials is:
 A generated password changes whenever OwlMail restarts. Configure both values
 for stable credentials. Startup fails if that generated password cannot be
 written to stderr, because no recoverable credential would remain. The health
-endpoints remain unauthenticated. When Basic Auth is enabled, browser requests
-carrying an `Origin` header and WebSocket upgrades must come from OwlMail's own
-origin; this same-origin check still applies to the unauthenticated health
-endpoints and can return plain-text `403`. Server-to-server clients that omit
-`Origin` are accepted. Use HTTPS outside a trusted local development machine.
+endpoints remain unauthenticated. Use HTTPS outside a trusted local development
+machine.
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
 ```
+
+### Browser origin validation
+
+Every request that carries an `Origin` header is validated, whether or not Basic
+Auth is configured. This is not a credential check: with no credentials it is
+the only thing protecting the response body, and binding to loopback does not
+substitute for it, because the browser running an attacker's page is on the same
+machine as the listener.
+
+An `Origin` is accepted when it matches the request's own origin, one of the
+listener's origins (the configured Web host and the loopback names at the Web
+port, plus `-web-external-url` when set), or an entry in
+`-web-allowed-origins` / `OWLMAIL_WEB_ALLOWED_ORIGINS`. Anything else is
+answered with a plain-text `403` before any handler runs, including on the
+otherwise unauthenticated health endpoints.
+
+Requests without an `Origin` header are accepted unchanged. `curl`, HTTP
+libraries, CI scripts, and server-to-server callers never send one; only browser
+pages do.
+
+A named origin is answered with `Access-Control-Allow-Origin` echoing that exact
+origin and `Access-Control-Allow-Credentials: true`, and its preflight is
+answered with `204`, so an allowed browser client can read the response and
+authenticate. Every response carries `Vary: Origin`.
+
+`-web-allowed-origins '*'` turns the check off and restores the wildcard CORS
+policy unauthenticated deployments used to serve; it cannot be combined with a
+named origin, so a typo cannot silently widen a narrow list. Under the opt-out
+the response carries the uncredentialed `Access-Control-Allow-Origin: *` rather
+than an echo of the caller.
+
+`/mcp` is governed by its own, stricter policy and its own
+`-mcp-allowed-origins` list; see the [MCP reference](./MCP-Reference.md).
 
 ## OpenAPI 3.1 contract
 
@@ -46,7 +76,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.json
 curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 ```
 
-These contract endpoints follow the normal Basic Auth and browser same-origin
+These contract endpoints follow the normal Basic Auth and browser origin
 policy. Only `/api/v1/health` and `/api/v1/ready` are public within the
 versioned API. With `-base-pathname=/owlmail`, use
 `/owlmail/api/v1/openapi.json`; the returned `servers[0].url` is likewise
@@ -71,10 +101,10 @@ contract so route additions and removals cannot silently drift.
 - Timestamps are JSON-encoded Go `time.Time` values in RFC 3339 form.
 - Successful mutations usually return `code`, `message`, and optional `data`.
   Handler-level API errors return an HTTP error status plus `code`, `error`,
-  and `message`. Basic Auth and browser same-origin middleware reject requests
-  with plain-text `401` or `403` responses before an API handler runs. When
-  installed, the same-origin check runs before Basic Auth, so `403` does not
-  imply that authentication succeeded.
+  and `message`. Basic Auth and the browser origin guard reject requests with
+  plain-text `401` or `403` responses before an API handler runs. The origin
+  check runs before Basic Auth, so `403` does not imply that authentication
+  succeeded.
 
 Example collection response:
 
@@ -395,8 +425,11 @@ for existing OwlMail integrations. Prefer `/api/v1` for new code.
 
 ## WebSocket protocol
 
-Both WebSocket paths implement standard RFC 6455 WebSockets. A successful
-connection first receives:
+Both WebSocket paths implement standard RFC 6455 WebSockets. Browsers do not
+apply CORS to a WebSocket, so the upgrade handshake enforces the same browser
+origin policy described above: an upgrade carrying a disallowed `Origin` is
+refused, and one carrying no `Origin` is accepted. A successful connection first
+receives:
 
 ```json
 { "type": "connected", "message": "WebSocket connection established" }

@@ -8,12 +8,23 @@ OwlMail 面向开发、CI 与受控测试网络。它保存完整邮件，其中
 | 接口 | 默认状态 | 边界 |
 |---|---|---|
 | SMTP 1025 | 本地监听；未配置两项凭据时为 NO AUTH | 保持私有；同时配置两项凭据才强制 AUTH |
-| Web UI/API 1080 | 本地监听；未配置两项 Web 凭据时无 Basic Auth | 非本地访问使用固定凭据与 HTTPS |
+| Web UI/API 1080 | 本地监听；未配置两项 Web 凭据时无 Basic Auth；始终校验浏览器 `Origin` | 来自其他来源的浏览器页面会被拒绝，不发送 `Origin` 的客户端不受影响。非本地访问使用固定凭据与 HTTPS；需要额外浏览器来源时用 `-web-allowed-origins` 显式列出 |
 | 健康探针 | 无认证 | 只暴露健康状态；浏览器 Origin 检查仍可拒绝跨域请求 |
 | MCP | 默认关闭 | HTTP 复用 Web 认证/TLS/base path 并始终校验浏览器 `Origin`；stdio 只读一个已有邮件目录 |
 | MailDev/MailCatcher Facade | 默认关闭 | 启用后复用 Web 边界，只提供明确的兼容契约 |
 | Metrics | 默认关闭 | 启用后在网络或反向代理层保护 |
 | Webhook 与 Relay | 配置后才启用 | 把捕获内容或元数据发送到运维者选择的目标 |
+
+## 浏览器来源策略
+
+开发者随手打开的页面与 OwlMail 运行在同一台机器上，因此绑定 loopback 挡不住它：
+`fetch("http://127.0.0.1:1080/...")` 能连上监听端口，而该页面能否读取响应，完全由
+来源策略决定。因此 OwlMail 在所有接口上都校验浏览器 `Origin`——Web 界面、REST API、
+兼容 Facade、WebSocket 推流以及 `/mcp`——无论是否配置 Basic Auth。未配置凭据时，这
+项校验是保护响应正文的唯一手段，而正文中存有密码重置链接、验证码与令牌。
+
+不携带 `Origin` 的请求不受影响：`curl`、各语言 HTTP 库、CI 脚本与服务器之间的调用
+都不会发送该头，只有浏览器页面会发送。
 
 ## 不可信邮件内容
 
@@ -51,7 +62,12 @@ Agent 必须把邮件内容视为数据而非指令。邮件内嵌的 Prompt 不
 - SMTP 与 Web 绑定到 loopback 或私有网络。
 - 非本地访问设置固定 Web 凭据与 HTTPS。
 - 只向预期客户端开放 MCP 与 Metrics；需要访问 `/mcp` 的浏览器来源用
-  `-mcp-allowed-origins` 显式列出，而不是关闭校验。
+  `-mcp-allowed-origins` 显式列出，需要访问 Web UI 或 REST API 的浏览器来源用
+  `-web-allowed-origins` 显式列出，而不是关闭校验。两个 `*` 退出开关都不应出现在
+  开发机上。
+- 容器端口只发布到回环地址（`-p 127.0.0.1:1080:1080`）。发布出去的端口是经由转发
+  到达的，因此 `-p 1080:1080` 会越过任何 `INPUT` 链规则从任意网络接口访问到；要拦住
+  它需要 `DOCKER-USER` 规则，或 nftables、firewalld 中的等价配置。
 - 测试数据与生产账户、生产基础设施隔离。
 - 安全敏感 CI 按 manifest digest 固定发布镜像。
 - 升级前备份完整邮件目录。

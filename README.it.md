@@ -119,6 +119,21 @@ export MAILDEV_WEB_PORT=1080
 
 ### Utilizzo Docker
 
+**Pubblica ogni porta del container solo su loopback: scrivi
+`-p 127.0.0.1:1080:1080`, non `-p 1080:1080`.** L'immagine imposta
+`OWLMAIL_WEB_HOST=0.0.0.0` e `OWLMAIL_SMTP_HOST=0.0.0.0`, il che è corretto
+all'interno di un container — il processo deve accettare connessioni provenienti
+da fuori del suo namespace di rete — ma significa che l'opzione `-p` è l'unica a
+decidere chi può raggiungere OwlMail. La forma breve pubblica su ogni interfaccia
+dell'host, e la regola di firewall che la maggior parte delle persone ha scritto
+non la contiene: una porta pubblicata viene raggiunta tramite forwarding, quindi
+una regola della catena `INPUT` come `ufw deny 1080` non le si applica.
+Filtrarla richiede una regola nella catena `DOCKER-USER` di Docker, o
+l'equivalente in nftables o firewalld. Così si espone una casella che contiene link di
+reimpostazione password, codici di verifica e token, e una porta SMTP che accetta
+posta senza autenticazione per impostazione predefinita. Tutti gli esempi sotto
+usano la forma loopback.
+
 #### Scarica da GitHub Container Registry (Consigliato)
 
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
@@ -212,6 +227,7 @@ docker buildx build \
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Porta API Web |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Host API Web |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Origin HTTP(S) visibile dal browser per i deep link; configura separatamente il sottopercorso con `-base-pathname` |
+| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | Origini browser aggiuntive accettate su UI Web e API REST, oltre a quelle di OwlMail; `*` disattiva la convalida dell'origine |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | Prefisso del percorso URL come `/owlmail`; la radice resta predefinita |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Abilita esplicitamente il facade REST MailDev sotto `/api`; Socket.IO resta incompatibile |
 | `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Espone metriche Prometheus su `/metrics` rispettando il percorso base; usa la Basic Auth Web se configurata |
@@ -335,7 +351,7 @@ OwlMail utilizza un formato di risposta API standardizzato:
 ```
 
 Il campo `code` contiene codici di errore/successo standardizzati che possono essere utilizzati per l'internazionalizzazione. Il campo `message` fornisce testo in inglese per la compatibilità con le versioni precedenti.
-Gli errori del middleware Basic Auth e same-origin del browser sono risposte
+Gli errori di Basic Auth e del controllo dell'origine del browser sono risposte
 di testo `401` o `403`, perché avvengono prima degli handler API.
 
 ### Formato ID Email

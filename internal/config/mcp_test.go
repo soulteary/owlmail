@@ -153,3 +153,61 @@ func TestParseMCPAllowedOrigins(t *testing.T) {
 		})
 	}
 }
+
+func TestParseWebAllowedOrigins(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value string
+		want  []string
+	}{
+		{name: "empty", value: "", want: []string{}},
+		{name: "single", value: "https://console.example", want: []string{"https://console.example"}},
+		{
+			name:  "comma and whitespace separated",
+			value: "https://a.example:8443, http://b.example\nhttps://c.example",
+			want:  []string{"https://a.example:8443", "http://b.example", "https://c.example"},
+		},
+		{name: "wildcard", value: "*", want: []string{WebAllowAnyOrigin}},
+		{name: "trailing slash is a bare origin", value: "https://a.example/", want: []string{"https://a.example"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			origins, err := ParseWebAllowedOrigins(test.value)
+			if err != nil {
+				t.Fatalf("ParseWebAllowedOrigins(%q) error = %v", test.value, err)
+			}
+			if len(origins) != len(test.want) {
+				t.Fatalf("ParseWebAllowedOrigins(%q) = %v, want %v", test.value, origins, test.want)
+			}
+			for index, origin := range origins {
+				if origin != test.want[index] {
+					t.Fatalf("ParseWebAllowedOrigins(%q) = %v, want %v", test.value, origins, test.want)
+				}
+			}
+		})
+	}
+
+	for _, test := range []struct {
+		name  string
+		value string
+	}{
+		{name: "not a URL", value: "console.example"},
+		{name: "unsupported scheme", value: "ws://console.example"},
+		{name: "carries a path", value: "https://console.example/inbox"},
+		{name: "carries credentials", value: "https://user:pass@console.example"},
+		// Pairing the opt-out with a named origin silently opens a list its
+		// author meant to keep narrow, so the parser refuses it rather than
+		// leaving the mistake to be found in a browser.
+		{name: "wildcard combined with an origin", value: "*,https://console.example"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := ParseWebAllowedOrigins(test.value); err == nil {
+				t.Fatalf("ParseWebAllowedOrigins(%q) accepted an invalid value", test.value)
+			}
+			cfg := DefaultConfig()
+			cfg.WebAllowedOrigins = test.value
+			if err := ValidateConfig(cfg); err == nil {
+				t.Fatal("ValidateConfig accepted an invalid Web allowed origin")
+			}
+		})
+	}
+}

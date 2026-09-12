@@ -286,9 +286,16 @@ docker run -d \
 This guide pins the `0.9.0` release image. The `main` and `latest` tags move with
 default-branch builds and should not be used for a repeatable deployment.
 
-The image configures OwlMail to listen on `0.0.0.0` inside the container. Bind
-published ports to `127.0.0.1` as shown unless other machines must connect. The
-Dockerfile runs as a non-root user and stores mail in `/app/mail`.
+The image configures OwlMail to listen on `0.0.0.0` inside the container, which
+is what lets the process accept connections from outside its network namespace.
+Who may open those connections is decided by `-p` alone, so publish every port
+with the `127.0.0.1:` prefix shown above. `-p 1080:1080` publishes on every host
+interface, and the host-firewall rule most people have written does not contain
+it: a published port is reached by forwarding, so an `INPUT`-chain rule such as
+`ufw deny 1080` never applies to it. Filtering it takes a rule in Docker's
+`DOCKER-USER` chain or the equivalent in your nftables or firewalld
+configuration. The Dockerfile runs as a non-root user and
+stores mail in `/app/mail`.
 
 ### 4. Web UI protected with fixed credentials
 
@@ -317,9 +324,8 @@ Basic Auth protects the UI, API, assets, and WebSocket endpoints, but
 HTTPS or a trusted reverse proxy when credentials cross a network.
 
 When TLS terminates at that proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME=https` so
-authenticated HTTP and WebSocket same-origin checks use the browser-visible
-scheme. Configure it explicitly instead of trusting client-supplied forwarded
-headers.
+the HTTP and WebSocket origin checks use the browser-visible scheme. Configure
+it explicitly instead of trusting client-supplied forwarded headers.
 
 ### 5. Docker behind an Nginx subpath
 
@@ -370,6 +376,64 @@ slashes, and empty internal segments. `MAILDEV_BASE_PATHNAME` is accepted as a
 migration alias; as with other compatibility variables, an explicitly supplied
 CLI flag has highest priority.
 
+## Browser origin policy for the Web UI and API
+
+OwlMail validates the browser `Origin` header on every surface it serves,
+whether or not Basic Auth is configured. Enabling the check only with Basic Auth
+protected the wrong deployment: authentication is off by default, and it is the
+unauthenticated listener that has nothing else protecting the response body. A
+page the developer happens to visit runs on the same machine, so
+`fetch("http://127.0.0.1:1080/api/v1/emails")` reaches the listener no matter
+what it is bound to; the only question is whether the browser hands the response
+to that page.
+
+A request that carries no `Origin` header is a non-browser client — `curl`, an
+HTTP library, a CI script, another server — and is allowed unchanged. A request
+that carries one is allowed when the origin matches the request's own, matches
+one of the listener's origins (the configured Web host and the loopback names at
+the Web port, on the scheme this listener serves, plus `-web-external-url` when
+set), or is listed in `-web-allowed-origins`. Anything else is answered with
+`403` before any handler runs.
+
+The health, readiness and metrics endpoints are inside that boundary rather than
+exempt from it. Every caller that actually probes them — Docker's `HEALTHCHECK`,
+Kubernetes probes, `curl`, a monitoring agent — sends no `Origin` and is
+unaffected. What changes is the browser case: a page on an unrelated origin
+that fetched `/healthz` previously learned that OwlMail was listening on a
+loopback port, which is a fingerprinting oracle rather than a health check. A
+browser status page that must read them cross-origin names its origin in
+`-web-allowed-origins` like any other browser client.
+
+Set `-web-allowed-origins` (or `OWLMAIL_WEB_ALLOWED_ORIGINS`) to a
+comma-separated list when a browser on another origin must reach the API, for
+example `-web-allowed-origins https://console.example`. Each value must be an
+absolute `http` or `https` origin without a path, query, fragment, or
+credentials; the values are canonicalized exactly as `-mcp-allowed-origins` is,
+so a default or zero-padded port, an equivalent IP spelling, or an
+internationalized name still matches what the browser sends. Startup fails on an
+unparseable value rather than falling back to an open API, and the accepted
+origins are logged once at startup so a `403` can be diagnosed without guessing.
+
+A named origin is answered with `Access-Control-Allow-Origin` echoing it exactly
+rather than with a wildcard, with `Access-Control-Allow-Credentials: true` so
+Basic Auth works from it, and its preflight is answered without an
+authentication challenge — a preflight carries no credentials, so a `401` there
+would stop an allowed client before its first real request. Every response
+varies by `Origin`.
+
+The single value `*` disables validation and restores the wildcard CORS policy
+unauthenticated deployments served before this check existed. It cannot be
+combined with an explicit origin, because that combination can only be a typo
+that silently opens a list its author meant to keep narrow. Under the opt-out
+the response carries a plain `Access-Control-Allow-Origin: *` and no
+credentials, so turning validation off never grants more than the wildcard did.
+
+Browsers do not apply CORS to WebSockets, so the upgrade handshake enforces the
+same policy directly; otherwise a disallowed page could still subscribe to the
+live mail stream.
+
+`/mcp` is excluded from this policy and keeps its own, stricter one below.
+
 ## Read-only MCP for test agents
 
 The MCP server is opt-in and uses the official Go SDK's dual-era Streamable
@@ -400,24 +464,22 @@ at the Web port, on the scheme this listener itself serves, plus
 `-web-external-url` when set) or an origin listed in `-mcp-allowed-origins`, and
 is otherwise answered with `403`. When TLS terminates at a reverse proxy, the
 listener still answers plain HTTP directly, so both that origin and the
-browser-visible external one are accepted. The endpoint also
-owns its own CORS policy instead of the wildcard one the unauthenticated
-development API still uses: an allowed origin is named exactly and never with
-`Access-Control-Allow-Origin: *`, credentials are permitted so Basic Auth works
-from it, the MCP session headers are exposed, and a preflight is answered
-without an authentication challenge. Every response varies by `Origin`. The
-`'*'` opt-out is the one case that returns a plain wildcard and no credentials,
-so turning validation off never grants more than the wildcard CORS the endpoint
-used to fall under. All of this applies to every spelling of
-the path the router dispatches, including a trailing slash and a case variant.
+browser-visible external one are accepted. The endpoint also owns its own CORS
+policy rather than inheriting the Web one: an allowed origin is named exactly
+and never with `Access-Control-Allow-Origin: *`, credentials are permitted so
+Basic Auth works from it, the MCP session headers are exposed, and a preflight
+is answered without an authentication challenge. Every response varies by
+`Origin`. The `'*'` opt-out is the one case that returns a plain wildcard and no
+credentials, so turning validation off never grants more than the wildcard CORS
+the endpoint used to fall under. All of this applies to every spelling of the
+path the router dispatches, including a trailing slash and a case variant.
 
-On this path the check also replaces the global same-origin middleware that
-Basic Auth installs. That middleware accepts any `Origin` echoing the request's
-own `Host`, which is what a re-bound hostname produces, so the MCP allow list is
-strictly narrower; routing `/mcp` through it alone also keeps
-`-mcp-allowed-origins` meaningful on an authenticated deployment instead of
-being overruled before it is consulted. Every other route keeps the same-origin
-middleware unchanged.
+On this path the check also replaces the global Web origin guard. That guard
+accepts any `Origin` echoing the request's own `Host`, which is what a re-bound
+hostname produces, so the MCP allow list is strictly narrower; routing `/mcp`
+through it alone also keeps `-mcp-allowed-origins` meaningful instead of being
+overruled before it is consulted, and keeps `-web-allowed-origins` from opening
+the MCP endpoint by accident. Every other route keeps the Web guard.
 
 Set `-mcp-allowed-origins` (or `OWLMAIL_MCP_ALLOWED_ORIGINS`) to a
 comma-separated list when a browser on another origin must reach the endpoint,

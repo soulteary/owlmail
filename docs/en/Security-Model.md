@@ -10,12 +10,27 @@ transfer agent or a safe public archive.
 | Surface | Default | Boundary |
 |---|---|---|
 | SMTP 1025 | Listens locally; NO AUTH when both credentials are absent | Keep private; configure both credentials to require AUTH |
-| Web UI and API 1080 | Local listener; no Basic Auth when both Web credentials are absent | Use fixed credentials and HTTPS outside localhost |
+| Web UI and API 1080 | Local listener; no Basic Auth when both Web credentials are absent; browser `Origin` validated | A browser page from another origin is refused; a client that sends no `Origin` is not. Use fixed credentials and HTTPS outside localhost, and name any extra browser origin with `-web-allowed-origins` |
 | Health probes | Unauthenticated | Reveal health only; browser origin checks can still reject cross-origin requests |
 | MCP | Disabled | HTTP shares Web auth/TLS/base path and always validates the browser `Origin`; stdio reads one existing mail directory |
 | MailDev/MailCatcher facades | Disabled | Share the Web boundary and expose compatibility contracts only when enabled |
 | Metrics | Disabled | Protect at the network or reverse-proxy layer when enabled |
 | Webhooks and Relay | Disabled until configured | Send captured content and metadata to operator-selected destinations |
+
+## Browser origin policy
+
+A page the developer happens to visit runs on the same machine as OwlMail, so
+binding to loopback does not keep it out: `fetch("http://127.0.0.1:1080/...")`
+reaches the listener, and whether that page may read the response is decided
+entirely by the origin policy. OwlMail therefore validates the browser `Origin`
+header on every surface — the UI, the REST API, the compatibility facades, the
+WebSocket stream, and `/mcp` — whether or not Basic Auth is configured. When no
+credentials are configured, this check is the only thing protecting the response
+body, which holds password-reset links, verification codes, and tokens.
+
+Requests that carry no `Origin` header are unaffected: `curl`, HTTP libraries,
+CI scripts, and server-to-server callers never send one, and only a browser page
+does.
 
 ## Untrusted message content
 
@@ -62,7 +77,13 @@ errors are bounded and do not expose raw downstream errors through status.
 - Bind SMTP and Web ports to loopback or a private network.
 - Configure fixed Web credentials and HTTPS for non-local access.
 - Restrict MCP and metrics to intended clients; list any browser origin that
-  must reach `/mcp` with `-mcp-allowed-origins` instead of disabling the check.
+  must reach `/mcp` with `-mcp-allowed-origins` instead of disabling the check,
+  and any origin that must reach the Web UI or REST API with
+  `-web-allowed-origins`. Neither `*` opt-out belongs on a developer machine.
+- Publish container ports on loopback (`-p 127.0.0.1:1080:1080`). A published
+  port is reached by forwarding, so `-p 1080:1080` reaches every interface past
+  any `INPUT`-chain rule; containing it takes a `DOCKER-USER` rule or the
+  nftables or firewalld equivalent.
 - Separate test data from production accounts and infrastructure.
 - Pin the release image by manifest digest for sensitive CI.
 - Back up the complete mail directory before upgrades.

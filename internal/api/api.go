@@ -13,7 +13,6 @@ import (
 	_ "github.com/emersion/go-message/charset"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
-	"github.com/gofiber/fiber/v3/middleware/cors"
 	"github.com/gorilla/websocket"
 	"github.com/soulteary/health-kit/v2"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
@@ -48,6 +47,7 @@ type API struct {
 	metrics                 *prometheusMetrics
 	mcpHandler              http.Handler
 	mcpAllowedOrigins       []string
+	webAllowedOrigins       []string
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
 	relayRecoveryOnce       sync.Once
@@ -112,9 +112,7 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 		relayJobsPersistenceErr: persistenceErr,
 		relaySourceReleases:     make(map[string]func()),
 	}
-	api.wsUpgrader.CheckOrigin = func(r *http.Request) bool {
-		return !authEnabled || originMatchesRequest(r.Header.Get("Origin"), r.Host, api.requestScheme())
-	}
+	api.wsUpgrader.CheckOrigin = api.webSocketOriginAllowed
 	api.setupRoutes()
 	api.setupEventListeners()
 	if api.relayJobs.hasQueued() {
@@ -207,30 +205,11 @@ func (api *API) setupRoutes() {
 	app := fiber.New(fiber.Config{})
 
 	authEnabled := api.authUser != "" && api.authPassword != ""
-	if authEnabled {
-		// Browsers must not reuse cached Basic Auth credentials from an unrelated
-		// origin. Non-browser API clients normally omit Origin and remain allowed.
-		app.Use(func(c fiber.Ctx) error {
-			// The MCP endpoint runs its own, strictly narrower origin check.
-			// Letting this middleware answer first would overrule an origin the
-			// operator allowed there on purpose.
-			if api.mcpHandler != nil && api.isMCPPath(c.Path()) {
-				return c.Next()
-			}
-			return sameOriginMiddleware(api.requestScheme())(c)
-		})
-	} else {
-		// Preserve the open development API's cross-origin compatibility. There
-		// are no browser credentials to expose when authentication is disabled.
-		app.Use(cors.New(cors.Config{
-			// The MCP endpoint performs its own origin validation and must not
-			// advertise a wildcard that would let any page read the mailbox.
-			Next:         func(c fiber.Ctx) bool { return api.mcpHandler != nil && api.isMCPPath(c.Path()) },
-			AllowOrigins: []string{"*"},
-			AllowHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
-			AllowMethods: []string{"POST", "OPTIONS", "GET", "PUT", "DELETE", "PATCH"},
-		}))
-	}
+	// Browser origin validation is not conditional on Basic Auth. Without
+	// credentials it is the only thing keeping a page the developer visits out
+	// of the captured mailbox, so the unauthenticated default is exactly the
+	// deployment that needs it.
+	app.Use(api.webOriginGuard())
 
 	// HTTP Basic Auth middleware if configured
 	if authEnabled {
