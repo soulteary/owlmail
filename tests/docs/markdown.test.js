@@ -465,27 +465,65 @@ test("OpenAPI contract is linked from every translated README", () => {
   }
 });
 
-test(`three-way comparison stays source-pinned and reflects the ${currentVersion} contract`, () => {
+test(`four-way comparison stays source-pinned and reflects the ${currentVersion} contract`, () => {
   for (const document of [
     "docs/en/Comparison-and-Migration.md",
     "docs/zh-CN/Comparison-and-Migration.md",
   ]) {
     const markdown = fs.readFileSync(path.join(root, document), "utf8");
     for (const marker of [
-      "OwlMail × MailDev × MailCatcher",
+      "OwlMail × MailDev × MailCatcher × Mailpit",
       "2026-09-03",
       "112f0d0f33b8fa040cdc8699d300118c96c09cf8",
       currentVersion,
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
+      "0bbbb233db56b185035ec3d1730228506dbb8f04",
       "0.11.0",
+      "v1.31.1",
       "MCP",
       "MailCatcher",
+      "Mailpit",
+      "--allowed-hosts",
       "Prometheus",
       "SQLite",
     ]) {
       assert.ok(markdown.includes(marker), `${document} is missing ${marker}`);
     }
+
+    // Both comparison tables must carry every reviewed project as its own
+    // column. Prose about a project plus a table that still omits it reads as
+    // coverage while the grid a reader actually scans stays four projects wide.
+    //
+    // The assertion counts five-column tables rather than requiring that every
+    // table in the file be one. A three-column table added later for an
+    // unrelated purpose is not a regression in this guide's coverage, and
+    // failing on it would report "the comparison tables are missing a project"
+    // about a table that is not a comparison table.
+    const comparisonTables = markdown
+      .split("\n")
+      .filter((line) => /^\|(?:-{3}\|)+$/.test(line))
+      .filter((line) => line === "|---|---|---|---|---|");
+    assert.equal(
+      comparisonTables.length,
+      2,
+      `${document} does not hold exactly two five-column comparison tables`,
+    );
+
+    // OwlMail implements none of Mailpit's routes. The guide has to say so,
+    // because a reader who sees Mailpit beside the two facaded projects will
+    // otherwise assume a third facade exists.
+    // Keyed off the document path rather than accepting either language's
+    // wording for both files: an `||` over the two strings is satisfied by the
+    // Chinese sentence appearing in the English file, which is exactly the
+    // en/zh drift this assertion exists to catch.
+    const expectedFacadeDisclaimer = document.includes("/zh-CN/")
+      ? "没有 Mailpit facade"
+      : "There is no Mailpit facade";
+    assert.ok(
+      markdown.includes(expectedFacadeDisclaimer),
+      `${document} does not rule out a Mailpit compatibility facade`,
+    );
     assert.ok(!markdown.includes("| MCP server | Current MailDev provides one | No |"));
     assert.ok(!markdown.includes("| MCP 服务 | 当前 MailDev 提供 | 不提供 |"));
     assert.ok(!markdown.includes("with five closed-world"));

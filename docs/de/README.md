@@ -46,7 +46,7 @@ in eigenen Verzeichnissen organisiert.
 
 ### Vergleich und Migration
 
-- **[OwlMail × MailDev – Vergleich und Migrations-Whitepaper](./Comparison-and-Migration.md)**
+- **[OwlMail × MailDev × MailCatcher × Mailpit – Vergleich und Migrationsleitfaden](./Comparison-and-Migration.md)**
   - Diese Übersetzung ist noch unvollständig; für den aktuellen vollständigen
     Stand siehe [English](../en/Comparison-and-Migration.md)
     oder [中文](../zh-CN/Comparison-and-Migration.md).

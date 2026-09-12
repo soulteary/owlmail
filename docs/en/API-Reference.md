@@ -464,4 +464,4 @@ Before migrating an automated client:
    staging environment.
 
 For the broader comparison, see the
-[migration white paper](./Comparison-and-Migration.md).
+[feature, API, and migration guide](./Comparison-and-Migration.md).

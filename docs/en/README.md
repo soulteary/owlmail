@@ -69,9 +69,9 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - **Runnable examples**: [minimal, filtered, custom, multi-target, plain text, and Compose](../../examples/webhooks/README.md)
   - **Other languages**: [简体中文](../zh-CN/Webhook-Forwarding.md)
 
-- **[OwlMail × MailDev - Full Feature & API Comparison and Migration White Paper](./Comparison-and-Migration.md)**
+- **[OwlMail × MailDev × MailCatcher × Mailpit - Feature, API, and Migration Guide](./Comparison-and-Migration.md)**
   - A source-checked comparison of capability differences, API incompatibilities,
-    and the migration checklist.
+    and the migration checklist, with every project pinned to a reviewed commit.
   - **Other languages**: [简体中文](../zh-CN/Comparison-and-Migration.md) | [Deutsch](../de/Comparison-and-Migration.md) | [Français](../fr/Comparison-and-Migration.md) | [Italiano](../it/Comparison-and-Migration.md) | [日本語](../ja/Comparison-and-Migration.md) | [한국어](../ko/Comparison-and-Migration.md)
 
 ### Historical Internal Documentation
@@ -92,7 +92,7 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 Documents are organized by language in separate directories. Each language directory contains:
 - `README.md` - Documentation index for that language
-- Main documents (e.g., Migration White Paper)
+- Main documents (e.g., the Comparison and Migration Guide)
 - `internal/` subdirectory - Historical implementation records
 
 To switch languages, use the language selector at the top of this page or visit the [main documentation index](../README.md).

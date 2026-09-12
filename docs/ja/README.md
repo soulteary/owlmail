@@ -43,7 +43,7 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 
 ### 比較と移行
 
-- **[OwlMail × MailDev – 比較・移行ガイド](./Comparison-and-Migration.md)**
+- **[OwlMail × MailDev × MailCatcher × Mailpit – 比較・移行ガイド](./Comparison-and-Migration.md)**
   - この翻訳は未完成です。完全な内容は
     [英語版](../en/Comparison-and-Migration.md)
     または[中国語版](../zh-CN/Comparison-and-Migration.md)を参照してください。

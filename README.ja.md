@@ -625,7 +625,7 @@ ws.onmessage = (event) => {
 };
 ```
 
-For detailed migration guide, see: [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/Comparison-and-Migration.md)
+For detailed migration guide, see: [OwlMail × MailDev × MailCatcher × Mailpit: 機能・API・移行ガイド](./docs/ja/Comparison-and-Migration.md)
 
 ## 🧪 Testing
 
@@ -693,7 +693,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [実行可能なテスト例](./examples/testing/README.md)
 - [OwlMail 0.8.0 リリースノート](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
 - [変更履歴](./CHANGELOG.md)
-- [OwlMail × MailDev: Full Feature & API Comparison and Migration White Paper](./docs/ja/Comparison-and-Migration.md)
+- [OwlMail × MailDev × MailCatcher × Mailpit: 機能・API・移行ガイド](./docs/ja/Comparison-and-Migration.md)
 - [API リファレンス (English)](./docs/en/API-Reference.md)
 - [運用・トラブルシューティング (English)](./docs/en/Operations.md)
 - [Webhook 転送 (English)](./docs/en/Webhook-Forwarding.md)
