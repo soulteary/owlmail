@@ -195,9 +195,15 @@ func validatePath(baseDir, resolvedPath string) error {
 }
 
 var (
-	safeLinkTarget       = regexp.MustCompile(`^_blank$`)
-	safeLinkRel          = regexp.MustCompile(`(?i)^(?:nofollow|noreferrer|noopener)(?:\s+(?:nofollow|noreferrer|noopener))*$`)
-	safeStylesheetRel    = regexp.MustCompile(`(?i)^stylesheet$`)
+	safeLinkTarget = regexp.MustCompile(`^_blank$`)
+	safeLinkRel    = regexp.MustCompile(`(?i)^(?:nofollow|noreferrer|noopener)(?:\s+(?:nofollow|noreferrer|noopener))*$`)
+	// bluemonday appends its own nofollow and noreferrer tokens to the rel of
+	// any element carrying an href, <link> included, so the sanitizer's own
+	// output is re-presented to this pattern on any later pass. Matching only
+	// a bare "stylesheet" made the policy reject what it had just written:
+	// the rel was dropped, the stylesheet token went with it, and the
+	// post-processing below then deleted the <link> entirely.
+	safeStylesheetRel    = regexp.MustCompile(`(?i)^stylesheet(?:\s+(?:nofollow|noreferrer|noopener))*$`)
 	safeStylesheetType   = regexp.MustCompile(`(?i)^text/css$`)
 	safeMediaQuery       = regexp.MustCompile(`(?i)^[a-z0-9\s(),.:/_-]+$`)
 	safeInlineStyleValue = regexp.MustCompile(`(?i)^[#a-z0-9\s(),.%!'"/_-]+$`)
@@ -227,9 +233,25 @@ func sanitizeHTML(html string) string {
 	p.AllowAttrs("type").Matching(safeStylesheetType).OnElements("link")
 	p.AllowAttrs("media").Matching(safeMediaQuery).OnElements("link")
 
-	// Email layouts rely heavily on inline presentation styles. Allow a bounded
-	// set of non-fetching properties and values; background-image, @import,
-	// url(), expression(), and custom properties are intentionally excluded.
+	// Email layouts rely heavily on inline presentation styles, so a bounded set
+	// of presentation properties is allowed with a value pattern that admits no
+	// colon.
+	//
+	// What that actually excludes, verified rather than assumed: every fetching
+	// property, because none of background-image, @import, or a custom property
+	// appears in the list below and bluemonday drops what it does not name; and
+	// every absolute URL and scheme-bearing value, because the colon they need
+	// is not in safeInlineStyleValue.
+	//
+	// What it does NOT exclude: a relative url() or a bare function call inside
+	// an allowed property. `border: url(/track.png)` and
+	// `width: expression(alert(1))` both survive this policy today. Neither is a
+	// live vector -- border does not fetch, expression() has not run since IE,
+	// and the preview iframe's CSP blocks remote loads regardless -- but the
+	// boundary is the property allowlist plus the absent colon, not a filter on
+	// url() or expression() themselves, and a future property added to this list
+	// inherits that. FuzzSanitizeHTML carries both strings as seeds so the next
+	// change to either the list or the pattern is measured against them.
 	p.AllowStyles(
 		"color", "background-color", "font-family", "font-size", "font-weight",
 		"font-style", "text-decoration", "text-align", "line-height",
@@ -249,7 +271,18 @@ func sanitizeHTML(html string) string {
 	})
 }
 
-// parseEmailDate parses the Date header from email headers
+// parseEmailDate parses the Date header from email headers, falling back to the
+// current time when the header is absent or unparseable.
+//
+// A parsed result is accepted only when it is non-zero. The zero time is a
+// value the rest of the storage layer reads as "no time recorded" -- read_only
+// substitutes the file's modification time when it sees one -- and a message
+// carrying it sorts ahead of every real message for as long as the mailbox
+// lives. Year 0001 is also a value an attacker can simply write into a Date
+// header: "Mon, 01 Jan 0001 00:00:00 +0000" parses cleanly against RFC1123Z,
+// the first layout tried below. Treating it as unparseable routes it to the
+// same fallback as any other bad header instead of letting a sender choose a
+// sentinel the storage layer means something else by.
 func parseEmailDate(headers message.Header) time.Time {
 	dateStr := headers.Get("Date")
 	if dateStr == "" {
@@ -280,16 +313,16 @@ func parseEmailDate(headers message.Header) time.Time {
 
 	// Try parsing with each format
 	for _, format := range dateFormats {
-		if date, err := time.Parse(format, dateStr); err == nil {
+		if date, err := time.Parse(format, dateStr); err == nil && !date.IsZero() {
 			return date
 		}
 	}
 
 	// Try parsing with time.ParseInLocation for timezone-aware parsing
-	if date, err := time.ParseInLocation(time.RFC1123Z, dateStr, time.UTC); err == nil {
+	if date, err := time.ParseInLocation(time.RFC1123Z, dateStr, time.UTC); err == nil && !date.IsZero() {
 		return date
 	}
-	if date, err := time.ParseInLocation(time.RFC1123, dateStr, time.UTC); err == nil {
+	if date, err := time.ParseInLocation(time.RFC1123, dateStr, time.UTC); err == nil && !date.IsZero() {
 		return date
 	}
 
@@ -303,7 +336,7 @@ func parseEmailDate(headers message.Header) time.Time {
 	cleanedDate = strings.TrimSuffix(cleanedDate, " UTC")
 
 	for _, format := range dateFormats {
-		if date, err := time.Parse(format, cleanedDate); err == nil {
+		if date, err := time.Parse(format, cleanedDate); err == nil && !date.IsZero() {
 			return date
 		}
 	}

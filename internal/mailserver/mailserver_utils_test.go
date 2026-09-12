@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/emersion/go-message"
 	"github.com/emersion/go-message/mail"
@@ -336,6 +337,59 @@ func TestSanitizeHTML(t *testing.T) {
 	}
 }
 
+// A sanitized body is the sanitizer's own output, so sanitizing it again must
+// be a no-op. It was not: bluemonday appends nofollow and noreferrer to the
+// rel of every element carrying an href, <link> included, and the resulting
+// "stylesheet nofollow noreferrer" no longer matched the policy that had just
+// produced it. The second pass dropped the rel, the post-processing then found
+// no stylesheet token, and the <link> disappeared -- so the same body rendered
+// differently depending on how many times it had been through the sanitizer.
+func TestSanitizeHTMLIsIdempotent(t *testing.T) {
+	tests := []struct {
+		name string
+		html string
+	}{
+		{
+			name: "constrained stylesheet link",
+			html: `<link rel="stylesheet" href="https://cdn.example.test/mail.css" type="text/css" media="screen">`,
+		},
+		{
+			name: "relative stylesheet link",
+			html: `<link rel="stylesheet" href="/mail.css">`,
+		},
+		{
+			name: "external link",
+			html: `<a href="https://example.com/path" target="_self" rel="opener">external</a>`,
+		},
+		{
+			name: "inline presentation markup",
+			html: `<table style="width: 100%"><tr><td style="color: #123456"><img src="cid:logo@example.test"></td></tr></table>`,
+		},
+		{
+			name: "active content",
+			html: `<script>alert(1)</script><a href="javascript:alert(1)" onclick="alert(2)">bad</a>`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			once := sanitizeHTML(test.html)
+			if twice := sanitizeHTML(once); twice != once {
+				t.Errorf("sanitizeHTML is not idempotent:\nfirst:  %s\nsecond: %s", once, twice)
+			}
+		})
+	}
+}
+
+// The stylesheet link must survive a second sanitizing pass with the token the
+// web preview's remote-content mode looks for still in place, not merely
+// survive as some <link>.
+func TestSanitizeHTMLKeepsStylesheetRelAcrossPasses(t *testing.T) {
+	sanitized := sanitizeHTML(sanitizeHTML(`<link rel="stylesheet" href="https://cdn.example.test/mail.css" type="text/css">`))
+	if !strings.Contains(sanitized, "stylesheet") || !strings.Contains(sanitized, "https://cdn.example.test/mail.css") {
+		t.Errorf("re-sanitized stylesheet link lost its relation or target: %s", sanitized)
+	}
+}
+
 func TestParseEmailDate(t *testing.T) {
 	// Create a message header
 	header := message.Header{}
@@ -639,4 +693,31 @@ func TestValidatePath(t *testing.T) {
 	validPath := filepath.Join(tmpDir, "file.txt")
 	// This might fail due to invalid characters, which is expected
 	_ = validatePath(invalidBase, validPath)
+}
+
+// TestParseEmailDateRejectsYearZeroSentinels is the focused regression for the
+// defect FuzzParseEmailDate found. Both values parse cleanly against layouts in
+// the list, so before the fix they were returned as the message's timestamp.
+// The zero time is not a timestamp anywhere else in the storage layer: it is
+// how "no time recorded" is spelled, read_only substitutes the file's
+// modification time when it sees one, and a message carrying it sorts ahead of
+// every real message permanently. Both values come straight off the wire in a
+// Date header, so the sentinel was attacker-selectable.
+func TestParseEmailDateRejectsYearZeroSentinels(t *testing.T) {
+	for _, raw := range []string{
+		"Mon, 01 Jan 0001 00:00:00 +0000",
+		"0001-01-01T00:00:00Z",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			var headers message.Header
+			headers.Set("Date", raw)
+			parsed := parseEmailDate(headers)
+			if parsed.IsZero() {
+				t.Fatalf("parseEmailDate(%q) returned the zero time instead of falling back", raw)
+			}
+			if time.Since(parsed) > time.Minute {
+				t.Fatalf("parseEmailDate(%q) = %v, want the current-time fallback", raw, parsed)
+			}
+		})
+	}
 }

@@ -77,6 +77,53 @@ jobs:
             coverage.out
             coverage.html
 
+  fuzz:
+    name: Fuzz Untrusted Input Parsers
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+          # go test -fuzz writes every coverage-increasing input into the build
+          # cache. This job deliberately does not persist a corpus, so saving that
+          # growth back would inflate a cache nothing reads.
+          cache: false
+
+      - name: Download dependencies
+        run: go mod download
+
+      # Each target runs for a fixed 30 seconds so the job is a gate rather
+      # than a search: it re-runs the committed seed corpus on every pull
+      # request and spends a bounded, equal budget looking for new inputs.
+      # Minimization is capped well below the fuzzing budget because its
+      # default of one minute would otherwise consume the whole run.
+      - name: Fuzz MIME, HTML, and Date parsing
+        run: |
+          for target in FuzzParseEmailMessage FuzzSanitizeHTML FuzzParseEmailDate; do
+            go test -run '^$' -fuzz "^${target}$" -fuzztime=30s -fuzzminimizetime=5s ./internal/mailserver
+          done
+
+      - name: Fuzz webhook pattern matching
+        run: go test -run '^$' -fuzz '^FuzzMatchTextPattern$' -fuzztime=30s -fuzzminimizetime=5s ./internal/webhook
+
+      # Go writes a failing input under the package's testdata directory. It is
+      # the reproducer, so it has to leave the runner even though the step that
+      # produced it failed.
+      - name: Upload failing fuzz inputs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-failures
+          retention-days: 7
+          path: internal/**/testdata/fuzz/**
+          if-no-files-found: ignore
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
