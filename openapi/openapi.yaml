@@ -2078,8 +2078,7 @@ components:
             type: string
           example: Unauthorized
     Forbidden:
-      description: When Basic Auth deployment middleware is enabled, the pre-authentication same-origin check rejected a browser
-        request with a foreign `Origin`. A 403 does not imply successful authentication, and the body is plain text.
+      description: The pre-authentication browser origin check rejected a request whose `Origin` header is neither OwlMail's own origin nor one listed in `-web-allowed-origins`. It runs whether or not Basic Auth is configured, so a 403 does not imply successful authentication, and the body is plain text.
       content:
         text/plain:
           schema:

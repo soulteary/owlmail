@@ -125,6 +125,9 @@ func ValidateConfig(cfg *Config) error {
 	if _, err := ParseMCPAllowedOrigins(cfg.MCPAllowedOrigins); err != nil {
 		return err
 	}
+	if _, err := ParseWebAllowedOrigins(cfg.WebAllowedOrigins); err != nil {
+		return err
+	}
 	if cfg.MailRetentionDays < 0 || cfg.MailMaxMessages < 0 || cfg.MailMaxDiskMB < 0 {
 		return fmt.Errorf("mail retention limits cannot be negative")
 	}
@@ -249,30 +252,52 @@ func NormalizeWebExternalURL(value string) (string, error) {
 // opt-out for deployments that control browser access at another layer.
 const MCPAllowAnyOrigin = "*"
 
-// ParseMCPAllowedOrigins converts the comma-separated extra origins accepted on
-// the MCP endpoint into normalized scheme://host[:port] values. OwlMail's own
-// browser-visible origins are always accepted and need not be listed. The
-// wildcard turns validation off entirely and cannot be combined with an origin,
-// so a typo can never silently widen a narrow list.
-func ParseMCPAllowedOrigins(value string) ([]string, error) {
+// WebAllowAnyOrigin disables Web UI and REST API browser origin validation. It
+// restores the wildcard CORS policy unauthenticated deployments used to serve
+// and is an explicit opt-out for deployments that control browser access at
+// another layer.
+const WebAllowAnyOrigin = "*"
+
+// parseAllowedOrigins converts a comma-separated browser origin allow list into
+// normalized scheme://host[:port] values. OwlMail's own browser-visible origins
+// are always accepted and need not be listed. The wildcard turns validation off
+// entirely and cannot be combined with an origin, so a typo can never silently
+// widen a narrow list.
+//
+// Both endpoints that take such a list share this parser: two of them would
+// drift, and a value an operator copied from one option would then be refused
+// by the other. subject names the option in the error an operator reads.
+func parseAllowedOrigins(value, subject, wildcard string) ([]string, error) {
 	fields := strings.FieldsFunc(value, func(r rune) bool {
 		return r == ',' || unicode.IsSpace(r)
 	})
 	origins := make([]string, 0, len(fields))
 	for _, field := range fields {
-		if field == MCPAllowAnyOrigin {
+		if field == wildcard {
 			if len(fields) != 1 {
-				return nil, fmt.Errorf("MCP allowed origins cannot combine %q with an explicit origin", MCPAllowAnyOrigin)
+				return nil, fmt.Errorf("%s allowed origins cannot combine %q with an explicit origin", subject, wildcard)
 			}
-			return []string{MCPAllowAnyOrigin}, nil
+			return []string{wildcard}, nil
 		}
 		origin, err := NormalizeWebExternalURL(field)
 		if err != nil || origin == "" {
-			return nil, fmt.Errorf("MCP allowed origin %q must be an absolute http or https origin without a path", field)
+			return nil, fmt.Errorf("%s allowed origin %q must be an absolute http or https origin without a path", subject, field)
 		}
 		origins = append(origins, origin)
 	}
 	return origins, nil
+}
+
+// ParseMCPAllowedOrigins converts the comma-separated extra origins accepted on
+// the MCP endpoint into normalized scheme://host[:port] values.
+func ParseMCPAllowedOrigins(value string) ([]string, error) {
+	return parseAllowedOrigins(value, "MCP", MCPAllowAnyOrigin)
+}
+
+// ParseWebAllowedOrigins converts the comma-separated extra origins accepted on
+// the Web UI and REST API into normalized scheme://host[:port] values.
+func ParseWebAllowedOrigins(value string) ([]string, error) {
+	return parseAllowedOrigins(value, "Web", WebAllowAnyOrigin)
 }
 
 // NormalizeBasePathname converts a browser-visible URL prefix to the canonical

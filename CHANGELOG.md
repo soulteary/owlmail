@@ -8,9 +8,38 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ### Security
 
+- The Web UI and REST API now validate the browser `Origin` header on every
+  request, independently of Web Basic Auth. Validation used to be conditional on
+  Basic Auth, which is off by default, so the default deployment answered every
+  origin with `Access-Control-Allow-Origin: *`. Binding to loopback did not
+  mitigate that: the browser running an unrelated page the developer visits is
+  on the same host, so the page could read the whole mailbox including
+  password-reset links and verification codes, repoint the outgoing SMTP relay
+  at a server it controlled, forward captured mail to an address it chose, and
+  empty the mailbox. Requests without an `Origin` header remain allowed and
+  unchanged, because non-browser clients never send one: `curl`, HTTP
+  libraries, CI scripts, and server-to-server callers are unaffected. The
+  health, readiness, and metrics endpoints are inside the boundary rather than
+  exempt from it, which is deliberate: every caller that actually probes them
+  sends no `Origin` and is unaffected, while a browser page on an unrelated
+  origin that used to read `/healthz` was using it as a fingerprinting oracle
+  for a loopback service, not as a health check. A browser status page that must
+  read them cross-origin names its origin in the new option below.
+  New `-web-allowed-origins` and
+  `OWLMAIL_WEB_ALLOWED_ORIGINS` list additional browser origins, canonicalized
+  by the same parser as `-mcp-allowed-origins`, and an allowed origin is
+  answered with a CORS policy naming it exactly, with credentials and an
+  unchallenged preflight, so a browser client the operator allowed on purpose
+  can read the response. A single `*` is the documented opt-out and restores the
+  previous wildcard behavior; it cannot be combined with a named origin, in the
+  configuration parser or in the setter, because that combination can only be a
+  typo that silently widens a list meant to stay narrow. The WebSocket upgrade
+  enforces the same policy, since browsers do not apply CORS to WebSockets and
+  that stream carries the same mail bodies. `/mcp` keeps its own, stricter
+  policy and is not affected by the Web allow list.
 - The read-only MCP HTTP endpoint now validates the browser `Origin` header on
-  every request, independently of Web Basic Auth, and is excluded from the
-  wildcard CORS policy that the unauthenticated development API still uses.
+  every request, independently of Web Basic Auth, and owns its own CORS policy
+  rather than inheriting the Web one.
   Requests without an `Origin` header remain allowed because non-browser
   clients never send one, so `curl`, MCP SDK HTTP clients, and server-to-server
   callers are unaffected. This closes cross-origin and DNS-rebinding reads of

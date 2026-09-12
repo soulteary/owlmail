@@ -85,9 +85,9 @@ HTTP 端点在每个请求上校验浏览器的 `Origin` 头，且与 Web Basic 
 | `Origin` 在 `-mcp-allowed-origins` 中 | 放行。逗号分隔的绝对 `http`/`https` 来源，与上述来源相加而非替换 |
 | 其他 `Origin` | 返回 `403` 与纯文本原因 |
 
-在 `/mcp` 上，该校验取代而非叠加于 Basic Auth 安装的全局同源中间件：那个中间件
-接受任何与请求自身 `Host` 相同的 `Origin`，因此上述允许列表严格更窄，且
-`-mcp-allowed-origins` 在启用认证的部署上依然有效。
+在 `/mcp` 上，该校验取代而非叠加于全局的 Web 来源守卫：那个守卫接受任何与请求
+自身 `Host` 相同的 `Origin`，因此上述允许列表严格更窄，`-mcp-allowed-origins`
+依然有效，且 `-web-allowed-origins` 不会打开该端点。
 
 `-mcp-allowed-origins '*'` 供浏览器访问已由其他层控制的部署关闭该校验；它不能与
 具体来源同时出现，因此一个笔误不会悄悄放宽一份收紧过的列表。

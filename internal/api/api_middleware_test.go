@@ -11,33 +11,6 @@ import (
 	"github.com/soulteary/owlmail/internal/mailserver"
 )
 
-func TestCorsMiddleware(t *testing.T) {
-	api, server, _ := setupTestAPI(t)
-	defer func() {
-		if err := server.Close(); err != nil {
-			t.Errorf("Failed to close server: %v", err)
-		}
-	}()
-
-	// CORS middleware adds headers to actual requests; with AllowOriginsFunc
-	// returning true it sets Access-Control-Allow-Origin to the request origin.
-	req, _ := http.NewRequest("GET", "/api/v1/emails", nil)
-	req.Header.Set("Origin", "http://example.com")
-	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
-	if err != nil {
-		t.Fatalf("Test request failed: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-	allowOrigin := resp.Header.Get("Access-Control-Allow-Origin")
-	if allowOrigin != "*" && allowOrigin != "http://example.com" {
-		t.Errorf("CORS Access-Control-Allow-Origin should be set, got %q", allowOrigin)
-	}
-}
-
 func TestAuthenticatedAPIRejectsCrossOriginBrowserRequest(t *testing.T) {
 	tmpDir := t.TempDir()
 	server, err := mailserver.NewMailServer(1025, "localhost", tmpDir)

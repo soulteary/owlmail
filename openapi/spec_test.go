@@ -132,8 +132,13 @@ func validateSecuritySemantics(t *testing.T, document map[string]any) {
 	components := document["components"].(map[string]any)
 	responses := components["responses"].(map[string]any)
 	forbidden := responses["Forbidden"].(map[string]any)["description"].(string)
-	if !strings.Contains(forbidden, "pre-authentication same-origin check") {
-		t.Error("Forbidden response does not document the pre-authentication same-origin check")
+	if !strings.Contains(forbidden, "pre-authentication browser origin check") {
+		t.Error("Forbidden response does not document the pre-authentication browser origin check")
+	}
+	// The check does not depend on Basic Auth, and a contract that implied it
+	// did would tell a client the default deployment answers every origin.
+	if !strings.Contains(forbidden, "whether or not Basic Auth is configured") {
+		t.Error("Forbidden response ties the browser origin check to Basic Auth")
 	}
 
 	paths := document["paths"].(map[string]any)
@@ -144,7 +149,7 @@ func validateSecuritySemantics(t *testing.T, document map[string]any) {
 		}
 		responses := operation["responses"].(map[string]any)
 		if _, ok := responses["403"]; !ok {
-			t.Errorf("GET %s does not document the browser same-origin 403 response", path)
+			t.Errorf("GET %s does not document the browser origin 403 response", path)
 		}
 	}
 }

@@ -125,6 +125,16 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker 使用
 
+**容器端口一律只发布到回环地址：写 `-p 127.0.0.1:1080:1080`，而不是
+`-p 1080:1080`。** 镜像设置了 `OWLMAIL_WEB_HOST=0.0.0.0` 与
+`OWLMAIL_SMTP_HOST=0.0.0.0`，这在容器内部是正确的——进程必须接受来自其网络命名
+空间之外的连接——但这也意味着能否访问 OwlMail 完全由 `-p` 决定。简写形式会在宿主
+机的每个网络接口上发布端口，而大多数人写下的那条宿主机防火墙规则拦不住它：发布出去
+的端口是经由转发到达的，所以 `ufw deny 1080` 这类 `INPUT` 链规则对它根本不生效。
+要过滤它，需要在 Docker 的 `DOCKER-USER` 链里加规则，或在 nftables、firewalld 中
+做等价配置。这样暴露出去的，是一个存有密码重置链接、验证码与令牌的邮箱，以及一个
+默认不认证即可投递的 SMTP 端口。下面所有示例都使用回环形式。
+
 #### 从 GitHub Container Registry 拉取镜像（推荐）
 
 使用 OwlMail 最简单的方式是从 GitHub Container Registry 拉取预构建的镜像：
@@ -228,6 +238,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成邮件深链接时使用的浏览器可见 HTTP(S) origin；反向代理子路径仍通过 `-base-pathname` 配置 |
+| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外，Web 界面与 REST API 额外接受的浏览器来源；`*` 关闭来源校验 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | 显式启用 MailDev `/api` REST 兼容 facade；仍不支持 Socket.IO |
 | `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | 在跟随基础路径的 `/metrics` 端点暴露 Prometheus 指标；配置 Web Basic Auth 后同样受其保护 |
@@ -309,6 +320,22 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 `docker logs owlmail`），需要稳定凭据时应同时配置用户名和密码；如果无法将
 自动生成的密码写入 stderr，OwlMail 会启动失败。Basic Auth 只应在 localhost
 或 HTTPS 上使用。
+
+### 浏览器来源校验
+
+无论是否配置 Basic Auth，OwlMail 都会校验每个请求的浏览器 `Origin`。Basic Auth
+默认关闭，而在没有凭据时，这项校验是保护响应正文的唯一手段：开发者随手打开的页面
+就运行在同一台机器上，绑定 loopback 并不能阻止它请求
+`http://127.0.0.1:1080/api/v1/emails`——是否把捕获到的邮件交给它，只由来源策略
+决定。
+
+不携带 `Origin` 的请求不受影响：`curl`、各语言 HTTP 库、CI 脚本与服务器之间的调用
+都不会发送该头。携带 `Origin` 的请求必须匹配 OwlMail 自身来源，或
+`-web-allowed-origins https://console.example`（逗号分隔）中列出的来源，否则返回
+`403`。被允许的来源会在 `Access-Control-Allow-Origin` 中被精确回显，允许携带凭据
+并正确回应预检，因此你有意放行的浏览器客户端可以正常工作。把该选项设为 `*` 可以
+恢复此前的通配 CORS 行为，供浏览器访问已由其他层控制的部署使用。详见
+[安全模型](./docs/zh-CN/Security-Model.md#浏览器来源策略)。
 
 ### 只读 MCP
 
@@ -414,7 +441,7 @@ OwlMail 使用标准化的 API 响应格式：
 ```
 
 `code` 字段包含标准化的错误/成功代码，可用于国际化。`message` 字段提供英文文本以保持向后兼容。
-Basic Auth 与浏览器同源中间件错误发生在进入 API 处理器之前，因此会返回纯文本
+Basic Auth 与浏览器来源守卫错误发生在进入 API 处理器之前，因此会返回纯文本
 `401` 或 `403`。
 
 ### 邮件 ID 格式

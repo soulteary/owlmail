@@ -133,6 +133,20 @@ folder.
 
 ### Docker Usage
 
+**Publish every container port on loopback: write `-p 127.0.0.1:1080:1080`, not
+`-p 1080:1080`.** The image sets `OWLMAIL_WEB_HOST=0.0.0.0` and
+`OWLMAIL_SMTP_HOST=0.0.0.0`, which is correct inside a container — the process
+has to accept connections that arrive from outside its network namespace — but
+it means the `-p` flag is the only thing deciding who can reach OwlMail. The
+short form publishes on every host interface, and the host-firewall rule most
+people have written does not contain it: a published port is reached by
+forwarding, so an `INPUT`-chain rule such as `ufw deny 1080` never applies to it.
+Filtering it takes a rule in Docker's `DOCKER-USER` chain or the equivalent in
+your nftables or firewalld configuration. That exposes a mailbox holding
+password-reset links, verification codes, and tokens, and an SMTP port that
+accepts mail without authentication by default. Every example below uses the
+loopback form.
+
 #### Pull from GitHub Container Registry (Recommended)
 
 The easiest way to use OwlMail is to pull the pre-built image from GitHub Container Registry:
@@ -240,6 +254,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
+| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | Extra browser origins accepted on the Web UI and REST API, in addition to OwlMail's own; `*` disables origin validation |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Enable the opt-in MailDev `/api` REST facade; Socket.IO remains unsupported |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | Enable the opt-in MailCatcher `/messages` REST facade |
@@ -321,6 +336,26 @@ A generated password changes on every restart. Read it from the process output
 (`docker logs owlmail` for the container example), or configure both values for
 stable credentials. Startup fails if the generated password cannot be written
 to stderr. Basic Auth credentials should only be used over localhost or HTTPS.
+
+### Browser Origin Validation
+
+OwlMail validates the browser `Origin` header on every request, whether or not
+Basic Auth is configured. Basic Auth is off by default, and without credentials
+this check is the only thing protecting the response body: a page the developer
+happens to visit runs on the same machine, so binding to loopback does not stop
+it from calling `http://127.0.0.1:1080/api/v1/emails` — only the origin policy
+decides whether the browser hands it the captured mail.
+
+Requests without an `Origin` header are unaffected: `curl`, HTTP libraries, CI
+scripts, and server-to-server callers never send one. A request that carries an
+`Origin` must name OwlMail's own origin or one listed in
+`-web-allowed-origins https://console.example` (comma-separated); anything else
+gets `403`. An allowed origin is echoed exactly in
+`Access-Control-Allow-Origin`, with credentials permitted and its preflight
+answered, so a browser client you allowed on purpose works. Setting the option
+to `*` restores the previous wildcard CORS behavior for deployments that control
+browser access elsewhere. See the
+[security model](./docs/en/Security-Model.md#browser-origin-policy).
 
 ### Read-only MCP
 
@@ -446,8 +481,8 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
-Basic Auth and browser same-origin middleware failures are plain-text `401` or
-`403` responses because they occur before API handlers.
+Basic Auth and browser origin guard failures are plain-text `401` or `403`
+responses because they occur before API handlers.
 
 ### Email ID Format
 

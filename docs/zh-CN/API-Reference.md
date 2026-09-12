@@ -22,14 +22,37 @@ MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一
 
 自动生成的密码会在每次重启时变化；需要固定凭据时请显式配置两项。如果无法
 将该密码写入 stderr，OwlMail 会启动失败，因为此时不存在可恢复的有效凭据。
-健康检查端点不要求鉴权。启用 Basic Auth 后，携带 `Origin` 的浏览器请求和
-WebSocket 升级必须来自 OwlMail 自身源；此同源检查仍适用于无需鉴权的健康检查
-端点，并可能返回纯文本 `403`。不携带 `Origin` 的服务端客户端仍可访问。离开
-可信本地开发环境时应同时启用 HTTPS。
+健康检查端点不要求鉴权。离开可信本地开发环境时应同时启用 HTTPS。
 
 ```bash
 curl -u admin:secret http://localhost:1080/api/v1/emails
 ```
+
+### 浏览器来源校验
+
+无论是否配置 Basic Auth，所有携带 `Origin` 的请求都会被校验。这不是凭据检查：
+没有凭据时，它是保护响应正文的唯一手段；绑定 loopback 也替代不了它，因为运行
+攻击页面的浏览器就在监听端口所在的这台机器上。
+
+以下 `Origin` 会被放行：与请求自身来源一致的来源、监听端口自身的来源（配置的
+Web 主机与 Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该来源），
+以及 `-web-allowed-origins` / `OWLMAIL_WEB_ALLOWED_ORIGINS` 中列出的来源。其余
+一律在进入任何处理器之前返回纯文本 `403`，无需鉴权的健康检查端点同样如此。
+
+不携带 `Origin` 的请求行为不变。`curl`、各语言 HTTP 库、CI 脚本与服务器之间的
+调用都不会发送该头，只有浏览器页面会发送。
+
+对显式列出的来源，响应中的 `Access-Control-Allow-Origin` 会精确回显该来源，并
+附带 `Access-Control-Allow-Credentials: true`，预检返回 `204`，因此被允许的浏览器
+客户端既能读取响应也能携带认证。所有响应都带 `Vary: Origin`。
+
+`-web-allowed-origins '*'` 关闭该校验，恢复未认证部署过去提供的通配 CORS 策略；
+它不能与具体来源同时出现，因此一个拼写错误不会悄悄放宽一份本应很窄的列表。在该
+退出开关下，响应返回不可携带凭据的 `Access-Control-Allow-Origin: *`，而不是回显
+调用方。
+
+`/mcp` 由它自己更严格的策略和 `-mcp-allowed-origins` 列表管辖，见
+[MCP 参考](./MCP-Reference.md)。
 
 ## OpenAPI 3.1 合约
 
@@ -42,7 +65,7 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.json
 curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 ```
 
-这两个合约端点遵循普通 Basic Auth 与浏览器同源策略。版本化 API 中只有
+这两个合约端点遵循普通 Basic Auth 与浏览器来源策略。版本化 API 中只有
 `/api/v1/health` 和 `/api/v1/ready` 公开。配置
 `-base-pathname=/owlmail` 后，应访问
 `/owlmail/api/v1/openapi.json`，返回值中的 `servers[0].url` 也会变为
@@ -65,8 +88,8 @@ curl -u admin:secret http://localhost:1080/api/v1/openapi.yaml
 - 时间由 Go `time.Time` 编码为 RFC 3339 格式。
 - 修改成功通常返回 `code`、`message` 和可选的 `data`；API 处理器产生的
   错误会返回对应 HTTP 状态码，以及 `code`、`error`、`message`。Basic
-  Auth 与浏览器同源中间件会在进入 API 处理器前直接返回纯文本 `401` 或
-  `403`。启用后，同源检查先于 Basic Auth 执行，因此 `403` 不表示鉴权已经成功。
+  Auth 与浏览器来源守卫会在进入 API 处理器前直接返回纯文本 `401` 或
+  `403`。来源校验先于 Basic Auth 执行，因此 `403` 不表示鉴权已经成功。
 
 列表响应示例：
 
@@ -276,7 +299,7 @@ OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
 
 默认值为 `false`；关闭时以下路由返回 `404`。设置 `-base-pathname /owlmail`
 后，它们位于 `/owlmail/api`。facade 复用 OwlMail 的监听端口、HTTPS、
-CORS/同源保护和 Basic Auth；与 MailDev 一样，`/api/healthz` 无需认证。
+CORS/来源保护和 Basic Auth；与 MailDev 一样，`/api/healthz` 无需认证。
 实现直接委托给现有邮箱、持久化已读元数据、事务删除、附件 Store 与出站 relay
 worker，不创建第二套索引或存储格式。
 
@@ -344,7 +367,9 @@ polling transport，也不发送 MailDev 的 `newMail`、`deleteMail` 事件。
 
 ## WebSocket 协议
 
-两个 WebSocket 路径都实现标准 RFC 6455 WebSocket。连接成功后先收到：
+两个 WebSocket 路径都实现标准 RFC 6455 WebSocket。浏览器不会对 WebSocket 施加
+CORS，因此升级握手会执行上文同一套浏览器来源策略：携带不被允许的 `Origin` 的升级
+会被拒绝，不携带 `Origin` 的升级照常接受。连接成功后先收到：
 
 ```json
 { "type": "connected", "message": "WebSocket connection established" }

@@ -118,6 +118,19 @@ export MAILDEV_WEB_PORT=1080
 
 ### Docker 사용
 
+**컨테이너 포트는 항상 루프백으로만 게시하세요. `-p 1080:1080`이 아니라
+`-p 127.0.0.1:1080:1080`으로 씁니다.** 이미지는 `OWLMAIL_WEB_HOST=0.0.0.0`과
+`OWLMAIL_SMTP_HOST=0.0.0.0`을 설정하며, 이는 컨테이너 내부에서는 올바른 설정입니다
+— 프로세스는 자신의 네트워크 네임스페이스 밖에서 오는 연결을 받아야 하기 때문입니다
+— 하지만 그만큼 누가 OwlMail에 도달할 수 있는지는 오직 `-p`가 결정합니다. 짧은
+형식은 호스트의 모든 인터페이스에 게시하며, 대부분의 사람이 작성해 둔 호스트 방화벽
+규칙으로는 막히지 않습니다. 게시된 포트는 포워딩을 거쳐 도달하므로 `ufw deny 1080`
+같은 `INPUT` 체인 규칙은 적용되지 않습니다. 이를 걸러내려면 Docker의 `DOCKER-USER`
+체인에 규칙을 넣거나 nftables 또는 firewalld에서 같은 설정을 해야 합니다.
+그 결과 비밀번호 재설정 링크와 인증 코드, 토큰이 담긴
+메일함과 기본적으로 인증 없이 메일을 받는 SMTP 포트가 노출됩니다. 아래 예제는 모두
+루프백 형식을 사용합니다.
+
 #### GitHub Container Registry에서 가져오기 (권장)
 
 OwlMail을 사용하는 가장 쉬운 방법은 GitHub Container Registry에서 사전 빌드된 이미지를 가져오는 것입니다:
@@ -211,6 +224,7 @@ docker buildx build \
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 생성된 이메일 딥 링크에 사용할 브라우저 공개 HTTP(S) origin. 프록시 하위 경로는 `-base-pathname`으로 별도 설정 |
+| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | OwlMail 자체 출처 외에 웹 UI와 REST API에서 허용하는 브라우저 출처. `*`는 출처 검증을 끕니다 |
 | `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | `/owlmail` 같은 URL 경로 접두사. 기본값은 루트 경로 |
 | `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | MailDev `/api` REST facade를 명시적으로 활성화하며 Socket.IO는 계속 호환되지 않음 |
 | `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | 기본 경로를 따르는 `/metrics`에서 Prometheus 메트릭을 노출하며 Web Basic Auth 설정 시 동일하게 보호 |
@@ -334,7 +348,7 @@ OwlMail uses a standardized API response format:
 ```
 
 The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
-Basic Auth 및 브라우저 same-origin 미들웨어 오류는 API 핸들러보다 먼저
+Basic Auth 및 브라우저 Origin 가드 오류는 API 핸들러보다 먼저
 발생하므로 일반 텍스트 `401` 또는 `403` 응답입니다.
 
 ### Email ID Format

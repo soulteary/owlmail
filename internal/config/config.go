@@ -276,6 +276,7 @@ type Config struct {
 	WebPassword           string
 	WebExternalScheme     string
 	WebExternalURL        string
+	WebAllowedOrigins     string
 	BasePathname          string
 	MailDevRESTCompat     bool
 	MailCatcherRESTCompat bool
@@ -371,6 +372,7 @@ func DefaultConfig() *Config {
 		WebPassword:                 "",
 		WebExternalScheme:           "",
 		WebExternalURL:              "",
+		WebAllowedOrigins:           "",
 		BasePathname:                "",
 		MailDevRESTCompat:           false,
 		MailCatcherRESTCompat:       false,
@@ -448,6 +450,7 @@ type FlagRefs struct {
 	WebUser                     *string
 	WebPassword                 *string
 	WebExternalURL              *string
+	WebAllowedOrigins           *string
 	BasePathname                *string
 	MailDevRESTCompat           *bool
 	MailCatcherRESTCompat       *bool
@@ -534,6 +537,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:                 secretStringFlag(fs, "web-password", cfg.WebPassword, "HTTP Basic Auth password"),
 		WebExternalURL:              fs.String("web-external-url", cfg.WebExternalURL, "Browser-visible Web origin used in generated links"),
+		WebAllowedOrigins:           fs.String("web-allowed-origins", cfg.WebAllowedOrigins, "Comma-separated extra browser origins accepted on the Web UI and REST API; \"*\" disables origin validation"),
 		BasePathname:                fs.String("base-pathname", cfg.BasePathname, "Browser-visible URL path prefix (for example /owlmail)"),
 		MailDevRESTCompat:           fs.Bool("maildev-rest-compat", cfg.MailDevRESTCompat, "Enable the optional MailDev REST compatibility facade under /api"),
 		MailCatcherRESTCompat:       fs.Bool("mailcatcher-rest-compat", cfg.MailCatcherRESTCompat, "Enable the optional MailCatcher REST compatibility facade under /messages"),
@@ -627,6 +631,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		WebPassword:           resolveStringWithFlag(fs, "web-password", "OWLMAIL_WEB_PASSWORD", *refs.WebPassword),
 		WebExternalScheme:     ResolveString(nil, "", "OWLMAIL_WEB_EXTERNAL_SCHEME", ""),
 		WebExternalURL:        resolveStringWithFlag(fs, "web-external-url", "OWLMAIL_WEB_EXTERNAL_URL", *refs.WebExternalURL),
+		WebAllowedOrigins:     resolveStringWithFlag(fs, "web-allowed-origins", "OWLMAIL_WEB_ALLOWED_ORIGINS", *refs.WebAllowedOrigins),
 		BasePathname:          resolveStringWithFlag(fs, "base-pathname", "OWLMAIL_BASE_PATHNAME", *refs.BasePathname),
 		MailDevRESTCompat:     resolveBoolWithFlag(fs, "maildev-rest-compat", "OWLMAIL_MAILDEV_REST_COMPAT", *refs.MailDevRESTCompat),
 		MailCatcherRESTCompat: resolveBoolWithFlag(fs, "mailcatcher-rest-compat", "OWLMAIL_MAILCATCHER_REST_COMPAT", *refs.MailCatcherRESTCompat),
