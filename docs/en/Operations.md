@@ -586,8 +586,10 @@ new captures become visible to queries and `wait_for_email`.
 Web HTTPS and SMTP TLS are separate settings:
 
 - `-https`, `-https-cert`, and `-https-key` protect the Web UI/API.
-- `-tls`, `-tls-cert`, and `-tls-key` enable SMTP STARTTLS and direct SMTPS on
-  container/process port 465.
+- `-tls`, `-tls-cert`, and `-tls-key` enable SMTP STARTTLS and direct SMTPS.
+- `-smtps-port` or `OWLMAIL_SMTPS_PORT` selects the direct SMTPS listener port.
+  It defaults to 465, and `0` starts no SMTPS listener at all, which leaves
+  STARTTLS on the SMTP port as the only encrypted path.
 
 Example web HTTPS:
 
@@ -603,24 +605,31 @@ enabled, replace the container healthcheck with one that uses HTTPS and the
 appropriate CA policy; otherwise Docker can report an unhealthy container even
 when OwlMail is serving correctly.
 
-Publish port 465 explicitly when direct SMTPS is needed:
+Publish the SMTPS port explicitly when direct SMTPS is needed:
 
 ```bash
 docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
-  -p 127.0.0.1:465:465 \
+  -p 127.0.0.1:2465:2465 \
   -v owlmail-data:/app/mail \
   -v "$PWD/certs:/certs:ro" \
   -e OWLMAIL_TLS_ENABLED=true \
+  -e OWLMAIL_SMTPS_PORT=2465 \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
   ghcr.io/soulteary/owlmail:0.9.0
 ```
 
-Verify that the container runtime permits the non-root process to bind port 465.
-If it does not, grant only the required bind-service capability according to the
-runtime's security policy.
+The image runs as a non-root user, so the default port 465 is privileged and
+binding it fails unless the runtime grants the bind-service capability. Grant
+only that capability according to the runtime's security policy, or move the
+listener with `-smtps-port 2465` and publish that port instead. A deployment
+that only needs STARTTLS can pass `-smtps-port 0` and start no SMTPS listener.
+
+A failed SMTPS bind stops startup and reports the address it could not bind.
+OwlMail previously logged that failure and kept running with the SMTPS port
+unserved, so clients discovered it only as a refused connection.
 
 ## SMTP ingress limits and authentication modes
 
@@ -798,7 +807,8 @@ tags are intentionally moving.
 | Container is unhealthy with HTTPS | Override the image's HTTP healthcheck with an HTTPS probe and correct certificate trust |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |
-| SMTP works but direct SMTPS does not | Publish port 465, check certificate paths and runtime permission to bind a privileged port |
+| SMTP works but direct SMTPS does not | Publish the `-smtps-port` port, check certificate paths and runtime permission to bind a privileged port |
+| Startup fails with an SMTPS bind error | The port is taken or privileged; choose another port with `-smtps-port`, or disable the listener with `-smtps-port 0` and use STARTTLS |
 | Relay API returned success but no message arrived | The relay is asynchronous; inspect OwlMail logs, outgoing SMTP connectivity, recipient syntax, and receiver logs |
 | Messages disappear after container recreation | Mount a volume at `/app/mail`; an unmounted container filesystem is disposable |
 | API client breaks after MailDev migration | Adapt the `/api` versus `/api/v1` prefix, pagination envelope, explicit read operation, and native WebSocket protocol |

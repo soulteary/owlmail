@@ -296,6 +296,7 @@ Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
+| `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | 启用 TLS 时隐式 TLS（SMTPS）监听端口；设为 `0` 则不启动 SMTPS 监听 |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 启用可选的 MailCatcher REST 兼容接口 |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 启动时读取 YAML 或 JSON 配置文件；命令行和环境变量优先 |
@@ -680,7 +681,7 @@ Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义�
   -smtp 1025
 ```
 
-**注意**：启用 TLS 时，OwlMail 会在常规 SMTP 服务器之外自动监听 465 端口提供 SMTPS。SMTPS 使用直接 TLS 连接（无需 STARTTLS）。
+**注意**：启用 TLS 时，OwlMail 会在常规 SMTP 服务器之外额外提供 SMTPS（直接 TLS 连接，无需 STARTTLS）。其端口由 `-smtps-port` 或 `OWLMAIL_SMTPS_PORT` 指定，默认值为特权端口 465；非 root 进程无法绑定该端口，而官方容器镜像正是以非 root 用户运行。请将 `-smtps-port` 设为非特权端口，或设为 `0` 以不启动 SMTPS 监听、仅在 SMTP 端口使用 STARTTLS。SMTPS 绑定失败会直接中止启动，而不会留下一个无人监听的端口。
 
 ### 使用 UUID 作为邮件 ID
 

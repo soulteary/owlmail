@@ -365,7 +365,10 @@ func dataArtifactPaths(t *testing.T, root string) []string {
 func TestSMTPTransportsShareDataLimitAndRejectedBodyIsDrained(t *testing.T) {
 	directory := t.TempDir()
 	server, err := NewMailServerWithOptions(1025, "127.0.0.1", directory, ServerOptions{
-		TLSConfig:          &TLSConfig{Enabled: true},
+		TLSConfig: &TLSConfig{Enabled: true},
+		// The implicit-TLS server is configured but never bound here: the test
+		// serves it on its own ephemeral listener.
+		SMTPSPort:          DefaultSMTPSPort,
 		MaxDataConcurrency: 1,
 	})
 	if err != nil {

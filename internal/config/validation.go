@@ -37,6 +37,14 @@ func ValidateConfig(cfg *Config) error {
 	if err := ValidatePort(cfg.WebPort, "Web port"); err != nil {
 		return err
 	}
+	// Zero is the documented way to run without an implicit-TLS listener, so
+	// only a non-zero port is range checked. Validating it whether or not TLS
+	// is enabled keeps a typo from surviving until the day TLS is turned on.
+	if cfg.SMTPSPort != 0 {
+		if err := ValidatePort(cfg.SMTPSPort, "SMTPS port"); err != nil {
+			return err
+		}
+	}
 	if cfg.OutgoingHost != "" {
 		if err := ValidatePort(cfg.OutgoingPort, "Outgoing port"); err != nil {
 			return err

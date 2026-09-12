@@ -31,6 +31,11 @@ const DefaultSMTPReadTimeout = "10s"
 const DefaultSMTPWriteTimeout = "10s"
 const DefaultSMTPMaxRecipients = 50
 
+// DefaultSMTPSPort keeps the historical implicit-TLS listener port. It is
+// privileged, so deployments that cannot bind below 1024 have to move or
+// disable the listener.
+const DefaultSMTPSPort = 465
+
 const invalidSMTPTimeout = "invalid"
 
 const DefaultS3Region = "us-east-1"
@@ -318,6 +323,14 @@ type Config struct {
 	TLSEnabled  bool
 	TLSCertFile string
 	TLSKeyFile  string
+	SMTPSPort   int
+	// SMTPSPortConfigured records whether an operator gave SMTPSPort a value,
+	// rather than what that value is. The startup warning for an implicit-TLS
+	// port that TLS leaves unused cannot be driven by comparing against
+	// DefaultSMTPSPort: an explicit "-smtps-port 465" is exactly the setting
+	// the process is about to ignore, and it is indistinguishable by value
+	// from the default nobody asked for.
+	SMTPSPortConfigured bool
 
 	// Logging configuration
 	LogLevel  string
@@ -406,6 +419,7 @@ func DefaultConfig() *Config {
 		TLSEnabled:                  false,
 		TLSCertFile:                 "",
 		TLSKeyFile:                  "",
+		SMTPSPort:                   DefaultSMTPSPort,
 		LogLevel:                    "normal",
 		LogFormat:                   "console",
 		UseUUIDForEmailID:           false,
@@ -484,6 +498,7 @@ type FlagRefs struct {
 	TLSEnabled                  *bool
 	TLSCertFile                 *string
 	TLSKeyFile                  *string
+	SMTPSPort                   *int
 	LogLevel                    *string
 	LogFormat                   *string
 	UseUUIDForEmailID           *bool
@@ -571,6 +586,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		TLSEnabled:                  fs.Bool("tls", cfg.TLSEnabled, "Enable TLS/STARTTLS for SMTP server"),
 		TLSCertFile:                 fs.String("tls-cert", cfg.TLSCertFile, "TLS certificate file path"),
 		TLSKeyFile:                  fs.String("tls-key", cfg.TLSKeyFile, "TLS private key file path"),
+		SMTPSPort:                   fs.Int("smtps-port", cfg.SMTPSPort, "Implicit TLS (SMTPS) listener port used when TLS is enabled (0 = do not start the SMTPS listener)"),
 		LogLevel:                    fs.String("log-level", cfg.LogLevel, "Log level: silent, normal, or verbose"),
 		LogFormat:                   fs.String("log-format", cfg.LogFormat, "Log format: console or json"),
 		UseUUIDForEmailID:           fs.Bool("use-uuid-for-email-id", cfg.UseUUIDForEmailID, "Use UUID instead of random string for email IDs"),
@@ -669,6 +685,11 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		TLSEnabled:  resolveBoolWithFlag(fs, "tls", "OWLMAIL_TLS_ENABLED", *refs.TLSEnabled),
 		TLSCertFile: resolveStringWithFlag(fs, "tls-cert", "OWLMAIL_TLS_CERT", *refs.TLSCertFile),
 		TLSKeyFile:  resolveStringWithFlag(fs, "tls-key", "OWLMAIL_TLS_KEY", *refs.TLSKeyFile),
+		SMTPSPort:   resolveIntWithFlag(fs, "smtps-port", "OWLMAIL_SMTPS_PORT", *refs.SMTPSPort),
+		// A config file reaches this through its own FlagSet, which
+		// LoadConfigFile populates with fs.Set for every key the file carries,
+		// so all three sources are covered by the same two checks.
+		SMTPSPortConfigured: flagutil.HasFlag(fs, "smtps-port") || env.Has("OWLMAIL_SMTPS_PORT"),
 
 		LogLevel:  resolveLogLevelWithFlag(fs, "log-level", *refs.LogLevel),
 		LogFormat: resolveStringWithFlag(fs, "log-format", "OWLMAIL_LOG_FORMAT", *refs.LogFormat),
@@ -772,7 +793,12 @@ func ParseFlags() (*Config, error) {
 	}
 	refs := DefineFlagsWithDefaults(fs, defaults)
 	flag.Parse()
-	return ResolveConfig(fs, refs), nil
+	cfg := ResolveConfig(fs, refs)
+	// A config file becomes the flag defaults above, so by the time the command
+	// line is resolved a value it supplied is indistinguishable from one nobody
+	// set. Carry that one bit of provenance across instead of losing it.
+	cfg.SMTPSPortConfigured = cfg.SMTPSPortConfigured || defaults.SMTPSPortConfigured
+	return cfg, nil
 }
 
 // resolveStringWithFlag resolves a string value considering CLI flag was already parsed

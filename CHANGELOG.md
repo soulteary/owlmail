@@ -104,6 +104,12 @@ All notable changes to OwlMail are documented in this file. The format follows
   protocol and legacy stateful protocol revisions concurrently on the same
   authenticated route, with request cancellation and waiter quotas adapted to
   the sessionless model.
+- `-smtps-port` and `OWLMAIL_SMTPS_PORT` select the port of the implicit-TLS
+  (SMTPS) listener that `-tls` starts, and `0` starts no SMTPS listener at all
+  so a deployment can offer STARTTLS on the SMTP port without a second bind.
+  The listener was fixed at the privileged port 465, so the published container
+  image could never bind it as the non-root user it runs as, and two OwlMail
+  instances on one host could not both enable TLS.
 - `.golangci.yml` pins the lint rule set that CI has been running implicitly
   and extends it with fourteen linters that report zero issues on the current
   tree, so upgrading golangci-lint can no longer silently add or drop a check.
@@ -154,9 +160,27 @@ All notable changes to OwlMail are documented in this file. The format follows
   exists and none is claimed. The document title, executive summary, and
   navigation entries across both documentation indexes and all seven root
   READMEs were widened to match the new scope.
+- A configuration whose SMTPS listener cannot bind now fails to start instead of
+  starting without it. This is a deliberate behavior change. OwlMail logged
+  "SMTPS Server running" before it attempted the bind and then discarded the
+  bind error, so the common case of `-tls` inside the container image, where the
+  non-root user cannot take the privileged port 465, produced a process that
+  reported a successful start, passed readiness, and had nothing accepting
+  SMTPS; clients could only discover it as a connection refused at send time.
+  The startup error now names the address that could not be bound and points at
+  `-smtps-port`. A deployment that has been running with a silently dead
+  listener has to move it with `-smtps-port` or turn it off with
+  `-smtps-port 0`, which keeps STARTTLS available on the SMTP port. A start
+  rejected this way releases the plain SMTP listener it had already bound. The
+  log line is written only after the listener is bound and reports the port
+  that was actually bound.
 
 ### Fixed
 
+- Shutdown now closes the implicit-TLS listener directly rather than relying on
+  the SMTPS server to close it. Startup hands that listener to the serving
+  goroutine, so a shutdown that arrived before the goroutine registered it left
+  the SMTPS port bound for the remaining life of the process.
 - A `Date` header of `Mon, 01 Jan 0001 00:00:00 +0000` no longer becomes a
   message's timestamp. That value parses cleanly against RFC 1123 with a
   numeric zone, the first layout OwlMail tries, so it was returned as the

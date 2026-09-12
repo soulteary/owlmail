@@ -281,6 +281,9 @@ func startSMTPAuthTLSTestServer(t *testing.T, authConfig *SMTPAuthConfig, implic
 		AuthConfig:     authConfig,
 		AuthRequireTLS: true,
 		TLSConfig:      &TLSConfig{Enabled: true},
+		// The implicit-TLS server is configured but never bound here: the test
+		// serves it on its own ephemeral listener.
+		SMTPSPort: DefaultSMTPSPort,
 	})
 	if err != nil {
 		t.Fatal(err)

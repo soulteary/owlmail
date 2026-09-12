@@ -103,6 +103,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP authentication</td><td><code>-smtp-user</code>, <code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>, <code>OWLMAIL_SMTP_PASSWORD</code></td><td>NO AUTH; set both to require PLAIN/LOGIN</td></tr>
                                 <tr><td>Require TLS for SMTP AUTH</td><td><code>-smtp-auth-require-tls</code></td><td><code>OWLMAIL_SMTP_AUTH_REQUIRE_TLS</code></td><td>Disabled; requires SMTP TLS when enabled</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>, <code>-tls-cert</code>, <code>-tls-key</code></td><td><code>OWLMAIL_TLS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
+                                <tr><td>Implicit TLS (SMTPS) port</td><td><code>-smtps-port</code></td><td><code>OWLMAIL_SMTPS_PORT</code></td><td>465; <code>0</code> starts no SMTPS listener</td></tr>
                                 <tr><td>Outgoing relay TLS</td><td><code>-outgoing-tls-mode</code></td><td><code>OWLMAIL_OUTGOING_TLS_MODE</code></td><td><code>plain</code>; choose mandatory <code>starttls</code> or implicit <code>smtps</code></td></tr>
                                 <tr><td>Outgoing phase deadlines</td><td><code>-outgoing-*-timeout</code></td><td>Corresponding <code>OWLMAIL_OUTGOING_*_TIMEOUT</code> variables</td><td>10s connect/TLS/AUTH/envelope, 30s DATA, 5s QUIT</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>, <code>-https-cert</code>, <code>-https-key</code></td><td><code>OWLMAIL_HTTPS_ENABLED</code>, certificate/key variables</td><td>Disabled</td></tr>
@@ -248,6 +249,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP 鉴权</td><td><code>-smtp-user</code>、<code>-smtp-password</code></td><td><code>OWLMAIL_SMTP_USER</code>、<code>OWLMAIL_SMTP_PASSWORD</code></td><td>默认 NO AUTH；同时设置两项后强制 PLAIN/LOGIN</td></tr>
                                 <tr><td>SMTP AUTH 强制 TLS</td><td><code>-smtp-auth-require-tls</code></td><td><code>OWLMAIL_SMTP_AUTH_REQUIRE_TLS</code></td><td>默认关闭；开启时要求 SMTP TLS</td></tr>
                                 <tr><td>SMTP TLS</td><td><code>-tls</code>、证书和私钥参数</td><td><code>OWLMAIL_TLS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
+                                <tr><td>隐式 TLS（SMTPS）端口</td><td><code>-smtps-port</code></td><td><code>OWLMAIL_SMTPS_PORT</code></td><td>465；<code>0</code> 表示不启动 SMTPS 监听</td></tr>
                                 <tr><td>Web HTTPS</td><td><code>-https</code>、证书和私钥参数</td><td><code>OWLMAIL_HTTPS_ENABLED</code>、证书和私钥变量</td><td>关闭</td></tr>
                                 <tr><td>Webhook 转发</td><td><code>-webhook-config</code></td><td><code>OWLMAIL_WEBHOOK_CONFIG</code></td><td>关闭</td></tr>
                                 <tr><td>Webhook 并发</td><td><code>-webhook-max-concurrency</code></td><td><code>OWLMAIL_WEBHOOK_MAX_CONCURRENCY</code></td><td><code>8</code>；<code>0</code> 表示不限制</td></tr>

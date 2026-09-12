@@ -761,3 +761,51 @@ func TestEnvMappingCount(t *testing.T) {
 		t.Errorf("len(EnvMapping) = %d, want %d", len(EnvMapping), expectedCount)
 	}
 }
+
+func TestSMTPSPortConfiguration(t *testing.T) {
+	t.Run("defaults to the historical SMTPS port", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		if got := ResolveConfig(fs, refs).SMTPSPort; got != DefaultSMTPSPort {
+			t.Fatalf("SMTPS port = %d, want %d", got, DefaultSMTPSPort)
+		}
+	})
+
+	t.Run("environment selects an unprivileged port", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTPS_PORT", "2465")
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse(nil); err != nil {
+			t.Fatal(err)
+		}
+		if got := ResolveConfig(fs, refs).SMTPSPort; got != 2465 {
+			t.Fatalf("OWLMAIL_SMTPS_PORT resolved to %d, want 2465", got)
+		}
+	})
+
+	t.Run("CLI has priority", func(t *testing.T) {
+		t.Setenv("OWLMAIL_SMTPS_PORT", "2465")
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-smtps-port", "10465"}); err != nil {
+			t.Fatal(err)
+		}
+		if got := ResolveConfig(fs, refs).SMTPSPort; got != 10465 {
+			t.Fatalf("-smtps-port resolved to %d, want 10465", got)
+		}
+	})
+
+	t.Run("zero disables the listener", func(t *testing.T) {
+		fs := flag.NewFlagSet("test", flag.ContinueOnError)
+		refs := DefineFlags(fs)
+		if err := fs.Parse([]string{"-smtps-port", "0"}); err != nil {
+			t.Fatal(err)
+		}
+		if got := ResolveConfig(fs, refs).SMTPSPort; got != 0 {
+			t.Fatalf("-smtps-port 0 resolved to %d, want 0", got)
+		}
+	})
+}

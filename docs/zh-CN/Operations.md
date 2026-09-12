@@ -496,8 +496,9 @@ bridge 每 500 ms 使用只读加载器扫描已提交的 EML 文件；不会执
 Web HTTPS 与 SMTP TLS 是两组独立设置：
 
 - `-https`、`-https-cert`、`-https-key` 保护 Web UI/API。
-- `-tls`、`-tls-cert`、`-tls-key` 启用 SMTP STARTTLS，并在进程/容器 465
-  端口提供直接 SMTPS。
+- `-tls`、`-tls-cert`、`-tls-key` 启用 SMTP STARTTLS 与直接 SMTPS。
+- `-smtps-port` 或 `OWLMAIL_SMTPS_PORT` 指定直接 SMTPS 的监听端口，默认 465；
+  设为 `0` 则完全不启动 SMTPS 监听，加密路径仅保留 SMTP 端口上的 STARTTLS。
 
 Web HTTPS 示例：
 
@@ -511,23 +512,29 @@ Web HTTPS 示例：
 镜像内置 healthcheck 使用 1080 端口的明文 HTTP。启用 HTTPS 后，应覆盖为 HTTPS
 探针并配置正确的 CA 策略；否则即使 OwlMail 正常服务，Docker 仍可能显示 unhealthy。
 
-需要直接 SMTPS 时显式发布 465 端口：
+需要直接 SMTPS 时显式发布 SMTPS 端口：
 
 ```bash
 docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
-  -p 127.0.0.1:465:465 \
+  -p 127.0.0.1:2465:2465 \
   -v owlmail-data:/app/mail \
   -v "$PWD/certs:/certs:ro" \
   -e OWLMAIL_TLS_ENABLED=true \
+  -e OWLMAIL_SMTPS_PORT=2465 \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
   ghcr.io/soulteary/owlmail:0.9.0
 ```
 
-确认容器运行时允许非 root 进程绑定 465；如不允许，应按运行时安全策略只授予所需
-的 bind-service 能力。
+镜像以非 root 用户运行，默认的 465 属于特权端口，除非运行时授予 bind-service
+能力，否则绑定会失败。可按运行时安全策略只授予该能力，或用 `-smtps-port 2465`
+把监听移到非特权端口并改为发布该端口；只需要 STARTTLS 的部署可使用
+`-smtps-port 0`，不启动 SMTPS 监听。
+
+SMTPS 绑定失败会中止启动，并在错误中给出无法绑定的地址。此前 OwlMail 只记录该
+失败并继续运行，SMTPS 端口实际无人监听，客户端只能通过连接被拒绝才发现问题。
 
 ## SMTP 入口限制与鉴权模式
 
@@ -675,7 +682,8 @@ MailDev 兼容路由都不会再创建与邮件大小相当的额外字节切片
 | HTTPS 容器显示 unhealthy | 用 HTTPS 探针和正确证书信任覆盖镜像的 HTTP healthcheck |
 | 浏览器没有通知 | 在收件箱中开启，使用 HTTPS 或 localhost，并在浏览器网站设置中恢复权限 |
 | Webhook 投递慢 | 检查接收器延迟、超时和重试；提高并发前先修复接收器或减少重试 |
-| SMTP 正常但直接 SMTPS 失败 | 发布 465 端口，核对证书路径及运行时绑定特权端口的权限 |
+| SMTP 正常但直接 SMTPS 失败 | 发布 `-smtps-port` 指定的端口，核对证书路径及运行时绑定特权端口的权限 |
+| 启动时报 SMTPS 绑定失败 | 端口被占用或属于特权端口；用 `-smtps-port` 换端口，或用 `-smtps-port 0` 关闭监听并改用 STARTTLS |
 | 中继 API 成功但邮件未到达 | 中继是异步的；检查 OwlMail 日志、出站 SMTP 连通性、收件人语法和接收端日志 |
 | 重建容器后邮件消失 | 将卷挂载到 `/app/mail`；未挂载的容器文件系统可随时丢弃 |
 | 从 MailDev 迁移后 API 客户端失败 | 适配 `/api` 与 `/api/v1`、分页信封、显式已读操作和原生 WebSocket |

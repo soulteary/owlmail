@@ -716,3 +716,28 @@ func TestValidatePathWithOptions(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateConfigSMTPSPort(t *testing.T) {
+	tests := []struct {
+		name      string
+		smtpsPort int
+		wantError bool
+	}{
+		{name: "default privileged port", smtpsPort: DefaultSMTPSPort},
+		{name: "unprivileged port", smtpsPort: 2465},
+		{name: "zero disables the listener", smtpsPort: 0},
+		{name: "negative port", smtpsPort: -1, wantError: true},
+		{name: "port above the range", smtpsPort: 65536, wantError: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := DefaultConfig()
+			cfg.SMTPSPort = tt.smtpsPort
+			err := ValidateConfig(cfg)
+			if (err != nil) != tt.wantError {
+				t.Fatalf("ValidateConfig with SMTPS port %d error = %v, wantError %v", tt.smtpsPort, err, tt.wantError)
+			}
+		})
+	}
+}

@@ -283,6 +283,7 @@ docker buildx build \
 | `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
 | `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
 | `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
+| `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | TLS 有効時の暗黙 TLS（SMTPS）リスナーのポート。`0` を指定すると SMTPS リスナーを起動しない |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | オプションの MailCatcher REST 互換 API を有効化 |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 起動時に YAML または JSON を読み込む。CLI と環境変数を優先 |
@@ -555,7 +556,7 @@ STARTTLS 後および SMTPS では AUTH を利用できます。NO AUTH モー�
   -smtp 1025
 ```
 
-**Note**: When TLS is enabled, OwlMail automatically starts an SMTPS server on port 465 in addition to the regular SMTP server. The SMTPS server uses direct TLS connection (no STARTTLS required).
+**Note**: When TLS is enabled, OwlMail also starts an SMTPS server that uses a direct TLS connection (no STARTTLS required) in addition to the regular SMTP server. Its port comes from `-smtps-port` or `OWLMAIL_SMTPS_PORT` and defaults to the privileged port 465, which a process that does not run as root cannot bind; the published container image runs as a non-root user. Set `-smtps-port` to an unprivileged port, or to `0` to start no SMTPS listener and keep STARTTLS on the SMTP port. A failed SMTPS bind stops startup instead of leaving the port silently unserved.
 
 ### Using UUID for Email IDs
 

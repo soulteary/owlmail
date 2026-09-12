@@ -3,6 +3,7 @@ package mailserver
 import (
 	"context"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -24,6 +25,14 @@ const (
 	defaultSMTPReadTimeout         = 10 * time.Second
 	defaultSMTPWriteTimeout        = 10 * time.Second
 	defaultSMTPMaxRecipients       = 50
+
+	// DefaultSMTPSPort is the registered implicit-TLS submission port. It is
+	// privileged, so a deployment that cannot bind below 1024 has to move or
+	// disable the listener. It has to stay equal to config.DefaultSMTPSPort,
+	// which this package deliberately does not import: the mail server is
+	// usable without the CLI configuration layer. A test in cmd/owlmail, which
+	// already sees both, pins the equality.
+	DefaultSMTPSPort = 465
 
 	defaultAttachmentUploadTimeout = 5 * time.Minute
 	defaultAttachmentOpenTimeout   = 5 * time.Minute
@@ -57,7 +66,10 @@ type TLSConfig struct {
 // ServerOptions contains optional runtime integrations and SMTP behavior.
 // Zero MaxMessageBytes selects DefaultMaxMessageBytes. Zero
 // MaxDataConcurrency leaves SMTP DATA concurrency unlimited. Zero protocol
-// timeout and recipient fields select their established defaults.
+// timeout and recipient fields select their established defaults. Zero
+// SMTPSPort is the exception: it leaves the implicit-TLS listener unstarted
+// instead of selecting a default, so a caller that wants the historical
+// listener has to name DefaultSMTPSPort and accept its privileged bind.
 type ServerOptions struct {
 	// ReadOnly requires an existing mail directory and prevents constructor
 	// writes. It is used by observer processes such as the MCP stdio bridge.
@@ -72,10 +84,15 @@ type ServerOptions struct {
 	ReadTimeout        time.Duration
 	WriteTimeout       time.Duration
 	MaxRecipients      int
-	RetainAllHeaders   bool
-	AttachmentStore    attachmentstore.Store
-	AttachmentHealth   attachmentstore.ReadinessProvider
-	MailboxIndex       MailboxIndex
+	// SMTPSPort is the port of the implicit-TLS (SMTPS) listener started
+	// alongside the plain listener when TLSConfig is enabled. Zero starts no
+	// implicit-TLS listener, which leaves STARTTLS on the main port as the
+	// only encrypted path and avoids a second, possibly privileged, bind.
+	SMTPSPort        int
+	RetainAllHeaders bool
+	AttachmentStore  attachmentstore.Store
+	AttachmentHealth attachmentstore.ReadinessProvider
+	MailboxIndex     MailboxIndex
 }
 
 // AttachmentReader describes an attachment opened for HTTP streaming.
@@ -117,13 +134,19 @@ type MailServer struct {
 	attachmentOpenTimeout   time.Duration
 	attachmentDeleteTimeout time.Duration
 	smtpServer              *smtp.Server
-	smtpsServer             *smtp.Server // SMTPS server (direct TLS on 465)
-	eventChan               chan Event
-	listeners               map[string][]eventListener
-	listenersMutex          sync.RWMutex
-	closers                 []io.Closer
-	closersMutex            sync.Mutex
-	outgoing                interface {
+	smtpsServer             *smtp.Server // SMTPS server (implicit TLS)
+	smtpsPort               int
+	// smtpsListener is the bound implicit-TLS listener. Shutdown closes it
+	// directly because smtp.Server only knows the listeners Serve has already
+	// registered, and Serve receives this one from a goroutine.
+	smtpsListener      net.Listener
+	smtpsListenerMutex sync.Mutex
+	eventChan          chan Event
+	listeners          map[string][]eventListener
+	listenersMutex     sync.RWMutex
+	closers            []io.Closer
+	closersMutex       sync.Mutex
+	outgoing           interface {
 		RelayMail(email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
 		RelayMailConfirmed(email *types.Email, emlPath string, recipients []string, callback func(error)) error
 		RelayMailContext(ctx context.Context, email *types.Email, emlPath, relayTo string, isAutoRelay bool, callback func(error)) error
@@ -176,6 +199,17 @@ func (ms *MailServer) GetHost() string {
 // GetPort returns the SMTP server port
 func (ms *MailServer) GetPort() int {
 	return ms.port
+}
+
+// GetSMTPSPort returns the port of the implicit-TLS listener, or zero when no
+// implicit-TLS listener is configured. Callers cannot infer the port from the
+// TLS settings alone: STARTTLS on the main port stays available when the
+// implicit-TLS listener is switched off.
+func (ms *MailServer) GetSMTPSPort() int {
+	if ms.smtpsServer == nil {
+		return 0
+	}
+	return ms.smtpsPort
 }
 
 // GetMaxMessageBytes returns the configured inbound SMTP message-size limit.
