@@ -19,17 +19,16 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/redis/go-redis/v9 v9.22.0
-	github.com/soulteary/cli-kit v1.8.0
-	github.com/soulteary/health-kit/v2 v2.1.0
-	github.com/soulteary/logger-kit/v2 v2.1.0
-	github.com/soulteary/version-kit/v2 v2.1.0
+	github.com/soulteary/cli-kit v1.9.0
+	github.com/soulteary/health-kit/v2 v2.2.0
+	github.com/soulteary/logger-kit/v2 v2.2.0
+	github.com/soulteary/version-kit/v2 v2.2.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.59.0
 	modernc.org/sqlite v1.58.0
 )
 
 require (
-	github.com/andybalholm/brotli v1.2.3 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.19.2 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.2 // indirect
@@ -49,14 +48,15 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
-	github.com/gofiber/schema v1.8.5 // indirect
-	github.com/gofiber/utils/v2 v2.4.3 // indirect
+	github.com/gofiber/schema v1.8.6 // indirect
+	github.com/gofiber/utils/v2 v2.5.1 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
+	github.com/molecule-man/go-brrr v1.1.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
 	github.com/oasdiff/yaml3 v0.0.14 // indirect
@@ -69,7 +69,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tinylib/msgp v1.6.4 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
-	github.com/valyala/fasthttp v1.73.0 // indirect
+	github.com/valyala/fasthttp v1.74.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
