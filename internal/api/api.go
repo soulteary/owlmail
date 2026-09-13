@@ -383,8 +383,15 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	// Health check (adaptor for health-kit)
 	v1.Get("/health", adaptor.HTTPHandler(health.LivenessHandler("owlmail")))
 	v1.Get("/ready", api.readiness)
-	// Version info (adaptor for version-kit)
-	v1.Get("/version", adaptor.HTTPHandler(version.Handler()))
+	// Version info (adaptor for version-kit).
+	//
+	// version-kit v2.2.0 made the build details opt-in, which drops commit,
+	// build_date, go_version, platform and compiler from this response. The
+	// release image is verified by reading the embedded commit back off this
+	// endpoint, so keep serving them.
+	v1.Get("/version", adaptor.HTTPHandler(version.Handler(version.HandlerConfig{
+		IncludeBuildDetails: true,
+	})))
 	// WebSocket (adaptor for gorilla/websocket Upgrade)
 	v1.Get("/ws", adaptor.HTTPHandlerFunc(api.handleWebSocketHTTP))
 }
