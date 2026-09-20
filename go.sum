@@ -1,5 +1,5 @@
-github.com/alicebob/miniredis/v2 v2.36.1 h1:Dvc5oAnNOr7BIfPn7tF269U8DvRW1dBG2D5n0WrfYMI=
-github.com/alicebob/miniredis/v2 v2.36.1/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
+github.com/alicebob/miniredis/v2 v2.39.0 h1:M7WbmV5BmV56L8KTG0rw6vEQ+woTOghpDgin2xv4A0g=
+github.com/alicebob/miniredis/v2 v2.39.0/go.mod h1:TcL7YfarKPGDAthEtl5NBeHZfeUQj6OXMm/+iu5cLMM=
 github.com/aws/aws-sdk-go-v2 v1.46.0 h1:1kt7m/EKcEHt5mlyyxx9cSlMddRPIKbjb6DIQsu4HPk=
 github.com/aws/aws-sdk-go-v2 v1.46.0/go.mod h1:bttEH6JqnUL8LepvDVfdrds/fZ5bCIxzpe3abyUrhDU=
 github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.20 h1:GPRlPwz40I2B2VrBEASOA3Bi77NyeqejNLkifosX0rs=
@@ -132,10 +132,10 @@ github.com/shamaton/msgpack/v3 v3.2.2 h1:lZITRsXLQkdJ9J2qvh6gjGpWxci/dwuiUf+jm9A
 github.com/shamaton/msgpack/v3 v3.2.2/go.mod h1:sgBYvEiyz8JR1NC3yGRoPVME9xXovpnh3l/plW1nfRo=
 github.com/soulteary/cli-kit v1.9.0 h1:MqI51qtK+pspPDoF0WA0RctRrDXB/lkQ0Wl7qWO2eeQ=
 github.com/soulteary/cli-kit v1.9.0/go.mod h1:xwDFEGpNaL5Tgqsv2FW0PRPuCE80Um+LXDUUIzcQxgQ=
-github.com/soulteary/health-kit/v2 v2.2.0 h1:bRceDryVUCh0sB3eZPHdvh9yeTSAqZ7Vq4hqfUHm/AY=
-github.com/soulteary/health-kit/v2 v2.2.0/go.mod h1:LGdfrbAQMl9vecxmgV08fK9I9QWn0NWU6vQaqzR5qBg=
-github.com/soulteary/logger-kit/v2 v2.2.0 h1:IpwA/1B7kUcCYTjveDKoNl5XSHPz5Mq3OMk1LhZ/2Y8=
-github.com/soulteary/logger-kit/v2 v2.2.0/go.mod h1:d8QWvfNwSxzRkIqXrYKk9BnLLsh4udrXPV4MUg6eMh4=
+github.com/soulteary/health-kit/v2 v2.3.0 h1:T+r27bDGfae4jvp7cIZfeRDuL9zJ/ggcpBtopiztvnk=
+github.com/soulteary/health-kit/v2 v2.3.0/go.mod h1:D5V1lHUxA4ITVUpfH3/KFhWzonfdA3pu7329FmaUSdk=
+github.com/soulteary/logger-kit/v2 v2.3.0 h1:+IkF+nhWairMvml85z/j1ZUzXwnmSIar/+v6HEc3oR0=
+github.com/soulteary/logger-kit/v2 v2.3.0/go.mod h1:VuJlc2dVwYO/S2srwi6h+Sa4xFJAqYRDlFTdz4aba1Q=
 github.com/soulteary/version-kit/v2 v2.2.0 h1:m0oIXopaA2wco5hvf4ZRvSD2A45EyCEE8JeMNrwrfFE=
 github.com/soulteary/version-kit/v2 v2.2.0/go.mod h1:ZFiDSqWHrpeRtuhs2sEj8VNfCa8Xcm65DZjctG3Q0Lk=
 github.com/spf13/pflag v1.0.10 h1:4EBh2KAYBwaONj6b2Ye1GiHfwjqyROoF4RwYO+vPwFk=
@@ -206,8 +206,8 @@ golang.org/x/tools v0.0.0-20180917221912-90fa682c2a6e/go.mod h1:n7NCudcB/nEzxVGm
 golang.org/x/tools v0.0.0-20191119224855-298f0cb1881e/go.mod h1:b+2E5dAYhXwXZwtnZ6UAqBI28+e2cm9otk0dWdXHAEo=
 golang.org/x/tools v0.1.12/go.mod h1:hNGJHUnrk76NpqgfD5Aqm5Crs+Hm0VOH/i9J2+nxYbc=
 golang.org/x/tools v0.6.0/go.mod h1:Xwgl3UAJ/d3gWutnCtw505GrjyAbvKui8lOU390QaIU=
-golang.org/x/tools v0.49.0 h1:3NI7VXzL9+1WZD52Dx2ttoPwD5DWrFGpl9mFZDlmisI=
-golang.org/x/tools v0.49.0/go.mod h1:SJNXV9DBKT0UbdttsQjbfJlAE/q+y36++zo3uL3N0Oo=
+golang.org/x/tools v0.50.0 h1:c2ifzfcuY7L90lZ2aKd8S4K2NpASF08SZx9ZuJkHmSU=
+golang.org/x/tools v0.50.0/go.mod h1:7ulVMw3831Mwi5EZD6RomGyffr4VFjuNYXf2BbCEAV0=
 golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=

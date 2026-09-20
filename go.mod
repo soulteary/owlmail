@@ -20,8 +20,8 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/redis/go-redis/v9 v9.22.0
 	github.com/soulteary/cli-kit v1.9.0
-	github.com/soulteary/health-kit/v2 v2.2.0
-	github.com/soulteary/logger-kit/v2 v2.2.0
+	github.com/soulteary/health-kit/v2 v2.3.0
+	github.com/soulteary/logger-kit/v2 v2.3.0
 	github.com/soulteary/version-kit/v2 v2.2.0
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.59.0
