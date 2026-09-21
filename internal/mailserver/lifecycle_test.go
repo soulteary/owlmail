@@ -640,6 +640,43 @@ func TestListenWithReadyStartsNoSMTPSListenerWhenPortIsZero(t *testing.T) {
 	}
 }
 
+// Close runs inside ready(), which ListenWithReady invokes synchronously
+// immediately before handing the listener to Serve. That puts the shutdown
+// squarely in the window this guards: smtp.Server.Close only closes listeners
+// Serve has already registered, so a Close arriving first used to close
+// nothing, and Serve then blocked in Accept on a listener nobody owned for the
+// life of the process. Calling Close from ready is what makes that ordering
+// deterministic -- the sibling tests reach it only when the scheduler happens
+// to, which is why it surfaced as a flaky "ListenWithReady did not return
+// after Close" on loaded CI runners rather than a reliable failure.
+func TestCloseBeforeServeRegistersListenerStillStopsListen(t *testing.T) {
+	server, err := NewMailServerWithOptions(freePort(t), "127.0.0.1", t.TempDir(), ServerOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	closed := make(chan error, 1)
+	result := make(chan error, 1)
+	go func() {
+		result <- server.ListenWithReady(func() { closed <- server.Close() })
+	}()
+
+	select {
+	case err := <-closed:
+		if err != nil {
+			t.Fatalf("Close failed: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("ready was never called")
+	}
+
+	select {
+	case <-result:
+	case <-time.After(5 * time.Second):
+		t.Fatal("ListenWithReady did not return when Close ran before Serve registered the listener")
+	}
+}
+
 func TestCloseReleasesSMTPSPortBoundByListen(t *testing.T) {
 	smtpsPort := freePort(t)
 	server, err := NewMailServerWithOptions(freePort(t), "127.0.0.1", t.TempDir(), ServerOptions{

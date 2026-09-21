@@ -41,7 +41,16 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	if err != nil {
 		return err
 	}
-	defer func() { _ = listener.Close() }()
+	// Recorded rather than closed by a plain defer: ready() is called below
+	// before Serve registers this listener, so a Close that lands in that
+	// window has to be able to close it instead. The handoff gives it exactly
+	// one owner, so this defer and Close cannot both close it.
+	ms.setSMTPListener(listener)
+	defer func() {
+		if bound := ms.takeSMTPListener(); bound != nil {
+			_ = bound.Close()
+		}
+	}()
 
 	// The implicit-TLS listener binds here rather than inside the serving
 	// goroutine. Deferring the bind hid its failure behind a log line and left
@@ -125,6 +134,17 @@ func (ms *MailServer) Close() error {
 	if err := ms.smtpServer.Close(); err != nil {
 		closeErrors = append(closeErrors, err)
 	}
+	// The plain listener needs the same direct close as the implicit-TLS one
+	// above. ListenWithReady signals ready before calling Serve, so a shutdown
+	// that wins that race finds no registered listener, closes nothing, and
+	// leaves Serve blocked in Accept for the life of the process. In the
+	// ordinary case Serve did register it and the Close above already closed
+	// it, so this close reports "use of closed network connection"; that is
+	// the expected outcome of the race rather than a shutdown failure, which
+	// is why it is not collected.
+	if bound := ms.takeSMTPListener(); bound != nil {
+		_ = bound.Close()
+	}
 	if ms.cleanupCancel != nil {
 		ms.cleanupCancel()
 		ms.cleanupWG.Wait()
@@ -154,6 +174,23 @@ func (ms *MailServer) Close() error {
 	}()
 
 	return errors.Join(closeErrors...)
+}
+
+// setSMTPListener records the bound plain-SMTP listener for shutdown.
+func (ms *MailServer) setSMTPListener(listener net.Listener) {
+	ms.smtpListenerMutex.Lock()
+	defer ms.smtpListenerMutex.Unlock()
+	ms.smtpListener = listener
+}
+
+// takeSMTPListener hands the bound plain-SMTP listener to the first caller
+// that asks for it, on the same terms as takeSMTPSListener below.
+func (ms *MailServer) takeSMTPListener() net.Listener {
+	ms.smtpListenerMutex.Lock()
+	defer ms.smtpListenerMutex.Unlock()
+	listener := ms.smtpListener
+	ms.smtpListener = nil
+	return listener
 }
 
 // setSMTPSListener records the bound implicit-TLS listener for shutdown.
