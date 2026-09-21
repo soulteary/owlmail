@@ -10,9 +10,9 @@ Wir bieten derzeit Sicherheitsupdates für die folgenden Versionen:
 
 | Version | Unterstützt |
 |---------|-------------|
+| 0.10.x | ✅ Ja |
 | 0.9.x | ✅ Ja |
-| 0.8.x | ✅ Ja |
-| 0.7.x und älter | ❌ Nein |
+| 0.8.x und älter | ❌ Nein |
 
 ## Meldung einer Sicherheitslücke
 
