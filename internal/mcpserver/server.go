@@ -16,7 +16,7 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
-	"github.com/soulteary/version-kit/v2"
+	"github.com/soulteary/version-kit/v4"
 )
 
 const (

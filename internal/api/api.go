@@ -14,14 +14,15 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 	"github.com/gorilla/websocket"
-	"github.com/soulteary/health-kit/v2"
+	"github.com/soulteary/health-kit/v4"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 	webassets "github.com/soulteary/owlmail/web"
-	"github.com/soulteary/version-kit/v2"
+	"github.com/soulteary/version-kit/v4"
+	versionhttp "github.com/soulteary/version-kit/v4/httpadapter"
 )
 
 // API represents the REST API server
@@ -389,7 +390,11 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	// build_date, go_version, platform and compiler from this response. The
 	// release image is verified by reading the embedded commit back off this
 	// endpoint, so keep serving them.
-	v1.Get("/version", adaptor.HTTPHandler(version.Handler(version.HandlerConfig{
+	//
+	// v4.0.0 moved the net/http handlers to the httpadapter subpackage;
+	// HandlerConfig stayed in the root package, and the response bytes are
+	// unchanged.
+	v1.Get("/version", adaptor.HTTPHandler(versionhttp.Handler(version.HandlerConfig{
 		IncludeBuildDetails: true,
 	})))
 	// WebSocket (adaptor for gorilla/websocket Upgrade)

@@ -3,7 +3,7 @@ package api
 import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/outgoing"
-	"github.com/soulteary/version-kit/v2"
+	"github.com/soulteary/version-kit/v4"
 )
 
 // getConfig handles GET /api/v1/settings

@@ -12,7 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/maildev"
 	"github.com/soulteary/owlmail/internal/mailserver"
-	"github.com/soulteary/version-kit/v2"
+	"github.com/soulteary/version-kit/v4"
 )
 
 var mailDevRelayAddress = regexp.MustCompile(`^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}(\.[0-9]{1,3}){3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$`)
