@@ -134,8 +134,14 @@ type MailServer struct {
 	attachmentOpenTimeout   time.Duration
 	attachmentDeleteTimeout time.Duration
 	smtpServer              *smtp.Server
-	smtpsServer             *smtp.Server // SMTPS server (implicit TLS)
-	smtpsPort               int
+	// smtpListener is the bound plain-SMTP listener, recorded for the same
+	// reason as smtpsListener below: smtp.Server.Close only closes the
+	// listeners Serve has already registered, and ListenWithReady signals
+	// ready before it calls Serve.
+	smtpListener      net.Listener
+	smtpListenerMutex sync.Mutex
+	smtpsServer       *smtp.Server // SMTPS server (implicit TLS)
+	smtpsPort         int
 	// smtpsListener is the bound implicit-TLS listener. Shutdown closes it
 	// directly because smtp.Server only knows the listeners Serve has already
 	// registered, and Serve receives this one from a goroutine.

@@ -6,6 +6,23 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- `Close` now closes the plain SMTP listener directly, rather than relying on
+  the SMTP server to close it. `ListenWithReady` signals ready before handing
+  the listener to `Serve`, and `smtp.Server.Close` only closes the listeners
+  `Serve` has already registered -- so a shutdown arriving in that window
+  closed nothing, and `Serve` then blocked in `Accept` on a listener with no
+  owner, leaving the SMTP port bound and `Listen`/`ListenWithReady` never
+  returning for the life of the process. This is the plain-listener twin of
+  the implicit-TLS race already handled here, and the listener now goes
+  through the same one-owner handoff, so startup and shutdown cannot both
+  close it. A fast start-then-stop is the realistic way to hit it; in CI it
+  surfaced as an intermittent `ListenWithReady did not return after Close`.
+  The new test reaches the window deterministically by calling `Close` from
+  inside the `ready` callback, which `ListenWithReady` invokes synchronously
+  just before `Serve`.
+
 ## [0.10.0] - 2026-09-21
 
 ### Security
