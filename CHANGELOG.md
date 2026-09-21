@@ -6,6 +6,8 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-09-21
+
 ### Security
 
 - The Web UI and REST API now validate the browser `Origin` header on every
@@ -527,7 +529,8 @@ All notable changes to OwlMail are documented in this file. The format follows
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/soulteary/owlmail/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/soulteary/owlmail/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/soulteary/owlmail/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/soulteary/owlmail/compare/v0.6.0...v0.7.0

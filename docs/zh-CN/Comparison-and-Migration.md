@@ -5,9 +5,10 @@
 **审查基线：2026-09-03。** Mailpit 一栏来自 2026-09-12 的独立源码审查，
 其提交单独固定在下方。
 
-- OwlMail：0.9.0 发布基线对应提交
-  112f0d0f33b8fa040cdc8699d300118c96c09cf8。从 0.8.0 标签到该基线的变化仅涉及
-  文档、示例、测试与 CI。
+- OwlMail：0.10.0 发布基线对应提交
+  8d3445dd5a4c5c14f8d73b2841d38efcbb7e2c7f。从 0.9.0 标签到该基线的变化对用户可见，
+  并已反映在下表中：Web、API、WebSocket 与 MCP 界面的浏览器 `Origin` 校验，
+  收紧后的邮箱文件权限，以及可配置的 SMTPS 监听端口。
 - MailDev：候选版 maildev@3.0.0-rc.3；main 为
   9d4141f42b0acedfa544a306f96a5373ded8c8a3。最新稳定 2.x 为 2.2.1，
   与 3.x 主线架构存在明显差异。
@@ -40,14 +41,14 @@
   有文档的 `/api/v1` REST 接口、可选 POP3 取信、标签与搜索、SMTP release 与
   转发，以及内置的 HTML 兼容性、链接和 SpamAssassin 检查。
 
-OwlMail 不是其中任何一个的通用无缝替代。0.9.0 的可选 MailDev REST facade 能覆盖
+OwlMail 不是其中任何一个的通用无缝替代。0.10.0 的可选 MailDev REST facade 能覆盖
 当前 MailDev REST 合约，但不实现 Socket.IO 或 Node API；独立的 MailCatcher
 facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议。OwlMail 完全
 没有 Mailpit facade：不实现 Mailpit 的任何路由，也不作任何兼容性承诺。
 
 ## 功能对比
 
-| 能力 | OwlMail 0.9.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 | Mailpit main（v1.31.1 之后）|
+| 能力 | OwlMail 0.10.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.0 | Mailpit main（v1.31.1 之后）|
 |---|---|---|---|---|
 | 运行时 | Go 单二进制，内嵌 Web 资源 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra | Go 单二进制，内嵌 Vue 3 与 Bootstrap 5 资源 |
 | 核心优势 | AI 辅助测试、可恢复存储、自动化和明确资源限制 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 | 单个二进制内的邮件检查与校验功能广度 |
@@ -76,7 +77,7 @@ facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议�
 
 ## Mailpit 覆盖而 OwlMail 没有的部分
 
-以下都是 OwlMail 0.9.0 已验证的缺口，不是客套话。需要其中任何一项的读者应当
+以下都是 OwlMail 0.10.0 已验证的缺口，不是客套话。需要其中任何一项的读者应当
 选择 Mailpit：
 
 - **邮件检查。** Mailpit 基于内置的 caniemail 数据给 HTML 打分，检查 HTML 与
@@ -110,7 +111,7 @@ Webhook 管道、可跨重启的异步 Relay 任务、可选 S3 附件、明确�
 | 实时事件 | Socket.IO | 原生 WebSocket，不是 Socket.IO | 项目专用 WebSocket/轮询 | 原生 WebSocket，位于 /api/events |
 | 嵌入 API | Node MailDev 类 | 无 | 无 | 无 |
 
-在 OwlMail 0.9.0 中，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
+在 OwlMail 0.10.0 中，必须显式设置 OWLMAIL_MAILDEV_REST_COMPAT=true 或
 -maildev-rest-compat 才会启用 OwlMail MailDev facade。它复用现有 Basic Auth、
 HTTPS、存储和 base path，但不会启用 Socket.IO。
 
@@ -141,7 +142,7 @@ Basic Auth 校验浏览器 `Origin` 头，`-mcp-allowed-origins` 可追加浏览
 
 ## Agent 集成
 
-OwlMail 0.9.0 提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base pathname
+OwlMail 0.10.0 提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置 base pathname
 后使用 `<base-pathname>/mcp`；本地客户端也可以运行
 `owlmail mcp-stdio -mail-directory DIR`。两个 transport 提供相同的七个封闭只读
 工具：列表、搜索、独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得
@@ -182,7 +183,7 @@ quarantine 合约。
 
 ## 选型建议
 
-以下情况优先选择 **OwlMail 0.9.0**：需要单文件部署、ARM/跨平台、AI 辅助集成
+以下情况优先选择 **OwlMail 0.10.0**：需要单文件部署、ARM/跨平台、AI 辅助集成
 测试、持久 Webhook 自动化、磁盘异常恢复、可选 S3 附件、SMTP 资源控制或有界
 只读 Agent 接口。
 
@@ -202,7 +203,7 @@ HTTP 与 WebSocket 集成逐项适配。从 Mailpit 迁移时，只有 SMTP 捕�
 替代能够平移，所有 REST 与 WebSocket 集成都必须重写，而上文列出的检查、标签和
 POP3 访问在 OwlMail 中没有落点。
 
-## 本基线下 OwlMail 0.9.0 的已知边界
+## 本基线下 OwlMail 0.10.0 的已知边界
 
 - 原生 WebSocket 不是 Socket.IO。
 - 没有稳定公共 Go 嵌入 SDK；`internal/` 包不是受支持的嵌入接口。

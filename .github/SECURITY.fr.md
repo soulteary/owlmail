@@ -10,9 +10,9 @@ Nous fournissons actuellement des mises à jour de sécurité pour les versions 
 
 | Version | Prise en charge |
 |---------|-----------------|
+| 0.10.x | ✅ Oui |
 | 0.9.x | ✅ Oui |
-| 0.8.x | ✅ Oui |
-| 0.7.x et antérieures | ❌ Non |
+| 0.8.x et antérieures | ❌ Non |
 
 ## Signaler une Vulnérabilité
 

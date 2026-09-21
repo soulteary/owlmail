@@ -474,7 +474,7 @@ test(`four-way comparison stays source-pinned and reflects the ${currentVersion}
     for (const marker of [
       "OwlMail × MailDev × MailCatcher × Mailpit",
       "2026-09-03",
-      "112f0d0f33b8fa040cdc8699d300118c96c09cf8",
+      "8d3445dd5a4c5c14f8d73b2841d38efcbb7e2c7f",
       currentVersion,
       "9d4141f42b0acedfa544a306f96a5373ded8c8a3",
       "43e488e2a5692532c131a87d5bd16a973ee8db56",
@@ -567,27 +567,27 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
   assert.ok(releaseStart >= 0 && releaseEnd > releaseStart, `CHANGELOG.md is missing the ${currentVersion} release section`);
   const releaseSection = changelog.slice(releaseStart, releaseEnd);
   for (const marker of [
-    "live CI job",
-    "Documentation contract tests",
-    "single source",
-    "Integration examples",
+    "browser `Origin` header",
+    "world-listable",
+    "`-smtps-port`",
+    "Go fuzz targets",
   ]) {
     assert.ok(releaseSection.includes(marker), `CHANGELOG.md ${currentVersion} section is missing ${marker}`);
   }
   assert.ok(changelog.includes(`[${currentVersion}]:`), `CHANGELOG.md is missing the ${currentVersion} comparison link`);
   assert.ok(
-    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("live CI job"),
+    !changelog.slice(changelog.indexOf("## [Unreleased]"), releaseStart).includes("browser `Origin` header"),
     `CHANGELOG.md still classifies ${currentVersion} work as unreleased`,
   );
 
   const releaseNotes = [
     [
       `docs/en/${currentReleaseNote}`,
-      ["Runnable examples", "Documentation contracts", "Release consistency", "Known limitations", "owlmail-linux-amd64"],
+      ["Browser origin validation", "Storage permissions", "Configurable SMTPS port", "Known limitations", "owlmail-linux-amd64"],
     ],
     [
       `docs/zh-CN/${currentReleaseNote}`,
-      ["可运行示例", "文档契约", "发布一致性", "已知限制", "owlmail-linux-amd64"],
+      ["浏览器来源校验", "存储权限", "可配置的 SMTPS 端口", "已知限制", "owlmail-linux-amd64"],
     ],
   ];
   for (const [releaseNote, markers] of releaseNotes) {
@@ -865,7 +865,7 @@ test("GitHub community files match repository features and supported conventions
         : `${securityTranslationBaseURL}${translatedSecurity}`;
       assert.ok(markdown.includes(`](${destination})`), `${security} does not link ${destination}`);
     }
-    for (const marker of ["0.9.x", "0.8.x", "0.7.x"]) {
+    for (const marker of ["0.10.x", "0.9.x", "0.8.x"]) {
       assert.ok(markdown.includes(marker), `${security} is missing ${marker}`);
     }
   }

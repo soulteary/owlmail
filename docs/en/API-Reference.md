@@ -280,10 +280,10 @@ A release build returns version provenance similar to:
 
 ```json
 {
-  "version": "0.9.0",
+  "version": "0.10.0",
   "commit": "<full Git commit SHA>",
   "build_date": "<UTC RFC 3339 timestamp>",
-  "branch": "v0.9.0",
+  "branch": "v0.10.0",
   "go_version": "go1.27.0",
   "platform": "linux/amd64",
   "compiler": "gc"

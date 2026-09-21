@@ -60,18 +60,21 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
   erstellen und Altprogramme über den [Sendmail-Leitfaden](./docs/de/Sendmail.md)
   anbinden. Quell- und Browsertests verwenden Bun; die Binärdatei benötigt keine Laufzeit.
 
-## 🆕 OwlMail 0.9.0
+## 🆕 OwlMail 0.10.0
 
-`v0.9.0` ist die aktuelle stabile Version. Sie verbessert den AI-nativen
-Integrationstest-Workflow mit ausführbaren JavaScript-, Python- und Go-
-Beispielen, End-to-End-CI, zuverlässiger Bereinigung bei Fehlern sowie
-umfassenderen API- und MCP-Dokumentationsverträgen. Laufzeit-APIs und
-Speicherformate bleiben mit 0.8.0 kompatibel.
+`v0.10.0` ist die aktuelle stabile Version und zugleich ein Sicherheitsrelease.
+Web UI, REST API, WebSocket-Stream und der schreibgeschützte MCP-Endpunkt prüfen
+den Browser-`Origin`-Header jetzt standardmäßig; empfangene Mail landet nicht
+mehr in einem für alle auflistbaren Verzeichnis; und der Port des impliziten
+TLS-Listeners ist konfigurierbar, statt auf einem privilegierten Port
+festzustehen, den er oft nicht binden konnte. Laufzeit-APIs und Speicherformate
+bleiben mit 0.9.0 kompatibel, drei Änderungen sind beim Upgrade jedoch sichtbar
+— lesen Sie vor dem Deployment die Versionshinweise.
 
-Alle Installationsbeispiele verwenden `ghcr.io/soulteary/owlmail:0.9.0`.
+Alle Installationsbeispiele verwenden `ghcr.io/soulteary/owlmail:0.10.0`.
 Für reproduzierbare CI sollte die vollständige Version oder
 `ghcr.io/soulteary/owlmail@sha256:<digest>` verwendet werden.
-Details stehen in den [Versionshinweisen 0.9.0](./docs/en/Release-0.9.0.md).
+Details stehen in den [Versionshinweisen 0.10.0](./docs/en/Release-0.10.0.md).
 
 > [!IMPORTANT]
 > OwlMail ist für Entwicklung, Tests, CI und vertrauenswürdige interne Netze
@@ -85,7 +88,7 @@ Details stehen in den [Versionshinweisen 0.9.0](./docs/en/Release-0.9.0.md).
 
 ```bash
 # Repository klonen
-git clone --branch v0.9.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.10.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Kompilieren
@@ -98,7 +101,7 @@ go build -o owlmail ./cmd/owlmail
 #### Mit Go installieren
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.9.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.0
 owlmail
 ```
 
@@ -138,11 +141,11 @@ Authentifizierung annimmt. Alle Beispiele unten verwenden die Loopback-Form.
 Der einfachste Weg, OwlMail zu verwenden, ist das Abrufen des vorgefertigten Images von GitHub Container Registry:
 
 ```bash
-# Release 0.9.0 abrufen
-docker pull ghcr.io/soulteary/owlmail:0.9.0
+# Release 0.10.0 abrufen
+docker pull ghcr.io/soulteary/owlmail:0.10.0
 
 # Image für einen exakten Commit abrufen (Beispiel)
-docker pull ghcr.io/soulteary/owlmail:sha-112f0d0
+docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
 
 # Container ausführen
 docker run -d \
@@ -150,12 +153,12 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.9.0
+  ghcr.io/soulteary/owlmail:0.10.0
 ```
 
 **Verfügbare Tags:**
-- `0.9.0` - Exaktes Release-Tag; `0.9` und `0` werden mit späteren Releases der Reihe aktualisiert
-- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-112f0d0`)
+- `0.10.0` - Exaktes Release-Tag; `0.10` und `0` werden mit späteren Releases der Reihe aktualisiert
+- `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-8d3445d`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderliches Standard-Branch-Image, kein stabiles Release-Tag
 
@@ -709,11 +712,11 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe [LICENSE](LICENSE)-Da
 
 ## 📚 Verwandte Dokumentation
 
-- [Versionshinweise zu OwlMail 0.9.0](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
+- [Versionshinweise zu OwlMail 0.10.0](./docs/en/Release-0.10.0.md) ([中文](./docs/zh-CN/Release-0.10.0.md))
 - [Integration, CI und AI-Agenten](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP-Referenz](./docs/en/MCP-Reference.md), [Architektur](./docs/en/Architecture.md) und [Sicherheitsmodell](./docs/en/Security-Model.md)
 - [Ausführbare Testbeispiele](./examples/testing/README.md)
-- [Versionshinweise zu OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [Versionshinweise zu OwlMail 0.9.0](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
 - [Änderungsprotokoll](./CHANGELOG.md)
 - [OwlMail × MailDev × MailCatcher × Mailpit: Funktions-, API- und Migrationsleitfaden](./docs/de/Comparison-and-Migration.md)
 - [API-Referenz (English)](./docs/en/API-Reference.md)

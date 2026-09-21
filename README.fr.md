@@ -61,18 +61,22 @@ borné en lecture seule.
   utilisez le [guide sendmail](./docs/fr/Sendmail.md) pour les programmes existants.
   Les tests source et navigateur utilisent Bun ; le binaire déployé n’en dépend pas.
 
-## 🆕 OwlMail 0.9.0
+## 🆕 OwlMail 0.10.0
 
-`v0.9.0` est la version stable actuelle. Elle renforce le workflow de tests
-d’intégration AI-native avec des exemples JavaScript, Python et Go exécutables,
-une CI de bout en bout, un nettoyage fiable en cas d’échec et des contrats de
-documentation API et MCP plus complets. Les API d’exécution et les formats de
-stockage restent compatibles avec la version 0.8.0.
+`v0.10.0` est la version stable actuelle, et c’est une version de sécurité.
+L’interface Web, l’API REST, le flux WebSocket et le point de terminaison MCP en
+lecture seule valident désormais l’en-tête `Origin` du navigateur par défaut ;
+les messages capturés ne sont plus écrits dans un répertoire listable par tous ;
+et le port du listener TLS implicite est configurable au lieu d’être fixé sur un
+port privilégié qu’il ne pouvait souvent pas lier. Les API d’exécution et les
+formats de stockage restent compatibles avec la version 0.9.0, mais trois
+changements sont visibles à la mise à niveau — lisez les notes de version avant
+de déployer.
 
-Tous les exemples utilisent `ghcr.io/soulteary/owlmail:0.9.0`.
+Tous les exemples utilisent `ghcr.io/soulteary/owlmail:0.10.0`.
 Pour une CI reproductible, utilisez la version complète ou
 `ghcr.io/soulteary/owlmail@sha256:<digest>`.
-Consultez les [notes de version 0.9.0](./docs/en/Release-0.9.0.md).
+Consultez les [notes de version 0.10.0](./docs/en/Release-0.10.0.md).
 
 > [!IMPORTANT]
 > OwlMail cible le développement, les tests, la CI et les réseaux internes de
@@ -86,7 +90,7 @@ Consultez les [notes de version 0.9.0](./docs/en/Release-0.9.0.md).
 
 ```bash
 # Clone repository
-git clone --branch v0.9.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.10.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -99,7 +103,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.9.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.0
 owlmail
 ```
 
@@ -141,11 +145,11 @@ boucle locale.
 La façon la plus simple d'utiliser OwlMail est de récupérer l'image pré-construite depuis GitHub Container Registry :
 
 ```bash
-# Récupérer la version 0.9.0
-docker pull ghcr.io/soulteary/owlmail:0.9.0
+# Récupérer la version 0.10.0
+docker pull ghcr.io/soulteary/owlmail:0.10.0
 
 # Récupérer l'image d'un commit exact (exemple)
-docker pull ghcr.io/soulteary/owlmail:sha-112f0d0
+docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
 
 # Exécuter le conteneur
 docker run -d \
@@ -153,12 +157,12 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.9.0
+  ghcr.io/soulteary/owlmail:0.10.0
 ```
 
 **Tags disponibles :**
-- `0.9.0` - Tag de version exact ; `0.9` et `0` évoluent avec les versions ultérieures de ces séries
-- `sha-<commit>` - Image d'un SHA court précis (par exemple `sha-112f0d0`)
+- `0.10.0` - Tag de version exact ; `0.10` et `0` évoluent avec les versions ultérieures de ces séries
+- `sha-<commit>` - Image d'un SHA court précis (par exemple `sha-8d3445d`)
 - `main` - Image mobile issue du dernier build de `main`
 - `latest` - Image mobile de la branche par défaut, pas un sélecteur de version stable
 
@@ -709,11 +713,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [Notes de version OwlMail 0.9.0](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
+- [Notes de version OwlMail 0.10.0](./docs/en/Release-0.10.0.md) ([中文](./docs/zh-CN/Release-0.10.0.md))
 - [Intégration, CI et agents IA](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Référence MCP](./docs/en/MCP-Reference.md), [architecture](./docs/en/Architecture.md) et [modèle de sécurité](./docs/en/Security-Model.md)
 - [Exemples de test exécutables](./examples/testing/README.md)
-- [Notes de version OwlMail 0.8.0](./docs/en/Release-0.8.0.md) ([中文](./docs/zh-CN/Release-0.8.0.md))
+- [Notes de version OwlMail 0.9.0](./docs/en/Release-0.9.0.md) ([中文](./docs/zh-CN/Release-0.9.0.md))
 - [Journal des modifications](./CHANGELOG.md)
 - [OwlMail × MailDev × MailCatcher × Mailpit : guide des fonctionnalités, de l'API et de la migration](./docs/fr/Comparison-and-Migration.md)
 - [Référence API (English)](./docs/en/API-Reference.md)

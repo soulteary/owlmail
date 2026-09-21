@@ -10,9 +10,9 @@ Attualmente forniamo aggiornamenti di sicurezza per le seguenti versioni:
 
 | Versione | Supportata |
 |----------|------------|
+| 0.10.x | ✅ Sì |
 | 0.9.x | ✅ Sì |
-| 0.8.x | ✅ Sì |
-| 0.7.x e precedenti | ❌ No |
+| 0.8.x e precedenti | ❌ No |
 
 ## Segnalazione di una Vulnerabilità
 
