@@ -171,10 +171,10 @@ jobs:
           COMMIT="$(git rev-parse HEAD)"
           BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           LDFLAGS="-s -w \
-            -X github.com/soulteary/version-kit/v2.Version=${APP_VERSION} \
-            -X github.com/soulteary/version-kit/v2.Commit=${COMMIT} \
-            -X github.com/soulteary/version-kit/v2.BuildDate=${BUILD_DATE} \
-            -X github.com/soulteary/version-kit/v2.Branch=${VERSION}"
+            -X github.com/soulteary/version-kit/v4.Version=${APP_VERSION} \
+            -X github.com/soulteary/version-kit/v4.Commit=${COMMIT} \
+            -X github.com/soulteary/version-kit/v4.BuildDate=${BUILD_DATE} \
+            -X github.com/soulteary/version-kit/v4.Branch=${VERSION}"
           
           echo "Building version: ${APP_VERSION} (${COMMIT})"
           

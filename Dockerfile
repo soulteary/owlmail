@@ -27,10 +27,10 @@ COPY . .
 # Build application with target architecture and observable release metadata
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo \
     -ldflags "-s -w -extldflags=-static \
-      -X github.com/soulteary/version-kit/v2.Version=${VERSION} \
-      -X github.com/soulteary/version-kit/v2.Commit=${COMMIT} \
-      -X github.com/soulteary/version-kit/v2.BuildDate=${BUILD_DATE} \
-      -X github.com/soulteary/version-kit/v2.Branch=${BRANCH}" \
+      -X github.com/soulteary/version-kit/v4.Version=${VERSION} \
+      -X github.com/soulteary/version-kit/v4.Commit=${COMMIT} \
+      -X github.com/soulteary/version-kit/v4.BuildDate=${BUILD_DATE} \
+      -X github.com/soulteary/version-kit/v4.Branch=${BRANCH}" \
     -o owlmail ./cmd/owlmail
 
 # Runtime stage

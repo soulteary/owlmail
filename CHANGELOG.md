@@ -174,6 +174,24 @@ All notable changes to OwlMail are documented in this file. The format follows
   rejected this way releases the plain SMTP listener it had already bound. The
   log line is written only after the listener is bound and reports the port
   that was actually bound.
+- Upgraded three `soulteary` kit dependencies to their latest major versions:
+  health-kit v2.2.0 to `github.com/soulteary/health-kit/v4` v4.0.0, logger-kit
+  v2.2.0 to `github.com/soulteary/logger-kit/v3` v3.0.0, and version-kit v2.2.0
+  to `github.com/soulteary/version-kit/v4` v4.0.0. Each of these majors exists
+  only to move an optional dependency out of its root package, so a binary
+  links what it actually serves; none of them changed a signature or a response
+  byte that OwlMail relies on. The only call site that moved is the `/version`
+  endpoint: version-kit v4 relocated the `net/http` handlers to a
+  `httpadapter` subpackage, so the route now calls `httpadapter.Handler` with
+  the same root-package `version.HandlerConfig{IncludeBuildDetails: true}` as
+  before. health-kit's move only affects its Redis probe, which OwlMail does
+  not use, and logger-kit's only affects its Fiber helpers, which OwlMail does
+  not use either, so both are import-path changes. The `-ldflags -X` paths in
+  `Dockerfile` and the release workflow were repointed at the v4 module path in
+  the same change: a stale `-X` path is not a build error, it just leaves the
+  linker with nothing to write to, and the release image would report `dev`
+  while still passing CI. Routes, response bodies, response headers and log
+  fields are unchanged.
 
 ### Fixed
 

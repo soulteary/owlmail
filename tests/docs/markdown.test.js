@@ -653,7 +653,7 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
     "git checkout --detach",
     'DOCUMENTED_VERSION="$(tr -d \'\\r\\n\' < VERSION)"',
     'NOTES="docs/en/Release-${VERSION#v}.md"',
-    "github.com/soulteary/version-kit/v2.Version",
+    "github.com/soulteary/version-kit/v4.Version",
     "Verify embedded release metadata",
     "Run release preflight checks",
     "Scan for reachable Go vulnerabilities",
@@ -701,7 +701,7 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
   }
 
   const dockerfile = fs.readFileSync(path.join(root, "Dockerfile"), "utf8");
-  for (const marker of ["ARG VERSION=dev", "version-kit/v2.Version=${VERSION}", "version-kit/v2.Commit=${COMMIT}"]) {
+  for (const marker of ["ARG VERSION=dev", "version-kit/v4.Version=${VERSION}", "version-kit/v4.Commit=${COMMIT}"]) {
     assert.ok(dockerfile.includes(marker), `Dockerfile is missing release metadata marker ${marker}`);
   }
 
