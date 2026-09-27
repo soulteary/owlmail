@@ -34,7 +34,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuff
     -o owlmail ./cmd/owlmail
 
 # Runtime stage
-FROM alpine:3.24.1
+FROM alpine:3.24.2
 
 # Install runtime dependencies
 RUN apk --no-cache add ca-certificates tzdata wget
