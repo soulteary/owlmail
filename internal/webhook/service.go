@@ -110,11 +110,9 @@ func NewService(dispatcher *Dispatcher, options ServiceOptions) (*Service, error
 	}
 	history, err := newDeliveryHistory(options.SpoolDir)
 	if err != nil {
-		cancel()
-		if service.queue != nil {
-			_ = service.queue.Close()
-		}
-		return nil, err
+		// Diagnostic history must never take the delivery service offline.
+		// Preserve the recovery error separately from subsequent write health.
+		history.recoveryErr = err
 	}
 	service.history = history
 	service.accepting = true

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http/httptest"
 	"testing"
+	"time"
 )
 
 func TestWorkflowListsAndReplayAdmission(t *testing.T) {
@@ -38,5 +39,33 @@ func TestWorkflowListsAndReplayAdmission(t *testing.T) {
 		if resp.StatusCode != tc.status {
 			t.Fatal(tc, resp.StatusCode)
 		}
+	}
+}
+
+func TestRelayPrunePersistenceFailureIsVisible(t *testing.T) {
+	api, s, _ := setupTestAPI(t)
+	defer func() { _ = s.Close() }()
+	job, err := api.relayJobs.create("source", "recipient@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.relayJobs.complete(job.ID, nil)
+	api.relayJobs.mu.Lock()
+	old := api.relayJobs.jobs[job.ID]
+	expired := time.Now().Add(-48 * time.Hour)
+	old.CompletedAt = &expired
+	api.relayJobs.jobs[job.ID] = old
+	api.relayJobs.syncDirectory = func(string) error { return errors.New("injected deletion sync error") }
+	api.relayJobs.mu.Unlock()
+	resp, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	var result struct {
+		Healthy bool `json:"persistence_healthy"`
+	}
+	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Healthy {
+		t.Fatal(result, err)
 	}
 }

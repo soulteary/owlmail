@@ -241,6 +241,14 @@ func syncRelayJobDirectory(path string) error {
 }
 
 func (store *relayJobStore) removePersistedLocked(id string) error {
+	err := store.removeJobLocked(id)
+	if err != nil {
+		store.lastPersistenceErr = err
+	}
+	return err
+}
+
+func (store *relayJobStore) removeJobLocked(id string) error {
 	if store.directory == "" {
 		return nil
 	}
