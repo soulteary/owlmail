@@ -930,7 +930,8 @@ test("release history and generated reports avoid stale documentation", () => {
   assert.ok(workflow.includes('commit: "false"'));
   assert.ok(workflow.includes('version: "v1.1.3"'));
   assert.ok(workflow.includes("needs.reports.outputs.source_sha"));
-  assert.ok(workflow.includes("[skip ci]"));
+  assert.doesNotMatch(workflow, /git commit[^\n]*\[skip ci\]/);
+  assert.ok(workflow.includes('git commit -m "chore: update Go quality reports"'));
 
   const ciWorkflow = fs.readFileSync(path.join(root, ".github/workflows/ci.yml"), "utf8");
   const pushTrigger = ciWorkflow.slice(ciWorkflow.indexOf("  push:"), ciWorkflow.indexOf("  pull_request:"));

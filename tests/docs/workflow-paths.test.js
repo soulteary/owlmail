@@ -40,5 +40,5 @@ test('stacked pull requests run CI and analyzer details stay in artifacts', () =
     const reports = fs.readFileSync(path.join(root, '.github/workflows/go-quality-reports.yml'), 'utf8');
     assert.ok(reports.includes('.github/goreportcard-report.md'));
     assert.equal(reports.includes('cp "$REPORT_DIR/.github/goreportcard-report.md"'), false);
-    assert.equal(reports.split('git add --')[1].split('\n')[0].includes('goreportcard-report.md'), false);
+    assert.equal(reports.match(/git add (?:-f )?-- ([^\n]+)/)[1].includes('goreportcard-report.md'), false);
 });
