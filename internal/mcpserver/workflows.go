@@ -331,17 +331,14 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 			case <-waitCtx.Done():
 			}
 		}()
-		result, err := service.mailbox.WaitDeliveries(waitCtx, input.After, mailserver.DeliveryFilter{Recipient: input.Recipient, RunID: input.RunID, Subject: input.Subject, Text: input.Text}, 1, timeout)
+		result, err := service.mailbox.WaitDeliveries(waitCtx, input.After, mailserver.DeliveryFilter{Recipient: input.Recipient, RunID: input.RunID, Subject: strings.TrimSpace(input.Subject), Text: strings.TrimSpace(input.Text)}, 1, timeout)
 		if err != nil {
 			return waitForEmailOutput{}, err
 		}
 		out := waitForEmailOutput{TimedOut: result.TimedOut, WaitedMillis: result.WaitedMilliseconds}
 		if len(result.Emails) > 0 {
 			e := result.Emails[0]
-			preview, ok := service.mailbox.GetEmailPreview(e.ID)
-			if !ok {
-				return waitForEmailOutput{}, fmt.Errorf("matched email was not found")
-			}
+			preview := mailserver.PreviewEmailSnapshot(e)
 			summary := service.makeSummaries([]mailserver.EmailPreview{preview})[0]
 			out.Matched = true
 			out.Email = &summary

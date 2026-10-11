@@ -468,7 +468,7 @@ expiry, timeout results, quotas, and cleanup semantics.
 }
 ```
 
-HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Assertion failures set `passed: false`; invalid requests return 400, oversized requests return 413, and missing mail returns 404. Requests are limited to 64 KiB, 100 combined selectors, and 2 MiB per inspected body. Links and matches per extraction are capped at 200 with explicit truncation flags. A truncated link list fails the allowed-host assertion. CI should also reject truncation when complete extraction is required.
+HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Assertion failures set `passed: false`; invalid requests return 400, oversized requests return 413, and missing mail returns 404. Requests are limited to 64 KiB, 100 combined selectors, and 2 MiB per inspected body. Links and matches per extraction are capped at 200 with explicit truncation flags. Extracted values also share a 2 MiB aggregate UTF-8 byte budget; exhausting it sets `extractions_truncated`. A truncated link list fails the allowed-host assertion. CI should also reject truncation when complete extraction is required.
 
 ## Delivery workflows
 
@@ -479,3 +479,4 @@ HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Ass
 `POST /api/v1/webhook-deliveries/:jobID/retry` replays only failed named targets that are still configured, using the original delivery ID for receiver deduplication. Successful targets are excluded. A replay replaces that delivery's terminal summary with its latest outcomes. Current target credentials/templates apply. The source email must still exist. Replays are serialized per delivery within the process; queue-only errors recover through the existing queue. A failed enqueue can leave recoverable outbox work, so delivery remains at least once. Receivers must deduplicate delivery IDs.
 
 An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled or unavailable webhook queue/persistence service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee. Malformed history is quarantined and delivery startup continues; recovery health remains false until a clean restart. Deletion-side relay storage failures also report unhealthy persistence.
+

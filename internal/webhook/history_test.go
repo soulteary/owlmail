@@ -210,3 +210,86 @@ func TestReplayAdmissionDoesNotBlockShutdownCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestHistoryPruningPersistsOnReadAndStartupAndRecoversWriteHealth(t *testing.T) {
+	spool := t.TempDir()
+	history, err := newDeliveryHistory(spool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expired := DeliveryRecord{ID: "expired", EmailID: "expired-source", CompletedAt: time.Now().Add(-48 * time.Hour), Status: "succeeded"}
+	history.records[expired.ID] = expired
+	if err = history.persist(); err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{history: history}
+	records, healthy := service.DeliveryHistory()
+	if len(records) != 0 || !healthy {
+		t.Fatal(records, healthy)
+	}
+	data, err := os.ReadFile(history.path)
+	if err != nil || strings.Contains(string(data), "expired-source") {
+		t.Fatal("read did not persist expiry", string(data), err)
+	}
+	history.records[expired.ID] = expired
+	if err = history.persist(); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := newDeliveryHistory(spool)
+	if err != nil || len(recovered.records) != 0 {
+		t.Fatal(err)
+	}
+	data, err = os.ReadFile(history.path)
+	if err != nil || strings.Contains(string(data), "expired-source") {
+		t.Fatal("startup did not persist expiry", string(data), err)
+	}
+	history.records[expired.ID] = expired
+	if err = history.persist(); err != nil {
+		t.Fatal(err)
+	}
+	originalPath := history.path
+	blocker := filepath.Join(t.TempDir(), "blocked")
+	if err = os.WriteFile(blocker, []byte("blocked"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	history.path = filepath.Join(blocker, "history.json")
+	_, healthy = service.DeliveryHistory()
+	if healthy {
+		t.Fatal("prune write failure was hidden")
+	}
+	history.path = originalPath
+	_, healthy = service.DeliveryHistory()
+	if !healthy {
+		t.Fatal("prune persistence retry did not restore health")
+	}
+	data, err = os.ReadFile(history.path)
+	if err != nil || strings.Contains(string(data), "expired-source") {
+		t.Fatal("retry did not remove expiry", string(data), err)
+	}
+}
+
+func TestCloseDeadlineDoesNotWaitForUncancellableHandoff(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service := &Service{ctx: ctx, cancel: cancel, accepting: true, shutdownTimeout: 20 * time.Millisecond}
+	service.handoffs.Add(1)
+	released := make(chan struct{})
+	finished := make(chan struct{})
+	go func() { defer close(finished); <-released; service.handoffs.Done() }()
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		if err == nil {
+			t.Fatal("expected drain timeout")
+		}
+	case <-time.After(time.Second):
+		close(released)
+		t.Fatal("shutdown waited for uncancellable I/O")
+	}
+	close(released)
+	<-finished
+	if ctx.Err() != context.Canceled {
+		t.Fatal("shutdown did not cancel service")
+	}
+}

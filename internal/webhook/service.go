@@ -556,7 +556,15 @@ func (service *Service) Close() error {
 			service.closeErr = fmt.Errorf("webhook drain exceeded %s", service.shutdownTimeout)
 			service.cancel()
 			service.releaseAllStagedHandoffs()
-			<-drained
+			// Filesystem operations cannot be canceled. Let admitted work finish
+			// and clean up asynchronously rather than extending the deadline.
+			go func() {
+				<-drained
+				if service.queue != nil {
+					_ = service.queue.Close()
+				}
+			}()
+			return
 		}
 		service.cancel()
 		if service.queue != nil {

@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -146,9 +147,25 @@ func validateRelayJobPersistenceBudget(job relayJob) error {
 	return nil
 }
 
+func (store *relayJobStore) recordPersistenceResultLocked(id string, err error) {
+	if store.persistenceErrors == nil {
+		store.persistenceErrors = make(map[string]error)
+	}
+	if err != nil {
+		store.persistenceErrors[id] = err
+	} else {
+		delete(store.persistenceErrors, id)
+	}
+	unresolved := make([]error, 0, len(store.persistenceErrors))
+	for _, failure := range store.persistenceErrors {
+		unresolved = append(unresolved, failure)
+	}
+	store.lastPersistenceErr = errors.Join(unresolved...)
+}
+
 func (store *relayJobStore) persistLocked(job relayJob) error {
 	err := store.persistJobLocked(job)
-	store.lastPersistenceErr = err
+	store.recordPersistenceResultLocked(job.ID, err)
 	return err
 }
 
@@ -210,7 +227,7 @@ func syncRelayJobDirectory(path string) error {
 
 func (store *relayJobStore) removePersistedLocked(id string) error {
 	err := store.removeJobLocked(id)
-	store.lastPersistenceErr = err
+	store.recordPersistenceResultLocked(id, err)
 	return err
 }
 

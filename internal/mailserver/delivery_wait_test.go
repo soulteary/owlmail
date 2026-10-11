@@ -153,7 +153,7 @@ func TestRunIDSurvivesRestartAndOldCursorExpires(t *testing.T) {
 }
 
 func TestLegacyInvalidRunHeadersRemainReadableOnRecovery(t *testing.T) {
-	for _, header := range []string{"X-OwlMail-Run-ID: run/legacy", "X-OwlMail-Run-ID: one\r\nX-OwlMail-Run-ID: two"} {
+	for _, header := range []string{"X-OwlMail-Run-ID:", "X-OwlMail-Run-ID:   ", "X-OwlMail-Run-ID: run/legacy", "X-OwlMail-Run-ID: one\r\nX-OwlMail-Run-ID: two"} {
 		t.Run(header, func(t *testing.T) {
 			s := deliveryTestServer(t)
 			raw := "From: sender@example.test\r\n" + header + "\r\nSubject: Legacy\r\n\r\nPreserve this body"
@@ -224,5 +224,60 @@ func TestDeliveryWaitSequenceOrderSurvivesReloadSort(t *testing.T) {
 			t.Fatal(result, err, expected)
 		}
 		cursor = result.Cursor
+	}
+}
+
+func TestDeliveryUnicodeFoldAndDeletedSnapshot(t *testing.T) {
+	s := deliveryTestServer(t)
+	cursor := s.DeliveryCursor()
+	if err := s.SaveEmailToStore("unicode", false, &Envelope{To: []string{"a@example.test"}}, &Email{Subject: "ΟΣ", Text: "ſ K"}); err != nil {
+		t.Fatal(err)
+	}
+	filter := DeliveryFilter{Subject: "ος", Text: "S k"}
+	result, err := s.WaitDeliveries(context.Background(), cursor, filter, 1, time.Second)
+	if err != nil || result.TimedOut || len(result.Emails) != 1 {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if !filter.Matches(result.Emails[0]) {
+		t.Fatal("direct matching disagrees with cursor matching")
+	}
+	if err := s.DeleteEmail("unicode"); err != nil {
+		t.Fatal(err)
+	}
+	preview := PreviewEmailSnapshot(result.Emails[0])
+	if preview.ID != "unicode" || preview.Subject != "ΟΣ" || preview.Preview != "ſ K" {
+		t.Fatalf("snapshot lost after deletion: %+v", preview)
+	}
+}
+
+func TestPartialWaitAccumulatesMatchesAcrossWakeups(t *testing.T) {
+	s := deliveryTestServer(t)
+	cursor := s.DeliveryCursor()
+	commitTestDelivery(t, s, "first", "wanted", "a@example.test")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan DeliveryResult, 1)
+	go func() {
+		result, _ := s.WaitDeliveries(ctx, cursor, DeliveryFilter{RunID: "wanted"}, 2, time.Second)
+		done <- result
+	}()
+	deadline := time.Now().Add(time.Second)
+	for {
+		s.storeMutex.RLock()
+		admitted := s.deliveryWaiters > 0
+		s.storeMutex.RUnlock()
+		if admitted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("wait not admitted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	commitTestDelivery(t, s, "unrelated", "other", "a@example.test")
+	commitTestDelivery(t, s, "second", "wanted", "a@example.test")
+	result := <-done
+	if len(result.Emails) != 2 || result.Emails[0].ID != "first" || result.Emails[1].ID != "second" {
+		t.Fatalf("%+v", result)
 	}
 }

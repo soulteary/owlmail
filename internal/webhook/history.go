@@ -79,7 +79,9 @@ func newDeliveryHistory(spool string) (*deliveryHistory, error) {
 	for _, r := range records {
 		h.records[r.ID] = r
 	}
-	h.prune()
+	if h.prune() {
+		h.persistenceErr = h.persist()
+	}
 	return h, nil
 }
 func (h *deliveryHistory) quarantine(cause error) (*deliveryHistory, error) {
@@ -89,7 +91,8 @@ func (h *deliveryHistory) quarantine(cause error) (*deliveryHistory, error) {
 	return h, cause
 }
 
-func (h *deliveryHistory) prune() {
+func (h *deliveryHistory) prune() bool {
+	before := len(h.records)
 	for id, r := range h.records {
 		if time.Since(r.CompletedAt) > 24*time.Hour {
 			delete(h.records, id)
@@ -106,6 +109,7 @@ func (h *deliveryHistory) prune() {
 		}
 		encodedBytes += size
 	}
+	return len(h.records) != before
 }
 func (h *deliveryHistory) listLocked() []DeliveryRecord {
 	r := make([]DeliveryRecord, 0, len(h.records))
@@ -184,7 +188,9 @@ func (h *deliveryHistory) persist() error {
 func (service *Service) DeliveryHistory() ([]DeliveryRecord, bool) {
 	service.history.mu.Lock()
 	defer service.history.mu.Unlock()
-	service.history.prune()
+	if service.history.prune() || service.history.persistenceErr != nil {
+		service.history.persistenceErr = service.history.persist()
+	}
 	return service.history.listLocked(), service.history.persistenceErr == nil && service.history.recoveryErr == nil
 }
 
