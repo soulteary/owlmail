@@ -923,7 +923,7 @@ function handleMailboxKeydown(event) {
     if (!event || event.defaultPrevented || event.isComposing || event.repeat || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
         return;
     }
-    if (event.target && event.target.closest && event.target.closest('button, a, [role=dialog], [role=menu], [contenteditable]')) return;
+    if (event.target && event.target.closest && event.target.closest('button, a, [role=button], [role=dialog], [role=menu], [contenteditable]')) return;
     if (event.key === '/') {
         const search = document.getElementById('searchInput');
         if (search) { event.preventDefault(); search.focus(); }

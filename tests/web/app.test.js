@@ -1386,3 +1386,14 @@ test('HTML previews keep explicit light color rendering inside the sandbox', () 
     assert.match(html, /sandbox=""/);
     assert.match(styleSource, /height: 70vh/);
 });
+
+
+test('role buttons suppress global shortcuts for a different selected message', async () => {
+    const harness = createHarness();
+    harness.run("state.currentEmail = {id:'selected'}; confirm = () => { throw new Error('must not delete selected message'); }");
+    await harness.run(`handleMailboxKeydown({key:'Delete', target: {closest(selector) {
+        return selector.includes('[role=button]') ? {role:'button'} : null;
+    }}, preventDefault() {throw new Error('must not intercept role button');}})`);
+    assert.equal(harness.run('state.currentEmail.id'), 'selected');
+    assert.equal(harness.fetchRequests.length, 0);
+});
