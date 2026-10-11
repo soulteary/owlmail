@@ -2359,12 +2359,19 @@ window.t = t; // Make translation function available globally
 let emailTools = null;
 function emailToolsFor(email) {
     if (!emailTools || emailTools.id !== email.id) {
-        emailTools = { id: email.id, subject: '', text: '', hosts: '', codes: false, report: null, error: '', checking: false, busy: false, loaded: false, relay: null, webhook: null, notice: '' };
+        emailTools = { id: email.id, subject: '', text: '', hosts: '', codes: false, report: null, error: '', revision: 0, checking: false, busy: false, loaded: false, relay: null, webhook: null, notice: '' };
     }
     return emailTools;
 }
 function updateEmailInspectionField(field, value) {
-    if (state.currentEmail && ['subject', 'text', 'hosts', 'codes'].includes(field)) emailToolsFor(state.currentEmail)[field] = value;
+    if (!state.currentEmail || !['subject', 'text', 'hosts', 'codes'].includes(field)) return;
+    const tools = emailToolsFor(state.currentEmail);
+    if (tools[field] === value) return;
+    tools[field] = value;
+    tools.revision++; tools.report = null; tools.error = '';
+    // Clear only the result region so typing keeps its focus and caret.
+    const status = document.getElementById('emailInspectionStatus');
+    if (status) status.innerHTML = '';
 }
 function renderEmailInspection(email) {
     const tools = emailToolsFor(email);
@@ -2375,7 +2382,7 @@ function renderEmailInspection(email) {
         <label>${t('inspectHosts')}<input maxlength="2048" value="${escapeHtmlAttribute(tools.hosts)}" oninput="updateEmailInspectionField('hosts', this.value)"></label>
         <label class="email-tools-checkbox"><input type="checkbox" ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
         <button type="button" class="btn btn-secondary" ${tools.checking ? 'disabled' : ''} onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
-        <div role="status" aria-live="polite">
+        <div id="emailInspectionStatus" role="status" aria-live="polite">
         ${tools.error ? `<p class="error">${escapeHtml(tools.error)}</p>` : ''}
         ${report ? `<h3>${t(report.passed ? 'inspectPass' : 'inspectFail')}</h3>
             <ul>${report.checks.map(check => `<li>${check.passed ? '✓' : '✗'} ${escapeHtml(check.name.startsWith('subject_contains') ? t('inspectSubject') : check.name.startsWith('text_contains') ? t('inspectText') : check.name === 'allowed_link_hosts' ? 'Link hosts' : check.name)}: ${escapeHtml(check.message)}</li>`).join('')}</ul>
@@ -2393,13 +2400,17 @@ async function runEmailInspection() {
     if (!state.currentEmail) return;
     const tools = emailToolsFor(state.currentEmail);
     if (tools.checking) return;
+    const revision = tools.revision;
     tools.checking = true; tools.error = ''; tools.report = null;
     const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: tools.text ? [tools.text] : [] };
     if (tools.hosts.trim()) request.allowed_link_hosts = tools.hosts.split(',').map(host => host.trim()).filter(Boolean);
-    if (tools.codes) request.extract = [{ name: 'codes', pattern: '[0-9]{6}' }];
+    if (tools.codes) request.extract = [{ name: 'codes', pattern: '\\b([0-9]{6})\\b' }];
     renderEmailDetail();
-    try { tools.report = await emailToolRequest(`/emails/${encodeURIComponent(tools.id)}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) }); }
-    catch (error) { tools.error = String(error.message || error); }
+    try {
+        const report = await emailToolRequest(`/emails/${encodeURIComponent(tools.id)}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
+        if (tools.revision === revision) tools.report = report;
+    }
+    catch (error) { if (tools.revision === revision) tools.error = String(error.message || error); }
     finally { tools.checking = false; if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail(); }
 }
 function renderEmailDeliveries(email) {

@@ -1048,7 +1048,7 @@ test('verification submits exact assertions and safely renders extracted mail co
     const body = JSON.parse(harness.fetchRequests[0].options.body);
     assert.deepEqual(body.allowed_link_hosts, ['app.example.test', 'login.example.test']);
     assert.deepEqual(body.text_contains, ['Expected']);
-    assert.equal(body.extract[0].pattern, '[0-9]{6}');
+    assert.deepEqual('1234567 123456 912345678'.match(new RegExp(body.extract[0].pattern, 'g')), ['123456']);
     assert.match(harness.emailDetail.innerHTML, /Checks failed/);
     assert.match(harness.emailDetail.innerHTML, /&lt;script&gt;bad/);
     assert.equal(harness.emailDetail.innerHTML.includes('<script>bad'), false);
@@ -1086,4 +1086,19 @@ test('delivery panels keep partial errors visible and require explicit retry con
     assert.match(harness.emailDetail.innerHTML, /Retry accepted/);
     await harness.run(`retryEmailWorkflow('relay', 0)`);
     assert.equal(harness.fetchRequests.length, 3);
+});
+
+
+test('edited verification criteria clear completed results and supersede pending responses', async () => {
+    let finish;
+    const harness = createHarness({ fetchImpl: async () => new Promise(resolve => { finish = resolve; }) });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'inspect'; emailToolsFor(state.currentEmail).report = { passed: true, checks: [], links: [], extractions: {} }; updateEmailInspectionField('subject', 'new criteria')`);
+    assert.equal(harness.run('emailTools.report'), null);
+    const pending = harness.run('runEmailInspection()');
+    harness.run(`updateEmailInspectionField('subject', 'even newer criteria')`);
+    finish(jsonResponse({ passed: true, checks: [], links: [], extractions: {} }));
+    await pending;
+    assert.equal(harness.run('emailTools.report'), null);
+    assert.equal(harness.emailDetail.innerHTML.includes('Checks passed'), false);
+    assert.equal(harness.run('emailTools.checking'), false);
 });
