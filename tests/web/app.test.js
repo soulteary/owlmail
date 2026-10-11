@@ -1206,3 +1206,17 @@ test('delivery refresh preserves its keyboard action across loading and completi
     await pending;
     assert.equal(harness.run("document.activeElement.id"), 'emailDeliveriesRefresh');
 });
+
+
+test('HTML-only mail clearly limits plain-text controls and retains subject/link checks', async () => {
+    const harness = createHarness({ fetchImpl: async () => jsonResponse({ passed: true, checks: [], links: [], extractions: {} }) });
+    harness.run(`state.currentEmail = { id: 'html-only', text: '', html: '<p>Code 123456</p>', attachments: [] }; emailContentTab = 'inspect'; updateEmailInspectionField('subject', 'Verify'); updateEmailInspectionField('text', 'Code'); updateEmailInspectionField('codes', true); renderEmailDetail()`);
+    assert.match(harness.emailDetail.innerHTML, /no plain-text part/);
+    assert.match(harness.emailDetail.innerHTML, /input disabled maxlength/);
+    assert.match(harness.emailDetail.innerHTML, /type="checkbox" disabled/);
+    await harness.run('runEmailInspection()');
+    const request = JSON.parse(harness.fetchRequests[0].options.body);
+    assert.deepEqual(request.text_contains, []);
+    assert.equal(request.extract, undefined);
+    assert.deepEqual(request.subject_contains, ['Verify']);
+});

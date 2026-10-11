@@ -170,7 +170,8 @@ const i18n = {
         contentInspect: 'Verify',
         contentDeliveries: 'Deliveries',
         inspectSubject: 'Expected subject text',
-        inspectText: 'Expected message text',
+        inspectText: 'Expected plain-text body',
+        inspectPlainTextOnly: 'This message has no plain-text part. Body text checks and code extraction require plain text; subject and link checks remain available.',
         inspectHosts: 'Allowed link hosts (comma separated, optional)',
         inspectCodes: 'Extract six-digit codes',
         inspectRun: 'Run checks',
@@ -2375,11 +2376,13 @@ function updateEmailInspectionField(field, value) {
 }
 function renderEmailInspection(email) {
     const tools = emailToolsFor(email);
+    const hasPlainText = Boolean(email.text);
     return `<section class="email-tools">
         <label>${t('inspectSubject')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.subject)}" oninput="updateEmailInspectionField('subject', this.value)"></label>
-        <label>${t('inspectText')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.text)}" oninput="updateEmailInspectionField('text', this.value)"></label>
+        <label>${t('inspectText')}<input ${hasPlainText ? '' : 'disabled'} maxlength="1024" value="${escapeHtmlAttribute(tools.text)}" oninput="updateEmailInspectionField('text', this.value)"></label>
         <label>${t('inspectHosts')}<input maxlength="2048" value="${escapeHtmlAttribute(tools.hosts)}" oninput="updateEmailInspectionField('hosts', this.value)"></label>
-        <label class="email-tools-checkbox"><input type="checkbox" ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
+        <label class="email-tools-checkbox"><input type="checkbox" ${hasPlainText ? '' : 'disabled'} ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
+        ${hasPlainText ? '' : `<p>${t('inspectPlainTextOnly')}</p>`}
         <button id="emailInspectionRun" type="button" class="btn btn-secondary" aria-disabled="${tools.checking}" onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
         <div id="emailInspectionStatus" role="status" aria-live="polite">
         ${renderEmailInspectionReport(tools)}
@@ -2411,9 +2414,9 @@ async function runEmailInspection() {
     if (tools.checking) return;
     const revision = tools.revision;
     tools.checking = true; tools.error = ''; tools.report = null;
-    const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: tools.text ? [tools.text] : [] };
+    const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: state.currentEmail.text && tools.text ? [tools.text] : [] };
     if (tools.hosts.trim()) request.allowed_link_hosts = tools.hosts.split(',').map(host => host.trim()).filter(Boolean);
-    if (tools.codes) request.extract = [{ name: 'codes', pattern: '\\b([0-9]{6})\\b' }];
+    if (state.currentEmail.text && tools.codes) request.extract = [{ name: 'codes', pattern: '\\b([0-9]{6})\\b' }];
     updateEmailInspectionDisplay(tools);
     try {
         const report = await emailToolRequest(`/emails/${encodeURIComponent(tools.id)}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
