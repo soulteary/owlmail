@@ -36,7 +36,7 @@ func TestWorkflowListsAndReplayAdmission(t *testing.T) {
 	for _, tc := range []struct {
 		method, path string
 		status       int
-	}{{"GET", "/api/v1/relay-jobs?limit=0", 400}, {"POST", "/api/v1/relay-jobs/" + job.ID + "/retry", 404}, {"POST", "/api/v1/webhook-deliveries/missing/retry", 503}, {"GET", "/api/v1/webhook-deliveries", 200}} {
+	}{{"GET", "/api/v1/relay-jobs?limit=0", 400}, {"POST", "/api/v1/relay-jobs/" + job.ID + "/retry", 404}, {"POST", "/api/v1/webhook-deliveries/missing/retry", 503}, {"GET", "/api/v1/webhook-deliveries", 200}, {"GET", "/api/v1/webhook-deliveries?status=typo", 400}, {"GET", "/api/v1/webhook-deliveries?status=failed", 200}} {
 		resp, err = api.app.Test(httptest.NewRequest(tc.method, tc.path, nil))
 		if err != nil {
 			t.Fatal(err)
