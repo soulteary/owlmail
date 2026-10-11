@@ -60,7 +60,11 @@ func (api *API) replayRelayJob(c fiber.Ctx) error {
 	if job.Confirmed {
 		recipients = job.Recipients
 	}
-	return api.enqueueRelaySource(c, job.EmailID, job.RelayTo, recipients)
+	err := api.enqueueRelaySource(c, job.EmailID, job.RelayTo, recipients)
+	if c.Response().StatusCode() == fiber.StatusBadRequest {
+		c.Status(fiber.StatusConflict)
+	}
+	return err
 }
 func (api *API) listWebhookDeliveries(c fiber.Ctx) error {
 	limit, err := workflowLimit(c)
