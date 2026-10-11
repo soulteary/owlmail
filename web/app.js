@@ -2381,7 +2381,7 @@ function renderEmailInspection(email) {
         <label>${t('inspectText')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.text)}" oninput="updateEmailInspectionField('text', this.value)"></label>
         <label>${t('inspectHosts')}<input maxlength="2048" value="${escapeHtmlAttribute(tools.hosts)}" oninput="updateEmailInspectionField('hosts', this.value)"></label>
         <label class="email-tools-checkbox"><input type="checkbox" ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
-        <button type="button" class="btn btn-secondary" ${tools.checking ? 'disabled' : ''} onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
+        <button id="emailInspectionRun" type="button" class="btn btn-secondary" ${tools.checking ? 'disabled' : ''} onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
         <div id="emailInspectionStatus" role="status" aria-live="polite">
         ${tools.error ? `<p class="error">${escapeHtml(tools.error)}</p>` : ''}
         ${report ? `<h3>${t(report.passed ? 'inspectPass' : 'inspectFail')}</h3>
@@ -2411,7 +2411,16 @@ async function runEmailInspection() {
         if (tools.revision === revision) tools.report = report;
     }
     catch (error) { if (tools.revision === revision) tools.error = String(error.message || error); }
-    finally { tools.checking = false; if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail(); }
+    finally {
+        tools.checking = false;
+        if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'inspect') {
+            if (tools.revision === revision) renderEmailDetail();
+            else {
+                const button = document.getElementById('emailInspectionRun');
+                if (button) { button.disabled = false; button.textContent = t('inspectRun'); }
+            }
+        }
+    }
 }
 function renderEmailDeliveries(email) {
     const tools = emailToolsFor(email);
@@ -2452,7 +2461,7 @@ async function refreshEmailDeliveries() {
     tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
     tools.webhook = results[1].status === 'fulfilled' ? results[1].value : { error: String(results[1].reason.message || results[1].reason) };
     tools.busy = false; tools.loaded = true;
-    if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
+    if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
 }
 async function retryEmailWorkflow(kind, index) {
     if (!state.currentEmail || !['relay', 'webhook'].includes(kind)) return;

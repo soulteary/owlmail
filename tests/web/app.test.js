@@ -1136,3 +1136,29 @@ test('queue-only webhook failures do not offer or submit manual retries', async 
     harness.run(`emailTools.webhook.deliveries[0].outcomes.push({ target: 'failed-target', error_category: 'http_status' }); renderEmailDetail()`);
     assert.equal(harness.emailDetail.innerHTML.includes("retryEmailWorkflow('webhook'"), true);
 });
+
+
+test('superseded checks and inactive delivery completions preserve panel controls', async () => {
+    let finish;
+    const harness = createHarness({ fetchImpl: async () => new Promise(resolve => { finish = resolve; }) });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'inspect'`);
+    const check = harness.run('runEmailInspection()');
+    harness.run(`updateEmailInspectionField('text', 'new criteria'); document.activeElement = { id: 'verification-input' }; const original = renderEmailDetail; renderEmailDetail = () => { original(); document.activeElement = null; };`);
+    finish(jsonResponse({ passed: true, checks: [], links: [], extractions: {} }));
+    await check;
+    assert.equal(harness.run('document.activeElement.id'), 'verification-input');
+});
+
+
+test('delivery completion does not rerender an inactive Verify panel', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries'`);
+    const refresh = harness.run('refreshEmailDeliveries()');
+    harness.run(`emailContentTab = 'inspect'; document.activeElement = { id: 'verification-input' }; const original = renderEmailDetail; renderEmailDetail = () => { original(); document.activeElement = null; };`);
+    finish(jsonResponse({ deliveries: [], jobs: [] }));
+    await refresh;
+    assert.equal(harness.run('document.activeElement.id'), 'verification-input');
+    assert.equal(harness.run('emailTools.loaded'), true);
+});
