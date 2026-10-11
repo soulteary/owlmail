@@ -24,6 +24,8 @@ Select your preferred language:
 
 ### Available Documents
 
+- [Reproducible Delivery Faults](./en/Fault-Injection.md) and [runnable receiver](../examples/faults)
+
 - [Integration Testing](./en/Integration-Testing.md) and [CI Quickstart](./en/CI-Quickstart.md)
 - [AI Agent Testing](./en/AI-Agent-Testing.md) and [MCP Reference](./en/MCP-Reference.md)
 - [Testing Recipes](./en/Testing-Recipes.md)

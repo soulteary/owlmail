@@ -1008,7 +1008,7 @@
           "Relay"
         ],
         "summary": "Request email relay",
-        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -1109,7 +1109,7 @@
           "Relay"
         ],
         "summary": "Request email relay to an explicit recipient",
-        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, and queue failures use at most three attempts with exponential jitter. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
