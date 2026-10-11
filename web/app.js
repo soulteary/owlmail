@@ -175,6 +175,7 @@ const i18n = {
         inspectHosts: 'Allowed link hosts (comma separated, optional)',
         inspectCodes: 'Extract six-digit codes',
         inspectRun: 'Run checks',
+        inspectAssertionTooLarge: 'Subject and plain-text assertions are limited to 1024 UTF-8 bytes each.',
         inspectPass: 'Checks passed',
         inspectFail: 'Checks failed',
         inspectTruncated: 'Results were truncated. Complete verification needs the full message.',
@@ -2412,6 +2413,12 @@ async function runEmailInspection() {
     if (!state.currentEmail) return;
     const tools = emailToolsFor(state.currentEmail);
     if (tools.checking) return;
+    const assertions = state.currentEmail.text ? [tools.subject, tools.text] : [tools.subject];
+    if (assertions.some(value => new TextEncoder().encode(value).length > 1024)) {
+        tools.report = null; tools.error = t('inspectAssertionTooLarge');
+        updateEmailInspectionDisplay(tools);
+        return;
+    }
     const revision = tools.revision;
     tools.checking = true; tools.error = ''; tools.report = null;
     const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: state.currentEmail.text && tools.text ? [tools.text] : [] };

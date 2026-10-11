@@ -212,6 +212,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         URL,
         URLSearchParams,
         Blob,
+        TextEncoder,
         alert(message) { alerts.push(String(message)); },
         confirm(message) { confirmations.push(String(message)); return true; }
     };
@@ -1219,4 +1220,19 @@ test('HTML-only mail clearly limits plain-text controls and retains subject/link
     assert.deepEqual(request.text_contains, []);
     assert.equal(request.extract, undefined);
     assert.deepEqual(request.subject_contains, ['Verify']);
+});
+
+
+test('verification enforces UTF-8 byte limits before submitting non-ASCII assertions', async () => {
+    const harness = createHarness({ fetchImpl: async () => jsonResponse({ passed: true, checks: [], links: [], extractions: {} }) });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'inspect'; updateEmailInspectionField('subject', '汉'.repeat(512));`);
+    await harness.run('runEmailInspection()');
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.match(harness.run("document.getElementById('emailInspectionStatus').innerHTML"), /1024 UTF-8 bytes/);
+    harness.run(`updateEmailInspectionField('subject', ''); updateEmailInspectionField('text', '汉'.repeat(512));`);
+    await harness.run('runEmailInspection()');
+    assert.equal(harness.fetchRequests.length, 0);
+    harness.run(`updateEmailInspectionField('text', '汉'.repeat(341) + 'x');`);
+    await harness.run('runEmailInspection()');
+    assert.equal(harness.fetchRequests.length, 1);
 });
