@@ -767,6 +767,9 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	headers := mail.Header{Header: msg.Header}
 	email.RunID = headers.Get("X-OwlMail-Run-ID")
 	runErr := ValidateRunID(email.RunID)
+	if len(headers.Values("X-OwlMail-Run-ID")) > 0 && email.RunID == "" {
+		runErr = fmt.Errorf("X-OwlMail-Run-ID must not be empty")
+	}
 	if len(headers.Values("X-OwlMail-Run-ID")) > 1 {
 		runErr = fmt.Errorf("X-OwlMail-Run-ID must occur once")
 	}

@@ -121,6 +121,7 @@ type MailServer struct {
 	deliveryEpoch           string
 	deliverySequence        uint64
 	deliverySequences       map[string]uint64
+	deliveryOrder           []deliveryEntry
 	deliveryChanged         chan struct{}
 	deliveryWaiters         int
 	deliveryClosed          bool

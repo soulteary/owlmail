@@ -196,7 +196,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 				continue
 			}
 			delete(ms.storeByID, id)
-			delete(ms.deliverySequences, id)
+			ms.removeDeliveryLocked(id)
 			delete(ms.receivedAtByID, id)
 		}
 	}

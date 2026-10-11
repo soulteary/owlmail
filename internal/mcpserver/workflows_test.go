@@ -445,11 +445,11 @@ func TestCursorWaitReplaysRunAndExactEnvelopeRecipient(t *testing.T) {
 	service := newTestService(t, mailbox, time.Minute)
 	cursor := mailbox.DeliveryCursor()
 	for _, run := range []string{"run-other", "run-wanted"} {
-		if err := mailbox.SaveEmailToStore(run, false, &mailserver.Envelope{To: []string{"hidden@example.test"}}, &mailserver.Email{RunID: run, Subject: "Verification"}); err != nil {
+		if err := mailbox.SaveEmailToStore(run, false, &mailserver.Envelope{To: []string{"hidden@example.test"}}, &mailserver.Email{RunID: run, Subject: "Verification", Text: "Code"}); err != nil {
 			t.Fatal(err)
 		}
 	}
-	result, err := service.waitForEmail(context.Background(), nil, waitForEmailInput{After: cursor, RunID: "run-wanted", Recipient: "hidden@example.test", TimeoutSeconds: 1})
+	result, err := service.waitForEmail(context.Background(), nil, waitForEmailInput{After: cursor, RunID: "run-wanted", Recipient: "hidden@example.test", Subject: " Verification ", Text: " Code ", TimeoutSeconds: 1})
 	if err != nil || !result.Matched || result.Email.ID != "run-wanted" {
 		t.Fatalf("%+v %v", result, err)
 	}

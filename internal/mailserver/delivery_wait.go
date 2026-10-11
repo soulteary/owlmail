@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -23,10 +24,12 @@ var ErrMailboxClosed = errors.New("mailbox closed")
 // DeliveryFilter groups test messages without granting a separate security boundary.
 // Recipient matches the complete SMTP envelope address, case-sensitively.
 type DeliveryFilter struct {
-	Recipient string `json:"recipient,omitempty"`
-	RunID     string `json:"run_id,omitempty"`
-	Subject   string `json:"subject,omitempty"`
-	Text      string `json:"text,omitempty"`
+	Recipient      string `json:"recipient,omitempty"`
+	RunID          string `json:"run_id,omitempty"`
+	Subject        string `json:"subject,omitempty"`
+	Text           string `json:"text,omitempty"`
+	subjectPattern *regexp.Regexp
+	textPattern    *regexp.Regexp
 }
 
 // ValidateRunID accepts a bounded, portable test-run identifier. Empty means ungrouped.
@@ -75,7 +78,36 @@ func (f DeliveryFilter) Matches(e *Email) bool {
 			return false
 		}
 	}
-	return strings.Contains(strings.ToLower(e.Subject), strings.ToLower(f.Subject)) && (f.Text == "" || strings.Contains(strings.ToLower(e.Text), strings.ToLower(f.Text)) || strings.Contains(strings.ToLower(e.HTML), strings.ToLower(f.Text)))
+	return foldedContains(e.Subject, f.Subject, f.subjectPattern) && (f.Text == "" || foldedContains(e.Text, f.Text, f.textPattern) || foldedContains(e.HTML, f.Text, f.textPattern))
+}
+
+func foldedContains(value, literal string, pattern *regexp.Regexp) bool {
+	if literal == "" {
+		return true
+	}
+	if pattern == nil {
+		var err error
+		pattern, err = regexp.Compile("(?i)" + regexp.QuoteMeta(literal))
+		if err != nil {
+			return false
+		}
+	}
+	return pattern.MatchString(value)
+}
+
+type deliveryEntry struct {
+	id       string
+	sequence uint64
+}
+
+func (ms *MailServer) removeDeliveryLocked(id string) {
+	delete(ms.deliverySequences, id)
+	for i, entry := range ms.deliveryOrder {
+		if entry.id == id {
+			ms.deliveryOrder = append(ms.deliveryOrder[:i], ms.deliveryOrder[i+1:]...)
+			break
+		}
+	}
 }
 
 func (ms *MailServer) initDeliveriesLocked() {
@@ -92,6 +124,7 @@ func (ms *MailServer) recordDeliveryLocked(id string) {
 	}
 	ms.deliverySequence++
 	ms.deliverySequences[id] = ms.deliverySequence
+	ms.deliveryOrder = append(ms.deliveryOrder, deliveryEntry{id: id, sequence: ms.deliverySequence})
 	if !ms.deliveryClosed {
 		close(ms.deliveryChanged)
 		ms.deliveryChanged = make(chan struct{})
@@ -133,6 +166,15 @@ func (ms *MailServer) WaitDeliveries(ctx context.Context, after string, filter D
 	if err := filter.Validate(); err != nil {
 		return result, err
 	}
+	var compileErr error
+	filter.subjectPattern, compileErr = regexp.Compile("(?i)" + regexp.QuoteMeta(filter.Subject))
+	if compileErr != nil {
+		return result, compileErr
+	}
+	filter.textPattern, compileErr = regexp.Compile("(?i)" + regexp.QuoteMeta(filter.Text))
+	if compileErr != nil {
+		return result, compileErr
+	}
 	if count < 1 || count > 100 || timeout <= 0 || timeout > 2*time.Minute {
 		return result, fmt.Errorf("count must be 1..100 and timeout must be positive and at most 120 seconds")
 	}
@@ -166,22 +208,18 @@ func (ms *MailServer) WaitDeliveries(ctx context.Context, after string, filter D
 			ms.storeMutex.RUnlock()
 			return result, ErrMailboxClosed
 		}
-		result.Emails = result.Emails[:0]
 		scannedSequence := ms.deliverySequence
-		matching := make([]string, 0)
-		for id, delivery := range ms.deliverySequences {
-			if delivery > sequence && filter.Matches(ms.storeByID[id]) {
-				matching = append(matching, id)
+		start := sort.Search(len(ms.deliveryOrder), func(i int) bool { return ms.deliveryOrder[i].sequence > sequence })
+		for _, entry := range ms.deliveryOrder[start:] {
+			if filter.Matches(ms.storeByID[entry.id]) {
+				result.Emails = append(result.Emails, cloneEmail(ms.storeByID[entry.id]))
+				if len(result.Emails) == count {
+					scannedSequence = entry.sequence
+					break
+				}
 			}
 		}
-		sort.Slice(matching, func(i, j int) bool { return ms.deliverySequences[matching[i]] < ms.deliverySequences[matching[j]] })
-		for _, id := range matching {
-			result.Emails = append(result.Emails, cloneEmail(ms.storeByID[id]))
-			if len(result.Emails) == count {
-				scannedSequence = ms.deliverySequences[id]
-				break
-			}
-		}
+		sequence = scannedSequence
 		result.Cursor = ms.deliveryEpoch + ":" + strconv.FormatUint(scannedSequence, 10)
 		changed := ms.deliveryChanged
 		ms.storeMutex.RUnlock()
