@@ -166,17 +166,19 @@ func (ms *MailServer) WaitDeliveries(ctx context.Context, after string, filter D
 			return result, ErrMailboxClosed
 		}
 		result.Emails = result.Emails[:0]
+		scannedSequence := ms.deliverySequence
 		for _, id := range ms.storeOrder {
 			if ms.deliverySequences[id] > sequence {
 				if e := ms.storeByID[id]; filter.Matches(e) {
 					result.Emails = append(result.Emails, cloneEmail(e))
 					if len(result.Emails) == count {
+						scannedSequence = ms.deliverySequences[id]
 						break
 					}
 				}
 			}
 		}
-		result.Cursor = ms.cursorLocked()
+		result.Cursor = ms.deliveryEpoch + ":" + strconv.FormatUint(scannedSequence, 10)
 		changed := ms.deliveryChanged
 		ms.storeMutex.RUnlock()
 		result.WaitedMilliseconds = time.Since(started).Milliseconds()

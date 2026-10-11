@@ -173,3 +173,25 @@ func TestLegacyInvalidRunHeadersRemainReadableOnRecovery(t *testing.T) {
 		})
 	}
 }
+
+func TestDeliveryWaitCursorDoesNotSkipUnreturnedMatches(t *testing.T) {
+	s := deliveryTestServer(t)
+	cursor := s.DeliveryCursor()
+	for i := 0; i < 5; i++ {
+		commitTestDelivery(t, s, fmt.Sprintf("batch-%d", i), "batch", "a@example.test")
+	}
+	var received []string
+	for i := 0; i < 3; i++ {
+		result, err := s.WaitDeliveries(context.Background(), cursor, DeliveryFilter{RunID: "batch"}, 2, time.Millisecond)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, email := range result.Emails {
+			received = append(received, email.ID)
+		}
+		cursor = result.Cursor
+	}
+	if strings.Join(received, ",") != "batch-0,batch-1,batch-2,batch-3,batch-4" {
+		t.Fatal(received)
+	}
+}
