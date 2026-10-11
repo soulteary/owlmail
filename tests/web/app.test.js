@@ -1086,6 +1086,9 @@ test('delivery panels keep partial errors visible and require explicit retry con
     assert.match(harness.emailDetail.innerHTML, /Retry accepted/);
     await harness.run(`retryEmailWorkflow('relay', 0)`);
     assert.equal(harness.fetchRequests.length, 3);
+    await harness.run('refreshEmailDeliveries()');
+    assert.equal(harness.run('emailTools.notice'), '');
+    assert.equal(harness.emailDetail.innerHTML.includes('Retry accepted'), false);
 });
 
 

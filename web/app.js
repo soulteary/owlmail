@@ -2446,7 +2446,7 @@ async function refreshEmailDeliveries() {
     if (!state.currentEmail) return;
     const tools = emailToolsFor(state.currentEmail);
     if (tools.busy) return;
-    tools.busy = true; renderEmailDetailKeepingTabFocus();
+    tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     const query = `?email_id=${encodeURIComponent(tools.id)}&limit=100`;
     const results = await Promise.allSettled([emailToolRequest(`/relay-jobs${query}`), emailToolRequest(`/webhook-deliveries${query}`)]);
     tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
