@@ -93,7 +93,7 @@ func TestRunIDParseAndRecovery(t *testing.T) {
 			t.Fatalf("accepted %q", bad)
 		}
 	}
-	if _, _, err := s.parseEmailMessage("test", strings.NewReader(strings.Replace(msg, "run-42", "run/42", 1)), nil, false, ""); err == nil {
+	if _, _, err := s.parseEmailMessage("test", strings.NewReader(strings.Replace(msg, "run-42", "run/42", 1)), &Session{}, false, ""); err == nil {
 		t.Fatal("accepted invalid header")
 	}
 }
@@ -149,5 +149,27 @@ func TestRunIDSurvivesRestartAndOldCursorExpires(t *testing.T) {
 	}
 	if _, err := next.WaitDeliveries(context.Background(), old, DeliveryFilter{}, 1, time.Second); !errors.Is(err, ErrInvalidCursor) {
 		t.Fatal(err)
+	}
+}
+
+func TestLegacyInvalidRunHeadersRemainReadableOnRecovery(t *testing.T) {
+	for _, header := range []string{"X-OwlMail-Run-ID: run/legacy", "X-OwlMail-Run-ID: one\r\nX-OwlMail-Run-ID: two"} {
+		t.Run(header, func(t *testing.T) {
+			s := deliveryTestServer(t)
+			raw := "From: sender@example.test\r\n" + header + "\r\nSubject: Legacy\r\n\r\nPreserve this body"
+			if err := os.WriteFile(filepath.Join(s.GetMailDir(), "legacy.eml"), []byte(raw), 0600); err != nil {
+				t.Fatal(err)
+			}
+			if err := s.LoadMailsFromDirectory(); err != nil {
+				t.Fatal(err)
+			}
+			email, err := s.GetEmail("legacy")
+			if err != nil || email.RunID != "" || !strings.Contains(email.Text, "Preserve this body") {
+				t.Fatal(email, err)
+			}
+			if _, _, err = s.parseEmailMessage("new", strings.NewReader(raw), &Session{}, false, ""); err == nil {
+				t.Fatal("accepted invalid SMTP header")
+			}
+		})
 	}
 }

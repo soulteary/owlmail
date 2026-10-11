@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - '.github/goreportcard.svg'
   pull_request:
-    branches: [main, develop]
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}

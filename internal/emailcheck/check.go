@@ -15,7 +15,7 @@ import (
 const maxBodyBytes = 2 << 20
 const maxResults = 200
 
-var textURL = regexp.MustCompile(`https?://[^\s<>"']+`)
+var textURL = regexp.MustCompile(`(?i:https?)://[^\s<>"']+`)
 
 // Extraction identifies a bounded RE2 expression and its source.
 type Extraction struct {
@@ -128,15 +128,20 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 		if seen[key] {
 			return
 		}
-		seen[key] = true
 		if len(r.Links) >= maxResults {
 			r.LinksTruncated = true
 			return
 		}
+		seen[key] = true
 		r.Links = append(r.Links, Link{URL: raw, Source: source, Scheme: strings.ToLower(u.Scheme), Host: strings.ToLower(u.Hostname())})
 	}
-	for _, raw := range textURL.FindAllString(email.Text, maxResults+1) {
-		appendLink(strings.TrimRight(raw, ".,;!?)"), "text")
+	for remaining := email.Text; remaining != ""; {
+		index := textURL.FindStringIndex(remaining)
+		if index == nil {
+			break
+		}
+		appendLink(strings.TrimRight(remaining[index[0]:index[1]], ".,;!?)"), "text")
+		remaining = remaining[index[1]:]
 	}
 	tokenizer := html.NewTokenizer(strings.NewReader(email.HTML))
 	for {

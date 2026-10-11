@@ -355,6 +355,10 @@ func (api *API) batchReadEmails(c fiber.Ctx) error {
 
 // exportEmails handles GET /api/v1/emails/export
 func (api *API) exportEmails(c fiber.Ctx) error {
+	scope := mailserver.DeliveryFilter{RunID: c.Query("run_id"), Recipient: c.Query("recipient")}
+	if err := scope.Validate(); err != nil {
+		return invalidEmailQuery(c, err)
+	}
 	idsParam := c.Query("ids")
 	query := c.Query("q")
 	from := c.Query("from")
@@ -384,12 +388,21 @@ func (api *API) exportEmails(c fiber.Ctx) error {
 				continue
 			}
 			seen[id] = struct{}{}
+			if scope.RunID != "" || scope.Recipient != "" {
+				email, err := api.mailServer.GetEmail(id)
+				if err != nil || !scope.Matches(email) {
+					continue
+				}
+			}
 			if preview, ok := api.mailServer.GetEmailPreview(id); ok {
 				filtered = append(filtered, exportCandidate{id: preview.ID, subject: preview.Subject})
 			}
 		}
 	} else {
 		mailQuery := mailserver.EmailQuery{Text: query, From: from, To: to, SortBy: "store", SortOrder: "desc", Limit: maxExportMessages + 1}
+		if scope.RunID != "" || scope.Recipient != "" {
+			mailQuery.MatchStoreEmail = scope.Matches
+		}
 		if c.Request().URI().QueryArgs().Has("dateFrom") {
 			value, err := time.Parse("2006-01-02", dateFrom)
 			if err != nil {
