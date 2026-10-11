@@ -267,3 +267,29 @@ func TestHistoryPruningPersistsOnReadAndStartupAndRecoversWriteHealth(t *testing
 		t.Fatal("retry did not remove expiry", string(data), err)
 	}
 }
+
+func TestCloseDeadlineDoesNotWaitForUncancellableHandoff(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	service := &Service{ctx: ctx, cancel: cancel, accepting: true, shutdownTimeout: 20 * time.Millisecond}
+	service.handoffs.Add(1)
+	released := make(chan struct{})
+	finished := make(chan struct{})
+	go func() { defer close(finished); <-released; service.handoffs.Done() }()
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		if err == nil {
+			t.Fatal("expected drain timeout")
+		}
+	case <-time.After(time.Second):
+		close(released)
+		t.Fatal("shutdown waited for uncancellable I/O")
+	}
+	close(released)
+	<-finished
+	if ctx.Err() != context.Canceled {
+		t.Fatal("shutdown did not cancel service")
+	}
+}
