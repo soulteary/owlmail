@@ -512,3 +512,22 @@ selectors. Send `X-OwlMail-Run-ID` to group captured messages. These selectors
 are test organization, not authentication or tenant isolation. See the
 [delivery wait contract](../en/Delivery-Waits-and-Test-Runs.md) for cursor
 expiry, timeout results, quotas, and cleanup semantics.
+
+## Deterministic email checks
+
+`POST /api/v1/emails/:id/check` inspects a detached email snapshot without marking it read or fetching URLs. The request accepts case-sensitive `subject_contains` and `text_contains` arrays, an exact `attachment_count`, and attachment expectations by original `filename` with optional `content_type`, `sha256`, and `max_bytes`. Duplicate filenames fail the expectation rather than selecting an arbitrary attachment.
+
+`allowed_link_hosts` checks exact, case-insensitive HTTP(S) hostnames from plain text URLs, HTML anchors, and images. CID and relative references are reported but are not HTTP(S) host checks. This is a content assertion, not a security scanner. Inspection uses the stored, sanitized HTML.
+
+`extract` accepts unique names, RE2 patterns, and a `source` of `text` (default), `subject`, or `html`. The first capture group is returned when present; otherwise the entire match is returned. No match produces an empty array.
+
+```json
+{
+  "subject_contains": ["Verify"],
+  "text_contains": ["Your code"],
+  "allowed_link_hosts": ["app.example.test"],
+  "extract": [{"name": "code", "pattern": "code ([0-9]{6})"}]
+}
+```
+
+HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Assertion failures set `passed: false`; invalid requests return 400, oversized requests return 413, and missing mail returns 404. Requests are limited to 64 KiB, 100 combined selectors, and 2 MiB per inspected body. Links and matches per extraction are capped at 200 with explicit truncation flags. A truncated link list fails the allowed-host assertion. CI should also reject truncation when complete extraction is required.

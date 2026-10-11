@@ -365,6 +365,7 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	emailsGroup.Delete("/batch", api.batchDeleteEmails)
 	emailsGroup.Patch("/batch/read", api.batchReadEmails)
 	emailsGroup.Post("/reload", api.reloadMailsFromDirectory)
+	emailsGroup.Post("/:id/check", api.checkEmail)
 	emailsGroup.Get("/:id", api.getEmailByID)
 	emailsGroup.Delete("/:id", api.deleteEmail)
 	emailsGroup.Patch("/:id/read", api.readEmail)
