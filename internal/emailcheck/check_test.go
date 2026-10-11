@@ -80,3 +80,16 @@ func TestMalformedHTTPCandidatesFailHostAssertionsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestHostAllowlistChecksNetworkPathReferences(t *testing.T) {
+	for _, html := range []string{`<a href="//evil.example.test/path">link</a>`, `<img src=" //evil.example.test/image ">`, `<a href="//evil.example.test/%zz">link</a>`} {
+		result, err := Inspect(&types.Email{HTML: html}, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+		if err != nil || result.Passed {
+			t.Fatal(result, err)
+		}
+	}
+	result, err := Inspect(&types.Email{HTML: `<a href="//allowed.example.test/path">link</a><a href="/local">local</a>`}, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+	if err != nil || !result.Passed {
+		t.Fatal(result, err)
+	}
+}
