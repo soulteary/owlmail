@@ -71,12 +71,12 @@ func (api *API) listWebhookDeliveries(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	if api.webhookService == nil {
-		return c.JSON(fiber.Map{"enabled": false, "deliveries": []webhook.DeliveryRecord{}})
-	}
 	status := c.Query("status")
 	if status != "" && status != "failed" && status != "succeeded" {
 		return c.Status(400).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid status"))
+	}
+	if api.webhookService == nil {
+		return c.JSON(fiber.Map{"enabled": false, "deliveries": []webhook.DeliveryRecord{}})
 	}
 	records, healthy := api.webhookService.DeliveryHistory()
 	result := make([]webhook.DeliveryRecord, 0)
