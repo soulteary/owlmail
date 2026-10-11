@@ -120,14 +120,18 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 	}
 	seen := make(map[string]bool)
 	appendLink := func(raw, source string) {
-		u, err := url.Parse(raw)
+		candidate := strings.TrimSpace(raw)
+		u, err := url.Parse(candidate)
 		if raw == "" {
 			return
 		}
 		var scheme, host string
 		if err != nil {
-			prefix, _, _ := strings.Cut(raw, ":")
+			prefix, _, _ := strings.Cut(candidate, ":")
 			scheme = strings.ToLower(prefix)
+			if strings.HasPrefix(candidate, "//") {
+				scheme = "http"
+			}
 			if scheme != "http" && scheme != "https" {
 				return
 			}
@@ -186,7 +190,7 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 		}
 		passed := !r.LinksTruncated
 		for _, link := range r.Links {
-			if link.Scheme == "http" || link.Scheme == "https" {
+			if link.Scheme == "http" || link.Scheme == "https" || link.Scheme == "" && link.Host != "" {
 				passed = passed && link.Host != "" && allowed[link.Host]
 			}
 		}

@@ -210,9 +210,7 @@ func syncRelayJobDirectory(path string) error {
 
 func (store *relayJobStore) removePersistedLocked(id string) error {
 	err := store.removeJobLocked(id)
-	if err != nil {
-		store.lastPersistenceErr = err
-	}
+	store.lastPersistenceErr = err
 	return err
 }
 
@@ -221,10 +219,9 @@ func (store *relayJobStore) removeJobLocked(id string) error {
 		return nil
 	}
 	if err := os.Remove(filepath.Join(store.directory, id+".json")); err != nil {
-		if os.IsNotExist(err) {
-			return nil
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("remove relay job: %w", err)
 		}
-		return fmt.Errorf("remove relay job: %w", err)
 	}
 	if err := store.syncDirectory(store.directory); err != nil {
 		return fmt.Errorf("sync relay job removal: %w", err)
