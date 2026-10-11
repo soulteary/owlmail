@@ -766,12 +766,19 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	// Wrap in mail.Header to get decoding support
 	headers := mail.Header{Header: msg.Header}
 	email.RunID = headers.Get("X-OwlMail-Run-ID")
+	runErr := ValidateRunID(email.RunID)
 	if len(headers.Values("X-OwlMail-Run-ID")) > 1 {
-		return nil, nil, fmt.Errorf("X-OwlMail-Run-ID must occur once")
+		runErr = fmt.Errorf("X-OwlMail-Run-ID must occur once")
 	}
-	if err := ValidateRunID(email.RunID); err != nil {
-		return nil, nil, err
+	if runErr != nil {
+		if s != nil {
+			return nil, nil, runErr
+		}
+		// Previously accepted EML may contain unrestricted run headers. Preserve
+		// its content on recovery, but do not assign an invalid isolation key.
+		email.RunID = ""
 	}
+
 	if ms.retainAllHeaders.Load() {
 		email.AllHeaders = collectAllHeaders(headers)
 	}

@@ -1,8 +1,13 @@
 package api
 
 import (
+	"archive/zip"
+	"bytes"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -65,5 +70,41 @@ func TestDeliveryWaitRESTAndRunCleanup(t *testing.T) {
 		if resp.StatusCode != 400 {
 			t.Fatalf("%s: %d", body, resp.StatusCode)
 		}
+	}
+}
+
+func TestRunScopedExportFiltersQueryAndExplicitIDs(t *testing.T) {
+	api, s, _ := setupTestAPI(t)
+	defer func() { _ = s.Close() }()
+	for _, run := range []string{"run-a", "run-b"} {
+		if err := s.SaveEmailToStore(run, false, &mailserver.Envelope{To: []string{run + "@example.test"}}, &mailserver.Email{RunID: run, Subject: run}); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(s.GetMailDir(), run+".eml"), []byte("Subject: "+run+"\r\n\r\nBody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, query := range []string{"run_id=run-a", "recipient=run-a@example.test", "ids=run-a,run-b&run_id=run-a"} {
+		resp, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/emails/export?"+query, nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, err := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatal(err, resp.StatusCode, string(body))
+		}
+		archive, err := zip.NewReader(bytes.NewReader(body), int64(len(body)))
+		if err != nil || len(archive.File) != 1 || !strings.Contains(archive.File[0].Name, "run-a") {
+			t.Fatal(archive, err)
+		}
+	}
+	resp, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/emails/export?run_id=invalid/run", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatal(resp.StatusCode)
 	}
 }
