@@ -1,8 +1,11 @@
 package webhook
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -95,5 +98,41 @@ func TestHistoryPersistenceFailureIsVisible(t *testing.T) {
 	records, healthy := service.DeliveryHistory()
 	if healthy || len(records) != 1 {
 		t.Fatal(records, healthy)
+	}
+}
+
+func TestMalformedJobsAndDiagnosticHistoryDoNotCrashService(t *testing.T) {
+	h, err := newDeliveryHistory("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.record(deliveryJob{ID: "malformed"}, []Result{{Err: errors.New("email is nil")}})
+	if h.records["malformed"].Status != "failed" || h.records["malformed"].EmailID != "" {
+		t.Fatal(h.records)
+	}
+	spool := t.TempDir()
+	dir := filepath.Join(spool, ".owlmail-meta", "webhook-history")
+	if err = os.MkdirAll(dir, 0750); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(dir, "history.json"), []byte(`{"truncated":`), 0600); err != nil {
+		t.Fatal(err)
+	}
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "target", URL: "http://127.0.0.1:1"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewService(dispatcher, ServiceOptions{SpoolDir: spool, MaxConcurrency: 1})
+	if err != nil {
+		t.Fatal("diagnostics prevented startup", err)
+	}
+	defer func() { _ = service.Close() }()
+	_, healthy := service.DeliveryHistory()
+	if healthy {
+		t.Fatal("hidden corrupt history")
+	}
+	backups, err := filepath.Glob(filepath.Join(dir, "history.json.corrupt-*"))
+	if err != nil || len(backups) != 1 {
+		t.Fatal(backups, err)
 	}
 }

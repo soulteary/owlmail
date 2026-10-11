@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -37,6 +38,7 @@ type deliveryHistory struct {
 	records        map[string]DeliveryRecord
 	path           string
 	persistenceErr error
+	recoveryErr    error
 }
 
 func newDeliveryHistory(spool string) (*deliveryHistory, error) {
@@ -45,31 +47,31 @@ func newDeliveryHistory(spool string) (*deliveryHistory, error) {
 		return h, nil
 	}
 	dir := filepath.Join(spool, ".owlmail-meta", "webhook-history")
-	if err := os.MkdirAll(dir, 0750); err != nil {
-		return nil, err
-	}
 	h.path = filepath.Join(dir, "history.json")
+	if err := os.MkdirAll(dir, 0750); err != nil {
+		return h, err
+	}
 	f, err := os.Open(h.path)
 	if os.IsNotExist(err) {
 		return h, nil
 	}
 	if err != nil {
-		return nil, err
+		return h, err
 	}
 	defer func() { _ = f.Close() }()
 	data, err := io.ReadAll(io.LimitReader(f, 2<<20+1))
 	if err != nil {
-		return nil, err
+		return h, err
 	}
 	if len(data) > 2<<20 {
-		return nil, fmt.Errorf("webhook history exceeds 2 MiB")
+		return h.quarantine(fmt.Errorf("webhook history exceeds 2 MiB"))
 	}
 	var records []DeliveryRecord
 	if err = json.Unmarshal(data, &records); err != nil {
-		return nil, fmt.Errorf("invalid webhook history")
+		return h.quarantine(fmt.Errorf("invalid webhook history"))
 	}
 	if len(records) > 1000 {
-		return nil, fmt.Errorf("webhook history exceeds record limit")
+		return h.quarantine(fmt.Errorf("webhook history exceeds record limit"))
 	}
 	for _, r := range records {
 		h.records[r.ID] = r
@@ -77,6 +79,13 @@ func newDeliveryHistory(spool string) (*deliveryHistory, error) {
 	h.prune()
 	return h, nil
 }
+func (h *deliveryHistory) quarantine(cause error) (*deliveryHistory, error) {
+	if err := os.Rename(h.path, h.path+".corrupt-"+uuid.NewString()); err != nil {
+		return h, errors.Join(cause, err)
+	}
+	return h, cause
+}
+
 func (h *deliveryHistory) prune() {
 	for id, r := range h.records {
 		if time.Since(r.CompletedAt) > 24*time.Hour {
@@ -108,7 +117,11 @@ func (h *deliveryHistory) listLocked() []DeliveryRecord {
 func (h *deliveryHistory) record(job deliveryJob, results []Result) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	r := DeliveryRecord{ID: job.ID, EmailID: job.Email.ID, RetryOf: job.RetryOf, CompletedAt: time.Now().UTC(), Status: "succeeded", Outcomes: make([]DeliveryOutcome, 0, len(results))}
+	emailID := ""
+	if job.Email != nil {
+		emailID = job.Email.ID
+	}
+	r := DeliveryRecord{ID: job.ID, EmailID: emailID, RetryOf: job.RetryOf, CompletedAt: time.Now().UTC(), Status: "succeeded", Outcomes: make([]DeliveryOutcome, 0, len(results))}
 	for _, result := range results {
 		o := DeliveryOutcome{Target: result.Target, StatusCode: result.StatusCode, Attempts: result.Attempts}
 		if result.Err != nil {
@@ -165,7 +178,7 @@ func (service *Service) DeliveryHistory() ([]DeliveryRecord, bool) {
 	service.history.mu.Lock()
 	defer service.history.mu.Unlock()
 	service.history.prune()
-	return service.history.listLocked(), service.history.persistenceErr == nil
+	return service.history.listLocked(), service.history.persistenceErr == nil && service.history.recoveryErr == nil
 }
 
 // RetryDelivery replays only failed configured targets using the original idempotency key.
