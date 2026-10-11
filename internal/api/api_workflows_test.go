@@ -131,3 +131,28 @@ func TestWebhookReplayInfrastructureFailureReturnsUnavailable(t *testing.T) {
 		t.Fatal(response.StatusCode)
 	}
 }
+
+func TestRelayReplayUnavailableTargetReturnsConflict(t *testing.T) {
+	api, server, directory := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	email := &types.Email{ID: "unavailable-replay-target", Subject: "test", Text: "body"}
+	if err := os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: test\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	job, err := api.relayJobs.create(email.ID, "recipient@example.test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	api.relayJobs.complete(job.ID, errors.New("prior failure"))
+	response, err := api.app.Test(httptest.NewRequest("POST", "/api/v1/relay-jobs/"+job.ID+"/retry", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != 409 {
+		t.Fatal(response.StatusCode)
+	}
+}
