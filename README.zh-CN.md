@@ -1,14 +1,8 @@
 # OwlMail
 
-[![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md)
-
 > 🦉 面向开发者、CI 流水线、自动化系统与 AI Agent 的自托管 AI 原生邮件测试网关。
 
-[![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://go.dev/)
-[![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/Comparison-and-Migration.md)
-
+[![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/Comparison-and-Migration.md)
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
