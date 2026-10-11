@@ -1912,6 +1912,216 @@
           }
         ]
       }
+    },
+    "/emails/{id}/check": {
+      "post": {
+        "tags": [
+          "Emails"
+        ],
+        "summary": "Inspect an email with deterministic offline assertions",
+        "operationId": "checkEmail",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "subject_contains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "text_contains": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "attachment_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "filename"
+                      ],
+                      "properties": {
+                        "filename": {
+                          "type": "string"
+                        },
+                        "content_type": {
+                          "type": "string"
+                        },
+                        "sha256": {
+                          "type": "string"
+                        },
+                        "max_bytes": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      }
+                    }
+                  },
+                  "allowed_link_hosts": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "extract": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "name",
+                        "pattern"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "pattern": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string",
+                          "enum": [
+                            "text",
+                            "subject",
+                            "html"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inspection report; assertion failures also return 200. Read state is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "passed",
+                    "checks",
+                    "links",
+                    "extractions",
+                    "links_truncated",
+                    "extractions_truncated"
+                  ],
+                  "properties": {
+                    "passed": {
+                      "type": "boolean"
+                    },
+                    "checks": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "passed": {
+                            "type": "boolean"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "url": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "scheme": {
+                            "type": "string"
+                          },
+                          "host": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "extractions": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "links_truncated": {
+                      "type": "boolean"
+                    },
+                    "extractions_truncated": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid selectors or email bodies exceeding 2 MiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Email not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request exceeds 64 KiB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
