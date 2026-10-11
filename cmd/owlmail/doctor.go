@@ -163,7 +163,15 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 	if cfg.MailIndexPath != "" {
 		add("mail_index_namespace", mailserver.ValidateMailboxIndexPath(mailDir, cfg.MailIndexPath) == nil, "SQLite index must be outside managed mailbox namespaces")
 		parent, statErr := os.Stat(filepath.Dir(cfg.MailIndexPath))
-		add("mail_index_parent", statErr == nil && parent.IsDir(), "SQLite index parent directory must exist; doctor does not create or open the index")
+		if os.IsNotExist(statErr) {
+			note("mail_index_parent", "SQLite index parent does not exist yet; normal startup may create it")
+		} else {
+			add("mail_index_parent", statErr == nil && parent.IsDir(), "SQLite index parent must be an accessible directory")
+		}
+		target, targetErr := os.Stat(cfg.MailIndexPath)
+		if !os.IsNotExist(targetErr) {
+			add("mail_index_target", targetErr == nil && target.Mode().IsRegular(), "An existing SQLite index target must be a regular file")
+		}
 	}
 	recovery, recoveryErr := api.InspectRelayRecovery(mailDir)
 	r.Recovery = recovery

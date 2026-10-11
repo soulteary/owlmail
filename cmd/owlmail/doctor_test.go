@@ -108,3 +108,25 @@ func TestDoctorRejectsManagedIndexNamespace(t *testing.T) {
 	}
 	t.Fatal("managed index was accepted", report)
 }
+
+func TestDoctorAcceptsMissingIndexParentAndRejectsDirectoryTarget(t *testing.T) {
+	dir := t.TempDir()
+	cfg, err := doctorConfig([]string{"-mail-directory", dir, "-mail-index-path", filepath.Join(dir, "derived", "index.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report := inspectDoctorConfig(cfg); !report.Ready {
+		t.Fatal(report)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "derived")); !os.IsNotExist(err) {
+		t.Fatal("doctor created parent", err)
+	}
+	cfg.MailIndexPath = dir
+	report := inspectDoctorConfig(cfg)
+	for _, check := range report.Checks {
+		if check.Name == "mail_index_target" && check.Status == "fail" {
+			return
+		}
+	}
+	t.Fatal("accepted directory index", report)
+}
