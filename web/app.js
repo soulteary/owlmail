@@ -1913,24 +1913,24 @@ async function loadRelayAvailability() {
 }
 
 async function waitForRelayJob(statusUrl) {
-        while (true) {
-            let statusResult;
-            try {
-                statusResult = await API.getRelayJob(statusUrl);
-            } catch (error) {
-                if (!relayStatusErrorIsTransient(error)) {
-                    throw error;
-                }
-                console.warn('Relay status check failed; retrying:', error);
-                await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
-                continue;
+    while (true) {
+        let statusResult;
+        try {
+            statusResult = await API.getRelayJob(statusUrl);
+        } catch (error) {
+            if (!relayStatusErrorIsTransient(error)) {
+                throw error;
             }
-            const current = statusResult && statusResult.data;
-            if (current && (current.status === 'succeeded' || current.status === 'failed')) {
-                return current;
-            }
+            console.warn('Relay status check failed; retrying:', error);
             await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+            continue;
         }
+        const current = statusResult && statusResult.data;
+        if (current && (current.status === 'succeeded' || current.status === 'failed')) {
+            return current;
+        }
+        await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+    }
 }
 
 async function relayCurrentEmail(id, askForRecipient = false) {
@@ -2496,8 +2496,13 @@ async function retryEmailWorkflow(kind, index) {
     const tools = emailToolsFor(state.currentEmail);
     const field = kind === 'relay' ? 'jobs' : 'deliveries';
     const job = tools[kind]?.[field]?.[index];
-    if (tools.busy || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
+    if (tools.busy || kind === 'relay' && relayPending.has(tools.id) || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
+    if (kind === 'relay') {
+        relayPending.add(tools.id);
+        syncRelayMutationControls();
+        updateEmailRelayControls();
+    }
     try {
         const result = await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' });
         tools.notice = t('workflowQueued');
@@ -2505,22 +2510,20 @@ async function retryEmailWorkflow(kind, index) {
             const data = result?.data;
             if (!data?.job || !data.statusUrl) throw new Error('Relay retry status is missing');
             tools.relay.jobs.unshift(data.job);
-            relayPending.add(tools.id);
-            syncRelayMutationControls();
-            if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
-            try {
-                const completed = await waitForRelayJob(data.statusUrl);
-                Object.assign(data.job, completed);
-                if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
-            }
-            finally {
-                relayPending.delete(tools.id);
-                syncRelayMutationControls();
-                if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
-            }
+            const completed = await waitForRelayJob(data.statusUrl);
+            Object.assign(data.job, completed);
+            if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
         } else { job.status = 'queued'; }
     }
     catch (error) { tools.notice = String(error.message || error); }
-    finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus(); }
+    finally {
+        if (kind === 'relay') {
+            relayPending.delete(tools.id);
+            syncRelayMutationControls();
+            if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
+        }
+        tools.busy = false;
+        if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
+    }
 }

@@ -1284,3 +1284,21 @@ test('relay retry tracks the new job and blocks mutation until completion', asyn
     assert.equal(harness.deleteAllBtn.disabled, false);
     assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'succeeded');
 });
+
+
+test('relay retry admission blocks mutation before POST resolves and releases on rejection', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello' }; emailContentTab = 'deliveries'; emailToolsFor(state.currentEmail).relay = { jobs: [{ id: 'old-job', status: 'failed' }] };`);
+    const pending = harness.run("retryEmailWorkflow('relay', 0)");
+    assert.equal(harness.deleteAllBtn.disabled, true);
+    assert.equal(harness.run("document.getElementById('emailDeleteAction').disabled"), true);
+    await harness.run("deleteEmail('mail-1'); deleteAllEmails(); relayCurrentEmail('mail-1'); retryEmailWorkflow('relay', 0)");
+    assert.equal(harness.fetchRequests.length, 1);
+    finish({ ok: false, status: 503, async text() { return 'Unavailable'; } });
+    await pending;
+    assert.equal(harness.deleteAllBtn.disabled, false);
+    assert.equal(harness.run('relayPending.size'), 0);
+    assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'failed');
+});
