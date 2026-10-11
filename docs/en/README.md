@@ -22,6 +22,8 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 - **[Reproducible Delivery Faults](./Fault-Injection.md)**
   - Loopback HTTP/SMTP receivers and recovery drills: [runnable receiver](../../examples/faults).
+- **[Offline Configuration and Recovery Diagnostics](./Configuration-Doctor.md)**
+  - Read-only startup checks and durable relay recovery inventory.
 
 - **[Integration Testing](./Integration-Testing.md)**
   - Deterministic SMTP capture, REST assertions, parallel isolation, and failure diagnosis.
