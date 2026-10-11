@@ -2513,6 +2513,7 @@ async function retryEmailWorkflow(kind, index) {
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
             const completed = await waitForRelayJob(data.statusUrl);
             Object.assign(data.job, completed);
+            tools.notice = '';
             if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
         } else { job.status = 'queued'; }
     }

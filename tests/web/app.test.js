@@ -1094,7 +1094,7 @@ test('delivery panels keep partial errors visible and require explicit retry con
     await harness.run(`retryEmailWorkflow('relay', 0)`);
     assert.equal(harness.confirmations.length, 1);
     assert.equal(harness.fetchRequests[2].url, 'http://owlmail.test/api/v1/relay-jobs/job-1/retry');
-    assert.match(harness.run("document.getElementById('emailDeliveriesPanel').outerHTML"), /Retry accepted/);
+    assert.equal(harness.run('emailTools.notice'), '');
     await harness.run(`retryEmailWorkflow('relay', 0)`);
     assert.equal(harness.fetchRequests.length, 4);
     await harness.run('refreshEmailDeliveries()');
@@ -1283,6 +1283,7 @@ test('relay retry tracks the new job and blocks mutation until completion', asyn
     await pending;
     assert.equal(harness.deleteAllBtn.disabled, false);
     assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'succeeded');
+    assert.equal(harness.run('emailTools.notice'), '');
 });
 
 
