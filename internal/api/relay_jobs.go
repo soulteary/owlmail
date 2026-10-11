@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"net/textproto"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -334,6 +335,15 @@ func relayFailureCategory(err error) string {
 	if err == nil {
 		return ""
 	}
+	var smtpError *textproto.Error
+	if errors.As(err, &smtpError) {
+		if smtpError.Code >= 400 && smtpError.Code < 500 {
+			return "temporary_smtp"
+		}
+		if smtpError.Code >= 500 && smtpError.Code < 600 {
+			return "permanent_smtp"
+		}
+	}
 	message := strings.ToLower(err.Error())
 	switch {
 	case strings.Contains(message, "queue is full"):
@@ -586,7 +596,7 @@ func (api *API) finishRelayAttempt(jobID string, relayErr error) {
 
 func relayFailureIsRetryable(err error) bool {
 	switch relayFailureCategory(err) {
-	case "connection", "timeout", "queue_full":
+	case "connection", "timeout", "queue_full", "temporary_smtp":
 		return true
 	default:
 		return false

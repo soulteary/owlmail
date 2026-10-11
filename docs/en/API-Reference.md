@@ -209,9 +209,9 @@ Poll that URL until the state is `succeeded` or `failed`. Failed jobs expose a
 bounded `errorCategory`, never the raw downstream error. When a persistent
 mail directory is configured, job records are atomically stored under
 `.owlmail-meta/relay-jobs` before enqueueing; queued jobs are resubmitted after
-restart. Connection and timeout failures retry up to three total attempts with
+restart. Connection, timeout, queue, and temporary SMTP (4xx) failures retry up to three total attempts with
 exponential backoff and bounded jitter; authentication and other classified
-permanent failures become terminal immediately. The response exposes the
+permanent failures become terminal immediately. SMTP responses expose `temporary_smtp` for 4xx and `permanent_smtp` for 5xx; 5xx responses become terminal immediately. The response exposes the
 attempt count and next scheduled attempt without raw downstream errors.
 Completed records expire after 24 hours. The status store keeps at most
 1000 jobs; completed records have a one-minute post-completion protection
