@@ -71,3 +71,12 @@ func TestRepeatedAndUppercaseURLsCannotBypassHostChecks(t *testing.T) {
 		t.Fatal(report, err)
 	}
 }
+
+func TestMalformedHTTPCandidatesFailHostAssertionsClosed(t *testing.T) {
+	for _, email := range []*types.Email{{Text: "https://evil.example.test/%zz"}, {HTML: `<a href="https://evil.example.test/%zz">link</a>`}} {
+		result, err := Inspect(email, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+		if err != nil || result.Passed || len(result.Links) != 1 || result.Links[0].Host != "" {
+			t.Fatal(result, err)
+		}
+	}
+}
