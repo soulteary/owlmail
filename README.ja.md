@@ -1,12 +1,14 @@
 # OwlMail
 
+[![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md)
+
 > 🦉 開発、CI、自動化、コーディング Agent のためのセルフホスト型 AI ネイティブ・メールテストゲートウェイ。
 
 [![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://go.dev/)
 [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ja/Comparison-and-Migration.md)
-[![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
+
 
 ## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
 
