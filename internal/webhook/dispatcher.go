@@ -119,6 +119,10 @@ func (dispatcher *Dispatcher) Dispatch(ctx context.Context, email *types.Email) 
 // DispatchDelivery sends an email using a stable delivery ID. Durable queue
 // consumers use this ID as the receiver's idempotency key.
 func (dispatcher *Dispatcher) DispatchDelivery(ctx context.Context, email *types.Email, deliveryID string) []Result {
+	return dispatcher.dispatchTargets(ctx, email, deliveryID, nil)
+}
+
+func (dispatcher *Dispatcher) dispatchTargets(ctx context.Context, email *types.Email, deliveryID string, names []string) []Result {
 	if dispatcher == nil {
 		return nil
 	}
@@ -132,7 +136,11 @@ func (dispatcher *Dispatcher) DispatchDelivery(ctx context.Context, email *types
 	payload := newEmailPayload(email)
 	matching := make([]compiledTarget, 0, len(dispatcher.targets))
 	for _, target := range dispatcher.targets {
-		if !target.matches(payload) {
+		selected := names == nil
+		for _, name := range names {
+			selected = selected || name == target.name
+		}
+		if !selected || names == nil && !target.matches(payload) {
 			continue
 		}
 		matching = append(matching, target)

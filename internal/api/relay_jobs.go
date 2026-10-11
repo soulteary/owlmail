@@ -84,16 +84,17 @@ func (store *relayJobStore) protectSourceDeletion(ids []string, deleteSource fun
 }
 
 type relayJobStore struct {
-	mu               sync.Mutex
-	jobs             map[string]relayJob
-	order            []string
-	now              func() time.Time
-	newID            func() (string, error)
-	ttl              time.Duration
-	limit            int
-	minimumRetention time.Duration
-	directory        string
-	syncDirectory    func(string) error
+	mu                 sync.Mutex
+	jobs               map[string]relayJob
+	order              []string
+	now                func() time.Time
+	newID              func() (string, error)
+	ttl                time.Duration
+	limit              int
+	minimumRetention   time.Duration
+	directory          string
+	syncDirectory      func(string) error
+	lastPersistenceErr error
 }
 
 func newRelayJobStore() *relayJobStore {
@@ -399,11 +400,14 @@ func (api *API) relayEmailPreflight(c fiber.Ctx) error {
 }
 
 func (api *API) enqueueRelayJob(c fiber.Ctx, relayTo string, confirmedRecipients []string) error {
+	return api.enqueueRelaySource(c, c.Params("id"), relayTo, confirmedRecipients)
+}
+
+func (api *API) enqueueRelaySource(c fiber.Ctx, id, relayTo string, confirmedRecipients []string) error {
 	if api.relayJobsPersistenceErr != nil {
 		c.Set("Retry-After", "1")
 		return c.Status(http.StatusServiceUnavailable).JSON(ErrorResponse(ErrorCodeRelayFailed, "Relay job persistence is unavailable"))
 	}
-	id := c.Params("id")
 	if confirmedRecipients != nil && len(confirmedRecipients) == 0 {
 		return c.Status(http.StatusBadRequest).JSON(ErrorResponse(ErrorCodeRelayFailed, "Confirmed relay recipients cannot be empty"))
 	}

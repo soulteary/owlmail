@@ -507,6 +507,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	apiServer.SetWebhookService(server.WebhookService())
 	// Constructing the API loads durable relay jobs and acquires source leases.
 	// Apply the storage policy only afterwards so its initial cleanup cannot
 	// delete source EMLs that queued jobs still need after a restart.
@@ -910,6 +911,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		return nil, err
 	}
 	if webhookService != nil {
+		server.SetWebhookService(webhookService)
 		if err := registerWebhookService(server, webhookService); err != nil {
 			_ = webhookService.Close()
 			_ = server.Close()

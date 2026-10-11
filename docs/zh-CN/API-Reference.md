@@ -469,3 +469,13 @@ expiry, timeout results, quotas, and cleanup semantics.
 ```
 
 HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Assertion failures set `passed: false`; invalid requests return 400, oversized requests return 413, and missing mail returns 404. Requests are limited to 64 KiB, 100 combined selectors, and 2 MiB per inspected body. Links and matches per extraction are capped at 200 with explicit truncation flags. A truncated link list fails the allowed-host assertion. CI should also reject truncation when complete extraction is required.
+
+## Delivery workflows
+
+`GET /api/v1/relay-jobs` and `GET /api/v1/webhook-deliveries` accept `status`, exact `email_id`, and `limit` (1..1000, default 100). Responses report `more_possible` and `persistence_healthy`; webhook responses also report `enabled`. Relay jobs include queued, succeeded, and failed states. Webhook history contains terminal outcomes, target names, HTTP status, attempts, and sanitized error categories; URLs, credentials, payloads, and raw errors are excluded. Webhook history is bounded to 1000 records and 24 hours and persists under `.owlmail-meta/webhook-history` when a spool is configured. Mailbox cleanup preserves workflow metadata.
+
+`POST /api/v1/relay-jobs/:jobID/retry` starts a new durable job only from a failed record and retains the original confirmed recipients. The source email must still exist. Concurrent pending relays for that email are rejected.
+
+`POST /api/v1/webhook-deliveries/:jobID/retry` replays only failed named targets that are still configured, using the original delivery ID for receiver deduplication. Successful targets are excluded. A replay replaces that delivery's terminal summary with its latest outcomes. Current target credentials/templates apply. The source email must still exist. Replays are serialized per delivery within the process; queue-only errors recover through the existing queue. A failed enqueue can leave recoverable outbox work, so delivery remains at least once. Receivers must deduplicate delivery IDs.
+
+An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled webhook service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee.

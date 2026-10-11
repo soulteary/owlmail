@@ -20,6 +20,7 @@ import (
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
+	"github.com/soulteary/owlmail/internal/webhook"
 	webassets "github.com/soulteary/owlmail/web"
 	"github.com/soulteary/version-kit/v4"
 	versionhttp "github.com/soulteary/version-kit/v4/httpadapter"
@@ -49,6 +50,7 @@ type API struct {
 	mcpHandler              http.Handler
 	mcpAllowedOrigins       []string
 	webAllowedOrigins       []string
+	webhookService          *webhook.Service
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
 	relayRecoveryOnce       sync.Once
@@ -376,6 +378,10 @@ func (api *API) setupImprovedAPIRoutes(app *fiber.App) {
 	emailsGroup.Get("/:id/actions/relay/preflight", api.relayEmailPreflight)
 	emailsGroup.Post("/:id/actions/relay", api.relayEmailAsync)
 	emailsGroup.Post("/:id/actions/relay/:relayTo", api.relayEmailWithParamAsync)
+	v1.Get("/relay-jobs", api.listRelayJobs)
+	v1.Post("/relay-jobs/:jobID/retry", api.replayRelayJob)
+	v1.Get("/webhook-deliveries", api.listWebhookDeliveries)
+	v1.Post("/webhook-deliveries/:jobID/retry", api.replayWebhookDelivery)
 	v1.Get("/relay-jobs/:jobID", api.getRelayJob)
 
 	// Settings resource

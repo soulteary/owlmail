@@ -456,7 +456,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 					continue
 				}
 				for _, metadataEntry := range metadataEntries {
-					if metadataEntry.IsDir() && metadataEntry.Name() == relayJobMetadataDirectoryName {
+					if metadataEntry.IsDir() && (metadataEntry.Name() == relayJobMetadataDirectoryName || metadataEntry.Name() == "webhook-history") {
 						continue
 					}
 					metadataPath := filepath.Join(path, metadataEntry.Name())

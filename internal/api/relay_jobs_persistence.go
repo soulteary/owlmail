@@ -179,6 +179,12 @@ func validateRelayJobPersistenceBudget(job relayJob) error {
 }
 
 func (store *relayJobStore) persistLocked(job relayJob) error {
+	err := store.persistJobLocked(job)
+	store.lastPersistenceErr = err
+	return err
+}
+
+func (store *relayJobStore) persistJobLocked(job relayJob) error {
 	if store.directory == "" {
 		return nil
 	}

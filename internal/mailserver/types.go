@@ -13,6 +13,7 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/outgoing"
 	"github.com/soulteary/owlmail/internal/types"
+	"github.com/soulteary/owlmail/internal/webhook"
 )
 
 const (
@@ -110,6 +111,7 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	webhookService          *webhook.Service
 	storeByID               map[string]*types.Email
 	storeOrder              []string
 	receivedAtByID          map[string]time.Time
