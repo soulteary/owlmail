@@ -60,43 +60,11 @@ func pathDoesNotExist(path string) (bool, error) {
 }
 
 func (store *relayJobStore) load() error {
-	entries, err := os.ReadDir(store.directory)
+	jobs, err := readPersistedRelayJobs(store.directory)
 	if err != nil {
-		return fmt.Errorf("read relay job directory: %w", err)
+		return err
 	}
-	jobs := make([]relayJob, 0, len(entries))
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
-			continue
-		}
-		path := filepath.Join(store.directory, entry.Name())
-		info, err := entry.Info()
-		if err != nil {
-			return fmt.Errorf("inspect relay job %s: %w", entry.Name(), err)
-		}
-		if info.Size() > maximumRelayJobFileBytes {
-			return fmt.Errorf("relay job %s exceeds %d bytes", entry.Name(), maximumRelayJobFileBytes)
-		}
-		file, err := os.Open(path)
-		if err != nil {
-			return fmt.Errorf("open relay job %s: %w", entry.Name(), err)
-		}
-		decoder := json.NewDecoder(io.LimitReader(file, maximumRelayJobFileBytes+1))
-		decoder.DisallowUnknownFields()
-		var job relayJob
-		decodeErr := decoder.Decode(&job)
-		closeErr := file.Close()
-		if decodeErr != nil {
-			return fmt.Errorf("decode relay job %s: %w", entry.Name(), decodeErr)
-		}
-		if closeErr != nil {
-			return fmt.Errorf("close relay job %s: %w", entry.Name(), closeErr)
-		}
-		if entry.Name() != job.ID+".json" || !validPersistedRelayJob(job) {
-			return fmt.Errorf("invalid relay job file %s", entry.Name())
-		}
-		jobs = append(jobs, job)
-	}
+
 	sort.Slice(jobs, func(left, right int) bool {
 		if jobs[left].CreatedAt.Equal(jobs[right].CreatedAt) {
 			return jobs[left].ID < jobs[right].ID
@@ -261,4 +229,51 @@ func (store *relayJobStore) queued() []relayJob {
 		}
 	}
 	return result
+}
+
+func readPersistedRelayJobs(directory string) ([]relayJob, error) {
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		return nil, fmt.Errorf("read relay job directory: %w", err)
+	}
+	jobs := make([]relayJob, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		path := filepath.Join(directory, entry.Name())
+		info, err := entry.Info()
+		if err != nil {
+			return nil, fmt.Errorf("inspect relay job %s: %w", entry.Name(), err)
+		}
+		if info.Size() > maximumRelayJobFileBytes {
+			return nil, fmt.Errorf("relay job %s exceeds %d bytes", entry.Name(), maximumRelayJobFileBytes)
+		}
+		file, err := os.Open(path)
+		if err != nil {
+			return nil, fmt.Errorf("open relay job %s: %w", entry.Name(), err)
+		}
+		decoder := json.NewDecoder(io.LimitReader(file, maximumRelayJobFileBytes+1))
+		decoder.DisallowUnknownFields()
+		var job relayJob
+		decodeErr := decoder.Decode(&job)
+		if decodeErr == nil {
+			var extra any
+			if trailingErr := decoder.Decode(&extra); trailingErr != io.EOF {
+				decodeErr = fmt.Errorf("relay job must contain exactly one JSON value")
+			}
+		}
+		closeErr := file.Close()
+		if decodeErr != nil {
+			return nil, fmt.Errorf("decode relay job %s: %w", entry.Name(), decodeErr)
+		}
+		if closeErr != nil {
+			return nil, fmt.Errorf("close relay job %s: %w", entry.Name(), closeErr)
+		}
+		if entry.Name() != job.ID+".json" || !validPersistedRelayJob(job) {
+			return nil, fmt.Errorf("invalid relay job file %s", entry.Name())
+		}
+		jobs = append(jobs, job)
+	}
+	return jobs, nil
 }
