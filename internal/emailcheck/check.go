@@ -121,8 +121,19 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 	seen := make(map[string]bool)
 	appendLink := func(raw, source string) {
 		u, err := url.Parse(raw)
-		if err != nil || raw == "" {
+		if raw == "" {
 			return
+		}
+		var scheme, host string
+		if err != nil {
+			prefix, _, _ := strings.Cut(raw, ":")
+			scheme = strings.ToLower(prefix)
+			if scheme != "http" && scheme != "https" {
+				return
+			}
+			// Keep malformed HTTP candidates visible and fail host assertions closed.
+		} else {
+			scheme, host = strings.ToLower(u.Scheme), strings.ToLower(u.Hostname())
 		}
 		key := source + "\x00" + raw
 		if seen[key] {
@@ -133,7 +144,7 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 			return
 		}
 		seen[key] = true
-		r.Links = append(r.Links, Link{URL: raw, Source: source, Scheme: strings.ToLower(u.Scheme), Host: strings.ToLower(u.Hostname())})
+		r.Links = append(r.Links, Link{URL: raw, Source: source, Scheme: scheme, Host: host})
 	}
 	for remaining := email.Text; remaining != ""; {
 		index := textURL.FindStringIndex(remaining)

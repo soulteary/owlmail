@@ -15,6 +15,9 @@ import (
 	"github.com/soulteary/owlmail/internal/types"
 )
 
+// ErrDeliveryReplayConflict identifies an ineligible or already pending replay.
+var ErrDeliveryReplayConflict = errors.New("webhook replay conflict")
+
 // DeliveryOutcome exposes diagnostic metadata without destination URLs or credentials.
 type DeliveryOutcome struct {
 	Target        string `json:"target"`
@@ -92,12 +95,16 @@ func (h *deliveryHistory) prune() {
 			delete(h.records, id)
 		}
 	}
-	if len(h.records) <= 1000 {
-		return
-	}
 	records := h.listLocked()
-	for _, r := range records[1000:] {
-		delete(h.records, r.ID)
+	encodedBytes := 2 // JSON array brackets
+	for index, r := range records {
+		encoded, _ := json.Marshal(r)
+		size := len(encoded) + 1 // conservative comma allowance
+		if index >= 1000 || encodedBytes+size > 2<<20 {
+			delete(h.records, r.ID)
+			continue
+		}
+		encodedBytes += size
 	}
 }
 func (h *deliveryHistory) listLocked() []DeliveryRecord {
@@ -193,13 +200,13 @@ func (service *Service) RetryDelivery(id string, email *types.Email) error {
 	record, ok := service.history.records[id]
 	service.history.mu.Unlock()
 	if !ok || record.Status != "failed" {
-		return fmt.Errorf("delivery is not a retained failed record")
+		return fmt.Errorf("%w: delivery is not a retained failed record", ErrDeliveryReplayConflict)
 	}
 	if email == nil || email.ID != record.EmailID {
-		return fmt.Errorf("email source is unavailable")
+		return fmt.Errorf("%w: email source is unavailable", ErrDeliveryReplayConflict)
 	}
 	if _, loaded := service.replays.LoadOrStore(id, true); loaded {
-		return fmt.Errorf("delivery replay already pending")
+		return fmt.Errorf("%w: delivery replay already pending", ErrDeliveryReplayConflict)
 	}
 	queued := false
 	defer func() {
@@ -214,7 +221,7 @@ func (service *Service) RetryDelivery(id string, email *types.Email) error {
 		}
 	}
 	if len(targets) == 0 {
-		return fmt.Errorf("queue-only failures must recover through the queue")
+		return fmt.Errorf("%w: queue-only failures must recover through the queue", ErrDeliveryReplayConflict)
 	}
 	for _, name := range targets {
 		found := false
@@ -222,7 +229,7 @@ func (service *Service) RetryDelivery(id string, email *types.Email) error {
 			found = found || t.name == name
 		}
 		if !found {
-			return fmt.Errorf("failed target is no longer configured")
+			return fmt.Errorf("%w: failed target is no longer configured", ErrDeliveryReplayConflict)
 		}
 	}
 	snapshot, err := cloneDeliveryEmail(email)

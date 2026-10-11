@@ -2,10 +2,12 @@ package webhook
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -134,5 +136,36 @@ func TestMalformedJobsAndDiagnosticHistoryDoNotCrashService(t *testing.T) {
 	backups, err := filepath.Glob(filepath.Join(dir, "history.json.corrupt-*"))
 	if err != nil || len(backups) != 1 {
 		t.Fatal(backups, err)
+	}
+}
+
+func TestHistoryPrunesOldestRecordsToEncodedBudget(t *testing.T) {
+	spool := t.TempDir()
+	history, err := newDeliveryHistory(spool)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for i := 0; i < 1000; i++ {
+		outcomes := make([]DeliveryOutcome, 32)
+		for index := range outcomes {
+			outcomes[index] = DeliveryOutcome{Target: strings.Repeat("t", 128), StatusCode: 503, Attempts: 3, ErrorCategory: "http_status"}
+		}
+		id := fmt.Sprintf("job-%04d", i)
+		history.records[id] = DeliveryRecord{ID: id, EmailID: "source", CompletedAt: now.Add(time.Duration(i) * time.Millisecond), Status: "failed", Outcomes: outcomes}
+	}
+	history.prune()
+	if len(history.records) >= 1000 || len(history.records) == 0 {
+		t.Fatal(len(history.records))
+	}
+	if _, ok := history.records["job-0999"]; !ok {
+		t.Fatal("newest diagnostic was pruned")
+	}
+	if err := history.persist(); err != nil {
+		t.Fatal(err)
+	}
+	recovered, err := newDeliveryHistory(spool)
+	if err != nil || len(recovered.records) != len(history.records) {
+		t.Fatal(err, len(recovered.records), len(history.records))
 	}
 }
