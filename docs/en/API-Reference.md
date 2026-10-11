@@ -498,3 +498,17 @@ Before migrating an automated client:
 
 For the broader comparison, see the
 [feature, API, and migration guide](./Comparison-and-Migration.md).
+
+## Cursor waits and test-run selectors
+
+- `GET /api/v1/emails/cursor` returns a process-scoped committed delivery cursor.
+- `POST /api/v1/emails/wait` replays retained mail after that cursor and waits
+  for a bounded number of matching deliveries.
+- `DELETE /api/v1/test-runs/:runID/emails` deletes a bounded snapshot belonging
+  to one test run, preserving pending relay sources.
+
+Native lists, previews, and exports accept exact `run_id` and `recipient` query
+selectors. Send `X-OwlMail-Run-ID` to group captured messages. These selectors
+are test organization, not authentication or tenant isolation. See the
+[delivery wait contract](../en/Delivery-Waits-and-Test-Runs.md) for cursor
+expiry, timeout results, quotas, and cleanup semantics.

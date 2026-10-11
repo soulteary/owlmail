@@ -157,6 +157,24 @@
           },
           {
             "$ref": "#/components/parameters/SortOrder"
+          },
+          {
+            "in": "query",
+            "name": "recipient",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Exact case-sensitive SMTP envelope recipient"
+          },
+          {
+            "in": "query",
+            "name": "run_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Exact test-run header"
           }
         ],
         "responses": {
@@ -337,6 +355,24 @@
           },
           {
             "$ref": "#/components/parameters/SortOrder"
+          },
+          {
+            "in": "query",
+            "name": "recipient",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Exact case-sensitive SMTP envelope recipient"
+          },
+          {
+            "in": "query",
+            "name": "run_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Exact test-run header"
           }
         ],
         "responses": {
@@ -412,6 +448,24 @@
           },
           {
             "$ref": "#/components/parameters/Read"
+          },
+          {
+            "in": "query",
+            "name": "recipient",
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "description": "Exact case-sensitive SMTP envelope recipient"
+          },
+          {
+            "in": "query",
+            "name": "run_id",
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            },
+            "description": "Exact test-run header"
           }
         ],
         "responses": {
@@ -1607,6 +1661,257 @@
           }
         }
       }
+    },
+    "/emails/cursor": {
+      "get": {
+        "tags": [
+          "Emails"
+        ],
+        "operationId": "getDeliveryCursor",
+        "summary": "Get a process-scoped committed delivery cursor",
+        "responses": {
+          "200": {
+            "description": "Successful result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "cursor"
+                  ],
+                  "properties": {
+                    "cursor": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor, selector, or request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        }
+      }
+    },
+    "/emails/wait": {
+      "post": {
+        "tags": [
+          "Emails"
+        ],
+        "operationId": "waitDeliveries",
+        "summary": "Wait for at least count retained deliveries after a cursor",
+        "responses": {
+          "200": {
+            "description": "Successful result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "emails",
+                    "cursor",
+                    "timed_out",
+                    "waited_milliseconds"
+                  ],
+                  "properties": {
+                    "emails": {
+                      "type": "array",
+                      "maxItems": 100,
+                      "items": {
+                        "$ref": "#/components/schemas/Email"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string"
+                    },
+                    "timed_out": {
+                      "type": "boolean"
+                    },
+                    "waited_milliseconds": {
+                      "type": "integer"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor, selector, or request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "description": "Wait capacity reached; Retry-After: 1",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Mailbox stopped",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "after"
+                ],
+                "properties": {
+                  "recipient": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "run_id": {
+                    "type": "string",
+                    "maxLength": 128
+                  },
+                  "subject": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 1024
+                  },
+                  "after": {
+                    "type": "string"
+                  },
+                  "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100,
+                    "default": 1
+                  },
+                  "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 120,
+                    "default": 30
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/test-runs/{runID}/emails": {
+      "delete": {
+        "tags": [
+          "Emails"
+        ],
+        "operationId": "deleteTestRunEmails",
+        "summary": "Delete a bounded snapshot of one test run",
+        "responses": {
+          "200": {
+            "description": "Successful result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "failed": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "more_possible": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid cursor, selector, or request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "409": {
+            "description": "Run contains a pending relay source",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "path",
+            "name": "runID",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -2031,6 +2336,11 @@
               "null"
             ],
             "additionalProperties": true
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Optional X-OwlMail-Run-ID grouping selector, not an authorization boundary"
           }
         },
         "additionalProperties": false

@@ -164,6 +164,7 @@ func (ms *MailServer) deleteEmailFromRuntimeState(id string) {
 	defer ms.storeMutex.Unlock()
 	ms.deleteMailboxIndexLocked(id)
 	delete(ms.storeByID, id)
+	delete(ms.deliverySequences, id)
 	delete(ms.receivedAtByID, id)
 	delete(ms.storePositionByID, id)
 	for i, storedID := range ms.storeOrder {

@@ -142,6 +142,7 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	ms.receivedAtByID[id] = receivedAt
 	ms.storeByID[id] = storedEmail
+	ms.recordDeliveryLocked(id)
 	ms.upsertMailboxIndexLocked(storedEmail, receivedAt)
 	if persistMetadata {
 		ms.receivedMessages.Add(1)
@@ -764,6 +765,13 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	// Extract headers
 	// Wrap in mail.Header to get decoding support
 	headers := mail.Header{Header: msg.Header}
+	email.RunID = headers.Get("X-OwlMail-Run-ID")
+	if len(headers.Values("X-OwlMail-Run-ID")) > 1 {
+		return nil, nil, fmt.Errorf("X-OwlMail-Run-ID must occur once")
+	}
+	if err := ValidateRunID(email.RunID); err != nil {
+		return nil, nil, err
+	}
 	if ms.retainAllHeaders.Load() {
 		email.AllHeaders = collectAllHeaders(headers)
 	}

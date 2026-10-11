@@ -105,6 +105,13 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
+	ms.storeMutex.Lock()
+	ms.initDeliveriesLocked()
+	if !ms.deliveryClosed {
+		ms.deliveryClosed = true
+		close(ms.deliveryChanged)
+	}
+	ms.storeMutex.Unlock()
 	var closeErrors []error
 	// Reject new relay configuration and queue submissions from the start of
 	// shutdown while allowing the current relay instance to drain below.

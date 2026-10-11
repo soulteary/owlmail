@@ -26,6 +26,9 @@ type latestEmailInput struct {
 }
 
 type waitForEmailInput struct {
+	After          string `json:"after,omitempty" jsonschema:"delivery cursor from list_emails; replays retained mail committed after this cursor"`
+	Recipient      string `json:"recipient,omitempty" jsonschema:"exact case-sensitive SMTP envelope recipient"`
+	RunID          string `json:"run_id,omitempty" jsonschema:"exact X-OwlMail-Run-ID test group"`
 	To             string `json:"to,omitempty" jsonschema:"recipient name or address substring"`
 	Subject        string `json:"subject,omitempty" jsonschema:"case-insensitive subject substring"`
 	Text           string `json:"text,omitempty" jsonschema:"case-insensitive plain-text or sanitized HTML substring"`
@@ -58,13 +61,14 @@ type waitForEmailOutput struct {
 }
 
 type emailWaitFilter struct {
+	scope   mailserver.DeliveryFilter
 	to      *regexp.Regexp
 	subject *regexp.Regexp
 	text    *regexp.Regexp
 }
 
 func (filter emailWaitFilter) matches(email *types.Email) bool {
-	if email == nil {
+	if email == nil || !filter.scope.Matches(email) {
 		return false
 	}
 	if filter.to != nil && !addressesMatchRecipient(email, filter.to) {
@@ -296,7 +300,15 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 			return waitForEmailOutput{}, fmt.Errorf("%s filter cannot exceed %d bytes", filter.name, maximumWaitFilterBytes)
 		}
 	}
+	if input.After != "" && input.To != "" {
+		return waitForEmailOutput{}, fmt.Errorf("after cannot be combined with substring to; use recipient")
+	}
+	scope := mailserver.DeliveryFilter{Recipient: input.Recipient, RunID: input.RunID}
+	if err := scope.Validate(); err != nil {
+		return waitForEmailOutput{}, err
+	}
 	filter := emailWaitFilter{
+		scope:   scope,
 		to:      foldPattern(input.To),
 		subject: foldPattern(input.Subject),
 		text:    foldPattern(input.Text),
@@ -307,6 +319,35 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 		return waitForEmailOutput{}, err
 	}
 	defer service.waiters.remove(waiter)
+	if input.After != "" {
+		waitCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
+		go func() {
+			select {
+			case <-waiter.canceled:
+				cancel()
+			case <-service.waiters.done:
+				cancel()
+			case <-waitCtx.Done():
+			}
+		}()
+		result, err := service.mailbox.WaitDeliveries(waitCtx, input.After, mailserver.DeliveryFilter{Recipient: input.Recipient, RunID: input.RunID, Subject: input.Subject, Text: input.Text}, 1, timeout)
+		if err != nil {
+			return waitForEmailOutput{}, err
+		}
+		out := waitForEmailOutput{TimedOut: result.TimedOut, WaitedMillis: result.WaitedMilliseconds}
+		if len(result.Emails) > 0 {
+			e := result.Emails[0]
+			preview, ok := service.mailbox.GetEmailPreview(e.ID)
+			if !ok {
+				return waitForEmailOutput{}, fmt.Errorf("matched email was not found")
+			}
+			summary := service.makeSummaries([]mailserver.EmailPreview{preview})[0]
+			out.Matched = true
+			out.Email = &summary
+		}
+		return out, nil
+	}
 
 	started := time.Now()
 	timer := time.NewTimer(timeout)

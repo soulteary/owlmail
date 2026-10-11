@@ -246,6 +246,13 @@ func parseEmailQuery(c fiber.Ctx) (mailserver.EmailQuery, error) {
 		readValue := read == "true"
 		query.Read = &readValue
 	}
+	scope := mailserver.DeliveryFilter{RunID: c.Query("run_id"), Recipient: c.Query("recipient")}
+	if err := scope.Validate(); err != nil {
+		return mailserver.EmailQuery{}, err
+	}
+	if scope.RunID != "" || scope.Recipient != "" {
+		query.MatchStoreEmail = scope.Matches
+	}
 	return query, nil
 }
 

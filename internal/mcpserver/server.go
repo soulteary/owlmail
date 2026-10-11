@@ -334,6 +334,8 @@ func (*discardResponseWriter) Write(data []byte) (int, error) { return len(data)
 func (*discardResponseWriter) WriteHeader(int)                {}
 
 type emailQueryInput struct {
+	RunID     string `json:"run_id,omitempty" jsonschema:"exact X-OwlMail-Run-ID test group"`
+	Recipient string `json:"recipient,omitempty" jsonschema:"exact case-sensitive SMTP envelope recipient"`
 	From      string `json:"from,omitempty" jsonschema:"sender name or address substring"`
 	To        string `json:"to,omitempty" jsonschema:"recipient name or address substring"`
 	DateFrom  string `json:"date_from,omitempty" jsonschema:"inclusive start date in YYYY-MM-DD form"`
@@ -351,6 +353,7 @@ type searchEmailsInput struct {
 }
 
 type emailPage struct {
+	Cursor string         `json:"cursor"`
 	Total  int            `json:"total"`
 	Offset int            `json:"offset"`
 	Limit  int            `json:"limit"`
@@ -449,8 +452,9 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer, service *
 		if err != nil {
 			return nil, emailPage{}, err
 		}
+		cursor := mailbox.DeliveryCursor()
 		emails, total := mailbox.QueryEmailPreviews(query)
-		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
+		return nil, emailPage{Cursor: cursor, Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "search_emails",
@@ -464,8 +468,9 @@ func registerTools(server *mcp.Server, mailbox *mailserver.MailServer, service *
 		if err != nil {
 			return nil, emailPage{}, err
 		}
+		cursor := mailbox.DeliveryCursor()
 		emails, total := mailbox.QueryEmailPreviews(query)
-		return nil, emailPage{Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
+		return nil, emailPage{Cursor: cursor, Total: total, Offset: query.Offset, Limit: query.Limit, Emails: service.makeSummaries(emails)}, nil
 	})
 	mcp.AddTool(server, &mcp.Tool{
 		Name:        "get_email",
@@ -585,6 +590,13 @@ func makeEmailQuery(input emailQueryInput, text string) (mailserver.EmailQuery, 
 	}
 	if query.DateFrom != nil && query.DateTo != nil && !query.DateFrom.Before(*query.DateTo) {
 		return mailserver.EmailQuery{}, fmt.Errorf("date_from must not be after date_to")
+	}
+	scope := mailserver.DeliveryFilter{RunID: input.RunID, Recipient: input.Recipient}
+	if err := scope.Validate(); err != nil {
+		return mailserver.EmailQuery{}, err
+	}
+	if scope.RunID != "" || scope.Recipient != "" {
+		query.MatchStoreEmail = scope.Matches
 	}
 	return query, nil
 }

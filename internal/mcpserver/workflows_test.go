@@ -439,3 +439,24 @@ func waitForWaiterCount(t *testing.T, service *Service, expected int) {
 	}
 	t.Fatalf("active waiters = %d, want %d", service.waiters.count(), expected)
 }
+
+func TestCursorWaitReplaysRunAndExactEnvelopeRecipient(t *testing.T) {
+	mailbox := newTestMailbox(t)
+	service := newTestService(t, mailbox, time.Minute)
+	cursor := mailbox.DeliveryCursor()
+	for _, run := range []string{"run-other", "run-wanted"} {
+		if err := mailbox.SaveEmailToStore(run, false, &mailserver.Envelope{To: []string{"hidden@example.test"}}, &mailserver.Email{RunID: run, Subject: "Verification"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := service.waitForEmail(context.Background(), nil, waitForEmailInput{After: cursor, RunID: "run-wanted", Recipient: "hidden@example.test", TimeoutSeconds: 1})
+	if err != nil || !result.Matched || result.Email.ID != "run-wanted" {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if service.waiters.count() != 0 {
+		t.Fatal("wait admission leaked")
+	}
+	if _, err := service.waitForEmail(context.Background(), nil, waitForEmailInput{After: cursor, To: "hidden"}); err == nil {
+		t.Fatal("accepted ambiguous cursor filter")
+	}
+}

@@ -196,6 +196,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 				continue
 			}
 			delete(ms.storeByID, id)
+			delete(ms.deliverySequences, id)
 			delete(ms.receivedAtByID, id)
 		}
 	}
@@ -239,6 +240,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 	for _, id := range ms.storeOrder {
 		if email := loaded[id]; email != nil {
 			newEmails = append(newEmails, cloneEmail(email))
+			ms.recordDeliveryLocked(id)
 		}
 	}
 	ms.resetMailboxStorePositionsLocked()

@@ -116,6 +116,12 @@ type MailServer struct {
 	storePositionByID       map[string]int
 	nextStorePosition       int
 	storeMutex              sync.RWMutex
+	deliveryEpoch           string
+	deliverySequence        uint64
+	deliverySequences       map[string]uint64
+	deliveryChanged         chan struct{}
+	deliveryWaiters         int
+	deliveryClosed          bool
 	storageTransactionMutex sync.RWMutex
 	protectedEmailSources   map[string]int
 	mailDir                 string

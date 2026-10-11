@@ -8,6 +8,7 @@ import (
 
 // Email represents a parsed email message
 type Email struct {
+	RunID         string                 `json:"run_id,omitempty"`
 	ID            string                 `json:"id"`
 	Time          time.Time              `json:"time"`
 	Read          bool                   `json:"read"`
