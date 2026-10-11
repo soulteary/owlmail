@@ -433,3 +433,34 @@ func waitForTerminalRelayJob(t *testing.T, store *relayJobStore, id string) (rel
 		time.Sleep(time.Millisecond)
 	}
 }
+
+func TestUnrelatedRelayWriteDoesNotClearPersistenceFailure(t *testing.T) {
+	store, err := newPersistentRelayJobStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := store.directory
+	blocker := filepath.Join(t.TempDir(), "blocker")
+	if err := os.WriteFile(blocker, []byte("blocked"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	store.directory = blocker
+	first := relayJob{ID: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", EmailID: "first", Status: relayJobSucceeded}
+	if err := store.persistLocked(first); err == nil {
+		t.Fatal("expected failed write")
+	}
+	store.directory = original
+	second := relayJob{ID: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", EmailID: "second", Status: relayJobSucceeded}
+	if err := store.persistLocked(second); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastPersistenceErr == nil {
+		t.Fatal("unrelated write concealed unresolved failure")
+	}
+	if err := store.persistLocked(first); err != nil {
+		t.Fatal(err)
+	}
+	if store.lastPersistenceErr != nil {
+		t.Fatal(store.lastPersistenceErr)
+	}
+}

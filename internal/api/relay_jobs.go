@@ -95,6 +95,7 @@ type relayJobStore struct {
 	directory          string
 	syncDirectory      func(string) error
 	lastPersistenceErr error
+	persistenceErrors  map[string]error
 }
 
 func newRelayJobStore() *relayJobStore {
