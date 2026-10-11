@@ -153,7 +153,7 @@ func TestRunIDSurvivesRestartAndOldCursorExpires(t *testing.T) {
 }
 
 func TestLegacyInvalidRunHeadersRemainReadableOnRecovery(t *testing.T) {
-	for _, header := range []string{"X-OwlMail-Run-ID: run/legacy", "X-OwlMail-Run-ID: one\r\nX-OwlMail-Run-ID: two"} {
+	for _, header := range []string{"X-OwlMail-Run-ID:", "X-OwlMail-Run-ID:   ", "X-OwlMail-Run-ID: run/legacy", "X-OwlMail-Run-ID: one\r\nX-OwlMail-Run-ID: two"} {
 		t.Run(header, func(t *testing.T) {
 			s := deliveryTestServer(t)
 			raw := "From: sender@example.test\r\n" + header + "\r\nSubject: Legacy\r\n\r\nPreserve this body"
