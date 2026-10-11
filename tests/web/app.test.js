@@ -1102,3 +1102,34 @@ test('edited verification criteria clear completed results and supersede pending
     assert.equal(harness.emailDetail.innerHTML.includes('Checks passed'), false);
     assert.equal(harness.run('emailTools.checking'), false);
 });
+
+
+test('delivery loading preserves tab focus and completion does not steal moved focus', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries';
+        const deliveryTab = { focus() { document.activeElement = this; } };
+        const lookup = document.getElementById;
+        document.getElementById = id => id === 'email-content-tab-deliveries' ? deliveryTab : lookup(id);
+        const originalRender = renderEmailDetail;
+        renderEmailDetail = () => { originalRender(); document.activeElement = null; };
+        document.activeElement = deliveryTab;`);
+    const pending = harness.run('refreshEmailDeliveries()');
+    assert.equal(harness.run('document.activeElement === deliveryTab'), true);
+    harness.run(`document.activeElement = { id: 'another-control' }`);
+    finish(jsonResponse({ jobs: [], deliveries: [] }));
+    await pending;
+    assert.equal(harness.run('document.activeElement === deliveryTab'), false);
+});
+
+test('queue-only webhook failures do not offer or submit manual retries', async () => {
+    const harness = createHarness();
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries'; emailToolsFor(state.currentEmail).webhook = { deliveries: [{ id: 'queue-failure', status: 'failed', outcomes: [{ target: 'delivered', error_category: '' }, { target: '', error_category: 'queue' }] }] }; renderEmailDetail()`);
+    assert.equal(harness.emailDetail.innerHTML.includes("retryEmailWorkflow('webhook'"), false);
+    await harness.run("retryEmailWorkflow('webhook', 0)");
+    assert.equal(harness.confirmations.length, 0);
+    assert.equal(harness.fetchRequests.length, 0);
+    harness.run(`emailTools.webhook.deliveries[0].outcomes.push({ target: 'failed-target', error_category: 'http_status' }); renderEmailDetail()`);
+    assert.equal(harness.emailDetail.innerHTML.includes("retryEmailWorkflow('webhook'"), true);
+});
