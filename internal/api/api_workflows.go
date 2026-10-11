@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
@@ -104,7 +105,10 @@ func (api *API) replayWebhookDelivery(c fiber.Ctx) error {
 		}
 		defer release()
 		if err = api.webhookService.RetryDelivery(id, email); err != nil {
-			return c.Status(409).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+			if errors.Is(err, webhook.ErrDeliveryReplayConflict) {
+				return c.Status(409).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
+			}
+			return c.Status(503).JSON(ErrorResponse(ErrorCodeRelayFailed, "Webhook replay infrastructure unavailable"))
 		}
 		return c.Status(202).JSON(SuccessResponse("WEBHOOK_REPLAY_QUEUED", "Failed targets queued for replay", fiber.Map{"delivery_id": id}))
 	}

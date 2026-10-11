@@ -3,9 +3,15 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/types"
+	"github.com/soulteary/owlmail/internal/webhook"
 )
 
 func TestWorkflowListsAndReplayAdmission(t *testing.T) {
@@ -67,5 +73,49 @@ func TestRelayPrunePersistenceFailureIsVisible(t *testing.T) {
 	}
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Healthy {
 		t.Fatal(result, err)
+	}
+}
+
+func TestWebhookReplayInfrastructureFailureReturnsUnavailable(t *testing.T) {
+	api, server, directory := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	receiver := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(400) }))
+	defer receiver.Close()
+	dispatcher, err := webhook.NewDispatcher(webhook.Config{Targets: []webhook.Target{{Name: "failed", URL: receiver.URL}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	completed := make(chan string, 1)
+	service, err := webhook.NewService(dispatcher, webhook.ServiceOptions{OnResults: func(id string, _ []webhook.Result) { completed <- id }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	email := &types.Email{ID: "replay-source", Subject: "test", Text: "body"}
+	if err = os.WriteFile(filepath.Join(directory, email.ID+".eml"), []byte("Subject: test\r\n\r\nbody"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err = server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
+		t.Fatal(err)
+	}
+	if err = service.Enqueue(email); err != nil {
+		t.Fatal(err)
+	}
+	var id string
+	select {
+	case id = <-completed:
+	case <-time.After(3 * time.Second):
+		t.Fatal("delivery timeout")
+	}
+	if err = service.Close(); err != nil {
+		t.Fatal(err)
+	}
+	api.SetWebhookService(service)
+	response, err := api.app.Test(httptest.NewRequest("POST", "/api/v1/webhook-deliveries/"+id+"/retry", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	if response.StatusCode != 503 {
+		t.Fatal(response.StatusCode)
 	}
 }
