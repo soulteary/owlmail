@@ -96,7 +96,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['emailViewportStage', emailViewportStage],
         ['email-content-tab-source', emailSourceTab],
         ['emailInspectionRun', createElement()],
-        ['emailInspectionStatus', createElement()]
+        ['emailInspectionStatus', createElement()],
+        ['emailDeliveriesRefresh', createElement()]
     ]);
     const notifications = [];
     const fetchRequests = [];
@@ -168,7 +169,8 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         },
         createElement() { return createElement(); }
     };
-	for (const element of elements.values()) {
+	for (const [id, element] of elements) {
+        element.id = id;
 		element.focus = function focus() {
 			this.focused = true;
 			document.activeElement = this;
@@ -1190,4 +1192,17 @@ test('retry completion retains an inactive panel and its focused input', async (
     await pending;
     assert.equal(harness.run('document.activeElement.id'), 'verification-input');
     assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'queued');
+});
+
+
+test('delivery refresh preserves its keyboard action across loading and completion', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries'; document.getElementById('emailDeliveriesRefresh').focus(); const original = renderEmailDetail; renderEmailDetail = () => { original(); document.activeElement = null; };`);
+    const pending = harness.run('refreshEmailDeliveries()');
+    assert.equal(harness.run("document.activeElement.id"), 'emailDeliveriesRefresh');
+    finish(jsonResponse({ deliveries: [], jobs: [] }));
+    await pending;
+    assert.equal(harness.run("document.activeElement.id"), 'emailDeliveriesRefresh');
 });

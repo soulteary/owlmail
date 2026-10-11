@@ -2440,10 +2440,10 @@ function renderEmailDeliveries(email) {
                 ${kind === 'relay' ? `<p>Attempts: ${escapeHtml(String(job.attempts))}; ${escapeHtml(job.errorCategory || '')}</p>
                 <p>${escapeHtml((job.confirmedRecipients || []).join(', '))}</p>
                 ${job.nextAttemptAt ? `<p>Next attempt: ${escapeHtml(job.nextAttemptAt)}</p>` : ''}` : `<ul>${(job.outcomes || []).map(outcome => `<li>${escapeHtml(outcome.target || 'Queue')}: ${escapeHtml(outcome.error_category || 'Succeeded')}; attempts: ${escapeHtml(String(outcome.attempts))}; HTTP: ${escapeHtml(String(outcome.status_code))}</li>`).join('')}</ul>`}
-                ${emailWorkflowRetryable(kind, job) ? `<button type="button" class="btn btn-secondary" ${tools.busy ? 'disabled' : ''} onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
+                ${emailWorkflowRetryable(kind, job) ? `<button id="email-workflow-retry-${kind}-${index}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
             ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
     };
-    return `<section class="email-tools"><button type="button" class="btn btn-secondary" ${tools.busy ? 'disabled' : ''} onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
+    return `<section class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
         <p role="status" aria-live="polite">${escapeHtml(tools.notice)}</p>
         ${renderGroup('relay', tools.relay, 'jobs')}${renderGroup('webhook', tools.webhook, 'deliveries')}</section>`;
 }
@@ -2453,8 +2453,10 @@ function emailWorkflowRetryable(kind, job) {
 function renderEmailDetailKeepingTabFocus() {
     const active = document.activeElement;
     const tab = active && ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'].find(name => document.getElementById(`email-content-tab-${name}`) === active);
+    const actionID = active?.id === 'emailDeliveriesRefresh' || active?.id?.startsWith('email-workflow-retry-') ? active.id : null;
     renderEmailDetail();
     if (tab) document.getElementById(`email-content-tab-${tab}`)?.focus?.();
+    else if (actionID) (document.getElementById(actionID) || document.getElementById('emailDeliveriesRefresh'))?.focus?.();
 }
 async function refreshEmailDeliveries() {
     if (!state.currentEmail) return;
@@ -2474,7 +2476,7 @@ async function retryEmailWorkflow(kind, index) {
     const field = kind === 'relay' ? 'jobs' : 'deliveries';
     const job = tools[kind]?.[field]?.[index];
     if (tools.busy || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
-    tools.busy = true; tools.notice = ''; renderEmailDetail();
+    tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     try { await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' }); job.status = 'queued'; tools.notice = t('workflowQueued'); }
     catch (error) { tools.notice = String(error.message || error); }
     finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus(); }
