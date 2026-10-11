@@ -13,9 +13,10 @@ function createHarness(savedLanguage, savedTheme = 'light', dark = false) {
         value: '',
         addEventListener(name, handler) { listeners.set(name, handler); }
     };
+    const themeListeners = new Map();
     const themeButton = {
         textContent: '',
-        addEventListener() {},
+        addEventListener(name, handler) {themeListeners.set(name, handler);},
         setAttribute() {}
     };
     const panels = [
@@ -42,7 +43,7 @@ function createHarness(savedLanguage, savedTheme = 'light', dark = false) {
     };
     vm.createContext(sandbox);
     vm.runInContext(source, sandbox, { filename: 'web/help.js' });
-    return { languageSelect, listeners, storage, classes, media, windowListeners };
+    return { languageSelect, listeners, storage, classes, media, windowListeners, themeListeners };
 }
 
 test('help fallback does not overwrite the inbox language preference', () => {
@@ -71,4 +72,14 @@ test('help uses the system theme without saving an implicit preference', () => {
     harness.storage.set('theme', 'dark');
     harness.windowListeners.get('storage')({key:'theme'});
     assert.equal(harness.classes.has('dark-theme'), true);
+});
+
+
+test('help preserves an explicit session theme when storage is blocked', () => {
+    const harness = createHarness('en', null, true);
+    harness.storage.get = harness.storage.set = () => {throw new Error('blocked');};
+    harness.themeListeners.get('click')();
+    assert.equal(harness.classes.has('light-theme'), true);
+    harness.media.change();
+    assert.equal(harness.classes.has('light-theme'), true);
 });

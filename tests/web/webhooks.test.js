@@ -583,7 +583,7 @@ test('HTTP field values reject control bytes while allowing horizontal tabs', ()
 });
 
 test('webhook theme follows system and storage without persisting initialization', () => {
-    const themeSource = source.slice(source.indexOf('    function applyTheme('), source.indexOf('    function addHeaderRow('));
+    const themeSource = source.slice(source.indexOf('    let sessionThemePreference'), source.indexOf('    function addHeaderRow('));
     const classes = new Set();
     const storage = new Map();
     const listeners = new Map();
@@ -606,4 +606,9 @@ test('webhook theme follows system and storage without persisting initialization
     assert.equal(classes.has('dark-theme'), true);
     vm.runInContext("applyTheme('light')",sandbox);
     assert.equal(storage.get('theme'), 'light');
+    sandbox.localStorage.getItem = sandbox.localStorage.setItem = () => {throw new Error('blocked');};
+    vm.runInContext("applyTheme('light')",sandbox);
+    media.matches = true;
+    media.change();
+    assert.equal(classes.has('light-theme'), true);
 });

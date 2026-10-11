@@ -1118,8 +1118,10 @@
         renderOutput();
     }
 
+    let sessionThemePreference = null;
     function applyTheme(theme, persist = true) {
         const dark = theme === 'dark';
+        if (persist) sessionThemePreference = dark ? 'dark' : 'light';
         document.body.classList.toggle('dark-theme', dark);
         document.body.classList.toggle('light-theme', !dark);
         elements.theme.textContent = dark ? '☀️' : '🌙';
@@ -1143,11 +1145,17 @@
             });
         }
         window.addEventListener('storage', (event) => {
-            if (event.key === 'theme' || event.key === null) applyTheme(initialTheme(), false);
+            if (event.key === 'theme' || event.key === null) {
+                sessionThemePreference = null;
+                applyTheme(initialTheme(), false);
+            }
         });
     }
     function readTheme() {
-        try { return localStorage.getItem('theme'); } catch (_) { return null; }
+        try {
+            const saved = localStorage.getItem('theme');
+            return saved === 'dark' || saved === 'light' ? saved : sessionThemePreference;
+        } catch (_) { return sessionThemePreference; }
     }
     function initialTheme() {
         const saved = readTheme();

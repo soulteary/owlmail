@@ -1397,3 +1397,14 @@ test('role buttons suppress global shortcuts for a different selected message', 
     assert.equal(harness.run('state.currentEmail.id'), 'selected');
     assert.equal(harness.fetchRequests.length, 0);
 });
+
+
+test('inbox preserves an explicit session theme when storage is blocked', () => {
+    const harness = createHarness();
+    const media = {matches:true, addEventListener(name, handler) {this.change = handler;}};
+    harness.window.matchMedia = () => media;
+    harness.run("localStorage.getItem = localStorage.setItem = () => {throw new Error('blocked');}; initTheme(); toggleTheme();");
+    assert.equal(harness.run('currentTheme'), 'light');
+    media.change();
+    assert.equal(harness.run('currentTheme'), 'light');
+});

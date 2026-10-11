@@ -2244,22 +2244,28 @@ function hideLoading() {
 
 // Theme Management
 let currentTheme = 'light';
+let sessionThemePreference = null;
+function readThemePreference() {
+    const saved = readPreference('theme');
+    return saved === 'dark' || saved === 'light' ? saved : sessionThemePreference;
+}
 function systemTheme() {
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 function initTheme() {
-    const saved = readPreference('theme');
+    const saved = readThemePreference();
     setTheme(saved === 'dark' || saved === 'light' ? saved : systemTheme(), false);
     if (window.matchMedia) {
         const media = window.matchMedia('(prefers-color-scheme: dark)');
         media.addEventListener?.('change', () => {
-            const preference = readPreference('theme');
+            const preference = readThemePreference();
             if (preference !== 'dark' && preference !== 'light') setTheme(systemTheme(), false);
         });
     }
     window.addEventListener('storage', (event) => {
         if (event.key === 'theme' || event.key === null) {
-            const saved = readPreference('theme');
+            sessionThemePreference = null;
+            const saved = readThemePreference();
             setTheme(saved === 'dark' || saved === 'light' ? saved : systemTheme(), false);
         }
     });
@@ -2273,7 +2279,10 @@ function setTheme(theme, persist = true) {
         toggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
         toggle.setAttribute('aria-pressed', String(currentTheme === 'dark'));
     }
-    if (persist) writePreference('theme', currentTheme);
+    if (persist) {
+        sessionThemePreference = currentTheme;
+        writePreference('theme', currentTheme);
+    }
 }
 function toggleTheme() {
     setTheme(currentTheme === 'light' ? 'dark' : 'light');
