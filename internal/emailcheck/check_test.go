@@ -1,6 +1,7 @@
 package emailcheck
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -51,5 +52,22 @@ func TestInspectionRejectsAmbiguityAndBounds(t *testing.T) {
 	r, err = Inspect(email, Request{Extract: []Extraction{{Name: "a", Pattern: "a"}}})
 	if err != nil || !r.ExtractionsTruncated || len(r.Extractions["a"]) != maxResults {
 		t.Fatal(r, err)
+	}
+}
+
+func TestRepeatedAndUppercaseURLsCannotBypassHostChecks(t *testing.T) {
+	for _, text := range []string{strings.Repeat("https://allowed.example.test/a ", 201) + "https://evil.example.test/b", "HTTPS://evil.example.test/path"} {
+		report, err := Inspect(&types.Email{Text: text}, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+		if err != nil || report.Passed || report.LinksTruncated {
+			t.Fatal(report, err)
+		}
+	}
+	text := ""
+	for i := 0; i < 201; i++ {
+		text += fmt.Sprintf("https://allowed.example.test/%d ", i)
+	}
+	report, err := Inspect(&types.Email{Text: text}, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+	if err != nil || report.Passed || !report.LinksTruncated || len(report.Links) != 200 {
+		t.Fatal(report, err)
 	}
 }
