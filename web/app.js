@@ -1553,11 +1553,8 @@ function renderEmailDetail() {
         <div class="email-detail-actions">
             <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">${t('downloadEml')}</button>
             <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button>
-            ${relayEnabled ? `
-                <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
-                <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
-            ` : ''}
-            <button class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
+            <span id="emailRelayActions">${renderEmailRelayActions(email)}</span>
+            <button id="emailDeleteAction" class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
             <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
@@ -1890,13 +1887,27 @@ async function loadEmails() {
     }
 }
 
+function renderEmailRelayActions(email) {
+    if (!relayEnabled) return '';
+    return `<button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
+        <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>`;
+}
+function updateEmailRelayControls() {
+    if (!state.currentEmail) return;
+    const actions = document.getElementById('emailRelayActions');
+    if (actions) actions.innerHTML = renderEmailRelayActions(state.currentEmail);
+    const deletion = document.getElementById('emailDeleteAction');
+    if (deletion) deletion.disabled = relayPending.has(state.currentEmail.id);
+}
+
 async function loadRelayAvailability() {
     try {
         const outgoing = await API.getOutgoingConfig();
         relayEnabled = outgoing && outgoing.enabled === true;
-        if (state.currentEmail) renderEmailDetail();
+        if (state.currentEmail) updateEmailRelayControls();
     } catch (error) {
         relayEnabled = false;
+        updateEmailRelayControls();
         console.warn('Unable to inspect outgoing relay configuration:', error);
     }
 }
@@ -1940,7 +1951,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
 
     relayPending.add(id);
     syncRelayMutationControls();
-    renderEmailDetail();
+    updateEmailRelayControls();
     let releasePending = true;
     try {
         const result = await API.relayEmail(id, relayTo, confirmedRecipients);
@@ -1979,7 +1990,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
     } finally {
         if (releasePending) relayPending.delete(id);
         syncRelayMutationControls();
-        if (state.currentEmail && state.currentEmail.id === id) renderEmailDetail();
+        if (state.currentEmail && state.currentEmail.id === id) updateEmailRelayControls();
     }
 }
 
@@ -2453,7 +2464,7 @@ function renderEmailDeliveries(email) {
                 ${emailWorkflowRetryable(kind, job) ? `<button id="email-workflow-retry-${kind}-${index}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
             ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
     };
-    return `<section class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
+    return `<section id="emailDeliveriesPanel" class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
         <p role="status" aria-live="polite">${escapeHtml(tools.notice)}</p>
         ${renderGroup('relay', tools.relay, 'jobs')}${renderGroup('webhook', tools.webhook, 'deliveries')}</section>`;
 }
@@ -2464,7 +2475,9 @@ function renderEmailDetailKeepingTabFocus() {
     const active = document.activeElement;
     const tab = active && ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'].find(name => document.getElementById(`email-content-tab-${name}`) === active);
     const actionID = active?.id === 'emailDeliveriesRefresh' || active?.id?.startsWith('email-workflow-retry-') ? active.id : null;
-    renderEmailDetail();
+    const panel = document.getElementById('emailDeliveriesPanel');
+    if (!panel || !state.currentEmail || emailContentTab !== 'deliveries') return;
+    panel.outerHTML = renderEmailDeliveries(state.currentEmail);
     if (tab) document.getElementById(`email-content-tab-${tab}`)?.focus?.();
     else if (actionID) (document.getElementById(actionID) || document.getElementById('emailDeliveriesRefresh'))?.focus?.();
 }
