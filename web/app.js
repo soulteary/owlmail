@@ -2459,12 +2459,15 @@ function renderEmailDeliveries(email) {
                 ${kind === 'relay' ? `<p>Attempts: ${escapeHtml(String(job.attempts))}; ${escapeHtml(job.errorCategory || '')}</p>
                 <p>${escapeHtml((job.confirmedRecipients || []).join(', '))}</p>
                 ${job.nextAttemptAt ? `<p>Next attempt: ${escapeHtml(job.nextAttemptAt)}</p>` : ''}` : `<ul>${(job.outcomes || []).map(outcome => `<li>${escapeHtml(outcome.target || 'Queue')}: ${escapeHtml(outcome.error_category || 'Succeeded')}; attempts: ${escapeHtml(String(outcome.attempts))}; HTTP: ${escapeHtml(String(outcome.status_code))}</li>`).join('')}</ul>`}
-                ${emailWorkflowRetryable(kind, job) ? `<button id="email-workflow-retry-${kind}-${index}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
+                ${emailWorkflowRetryable(kind, job) ? `<button id="${escapeHtml(emailWorkflowActionID(kind, job.id))}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
             ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
     };
     return `<section id="emailDeliveriesPanel" class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
         <p role="status" aria-live="polite">${escapeHtml(tools.notice)}</p>
         ${renderGroup('relay', tools.relay, 'jobs')}${renderGroup('webhook', tools.webhook, 'deliveries')}</section>`;
+}
+function emailWorkflowActionID(kind, jobID) {
+    return `email-workflow-retry-${kind}-${encodeURIComponent(jobID)}`;
 }
 function emailWorkflowRetryable(kind, job) {
     return job?.status === 'failed' && (kind === 'relay' || (job.outcomes || []).some(outcome => outcome.target && outcome.error_category));

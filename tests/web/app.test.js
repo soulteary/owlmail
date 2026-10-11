@@ -1303,3 +1303,23 @@ test('relay retry admission blocks mutation before POST resolves and releases on
     assert.equal(harness.run('relayPending.size'), 0);
     assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'failed');
 });
+
+
+test('delivery retry focus follows job identity when refresh reorders records', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello' }; emailContentTab = 'deliveries'; emailToolsFor(state.currentEmail).relay = { jobs: [{ id: 'first', status: 'failed' }, { id: 'selected', status: 'failed' }] };
+        const lookup = document.getElementById;
+        document.getElementById = id => {
+            if (!id.startsWith('email-workflow-retry-relay-')) return lookup(id);
+            const job = emailTools.relay.jobs.find(job => emailWorkflowActionID('relay', job.id) === id);
+            return job ? { id, jobID: job.id, focus() { document.activeElement = this; } } : null;
+        };`);
+    const pending = harness.run('refreshEmailDeliveries()');
+    harness.run("document.getElementById(emailWorkflowActionID('relay', 'selected')).focus()");
+    finish(jsonResponse({ jobs: [{ id: 'selected', status: 'failed' }, { id: 'replacement', status: 'failed' }], deliveries: [] }));
+    await pending;
+    assert.equal(harness.run('document.activeElement.jobID'), 'selected');
+    assert.match(harness.run("document.getElementById('emailDeliveriesPanel').outerHTML"), /id="email-workflow-retry-relay-selected"/);
+});
