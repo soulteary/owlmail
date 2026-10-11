@@ -338,10 +338,7 @@ func (service *Service) waitForEmail(ctx context.Context, request *mcp.CallToolR
 		out := waitForEmailOutput{TimedOut: result.TimedOut, WaitedMillis: result.WaitedMilliseconds}
 		if len(result.Emails) > 0 {
 			e := result.Emails[0]
-			preview, ok := service.mailbox.GetEmailPreview(e.ID)
-			if !ok {
-				return waitForEmailOutput{}, fmt.Errorf("matched email was not found")
-			}
+			preview := mailserver.PreviewEmailSnapshot(e)
 			summary := service.makeSummaries([]mailserver.EmailPreview{preview})[0]
 			out.Matched = true
 			out.Email = &summary

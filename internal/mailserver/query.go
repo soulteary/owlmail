@@ -423,6 +423,14 @@ func pageBounds(total, offset, limit int) (int, int) {
 	return offset, offset + limit
 }
 
+// PreviewEmailSnapshot projects an owned, detached email without looking it up again.
+func PreviewEmailSnapshot(email *Email) EmailPreview {
+	if email == nil {
+		return EmailPreview{}
+	}
+	return makeEmailPreview(snapshotEmailQueryEntry(email, true, true))
+}
+
 func makeEmailPreview(email emailQueryEntry) EmailPreview {
 	preview := EmailPreview{
 		ID:            email.id,

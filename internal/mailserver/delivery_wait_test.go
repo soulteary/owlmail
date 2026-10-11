@@ -226,3 +226,26 @@ func TestDeliveryWaitSequenceOrderSurvivesReloadSort(t *testing.T) {
 		cursor = result.Cursor
 	}
 }
+
+func TestDeliveryUnicodeFoldAndDeletedSnapshot(t *testing.T) {
+	s := deliveryTestServer(t)
+	cursor := s.DeliveryCursor()
+	if err := s.SaveEmailToStore("unicode", false, &Envelope{To: []string{"a@example.test"}}, &Email{Subject: "ΟΣ", Text: "ſ K"}); err != nil {
+		t.Fatal(err)
+	}
+	filter := DeliveryFilter{Subject: "ος", Text: "S k"}
+	result, err := s.WaitDeliveries(context.Background(), cursor, filter, 1, time.Second)
+	if err != nil || result.TimedOut || len(result.Emails) != 1 {
+		t.Fatalf("%+v %v", result, err)
+	}
+	if !filter.Matches(result.Emails[0]) {
+		t.Fatal("direct matching disagrees with cursor matching")
+	}
+	if err := s.DeleteEmail("unicode"); err != nil {
+		t.Fatal(err)
+	}
+	preview := PreviewEmailSnapshot(result.Emails[0])
+	if preview.ID != "unicode" || preview.Subject != "ΟΣ" || preview.Preview != "ſ K" {
+		t.Fatalf("snapshot lost after deletion: %+v", preview)
+	}
+}
