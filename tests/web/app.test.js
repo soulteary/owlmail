@@ -1039,3 +1039,51 @@ test('failed history detail load clears the previously rendered selection', asyn
     assert.equal(harness.window.location.search, '?email=mail-missing');
     assert.equal(harness.alerts.length, 1);
 });
+
+test('verification submits exact assertions and safely renders extracted mail content', async () => {
+    const harness = createHarness({ basePathname: '/owlmail', fetchImpl: async () => jsonResponse({ passed: false, checks: [{ name: 'text', passed: false, message: '<script>bad</script>' }], links: [], extractions: { code: ['123456'] }, links_truncated: false, extractions_truncated: false }) });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', headers: {}, attachments: [], run_id: 'run-a' }; emailContentTab = 'inspect'; renderEmailDetail(); updateEmailInspectionField('subject', 'Verify'); updateEmailInspectionField('text', 'Expected'); updateEmailInspectionField('hosts', 'app.example.test, login.example.test'); updateEmailInspectionField('codes', true)`);
+    await harness.run('runEmailInspection()');
+    assert.equal(harness.fetchRequests[0].url, 'http://owlmail.test/owlmail/api/v1/emails/mail-1/check');
+    const body = JSON.parse(harness.fetchRequests[0].options.body);
+    assert.deepEqual(body.allowed_link_hosts, ['app.example.test', 'login.example.test']);
+    assert.deepEqual(body.text_contains, ['Expected']);
+    assert.equal(body.extract[0].pattern, '[0-9]{6}');
+    assert.match(harness.emailDetail.innerHTML, /Checks failed/);
+    assert.match(harness.emailDetail.innerHTML, /&lt;script&gt;bad/);
+    assert.equal(harness.emailDetail.innerHTML.includes('<script>bad'), false);
+    assert.match(harness.emailDetail.innerHTML, /run-a/);
+});
+
+test('late verification response cannot overwrite another selected message', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'first', text: 'first', attachments: [] }; emailContentTab = 'inspect'`);
+    const pending = harness.run('runEmailInspection()');
+    harness.run(`state.currentEmail = { id: 'second', text: 'second', attachments: [] }; renderEmailDetail()`);
+    finish(jsonResponse({ passed: true, checks: [], links: [], extractions: {} }));
+    await pending;
+    assert.equal(harness.run('emailTools.id'), 'second');
+    assert.equal(harness.run('emailTools.report'), null);
+    assert.equal(harness.emailDetail.innerHTML.includes('Checks passed'), false);
+});
+
+test('delivery panels keep partial errors visible and require explicit retry confirmation', async () => {
+    const harness = createHarness({ fetchImpl: async (url, options) => {
+        if (options?.method === 'POST') return jsonResponse({ success: true });
+        if (String(url).includes('/relay-jobs')) return jsonResponse({ jobs: [{ id: 'job-1', status: 'failed', attempts: 3, errorCategory: 'temporary' }], persistence_healthy: false });
+        return { ok: false, async text() { return 'Webhook history unavailable'; } };
+    } });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries'`);
+    await harness.run('refreshEmailDeliveries()');
+    assert.match(harness.emailDetail.innerHTML, /could not be persisted/);
+    assert.match(harness.emailDetail.innerHTML, /Webhook history unavailable/);
+    assert.match(harness.emailDetail.innerHTML, /job-1/);
+    await harness.run(`retryEmailWorkflow('relay', 0)`);
+    assert.equal(harness.confirmations.length, 1);
+    assert.equal(harness.fetchRequests[2].url, 'http://owlmail.test/api/v1/relay-jobs/job-1/retry');
+    assert.match(harness.emailDetail.innerHTML, /Retry accepted/);
+    await harness.run(`retryEmailWorkflow('relay', 0)`);
+    assert.equal(harness.fetchRequests.length, 3);
+});

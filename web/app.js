@@ -167,6 +167,25 @@ const i18n = {
         contentText: 'Plain text',
         contentHeaders: 'Headers',
         contentSource: 'Source',
+        contentInspect: 'Verify',
+        contentDeliveries: 'Deliveries',
+        inspectSubject: 'Expected subject text',
+        inspectText: 'Expected message text',
+        inspectHosts: 'Allowed link hosts (comma separated, optional)',
+        inspectCodes: 'Extract six-digit codes',
+        inspectRun: 'Run checks',
+        inspectPass: 'Checks passed',
+        inspectFail: 'Checks failed',
+        inspectTruncated: 'Results were truncated. Complete verification needs the full message.',
+        workflowEmpty: 'No retained delivery records for this message.',
+        workflowRetry: 'Retry failed delivery',
+        workflowRetryConfirm: 'Retry this failed delivery? A real outgoing request will be sent again.',
+        workflowQueued: 'Retry accepted. Refresh to see the latest outcome.',
+        workflowHealth: 'Delivery history could not be persisted. Check server storage.',
+        workflowMore: 'More records exist. Showing the most recent 100.',
+        workflowDisabled: 'Webhook forwarding is disabled.',
+        emailRunID: 'Test run:',
+
         sourceLoading: 'Loading source…',
         sourceTooLarge: 'This message source is too large to display safely inline.',
         // API Error Codes
@@ -1507,11 +1526,13 @@ function renderEmailDetail() {
     if (!container) return;
 
     if (!state.currentEmail) {
+        emailTools = null;
         container.innerHTML = `<div class="empty-state"><p>${t('selectEmail')}</p></div>`;
         return;
     }
 
     const email = state.currentEmail;
+    emailToolsFor(email);
     const from = email.from && email.from.length > 0 
         ? formatAddress(email.from[0])
         : t('unknown');
@@ -1547,6 +1568,7 @@ function renderEmailDetail() {
                     <span class="email-detail-meta-label">${t('cc')}</span>
                     <span>${escapeHtml(cc)}</span>
                 ` : ''}
+                ${email.run_id ? `<span class="email-detail-meta-label">${t('emailRunID')}</span><code>${escapeHtml(email.run_id)}</code>` : ''}
                 <span class="email-detail-meta-label">${t('time')}</span>
                 <span>${time}</span>
             </div>
@@ -1557,11 +1579,11 @@ function renderEmailDetail() {
 }
 
 function renderEmailContentTabs(email) {
-    const availableTabs = ['html', 'text', 'headers', 'source'];
+    const availableTabs = ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'];
     if (!availableTabs.includes(emailContentTab) || (emailContentTab === 'html' && !email.html)) {
         emailContentTab = email.html ? 'html' : 'text';
     }
-    const labels = { html: 'contentHTML', text: 'contentText', headers: 'contentHeaders', source: 'contentSource' };
+    const labels = { html: 'contentHTML', text: 'contentText', headers: 'contentHeaders', source: 'contentSource', inspect: 'contentInspect', deliveries: 'contentDeliveries' };
     return `
         <div class="email-content-tabs" role="tablist" aria-label="${t('emailContentViews')}">
             ${availableTabs.map((tab) => `
@@ -1582,6 +1604,10 @@ function renderEmailContentPanel(email) {
     switch (emailContentTab) {
     case 'html':
         return renderHTML(email.html || '', email.id, email.attachments || []);
+    case 'inspect':
+        return renderEmailInspection(email);
+    case 'deliveries':
+        return renderEmailDeliveries(email);
     case 'headers':
         return `<pre class="email-detail-source">${escapeHtml(JSON.stringify(email.headers || {}, null, 2))}</pre>`;
     case 'source': {
@@ -1604,7 +1630,7 @@ function renderEmailContentPanel(email) {
 
 async function setEmailContentTab(tab, restoreFocus = false) {
     const email = state.currentEmail;
-    if (!email || !['html', 'text', 'headers', 'source'].includes(tab)) return;
+    if (!email || !['html', 'text', 'headers', 'source', 'inspect', 'deliveries'].includes(tab)) return;
     if (tab === 'html' && !email.html) return;
     emailContentTab = tab;
     const shouldLoadSource = tab === 'source' && !emailSourceCache.has(email.id) && !emailSourceOversized.has(email.id);
@@ -1613,6 +1639,7 @@ async function setEmailContentTab(tab, restoreFocus = false) {
     if (restoreFocus) {
         document.getElementById(`email-content-tab-${tab}`)?.focus?.();
     }
+    if (tab === 'deliveries' && !emailToolsFor(email).loaded) await refreshEmailDeliveries();
     if (!shouldLoadSource) return;
     if (Number(email.size) > EMAIL_SOURCE_INLINE_MAX_BYTES) {
         emailSourceOversized.add(email.id);
@@ -1655,7 +1682,7 @@ async function setEmailContentTab(tab, restoreFocus = false) {
 function handleEmailContentTabKeydown(event, tab) {
     const email = state.currentEmail;
     if (!email) return;
-    const tabs = ['html', 'text', 'headers', 'source'].filter((candidate) => candidate !== 'html' || email.html);
+    const tabs = ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'].filter((candidate) => candidate !== 'html' || email.html);
     const current = tabs.indexOf(tab);
     if (current < 0) return;
     let next = current;
@@ -2327,3 +2354,94 @@ window.relayCurrentEmail = relayCurrentEmail;
 window.setEmailContentTab = setEmailContentTab;
 window.handleEmailContentTabKeydown = handleEmailContentTabKeydown;
 window.t = t; // Make translation function available globally
+
+// Only the selected message owns tool state; late responses cannot replace a new selection.
+let emailTools = null;
+function emailToolsFor(email) {
+    if (!emailTools || emailTools.id !== email.id) {
+        emailTools = { id: email.id, subject: '', text: '', hosts: '', codes: false, report: null, error: '', checking: false, busy: false, loaded: false, relay: null, webhook: null, notice: '' };
+    }
+    return emailTools;
+}
+function updateEmailInspectionField(field, value) {
+    if (state.currentEmail && ['subject', 'text', 'hosts', 'codes'].includes(field)) emailToolsFor(state.currentEmail)[field] = value;
+}
+function renderEmailInspection(email) {
+    const tools = emailToolsFor(email);
+    const report = tools.report;
+    return `<section class="email-tools">
+        <label>${t('inspectSubject')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.subject)}" oninput="updateEmailInspectionField('subject', this.value)"></label>
+        <label>${t('inspectText')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.text)}" oninput="updateEmailInspectionField('text', this.value)"></label>
+        <label>${t('inspectHosts')}<input maxlength="2048" value="${escapeHtmlAttribute(tools.hosts)}" oninput="updateEmailInspectionField('hosts', this.value)"></label>
+        <label class="email-tools-checkbox"><input type="checkbox" ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
+        <button type="button" class="btn btn-secondary" ${tools.checking ? 'disabled' : ''} onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
+        <div role="status" aria-live="polite">
+        ${tools.error ? `<p class="error">${escapeHtml(tools.error)}</p>` : ''}
+        ${report ? `<h3>${t(report.passed ? 'inspectPass' : 'inspectFail')}</h3>
+            <ul>${report.checks.map(check => `<li>${check.passed ? '✓' : '✗'} ${escapeHtml(check.name.startsWith('subject_contains') ? t('inspectSubject') : check.name.startsWith('text_contains') ? t('inspectText') : check.name === 'allowed_link_hosts' ? 'Link hosts' : check.name)}: ${escapeHtml(check.message)}</li>`).join('')}</ul>
+            ${report.links_truncated || report.extractions_truncated ? `<p class="error">${t('inspectTruncated')}</p>` : ''}
+            <h4>Links</h4><ul>${report.links.map(link => `<li>${escapeHtml(link.url)}</li>`).join('')}</ul>
+            ${Object.entries(report.extractions).map(([name, values]) => `<h4>${escapeHtml(name)}</h4><ul>${values.map(value => `<li><code>${escapeHtml(value)}</code></li>`).join('')}</ul>`).join('')}` : ''}
+        </div></section>`;
+}
+async function emailToolRequest(path, options) {
+    const response = await fetch(`${API_BASE}${path}`, options);
+    if (!response.ok) throw new Error(parseAPIError(await response.text()));
+    return response.json();
+}
+async function runEmailInspection() {
+    if (!state.currentEmail) return;
+    const tools = emailToolsFor(state.currentEmail);
+    if (tools.checking) return;
+    tools.checking = true; tools.error = ''; tools.report = null;
+    const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: tools.text ? [tools.text] : [] };
+    if (tools.hosts.trim()) request.allowed_link_hosts = tools.hosts.split(',').map(host => host.trim()).filter(Boolean);
+    if (tools.codes) request.extract = [{ name: 'codes', pattern: '[0-9]{6}' }];
+    renderEmailDetail();
+    try { tools.report = await emailToolRequest(`/emails/${encodeURIComponent(tools.id)}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) }); }
+    catch (error) { tools.error = String(error.message || error); }
+    finally { tools.checking = false; if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail(); }
+}
+function renderEmailDeliveries(email) {
+    const tools = emailToolsFor(email);
+    const renderGroup = (kind, result, field) => {
+        if (!result) return '';
+        if (result.error) return `<p class="error">${escapeHtml(result.error)}</p>`;
+        const rows = result[field] || [];
+        return `<h3>${kind === 'relay' ? 'Relay' : 'Webhook'}</h3>
+            ${result.persistence_healthy === false ? `<p class="error">${t('workflowHealth')}</p>` : ''}
+            ${result.enabled === false ? `<p>${t('workflowDisabled')}</p>` : ''}
+            ${rows.length ? `<ul class="email-delivery-list">${rows.map((job, index) => `<li><code>${escapeHtml(job.id)}</code> — ${escapeHtml(job.status)}
+                ${kind === 'relay' ? `<p>Attempts: ${escapeHtml(String(job.attempts))}; ${escapeHtml(job.errorCategory || '')}</p>
+                <p>${escapeHtml((job.confirmedRecipients || []).join(', '))}</p>
+                ${job.nextAttemptAt ? `<p>Next attempt: ${escapeHtml(job.nextAttemptAt)}</p>` : ''}` : `<ul>${(job.outcomes || []).map(outcome => `<li>${escapeHtml(outcome.target || 'Queue')}: ${escapeHtml(outcome.error_category || 'Succeeded')}; attempts: ${escapeHtml(String(outcome.attempts))}; HTTP: ${escapeHtml(String(outcome.status_code))}</li>`).join('')}</ul>`}
+                ${job.status === 'failed' ? `<button type="button" class="btn btn-secondary" ${tools.busy ? 'disabled' : ''} onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
+            ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
+    };
+    return `<section class="email-tools"><button type="button" class="btn btn-secondary" ${tools.busy ? 'disabled' : ''} onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
+        <p role="status" aria-live="polite">${escapeHtml(tools.notice)}</p>
+        ${renderGroup('relay', tools.relay, 'jobs')}${renderGroup('webhook', tools.webhook, 'deliveries')}</section>`;
+}
+async function refreshEmailDeliveries() {
+    if (!state.currentEmail) return;
+    const tools = emailToolsFor(state.currentEmail);
+    if (tools.busy) return;
+    tools.busy = true; renderEmailDetail();
+    const query = `?email_id=${encodeURIComponent(tools.id)}&limit=100`;
+    const results = await Promise.allSettled([emailToolRequest(`/relay-jobs${query}`), emailToolRequest(`/webhook-deliveries${query}`)]);
+    tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
+    tools.webhook = results[1].status === 'fulfilled' ? results[1].value : { error: String(results[1].reason.message || results[1].reason) };
+    tools.busy = false; tools.loaded = true;
+    if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail();
+}
+async function retryEmailWorkflow(kind, index) {
+    if (!state.currentEmail || !['relay', 'webhook'].includes(kind)) return;
+    const tools = emailToolsFor(state.currentEmail);
+    const field = kind === 'relay' ? 'jobs' : 'deliveries';
+    const job = tools[kind]?.[field]?.[index];
+    if (tools.busy || !job || job.status !== 'failed' || !confirm(t('workflowRetryConfirm'))) return;
+    tools.busy = true; tools.notice = ''; renderEmailDetail();
+    try { await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' }); job.status = 'queued'; tools.notice = t('workflowQueued'); }
+    catch (error) { tools.notice = String(error.message || error); }
+    finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail(); }
+}

@@ -915,3 +915,13 @@ body.dark-theme ::-webkit-scrollbar-thumb {
 body.dark-theme ::-webkit-scrollbar-thumb:hover {
     background: #777;
 }
+
+.email-tools { padding: 1rem; }
+.email-tools label { display: block; margin-bottom: 1rem; }
+.email-tools input:not([type="checkbox"]) { display: block; width: 100%; box-sizing: border-box; margin-top: .4rem; padding: .6rem; border: 1px solid  #d0d5dd; border-radius: .4rem; color: #333; background: #fff; }
+.email-tools .email-tools-checkbox { display: flex; gap: .5rem; align-items: center; }
+.email-delivery-list { padding-left: 1.2rem; }
+.email-delivery-list li { margin-bottom: 1rem; overflow-wrap: anywhere; }
+.email-content-tabs { flex-wrap: wrap; }
+
+body.dark-theme .email-tools input:not([type="checkbox"]) { color: #eee; background: #252525; border-color: #555; }
