@@ -410,17 +410,13 @@ func TestDeferredAPILoadsAndProtectsQueuedWorkBeforeStartingRecovery(t *testing.
 	}
 
 	restarted.StartRelayRecovery()
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		started, ok := restarted.relayJobs.get(job.ID)
-		if !ok || started.Attempts > 0 || started.CompletedAt != nil {
-			break
-		}
-		if time.Now().After(deadline) {
-			t.Fatal("deferred relay recovery did not start")
-		}
-		time.Sleep(time.Millisecond)
+	// Wait for persistence to finish before TempDir cleanup; an attempt reservation
+	// only proves the worker started and can still be followed by a spool write.
+	completed, ok := waitForTerminalRelayJob(t, restarted.relayJobs, job.ID)
+	if !ok || completed.Attempts == 0 {
+		t.Fatalf("deferred recovery did not complete: %#v", completed)
 	}
+
 }
 
 func waitForTerminalRelayJob(t *testing.T, store *relayJobStore, id string) (relayJob, bool) {
