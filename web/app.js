@@ -1912,6 +1912,27 @@ async function loadRelayAvailability() {
     }
 }
 
+async function waitForRelayJob(statusUrl) {
+        while (true) {
+            let statusResult;
+            try {
+                statusResult = await API.getRelayJob(statusUrl);
+            } catch (error) {
+                if (!relayStatusErrorIsTransient(error)) {
+                    throw error;
+                }
+                console.warn('Relay status check failed; retrying:', error);
+                await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+                continue;
+            }
+            const current = statusResult && statusResult.data;
+            if (current && (current.status === 'succeeded' || current.status === 'failed')) {
+                return current;
+            }
+            await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+        }
+}
+
 async function relayCurrentEmail(id, askForRecipient = false) {
     if (!relayEnabled || relayPending.has(id)) return;
     let relayTo = '';
@@ -1952,7 +1973,6 @@ async function relayCurrentEmail(id, askForRecipient = false) {
     relayPending.add(id);
     syncRelayMutationControls();
     updateEmailRelayControls();
-    let releasePending = true;
     try {
         const result = await API.relayEmail(id, relayTo, confirmedRecipients);
         const data = result && result.data;
@@ -1961,34 +1981,12 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         if (!data || !data.statusUrl) {
             throw new Error('Relay status URL is missing');
         }
-        releasePending = false;
-        while (true) {
-            let statusResult;
-            try {
-                statusResult = await API.getRelayJob(data.statusUrl);
-            } catch (error) {
-                if (!relayStatusErrorIsTransient(error)) {
-                    releasePending = true;
-                    throw error;
-                }
-                console.warn('Relay status check failed; retrying:', error);
-                await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
-                continue;
-            }
-            const current = statusResult && statusResult.data;
-            if (current && (current.status === 'succeeded' || current.status === 'failed')) {
-                releasePending = true;
-                if (current.status === 'failed') {
-                    throw new Error(current.errorCategory || 'delivery failed');
-                }
-                break;
-            }
-            await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
-        }
+        const completed = await waitForRelayJob(data.statusUrl);
+        if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
     } catch (error) {
         alert(t('relayError', { error: parseAPIError(error) }));
     } finally {
-        if (releasePending) relayPending.delete(id);
+        relayPending.delete(id);
         syncRelayMutationControls();
         if (state.currentEmail && state.currentEmail.id === id) updateEmailRelayControls();
     }
@@ -2500,7 +2498,29 @@ async function retryEmailWorkflow(kind, index) {
     const job = tools[kind]?.[field]?.[index];
     if (tools.busy || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
-    try { await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' }); job.status = 'queued'; tools.notice = t('workflowQueued'); }
+    try {
+        const result = await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' });
+        tools.notice = t('workflowQueued');
+        if (kind === 'relay') {
+            const data = result?.data;
+            if (!data?.job || !data.statusUrl) throw new Error('Relay retry status is missing');
+            tools.relay.jobs.unshift(data.job);
+            relayPending.add(tools.id);
+            syncRelayMutationControls();
+            if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
+            if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
+            try {
+                const completed = await waitForRelayJob(data.statusUrl);
+                Object.assign(data.job, completed);
+                if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
+            }
+            finally {
+                relayPending.delete(tools.id);
+                syncRelayMutationControls();
+                if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
+            }
+        } else { job.status = 'queued'; }
+    }
     catch (error) { tools.notice = String(error.message || error); }
     finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus(); }
 }
