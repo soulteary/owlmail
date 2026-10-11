@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // RelayRecoveryInspection is an offline inventory; no records are changed or delivered.
@@ -29,7 +30,14 @@ func InspectRelayRecovery(mailDirectory string) (RelayRecoveryInspection, error)
 	if err != nil {
 		return result, err
 	}
-	if len(jobs) > defaultRelayJobLimit {
+	retained := 0
+	now := time.Now().UTC()
+	for _, job := range jobs {
+		if job.CompletedAt == nil || now.Sub(*job.CompletedAt) <= defaultRelayJobTTL {
+			retained++
+		}
+	}
+	if retained > defaultRelayJobLimit {
 		return result, fmt.Errorf("relay recovery record limit exceeded")
 	}
 	seen := make(map[string]bool)

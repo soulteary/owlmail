@@ -73,3 +73,38 @@ func TestDoctorMalformedConfigDoesNotEchoValues(t *testing.T) {
 		t.Fatal("echoed config secret")
 	}
 }
+
+func TestDoctorListenerAddressOverlap(t *testing.T) {
+	for _, tc := range []struct {
+		left, right        string
+		overlap, uncertain bool
+	}{
+		{"127.0.0.1", "127.0.0.2", false, false},
+		{"127.0.0.1", "127.0.0.1", true, false},
+		{"0.0.0.0", "127.0.0.2", true, false},
+		{"::", "127.0.0.1", true, false},
+		{"localhost", "127.0.0.1", false, true},
+	} {
+		got, uncertain := doctorListenerOverlap(tc.left, 1025, tc.right, 1025)
+		if got != tc.overlap || uncertain != tc.uncertain {
+			t.Fatalf("%+v: %v %v", tc, got, uncertain)
+		}
+	}
+}
+func TestDoctorRejectsManagedIndexNamespace(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".owlmail-meta"), 0700); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := doctorConfig([]string{"-mail-directory", dir, "-mail-index-path", filepath.Join(dir, ".owlmail-meta", "index.db")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report := inspectDoctorConfig(cfg)
+	for _, check := range report.Checks {
+		if check.Name == "mail_index_namespace" && check.Status == "fail" {
+			return
+		}
+	}
+	t.Fatal("managed index was accepted", report)
+}

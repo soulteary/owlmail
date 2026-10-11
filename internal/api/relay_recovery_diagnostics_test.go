@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -69,5 +70,32 @@ func TestOfflineRelayInspectionDoesNotCreateMetadata(t *testing.T) {
 	}
 	if _, err = os.Stat(filepath.Join(dir, ".owlmail-meta")); !os.IsNotExist(err) {
 		t.Fatal("created metadata", err)
+	}
+}
+
+func TestOfflineRelayInspectionExcludesExpiredRecordsFromCapacity(t *testing.T) {
+	dir := t.TempDir()
+	store, err := newPersistentRelayJobStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-48 * time.Hour)
+	for index := 0; index <= defaultRelayJobLimit; index++ {
+		job := relayJob{ID: fmt.Sprintf("%032x", index+1), EmailID: "expired-source", RelayTo: "recipient@example.test", Status: relayJobSucceeded, CreatedAt: old, UpdatedAt: old, CompletedAt: &old}
+		if err := store.persistLocked(job); err != nil {
+			t.Fatal(err)
+		}
+	}
+	report, err := InspectRelayRecovery(dir)
+	if err != nil || report.Completed != defaultRelayJobLimit+1 {
+		t.Fatal(report, err)
+	}
+	entries, err := os.ReadDir(store.directory)
+	if err != nil || len(entries) != defaultRelayJobLimit+1 {
+		t.Fatal("inspection changed spool", err, len(entries))
+	}
+	recovered, err := newPersistentRelayJobStore(dir)
+	if err != nil || len(recovered.jobs) != 0 {
+		t.Fatal("normal recovery disagrees", err)
 	}
 }

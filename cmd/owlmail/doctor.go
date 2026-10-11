@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
@@ -108,8 +109,17 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 	}
 	add("configuration", err == nil, message)
 	add("web_auth", (cfg.WebUser == "") == (cfg.WebPassword == ""), "Web username and password must be configured together")
-	collision := cfg.SMTPPort == cfg.WebPort || cfg.TLSEnabled && cfg.SMTPSPort != 0 && (cfg.SMTPSPort == cfg.SMTPPort || cfg.SMTPSPort == cfg.WebPort)
-	add("listener_ports", !collision, "Enabled listeners must use distinct ports")
+	collision, uncertain := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPPort, cfg.WebHost, cfg.WebPort)
+	if cfg.TLSEnabled && cfg.SMTPSPort != 0 {
+		sameSMTP, _ := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPHost, cfg.SMTPSPort)
+		sameWeb, unknownWeb := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPSPort, cfg.WebHost, cfg.WebPort)
+		collision = collision || sameSMTP || sameWeb
+		uncertain = uncertain || unknownWeb
+	}
+	add("listener_ports", !collision, "Enabled listeners must not overlap in bind address and port")
+	if uncertain && !collision {
+		note("listener_addresses", "Hostname overlap requires runtime resolution; doctor does not resolve DNS")
+	}
 	for _, item := range []struct {
 		name      string
 		enabled   bool
@@ -151,6 +161,7 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 		add("mail_directory", statErr == nil && info.IsDir(), "Mail directory must be an accessible directory")
 	}
 	if cfg.MailIndexPath != "" {
+		add("mail_index_namespace", mailserver.ValidateMailboxIndexPath(mailDir, cfg.MailIndexPath) == nil, "SQLite index must be outside managed mailbox namespaces")
 		parent, statErr := os.Stat(filepath.Dir(cfg.MailIndexPath))
 		add("mail_index_parent", statErr == nil && parent.IsDir(), "SQLite index parent directory must exist; doctor does not create or open the index")
 	}
@@ -167,4 +178,24 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 		note("outgoing_tls", "Outgoing certificate verification is disabled")
 	}
 	return r
+}
+
+// Hostnames are not resolved because doctor is offline. Distinct literal addresses
+// can share a port; wildcard addresses conservatively overlap other binds.
+func doctorListenerOverlap(leftHost string, leftPort int, rightHost string, rightPort int) (bool, bool) {
+	if leftPort != rightPort {
+		return false, false
+	}
+	leftHost, rightHost = strings.Trim(leftHost, "[]"), strings.Trim(rightHost, "[]")
+	if strings.EqualFold(leftHost, rightHost) {
+		return true, false
+	}
+	left, right := net.ParseIP(leftHost), net.ParseIP(rightHost)
+	if leftHost == "" || rightHost == "" || left != nil && left.IsUnspecified() || right != nil && right.IsUnspecified() {
+		return true, false
+	}
+	if left != nil && right != nil {
+		return left.Equal(right), false
+	}
+	return false, true
 }
