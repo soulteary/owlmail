@@ -93,3 +93,12 @@ func TestHostAllowlistChecksNetworkPathReferences(t *testing.T) {
 		t.Fatal(result, err)
 	}
 }
+
+func TestHostAllowlistFailsBrowserNetworkFormsClosed(t *testing.T) {
+	for _, reference := range []string{`///evil.example.test/path`, `////evil.example.test/path`, `\\evil.example.test/path`, `/\evil.example.test/path`, "ht\ttps://evil.example.test/path", `//`} {
+		result, err := Inspect(&types.Email{HTML: `<a href="` + reference + `">link</a>`}, Request{AllowedLinkHosts: []string{"allowed.example.test"}})
+		if err != nil || result.Passed || len(result.Links) != 1 {
+			t.Fatal(reference, result, err)
+		}
+	}
+}

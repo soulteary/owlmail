@@ -121,6 +121,19 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 	seen := make(map[string]bool)
 	appendLink := func(raw, source string) {
 		candidate := strings.TrimSpace(raw)
+		// Browser HTTP URLs remove embedded tab/newline characters and treat
+		// backslashes and extra leading slashes as authority separators.
+		candidate = strings.Map(func(r rune) rune {
+			if r == '\t' || r == '\r' || r == '\n' {
+				return -1
+			}
+			return r
+		}, candidate)
+		candidate = strings.ReplaceAll(candidate, "\\", "/")
+		networkPath := strings.HasPrefix(candidate, "//")
+		if networkPath {
+			candidate = "//" + strings.TrimLeft(candidate, "/")
+		}
 		u, err := url.Parse(candidate)
 		if raw == "" {
 			return
@@ -138,6 +151,9 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 			// Keep malformed HTTP candidates visible and fail host assertions closed.
 		} else {
 			scheme, host = strings.ToLower(u.Scheme), strings.ToLower(u.Hostname())
+			if networkPath && host == "" {
+				scheme = "http"
+			}
 		}
 		key := source + "\x00" + raw
 		if seen[key] {
