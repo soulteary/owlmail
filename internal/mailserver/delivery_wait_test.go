@@ -195,3 +195,34 @@ func TestDeliveryWaitCursorDoesNotSkipUnreturnedMatches(t *testing.T) {
 		t.Fatal(received)
 	}
 }
+
+func TestDeliveryWaitSequenceOrderSurvivesReloadSort(t *testing.T) {
+	server := deliveryTestServer(t)
+	cursor := server.DeliveryCursor()
+	for index, id := range []string{"a-newer", "z-older"} {
+		path := filepath.Join(server.mailDir, id+".eml")
+		if err := os.WriteFile(path, []byte("Subject: reload\r\n\r\nbody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		stamp := time.Now().Add(-time.Duration(index+1) * time.Hour)
+		if err := os.Chtimes(path, stamp, stamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := server.LoadMailsFromDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	server.storeMutex.RLock()
+	first := server.storeOrder[0]
+	server.storeMutex.RUnlock()
+	if first != "z-older" {
+		t.Fatal("reload did not exercise reversed capture order", first)
+	}
+	for _, expected := range []string{"a-newer", "z-older"} {
+		result, err := server.WaitDeliveries(context.Background(), cursor, DeliveryFilter{}, 1, time.Second)
+		if err != nil || len(result.Emails) != 1 || result.Emails[0].ID != expected {
+			t.Fatal(result, err, expected)
+		}
+		cursor = result.Cursor
+	}
+}

@@ -1,6 +1,7 @@
 package webhook
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -167,5 +168,45 @@ func TestHistoryPrunesOldestRecordsToEncodedBudget(t *testing.T) {
 	recovered, err := newDeliveryHistory(spool)
 	if err != nil || len(recovered.records) != len(history.records) {
 		t.Fatal(err, len(recovered.records), len(history.records))
+	}
+}
+
+type blockedReplayQueue struct {
+	fakeDeliveryQueue
+	entered chan struct{}
+}
+
+func (queue *blockedReplayQueue) Enqueue(ctx context.Context, _ deliveryJob) error {
+	close(queue.entered)
+	<-ctx.Done()
+	return ctx.Err()
+}
+func TestReplayAdmissionDoesNotBlockShutdownCancellation(t *testing.T) {
+	dispatcher, err := NewDispatcher(Config{Targets: []Target{{Name: "failed", URL: "http://127.0.0.1:1"}}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	queue := &blockedReplayQueue{entered: make(chan struct{})}
+	email := testEmail()
+	history := &deliveryHistory{records: map[string]DeliveryRecord{"replay": {ID: "replay", EmailID: email.ID, Status: "failed", CompletedAt: time.Now(), Outcomes: []DeliveryOutcome{{Target: "failed", ErrorCategory: "transport"}}}}}
+	service := &Service{dispatcher: dispatcher, queue: queue, history: history, ctx: ctx, cancel: cancel, accepting: true, shutdownTimeout: 20 * time.Millisecond}
+	finished := make(chan error, 1)
+	go func() { finished <- service.RetryDelivery("replay", email) }()
+	<-queue.entered
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		if err == nil {
+			t.Fatal("expected drain timeout")
+		}
+	case <-time.After(time.Second):
+		cancel()
+		t.Fatal("shutdown could not cancel replay")
+	}
+	if err := <-finished; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
 	}
 }

@@ -20,6 +20,9 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[Offline Configuration and Recovery Diagnostics](./Configuration-Doctor.md)**
+  - Read-only startup checks and durable relay recovery inventory.
+
 - **[Integration Testing](./Integration-Testing.md)**
   - Deterministic SMTP capture, REST assertions, parallel isolation, and failure diagnosis.
   - **Runnable examples**: [JavaScript, Go, Python, and Compose](../../examples/testing/README.md)

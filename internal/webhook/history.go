@@ -191,11 +191,14 @@ func (service *Service) DeliveryHistory() ([]DeliveryRecord, bool) {
 // RetryDelivery replays only failed configured targets using the original idempotency key.
 // The caller must supply a retained, detached email snapshot with the same ID.
 func (service *Service) RetryDelivery(id string, email *types.Email) error {
-	service.handoffMutex.RLock()
-	defer service.handoffMutex.RUnlock()
+	service.handoffMutex.Lock()
 	if !service.accepting {
+		service.handoffMutex.Unlock()
 		return fmt.Errorf("webhook service is shutting down")
 	}
+	service.handoffs.Add(1)
+	service.handoffMutex.Unlock()
+	defer service.handoffs.Done()
 	service.history.mu.Lock()
 	record, ok := service.history.records[id]
 	service.history.mu.Unlock()

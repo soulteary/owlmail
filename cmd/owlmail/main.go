@@ -1143,6 +1143,15 @@ func reportMCPStdioResult(err error, stderr io.Writer) int {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "doctor" {
+		if err := runDoctor(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+			if errors.Is(err, flag.ErrHelp) {
+				return
+			}
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
