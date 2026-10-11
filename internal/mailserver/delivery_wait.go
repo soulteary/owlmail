@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -167,15 +168,18 @@ func (ms *MailServer) WaitDeliveries(ctx context.Context, after string, filter D
 		}
 		result.Emails = result.Emails[:0]
 		scannedSequence := ms.deliverySequence
-		for _, id := range ms.storeOrder {
-			if ms.deliverySequences[id] > sequence {
-				if e := ms.storeByID[id]; filter.Matches(e) {
-					result.Emails = append(result.Emails, cloneEmail(e))
-					if len(result.Emails) == count {
-						scannedSequence = ms.deliverySequences[id]
-						break
-					}
-				}
+		matching := make([]string, 0)
+		for id, delivery := range ms.deliverySequences {
+			if delivery > sequence && filter.Matches(ms.storeByID[id]) {
+				matching = append(matching, id)
+			}
+		}
+		sort.Slice(matching, func(i, j int) bool { return ms.deliverySequences[matching[i]] < ms.deliverySequences[matching[j]] })
+		for _, id := range matching {
+			result.Emails = append(result.Emails, cloneEmail(ms.storeByID[id]))
+			if len(result.Emails) == count {
+				scannedSequence = ms.deliverySequences[id]
+				break
 			}
 		}
 		result.Cursor = ms.deliveryEpoch + ":" + strconv.FormatUint(scannedSequence, 10)
