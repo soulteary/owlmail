@@ -94,7 +94,9 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['emailList', emailList],
         ['emailViewportFrame', emailViewportFrame],
         ['emailViewportStage', emailViewportStage],
-        ['email-content-tab-source', emailSourceTab]
+        ['email-content-tab-source', emailSourceTab],
+        ['emailInspectionRun', createElement()],
+        ['emailInspectionStatus', createElement()]
     ]);
     const notifications = [];
     const fetchRequests = [];
@@ -1049,8 +1051,8 @@ test('verification submits exact assertions and safely renders extracted mail co
     assert.deepEqual(body.allowed_link_hosts, ['app.example.test', 'login.example.test']);
     assert.deepEqual(body.text_contains, ['Expected']);
     assert.deepEqual('1234567 123456 912345678'.match(new RegExp(body.extract[0].pattern, 'g')), ['123456']);
-    assert.match(harness.emailDetail.innerHTML, /Checks failed/);
-    assert.match(harness.emailDetail.innerHTML, /&lt;script&gt;bad/);
+    assert.match(harness.run("document.getElementById('emailInspectionStatus').innerHTML"), /Checks failed/);
+    assert.match(harness.run("document.getElementById('emailInspectionStatus').innerHTML"), /&lt;script&gt;bad/);
     assert.equal(harness.emailDetail.innerHTML.includes('<script>bad'), false);
     assert.match(harness.emailDetail.innerHTML, /run-a/);
 });
@@ -1161,4 +1163,31 @@ test('delivery completion does not rerender an inactive Verify panel', async () 
     await refresh;
     assert.equal(harness.run('document.activeElement.id'), 'verification-input');
     assert.equal(harness.run('emailTools.loaded'), true);
+});
+
+
+test('verification updates status in place and retains the keyboard run button', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'inspect'; document.getElementById('emailInspectionRun').focus(); const original = renderEmailDetail; renderEmailDetail = () => { original(); document.activeElement = null; };`);
+    const pending = harness.run('runEmailInspection()');
+    assert.equal(harness.run("document.activeElement === document.getElementById('emailInspectionRun')"), true);
+    finish(jsonResponse({ passed: true, checks: [], links: [], extractions: {} }));
+    await pending;
+    assert.equal(harness.run("document.activeElement === document.getElementById('emailInspectionRun')"), true);
+    assert.match(harness.run("document.getElementById('emailInspectionStatus').innerHTML"), /Checks passed/);
+});
+
+test('retry completion retains an inactive panel and its focused input', async () => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    const harness = createHarness({ fetchImpl: async () => waiting });
+    harness.run(`state.currentEmail = { id: 'mail-1', text: 'hello', attachments: [] }; emailContentTab = 'deliveries'; emailToolsFor(state.currentEmail).relay = { jobs: [{ id: 'job-1', status: 'failed' }] };`);
+    const pending = harness.run("retryEmailWorkflow('relay', 0)");
+    harness.run(`emailContentTab = 'inspect'; document.activeElement = { id: 'verification-input' }; const original = renderEmailDetail; renderEmailDetail = () => { original(); document.activeElement = null; };`);
+    finish(jsonResponse({ success: true }));
+    await pending;
+    assert.equal(harness.run('document.activeElement.id'), 'verification-input');
+    assert.equal(harness.run('emailTools.relay.jobs[0].status'), 'queued');
 });

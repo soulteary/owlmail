@@ -2375,21 +2375,30 @@ function updateEmailInspectionField(field, value) {
 }
 function renderEmailInspection(email) {
     const tools = emailToolsFor(email);
-    const report = tools.report;
     return `<section class="email-tools">
         <label>${t('inspectSubject')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.subject)}" oninput="updateEmailInspectionField('subject', this.value)"></label>
         <label>${t('inspectText')}<input maxlength="1024" value="${escapeHtmlAttribute(tools.text)}" oninput="updateEmailInspectionField('text', this.value)"></label>
         <label>${t('inspectHosts')}<input maxlength="2048" value="${escapeHtmlAttribute(tools.hosts)}" oninput="updateEmailInspectionField('hosts', this.value)"></label>
         <label class="email-tools-checkbox"><input type="checkbox" ${tools.codes ? 'checked' : ''} onchange="updateEmailInspectionField('codes', this.checked)">${t('inspectCodes')}</label>
-        <button id="emailInspectionRun" type="button" class="btn btn-secondary" ${tools.checking ? 'disabled' : ''} onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
+        <button id="emailInspectionRun" type="button" class="btn btn-secondary" aria-disabled="${tools.checking}" onclick="runEmailInspection()">${t(tools.checking ? 'loading' : 'inspectRun')}</button>
         <div id="emailInspectionStatus" role="status" aria-live="polite">
-        ${tools.error ? `<p class="error">${escapeHtml(tools.error)}</p>` : ''}
+        ${renderEmailInspectionReport(tools)}
+        </div></section>`;
+}
+function renderEmailInspectionReport(tools) {
+    const report = tools.report;
+    return `        ${tools.error ? `<p class="error">${escapeHtml(tools.error)}</p>` : ''}
         ${report ? `<h3>${t(report.passed ? 'inspectPass' : 'inspectFail')}</h3>
             <ul>${report.checks.map(check => `<li>${check.passed ? '✓' : '✗'} ${escapeHtml(check.name.startsWith('subject_contains') ? t('inspectSubject') : check.name.startsWith('text_contains') ? t('inspectText') : check.name === 'allowed_link_hosts' ? 'Link hosts' : check.name)}: ${escapeHtml(check.message)}</li>`).join('')}</ul>
             ${report.links_truncated || report.extractions_truncated ? `<p class="error">${t('inspectTruncated')}</p>` : ''}
             <h4>Links</h4><ul>${report.links.map(link => `<li>${escapeHtml(link.url)}</li>`).join('')}</ul>
-            ${Object.entries(report.extractions).map(([name, values]) => `<h4>${escapeHtml(name)}</h4><ul>${values.map(value => `<li><code>${escapeHtml(value)}</code></li>`).join('')}</ul>`).join('')}` : ''}
-        </div></section>`;
+            ${Object.entries(report.extractions).map(([name, values]) => `<h4>${escapeHtml(name)}</h4><ul>${values.map(value => `<li><code>${escapeHtml(value)}</code></li>`).join('')}</ul>`).join('')}` : ''}`;
+}
+function updateEmailInspectionDisplay(tools) {
+    const button = document.getElementById('emailInspectionRun');
+    if (button) { button.setAttribute('aria-disabled', String(tools.checking)); button.textContent = t(tools.checking ? 'loading' : 'inspectRun'); }
+    const status = document.getElementById('emailInspectionStatus');
+    if (status) status.innerHTML = renderEmailInspectionReport(tools);
 }
 async function emailToolRequest(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
@@ -2405,7 +2414,7 @@ async function runEmailInspection() {
     const request = { subject_contains: tools.subject ? [tools.subject] : [], text_contains: tools.text ? [tools.text] : [] };
     if (tools.hosts.trim()) request.allowed_link_hosts = tools.hosts.split(',').map(host => host.trim()).filter(Boolean);
     if (tools.codes) request.extract = [{ name: 'codes', pattern: '\\b([0-9]{6})\\b' }];
-    renderEmailDetail();
+    updateEmailInspectionDisplay(tools);
     try {
         const report = await emailToolRequest(`/emails/${encodeURIComponent(tools.id)}/check`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(request) });
         if (tools.revision === revision) tools.report = report;
@@ -2414,11 +2423,7 @@ async function runEmailInspection() {
     finally {
         tools.checking = false;
         if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'inspect') {
-            if (tools.revision === revision) renderEmailDetail();
-            else {
-                const button = document.getElementById('emailInspectionRun');
-                if (button) { button.disabled = false; button.textContent = t('inspectRun'); }
-            }
+            updateEmailInspectionDisplay(tools);
         }
     }
 }
@@ -2472,5 +2477,5 @@ async function retryEmailWorkflow(kind, index) {
     tools.busy = true; tools.notice = ''; renderEmailDetail();
     try { await emailToolRequest(`/${kind === 'relay' ? 'relay-jobs' : 'webhook-deliveries'}/${encodeURIComponent(job.id)}/retry`, { method: 'POST' }); job.status = 'queued'; tools.notice = t('workflowQueued'); }
     catch (error) { tools.notice = String(error.message || error); }
-    finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id) renderEmailDetail(); }
+    finally { tools.busy = false; if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus(); }
 }
