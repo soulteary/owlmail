@@ -466,7 +466,10 @@ body {
     display: block;
     width: 100%;
     border: none;
+    height: 70vh;
     min-height: 400px;
+    color-scheme: light;
+    background: #fff;
 }
 
 .email-detail-attachments {

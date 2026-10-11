@@ -1323,3 +1323,66 @@ test('delivery retry focus follows job identity when refresh reorders records', 
     assert.equal(harness.run('document.activeElement.jobID'), 'selected');
     assert.match(harness.run("document.getElementById('emailDeliveriesPanel').outerHTML"), /id="email-workflow-retry-relay-selected"/);
 });
+
+ test('theme follows the system without saving an implicit preference', () => {
+    const harness = createHarness();
+    const media = { matches: true, addEventListener(name, handler) { this.change = handler; } };
+    harness.window.matchMedia = () => media;
+    harness.run('initTheme()');
+    assert.equal(harness.run("document.body.classList.contains('dark-theme')"), true);
+    assert.equal(harness.storage.has('theme'), false);
+    media.matches = false;
+    media.change();
+    assert.equal(harness.run("document.body.classList.contains('light-theme')"), true);
+    harness.run('toggleTheme()');
+    assert.equal(harness.storage.get('theme'), 'dark');
+    media.change();
+    assert.equal(harness.run("document.body.classList.contains('dark-theme')"), true);
+});
+
+test('theme, language and viewport remain usable with blocked browser storage', () => {
+    const harness = createHarness();
+    harness.run("localStorage.getItem = localStorage.setItem = () => { throw new Error('blocked'); }");
+    harness.run("initTheme(); toggleTheme(); setEmailViewport('375'); detectLanguage()");
+    assert.equal(harness.run('currentTheme'), 'dark');
+    assert.equal(harness.emailViewportFrame.style.width, '375px');
+    harness.run('toggleTheme()');
+    assert.equal(harness.run('currentTheme'), 'light');
+});
+
+test('preview width persists only valid preset choices', () => {
+    const harness = createHarness();
+    harness.run("setEmailViewport('425')");
+    assert.equal(harness.storage.get('owlmail.previewWidth'), '425');
+    harness.run("setEmailViewport('bad')");
+    assert.equal(harness.storage.get('owlmail.previewWidth'), '425');
+});
+
+test('search shortcut focuses search and ignores composition and interactive targets', () => {
+    const harness = createHarness();
+    harness.run("const search = document.createElement('input'); document.getElementById = id => id === 'searchInput' ? search : null;");
+    harness.run("handleMailboxKeydown({key:'/', target:{tagName:'BODY'}, preventDefault(){}})");
+    assert.equal(harness.run('search.focused'), true);
+    harness.run('search.focused = false');
+    harness.run("handleMailboxKeydown({key:'/', isComposing:true, preventDefault(){}})");
+    harness.run("handleMailboxKeydown({key:'/', target:{closest(){return {}; }}, preventDefault(){}})");
+    assert.equal(harness.run('search.focused'), false);
+});
+
+test('Delete shortcut retains confirmation and ignores held keys', async () => {
+    const harness = createHarness();
+    harness.run("state.currentEmail = {id:'mail-1'}; confirm = () => false;");
+    await harness.run("handleMailboxKeydown({key:'Delete', preventDefault(){}})");
+    assert.equal(harness.fetchRequests.length, 0);
+    assert.equal(harness.run('state.currentEmail.id'), 'mail-1');
+    harness.run("confirm = () => { throw new Error('repeat must not confirm'); }");
+    await harness.run("handleMailboxKeydown({key:'Delete', repeat:true, preventDefault(){}})");
+});
+
+test('HTML previews keep explicit light color rendering inside the sandbox', () => {
+    const harness = createHarness();
+    const html = harness.run("renderHTML('<p>Message colors</p>', 'mail-1', [])");
+    assert.match(html, /color-scheme/);
+    assert.match(html, /sandbox=""/);
+    assert.match(styleSource, /height: 70vh/);
+});

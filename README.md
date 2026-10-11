@@ -893,3 +893,18 @@ If this project helps you, please give it a Star ⭐!
 ---
 
 **OwlMail** — one self-hosted email test gateway for developers, CI, automation, and AI agents. 🦉
+
+### Mail preview controls
+
+The interface follows the system color scheme until a theme is chosen with the
+header toggle (or `t`). Theme and preview width preferences are saved when browser
+storage is available; blocked storage does not prevent using the mailbox. Mail
+HTML retains its own colors on a white preview canvas in either interface theme.
+The sandboxed preview scrolls vertically for long messages; fixed width presets
+scroll horizontally without reloading the message or allowing message scripts.
+
+Mailbox shortcuts: `j`/`k` or Up/Down select messages, `/` focuses search, `r`
+refreshes, `t` switches theme, Escape closes the selected message, and Delete
+deletes it after confirmation. Shortcuts are inactive while editing text, using
+buttons or links, composing text, or holding modifier keys. Preview width buttons
+are available with Tab and Enter/Space.

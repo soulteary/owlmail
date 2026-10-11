@@ -725,7 +725,7 @@ const languageCodeMap = {
 // Detect browser language
 function detectLanguage() {
     // Check localStorage first
-    const savedLang = localStorage.getItem('language');
+    const savedLang = readPreference('language');
     if (savedLang && i18n[savedLang]) {
         return savedLang;
     }
@@ -842,7 +842,7 @@ function setLanguage(lang, renderDynamic = true) {
         lang = 'en';
     }
     currentLang = lang;
-    localStorage.setItem('language', lang);
+    writePreference('language', lang);
     document.documentElement.lang = lang;
     updateUI(renderDynamic);
     if (browserNotificationsInitialized) updateBrowserNotificationButton();
@@ -920,8 +920,20 @@ function isEditableKeyboardTarget(target) {
 }
 
 function handleMailboxKeydown(event) {
-    if (!event || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
+    if (!event || event.defaultPrevented || event.isComposing || event.repeat || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
         return;
+    }
+    if (event.target && event.target.closest && event.target.closest('button, a, [role=dialog], [role=menu], [contenteditable]')) return;
+    if (event.key === '/') {
+        const search = document.getElementById('searchInput');
+        if (search) { event.preventDefault(); search.focus(); }
+        return;
+    }
+    if (event.key === 'r') { event.preventDefault(); return loadEmails(); }
+    if (event.key === 't') { event.preventDefault(); toggleTheme(); return; }
+    if (event.key === 'Delete' && state.currentEmail) {
+        event.preventDefault();
+        return deleteEmail(state.currentEmail.id);
     }
     if (event.key === 'Escape' && state.currentEmail) {
         event.preventDefault();
@@ -965,7 +977,14 @@ const EMAIL_VIEWPORT_PRESETS = Object.freeze([
     { key: '375', label: '375 px', width: '375px' },
     { key: '320', label: '320 px', width: '320px' }
 ]);
-let emailViewportPreset = '100%';
+function readPreference(key) {
+    try { return localStorage.getItem(key); } catch (_) { return null; }
+}
+function writePreference(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) { /* Preferences remain usable for this session. */ }
+}
+const savedViewport = readPreference('owlmail.previewWidth');
+let emailViewportPreset = EMAIL_VIEWPORT_PRESETS.some((preset) => preset.key === savedViewport) ? savedViewport : '100%';
 let emailContentTab = 'html';
 const EMAIL_SOURCE_INLINE_MAX_BYTES = 1024 * 1024;
 const emailSourceCache = new Map();
@@ -1756,7 +1775,7 @@ function previewContentSecurityPolicy(allowRemote) {
 
 function injectPreviewSecurityHead(html, allowRemote) {
     const securityHead = `<meta http-equiv="Content-Security-Policy" content="${escapeHtml(previewContentSecurityPolicy(allowRemote))}">`
-        + '<meta name="referrer" content="no-referrer">';
+        + '<meta name="referrer" content="no-referrer"><meta name="color-scheme" content="light">';
     if (/<head(?:\s[^>]*)?>/i.test(html)) {
         return html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${securityHead}`);
     }
@@ -1789,6 +1808,7 @@ function setEmailViewport(presetKey) {
     if (!preset) return;
 
     emailViewportPreset = preset.key;
+    writePreference('owlmail.previewWidth', preset.key);
     const viewportFrame = document.getElementById('emailViewportFrame');
     if (!viewportFrame) return;
 
@@ -2223,32 +2243,40 @@ function hideLoading() {
 }
 
 // Theme Management
+let currentTheme = 'light';
+function systemTheme() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
 function initTheme() {
-    const savedTheme = localStorage.getItem('theme') || 'light';
-    setTheme(savedTheme);
-}
-
-function setTheme(theme) {
-    const body = document.body;
-    const themeToggle = document.getElementById('themeToggle');
-    
-    if (theme === 'dark') {
-        body.classList.remove('light-theme');
-        body.classList.add('dark-theme');
-        if (themeToggle) themeToggle.textContent = '☀️';
-    } else {
-        body.classList.remove('dark-theme');
-        body.classList.add('light-theme');
-        if (themeToggle) themeToggle.textContent = '🌙';
+    const saved = readPreference('theme');
+    setTheme(saved === 'dark' || saved === 'light' ? saved : systemTheme(), false);
+    if (window.matchMedia) {
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        media.addEventListener?.('change', () => {
+            const preference = readPreference('theme');
+            if (preference !== 'dark' && preference !== 'light') setTheme(systemTheme(), false);
+        });
     }
-    
-    localStorage.setItem('theme', theme);
+    window.addEventListener('storage', (event) => {
+        if (event.key === 'theme' || event.key === null) {
+            const saved = readPreference('theme');
+            setTheme(saved === 'dark' || saved === 'light' ? saved : systemTheme(), false);
+        }
+    });
 }
-
+function setTheme(theme, persist = true) {
+    currentTheme = theme === 'dark' ? 'dark' : 'light';
+    document.body.classList.remove('light-theme', 'dark-theme');
+    document.body.classList.add(currentTheme + '-theme');
+    const toggle = document.getElementById('themeToggle');
+    if (toggle) {
+        toggle.textContent = currentTheme === 'dark' ? '☀️' : '🌙';
+        toggle.setAttribute('aria-pressed', String(currentTheme === 'dark'));
+    }
+    if (persist) writePreference('theme', currentTheme);
+}
 function toggleTheme() {
-    const currentTheme = localStorage.getItem('theme') || 'light';
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    setTheme(newTheme);
+    setTheme(currentTheme === 'light' ? 'dark' : 'light');
 }
 
 // Language names in their own language (for display in selector)
