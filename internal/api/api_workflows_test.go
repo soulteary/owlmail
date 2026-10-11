@@ -74,6 +74,18 @@ func TestRelayPrunePersistenceFailureIsVisible(t *testing.T) {
 	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Healthy {
 		t.Fatal(result, err)
 	}
+	api.relayJobs.mu.Lock()
+	api.relayJobs.syncDirectory = syncRelayJobDirectory
+	api.relayJobs.mu.Unlock()
+	recovered, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs", nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = recovered.Body.Close() }()
+	if err = json.NewDecoder(recovered.Body).Decode(&result); err != nil || !result.Healthy {
+		t.Fatal("successful deletion retry did not restore health", result, err)
+	}
+
 }
 
 func TestWebhookReplayInfrastructureFailureReturnsUnavailable(t *testing.T) {
