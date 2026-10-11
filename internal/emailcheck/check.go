@@ -124,7 +124,7 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 		if raw == "" {
 			return
 		}
-		scheme, host := "", ""
+		var scheme, host string
 		if err != nil {
 			prefix, _, _ := strings.Cut(raw, ":")
 			scheme = strings.ToLower(prefix)
