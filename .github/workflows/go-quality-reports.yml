@@ -173,11 +173,9 @@ jobs:
           mkdir -p "$(dirname ".github/goreportcard.svg")"
           test ! -L ".github/goreportcard.svg"
           cp "$REPORT_DIR/.github/goreportcard.svg" ".github/goreportcard.svg"
-          test -f "$REPORT_DIR/.github/goreportcard-report.md" && test ! -L "$REPORT_DIR/.github/goreportcard-report.md"
-          mkdir -p "$(dirname ".github/goreportcard-report.md")"
-          test ! -L ".github/goreportcard-report.md"
-          cp "$REPORT_DIR/.github/goreportcard-report.md" ".github/goreportcard-report.md"
-          git add -- .github/go-test-report.md .github/go-test-report.json .github/coverage.svg .github/goreportcard.svg .github/goreportcard-report.md
+          # Full analyzer findings remain in the uploaded artifact for this exact commit.
+          # Keep the tracked explanation stable instead of copying stale source locations.
+          git add -- .github/go-test-report.md .github/go-test-report.json .github/coverage.svg .github/goreportcard.svg
           if git diff --cached --quiet; then exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
