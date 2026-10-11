@@ -1118,7 +1118,7 @@
         renderOutput();
     }
 
-    function applyTheme(theme) {
+    function applyTheme(theme, persist = true) {
         const dark = theme === 'dark';
         document.body.classList.toggle('dark-theme', dark);
         document.body.classList.toggle('light-theme', !dark);
@@ -1126,6 +1126,7 @@
         const label = tr('toggleTheme');
         elements.theme.title = label;
         elements.theme.setAttribute('aria-label', label);
+        if (!persist) return;
         try {
             localStorage.setItem('theme', dark ? 'dark' : 'light');
         } catch (_) {
@@ -1133,12 +1134,25 @@
         }
     }
 
-    function initialTheme() {
-        try {
-            return localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
-        } catch (_) {
-            return 'light';
+
+    function watchTheme() {
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+                const saved = readTheme();
+                if (saved !== 'dark' && saved !== 'light') applyTheme(initialTheme(), false);
+            });
         }
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'theme' || event.key === null) applyTheme(initialTheme(), false);
+        });
+    }
+    function readTheme() {
+        try { return localStorage.getItem('theme'); } catch (_) { return null; }
+    }
+    function initialTheme() {
+        const saved = readTheme();
+        if (saved === 'dark' || saved === 'light') return saved;
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
     function addHeaderRow(container, name, value) {
@@ -1473,7 +1487,8 @@
         document.documentElement.dataset.language = currentLanguage;
         document.title = currentLanguage === 'zh-CN' ? 'OwlMail Webhook 配置生成器' : 'OwlMail Webhook Configurator';
         applyTranslations(document);
-        applyTheme(initialTheme());
+        applyTheme(initialTheme(), false);
+        watchTheme();
 
         elements.language.addEventListener('change', (event) => setLanguage(event.target.value));
         elements.theme.addEventListener('click', () => {

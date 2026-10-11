@@ -581,3 +581,29 @@ test('HTTP field values reject control bytes while allowing horizontal tabs', ()
     assert.equal(codes(result).filter((code) => code === 'contentTypeControl').length, 1);
     assert.equal(configurator.hasInvalidHTTPFieldValue('a\tb'), false);
 });
+
+test('webhook theme follows system and storage without persisting initialization', () => {
+    const themeSource = source.slice(source.indexOf('    function applyTheme('), source.indexOf('    function addHeaderRow('));
+    const classes = new Set();
+    const storage = new Map();
+    const listeners = new Map();
+    const media = {matches:true, addEventListener(name, handler) {this.change = handler;}};
+    const sandbox = {
+        document:{body:{classList:{toggle(name, enabled) {if(enabled) classes.add(name); else classes.delete(name);}}}},
+        elements:{theme:{setAttribute(){}}}, tr:()=> 'Toggle theme',
+        localStorage:{getItem:key=>storage.get(key) || null, setItem:(key,value)=>storage.set(key,value)},
+        window:{matchMedia:()=>media,addEventListener(name,handler){listeners.set(name,handler);}}
+    };
+    vm.createContext(sandbox);
+    vm.runInContext(themeSource + 'applyTheme(initialTheme(), false); watchTheme();', sandbox);
+    assert.equal(classes.has('dark-theme'), true);
+    assert.equal(storage.has('theme'), false);
+    media.matches = false;
+    media.change();
+    assert.equal(classes.has('light-theme'), true);
+    storage.set('theme','dark');
+    listeners.get('storage')({key:'theme'});
+    assert.equal(classes.has('dark-theme'), true);
+    vm.runInContext("applyTheme('light')",sandbox);
+    assert.equal(storage.get('theme'), 'light');
+});

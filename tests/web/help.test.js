@@ -6,8 +6,8 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../../web/help.js'), 'utf8');
 
-function createHarness(savedLanguage) {
-    const storage = new Map([['language', savedLanguage], ['theme', 'light']]);
+function createHarness(savedLanguage, savedTheme = 'light', dark = false) {
+    const storage = new Map([['language', savedLanguage], ['theme', savedTheme]]);
     const listeners = new Map();
     const languageSelect = {
         value: '',
@@ -22,11 +22,15 @@ function createHarness(savedLanguage) {
         { dataset: { language: 'en' }, hidden: false },
         { dataset: { language: 'zh-CN' }, hidden: false }
     ];
+    const classes = new Set();
+    const media = {matches: dark, addEventListener(name, handler) { this.change = handler; }};
+    const windowListeners = new Map();
     const sandbox = {
+        window: {matchMedia: () => media, addEventListener(name, handler) {windowListeners.set(name, handler);}},
         document: {
             title: '',
             documentElement: { lang: '', dataset: {} },
-            body: { classList: { contains: () => false, toggle() {} } },
+            body: { classList: { contains: name => classes.has(name), toggle(name, enabled) {if (enabled) classes.add(name); else classes.delete(name);} } },
             getElementById(id) { return id === 'helpLanguage' ? languageSelect : themeButton; },
             querySelectorAll() { return panels; }
         },
@@ -38,7 +42,7 @@ function createHarness(savedLanguage) {
     };
     vm.createContext(sandbox);
     vm.runInContext(source, sandbox, { filename: 'web/help.js' });
-    return { languageSelect, listeners, storage };
+    return { languageSelect, listeners, storage, classes, media, windowListeners };
 }
 
 test('help fallback does not overwrite the inbox language preference', () => {
@@ -54,4 +58,17 @@ test('an explicit help language change updates the shared preference', () => {
     harness.listeners.get('change')({ target: { value: 'zh-CN' } });
 
     assert.equal(harness.storage.get('language'), 'zh-CN');
+});
+
+
+test('help uses the system theme without saving an implicit preference', () => {
+    const harness = createHarness('en', null, true);
+    assert.equal(harness.classes.has('dark-theme'), true);
+    assert.equal(harness.storage.get('theme'), null);
+    harness.media.matches = false;
+    harness.media.change();
+    assert.equal(harness.classes.has('light-theme'), true);
+    harness.storage.set('theme', 'dark');
+    harness.windowListeners.get('storage')({key:'theme'});
+    assert.equal(harness.classes.has('dark-theme'), true);
 });

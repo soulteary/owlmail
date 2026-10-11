@@ -37,13 +37,34 @@
         if (persist) savePreference('language', selected);
     }
 
-    function applyTheme(theme) {
+    function applyTheme(theme, persist = true) {
         const dark = theme === 'dark';
         document.body.classList.toggle('dark-theme', dark);
         document.body.classList.toggle('light-theme', !dark);
         themeButton.textContent = dark ? '☀️' : '🌙';
         themeButton.setAttribute('aria-label', dark ? 'Use light theme' : 'Use dark theme');
-        savePreference('theme', dark ? 'dark' : 'light');
+        if (persist) savePreference('theme', dark ? 'dark' : 'light');
+    }
+
+
+    function watchTheme() {
+        if (window.matchMedia) {
+            window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => {
+                const saved = readTheme();
+                if (saved !== 'dark' && saved !== 'light') applyTheme(initialTheme(), false);
+            });
+        }
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'theme' || event.key === null) applyTheme(initialTheme(), false);
+        });
+    }
+    function readTheme() {
+        try { return localStorage.getItem('theme'); } catch (_) { return null; }
+    }
+    function initialTheme() {
+        const saved = readTheme();
+        if (saved === 'dark' || saved === 'light') return saved;
+        return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
     }
 
     languageSelect.addEventListener('change', (event) => applyLanguage(event.target.value, true));
@@ -52,5 +73,6 @@
     });
 
     applyLanguage(detectLanguage());
-    applyTheme(readPreference('theme') === 'dark' ? 'dark' : 'light');
+    applyTheme(initialTheme(), false);
+    watchTheme();
 })();
