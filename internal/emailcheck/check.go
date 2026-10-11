@@ -14,6 +14,7 @@ import (
 
 const maxBodyBytes = 2 << 20
 const maxResults = 200
+const maxExtractionBytes = 2 << 20
 
 var textURL = regexp.MustCompile(`(?i:https?)://[^\s<>"']+`)
 
@@ -212,6 +213,7 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 		}
 		add("allowed_link_hosts", passed, "Every discovered HTTP(S) link must use an exact allowed hostname; truncated inspection fails closed")
 	}
+	extractionBytes := 0
 	for _, ex := range request.Extract {
 		if ex.Name == "" || len(ex.Name) > 64 || len(ex.Pattern) == 0 || len(ex.Pattern) > 1024 {
 			return r, fmt.Errorf("extraction requires a name (1..64 bytes) and pattern (1..1024 bytes)")
@@ -233,6 +235,11 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 		default:
 			return r, fmt.Errorf("extraction source must be text, subject, or html")
 		}
+		if extractionBytes == maxExtractionBytes {
+			r.Extractions[ex.Name] = []string{}
+			r.ExtractionsTruncated = true
+			continue
+		}
 		matches := pattern.FindAllStringSubmatch(source, maxResults+1)
 		if len(matches) > maxResults {
 			matches = matches[:maxResults]
@@ -244,6 +251,11 @@ func Inspect(email *types.Email, request Request) (Report, error) {
 			if len(match) > 1 {
 				value = match[1]
 			}
+			if len(value) > maxExtractionBytes-extractionBytes {
+				r.ExtractionsTruncated = true
+				break
+			}
+			extractionBytes += len(value)
 			values = append(values, value)
 		}
 		r.Extractions[ex.Name] = values

@@ -95,6 +95,21 @@ func foldedContains(value, literal string, pattern *regexp.Regexp) bool {
 	return pattern.MatchString(value)
 }
 
+type deliveryEntry struct {
+	id       string
+	sequence uint64
+}
+
+func (ms *MailServer) removeDeliveryLocked(id string) {
+	delete(ms.deliverySequences, id)
+	for i, entry := range ms.deliveryOrder {
+		if entry.id == id {
+			ms.deliveryOrder = append(ms.deliveryOrder[:i], ms.deliveryOrder[i+1:]...)
+			break
+		}
+	}
+}
+
 func (ms *MailServer) initDeliveriesLocked() {
 	if ms.deliveryEpoch == "" {
 		ms.deliveryEpoch = rand.Text()
@@ -109,6 +124,7 @@ func (ms *MailServer) recordDeliveryLocked(id string) {
 	}
 	ms.deliverySequence++
 	ms.deliverySequences[id] = ms.deliverySequence
+	ms.deliveryOrder = append(ms.deliveryOrder, deliveryEntry{id: id, sequence: ms.deliverySequence})
 	if !ms.deliveryClosed {
 		close(ms.deliveryChanged)
 		ms.deliveryChanged = make(chan struct{})
@@ -192,22 +208,18 @@ func (ms *MailServer) WaitDeliveries(ctx context.Context, after string, filter D
 			ms.storeMutex.RUnlock()
 			return result, ErrMailboxClosed
 		}
-		result.Emails = result.Emails[:0]
 		scannedSequence := ms.deliverySequence
-		matching := make([]string, 0)
-		for id, delivery := range ms.deliverySequences {
-			if delivery > sequence && filter.Matches(ms.storeByID[id]) {
-				matching = append(matching, id)
+		start := sort.Search(len(ms.deliveryOrder), func(i int) bool { return ms.deliveryOrder[i].sequence > sequence })
+		for _, entry := range ms.deliveryOrder[start:] {
+			if filter.Matches(ms.storeByID[entry.id]) {
+				result.Emails = append(result.Emails, cloneEmail(ms.storeByID[entry.id]))
+				if len(result.Emails) == count {
+					scannedSequence = entry.sequence
+					break
+				}
 			}
 		}
-		sort.Slice(matching, func(i, j int) bool { return ms.deliverySequences[matching[i]] < ms.deliverySequences[matching[j]] })
-		for _, id := range matching {
-			result.Emails = append(result.Emails, cloneEmail(ms.storeByID[id]))
-			if len(result.Emails) == count {
-				scannedSequence = ms.deliverySequences[id]
-				break
-			}
-		}
+		sequence = scannedSequence
 		result.Cursor = ms.deliveryEpoch + ":" + strconv.FormatUint(scannedSequence, 10)
 		changed := ms.deliveryChanged
 		ms.storeMutex.RUnlock()

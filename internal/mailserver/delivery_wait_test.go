@@ -249,3 +249,35 @@ func TestDeliveryUnicodeFoldAndDeletedSnapshot(t *testing.T) {
 		t.Fatalf("snapshot lost after deletion: %+v", preview)
 	}
 }
+
+func TestPartialWaitAccumulatesMatchesAcrossWakeups(t *testing.T) {
+	s := deliveryTestServer(t)
+	cursor := s.DeliveryCursor()
+	commitTestDelivery(t, s, "first", "wanted", "a@example.test")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan DeliveryResult, 1)
+	go func() {
+		result, _ := s.WaitDeliveries(ctx, cursor, DeliveryFilter{RunID: "wanted"}, 2, time.Second)
+		done <- result
+	}()
+	deadline := time.Now().Add(time.Second)
+	for {
+		s.storeMutex.RLock()
+		admitted := s.deliveryWaiters > 0
+		s.storeMutex.RUnlock()
+		if admitted {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("wait not admitted")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	commitTestDelivery(t, s, "unrelated", "other", "a@example.test")
+	commitTestDelivery(t, s, "second", "wanted", "a@example.test")
+	result := <-done
+	if len(result.Emails) != 2 || result.Emails[0].ID != "first" || result.Emails[1].ID != "second" {
+		t.Fatalf("%+v", result)
+	}
+}

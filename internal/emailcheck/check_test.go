@@ -102,3 +102,23 @@ func TestHostAllowlistFailsBrowserNetworkFormsClosed(t *testing.T) {
 		}
 	}
 }
+
+func TestExtractionAggregateByteBudget(t *testing.T) {
+	request := Request{}
+	for i := 0; i < 100; i++ {
+		request.Extract = append(request.Extract, Extraction{Name: fmt.Sprintf("capture-%d", i), Pattern: "(.+)"})
+	}
+	report, err := Inspect(&types.Email{Text: strings.Repeat("x", maxBodyBytes)}, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	total := 0
+	for _, values := range report.Extractions {
+		for _, value := range values {
+			total += len(value)
+		}
+	}
+	if total > maxExtractionBytes || !report.ExtractionsTruncated {
+		t.Fatalf("bytes=%d truncated=%v", total, report.ExtractionsTruncated)
+	}
+}
