@@ -141,7 +141,10 @@ container restart loop. The image's built-in Docker healthcheck intentionally
 uses `/healthz` for this reason.
 
 `GET /readyz` and `GET /api/v1/ready` are readiness checks. With local
-attachment storage they return ready immediately. With S3 enabled, OwlMail
+attachment storage they require bound SMTP listeners and a successful local
+mail-directory write/sync/remove probe. Local storage is sampled before SMTP
+startup and every 30 seconds afterwards; request handlers read the cache.
+Shutdown immediately marks the service unready. With S3 enabled, OwlMail
 runs a read-only `HeadBucket` probe in the background. If a least-privilege
 policy rejects the bucket-wide operation, it falls back to `ListObjectsV2`
 scoped to the attachment prefix and `MaxKeys=1`. OwlMail caches the latest result

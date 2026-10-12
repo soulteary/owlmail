@@ -31,7 +31,24 @@ func containerServerArgs(data []byte) ([]string, error) {
 }
 
 func runHealthcheck(args []string) error {
-	if len(args) == 1 && args[0] == "--container" {
+	ready := false
+	containerMode := false
+options:
+	for len(args) > 0 {
+		switch args[0] {
+		case "--ready", "-ready":
+			ready = true
+		case "--container":
+			containerMode = true
+		default:
+			break options
+		}
+		args = args[1:]
+	}
+	if containerMode && len(args) != 0 {
+		return fmt.Errorf("container probe cannot override server configuration")
+	}
+	if containerMode {
 		data, err := os.ReadFile("/proc/1/cmdline")
 		if err != nil {
 			return fmt.Errorf("read container startup command: %w", err)
@@ -45,10 +62,12 @@ func runHealthcheck(args []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve healthcheck configuration: %w", err)
 	}
-	return probeHealth(cfg)
+	return probeHealthEndpoint(cfg, ready)
 }
 
-func probeHealth(cfg *config.Config) error {
+func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, false) }
+
+func probeHealthEndpoint(cfg *config.Config, ready bool) error {
 	base, err := config.NormalizeBasePathname(cfg.BasePathname)
 	if err != nil {
 		return err
@@ -95,6 +114,9 @@ func probeHealth(cfg *config.Config) error {
 	client := &http.Client{Transport: transport, Timeout: 2 * time.Second,
 		CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}
 	endpoint, err := healthcheckURL(scheme, host, cfg.WebPort, base)
+	if ready {
+		endpoint = strings.TrimSuffix(endpoint, "/healthz") + "/readyz"
+	}
 	if err != nil {
 		return err
 	}

@@ -263,6 +263,8 @@ cached S3 probe is checking or failing:
 {
   "status": "unready",
   "checks": {
+    "smtp": { "status": "ready" },
+    "mail_storage": { "status": "ready" },
     "attachment_store": {
       "status": "unready",
       "error_category": "permission",
