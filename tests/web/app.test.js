@@ -1631,3 +1631,9 @@ test('manual relay completion updates an already loaded delivery panel', async (
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
  assert.equal(h.run('deliveryRenders'),1);
 });
+
+test('restored filter values escape quoted display names', () => {
+ const h=createHarness();
+ assert.match(h.run(`escapeHtmlAttribute('John "Boss"')`), /John &quot;Boss&quot;/);
+ assert.match(appSource,/escapeHtmlAttribute\(mailboxFilters\[field\] \|\| ''\)/);
+});

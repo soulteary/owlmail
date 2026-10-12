@@ -2708,7 +2708,7 @@ const MAILBOX_FILTER_FIELDS = ['from', 'to', 'dateFrom', 'dateTo', 'read', 'sort
 function renderMailboxTools() {
     const root = document.getElementById('mailboxTools');
     if (!root) return;
-    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtml(mailboxFilters[field] || '')}"></label>`;
+    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtmlAttribute(mailboxFilters[field] || '')}"></label>`;
     const select = (field, label, options) => `<label>${t(label)}<select id="mail-filter-${field}">${options.map(([value, key]) => `<option value="${value}" ${String(mailboxFilters[field] || '') === value ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>`;
     root.innerHTML = `<details class="mailbox-filters"><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
         ${input('from','filterFrom')}${input('to','filterTo')}${input('dateFrom','filterDateFrom','date')}${input('dateTo','filterDateTo','date')}
