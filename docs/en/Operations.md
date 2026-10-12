@@ -274,6 +274,25 @@ command is therefore idempotent. Pending storage fences must first be resolved
 by a normal OwlMail startup. This command intentionally supports only local to
 S3 migration; it does not download S3 objects back to local storage.
 
+
+### Choosing the healthcheck command
+
+`/healthz` confirms that the HTTP process responds and remains independent of
+storage failures. The image keeps this liveness check to avoid restart loops.
+`/readyz` (also `/api/v1/ready`) returns 200 only when configured SMTP listeners
+are bound, the local mail directory passes a cached write/sync/remove probe,
+and any enabled external attachment store is ready; otherwise it returns 503.
+Local storage is sampled before SMTP readiness and every 30 seconds afterwards.
+Storage recovery appears on the next sample. Shutdown immediately makes the
+service unready. Responses expose only bounded categories, never paths or raw
+filesystem errors; health HTTP requests perform no storage I/O.
+
+Use `owlmail healthcheck --ready` with the server configuration flags for a
+readiness probe, or `owlmail healthcheck --ready --container` in the image.
+Probe options precede normal configuration flags. Docker can opt into this
+check with `--health-cmd='/app/owlmail healthcheck --ready --container'`;
+Kubernetes should use `/healthz` for liveness and `/readyz` for readiness.
+
 ### 3. Persistent Docker deployment
 
 ```bash
