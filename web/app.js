@@ -1422,12 +1422,15 @@ function connectWebSocket() {
 }
 
 let mailboxRefreshTimer = null;
+let mailboxRefreshGeneration = 0;
 function scheduleMailboxRefresh() {
     // Events invalidate the query result; only the server can correctly apply
     // filtering, sorting, pagination and total counts to the current query.
     emailListRequestSequence += 1;
     if (mailboxRefreshTimer !== null) return;
+    const generation = ++mailboxRefreshGeneration;
     mailboxRefreshTimer = setTimeout(() => {
+        if (generation !== mailboxRefreshGeneration) return;
         mailboxRefreshTimer = null;
         void loadEmails({ background: true });
     }, 100);
@@ -1919,6 +1922,11 @@ let emailListRequestSequence = 0;
 let emailListLoadsPending = 0;
 let mailboxRefreshAfterLoad = false;
 async function loadEmails({ background = false } = {}) {
+    if (!background && mailboxRefreshTimer !== null) {
+        clearTimeout(mailboxRefreshTimer);
+        mailboxRefreshTimer = null;
+        mailboxRefreshGeneration += 1;
+    }
     const sequence = ++emailListRequestSequence;
     emailListLoadsPending += 1;
     try {
