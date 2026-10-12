@@ -1531,6 +1531,9 @@ function updateUI(renderDynamic = true) {
 
 // UI Rendering Functions
 function renderEmailList() {
+    const visible = new Set(state.emails.map(email => email.id));
+    for (const id of selectedMailIDs) if (!visible.has(id)) selectedMailIDs.delete(id);
+    updateMailboxSelectionControls();
     const container = document.getElementById('emailList');
     if (!container) return;
 
@@ -1959,9 +1962,6 @@ async function loadEmails({ background = false } = {}) {
             return await loadEmails({ background });
         }
         state.emails = remaining;
-        const visible = new Set(state.emails.map(email => email.id));
-        for (const id of selectedMailIDs) if (!visible.has(id)) selectedMailIDs.delete(id);
-        updateMailboxSelectionControls();
         renderEmailList();
         updateEmailCount();
         updatePagination();

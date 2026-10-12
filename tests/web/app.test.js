@@ -1757,3 +1757,13 @@ test('delete all invalidates a stalled query without blocking later live events'
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.run('state.emails[0].id'),'arrived');
 });
+
+test('failed fallback requests clear selections from an invalid page', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('offline'))});
+ h.run("state.currentPage=1; state.total=51; state.emails=[{id:'deleted'}]; selectMailboxPage(true)");
+ await h.run('loadEmails({background:true})');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+});
