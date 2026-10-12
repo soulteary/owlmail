@@ -1500,3 +1500,11 @@ test('delete all resets the pagination controls with page state', async () => {
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('paginationUpdates'),1);
 });
+
+test('successful deletion removes its row even if preview refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({}):Promise.reject(new Error('offline'))});
+ h.run("state.emails=[{id:'deleted'}]; state.total=1");
+ await h.run("deleteEmail('deleted')");
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+});
