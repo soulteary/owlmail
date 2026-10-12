@@ -69,6 +69,8 @@ def main():
                ('-e', 'OWLMAIL_WEB_PORT=18082', '-e', 'OWLMAIL_BASE_PATHNAME=/env'))
         scenario('owlmail-ci-health-cli', ['-web', '18080', '-base-pathname', '/mail'], root)
         scenario('owlmail-ci-health-https', ['-config', '/fixtures/config.yaml'], root)
+        scenario('owlmail-ci-health-smtp-only', ['-disable-web', '-smtp', '18084'], root)
+        scenario('owlmail-ci-health-smtp-env', [], root, ('-e', 'OWLMAIL_DISABLE_WEB=true', '-e', 'OWLMAIL_SMTP_PORT=18085'))
         scenario('owlmail-ci-health-ipv6', ['-web-ip', '::', '-web', '18083'], root)
         # Keep stdin open for a non-server mode; it must never probe a default
         # web listener or report a healthy container.

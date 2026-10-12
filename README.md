@@ -237,6 +237,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP command and DATA read timeout |
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP response write timeout |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximum recipients accepted per message |
+| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | Run SMTP without the HTTP listener (SMTP-only mode) |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
@@ -920,3 +921,21 @@ refreshes, `t` switches theme, Escape closes the selected message, and Delete
 deletes it after confirmation. Shortcuts are inactive while editing text, using
 buttons or links, composing text, or holding modifier keys. Preview width buttons
 are available with Tab and Enter/Space.
+
+### SMTP-only mode
+
+Use `owlmail -disable-web` or `OWLMAIL_DISABLE_WEB=true` to capture mail without
+a Web UI, REST, WebSocket, metrics or HTTP MCP listener. The flat YAML/JSON
+configuration key is `disable-web`. SMTP AUTH, STARTTLS/SMTPS, storage retention,
+Webhook dispatch and automatic relay remain active; existing durable relay jobs
+are recovered. Configured HTTP MCP, metrics or REST compatibility flags conflict
+with this mode and fail configuration validation. Web port and HTTPS certificate
+settings are inactive, and no temporary Web password is generated.
+
+The packaged container healthcheck automatically probes the configured SMTP host
+and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
+Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
+deployments. This verifies SMTP responsiveness, not storage writability or
+downstream delivery: `healthcheck --ready` fails explicitly in SMTP-only mode
+because the HTTP readiness endpoint is unavailable. Publish only the SMTP ports
+you need; the default still starts SMTP and Web together.

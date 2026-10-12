@@ -34,8 +34,13 @@ func ValidateConfig(cfg *Config) error {
 	if err := ValidatePort(cfg.SMTPPort, "SMTP port"); err != nil {
 		return err
 	}
-	if err := ValidatePort(cfg.WebPort, "Web port"); err != nil {
-		return err
+	if !cfg.DisableWeb {
+		if err := ValidatePort(cfg.WebPort, "Web port"); err != nil {
+			return err
+		}
+	}
+	if cfg.DisableWeb && (cfg.MCPEnabled || cfg.MetricsEnabled || cfg.MailDevRESTCompat || cfg.MailCatcherRESTCompat) {
+		return fmt.Errorf("disable-web cannot be combined with HTTP MCP, metrics or REST compatibility endpoints")
 	}
 	// Zero is the documented way to run without an implicit-TLS listener, so
 	// only a non-zero port is range checked. Validating it whether or not TLS
@@ -168,7 +173,7 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	// Validate HTTPS configuration
-	if cfg.HTTPSEnabled {
+	if cfg.HTTPSEnabled && !cfg.DisableWeb {
 		if cfg.HTTPSCertFile == "" {
 			return fmt.Errorf("HTTPS certificate file is required when HTTPS is enabled")
 		}

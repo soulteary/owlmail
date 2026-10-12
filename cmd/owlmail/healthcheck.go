@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/smtp"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -68,6 +69,12 @@ options:
 func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, false) }
 
 func probeHealthEndpoint(cfg *config.Config, ready bool) error {
+	if cfg.DisableWeb {
+		if ready {
+			return fmt.Errorf("SMTP-only mode has no storage readiness endpoint; use the SMTP liveness probe without --ready")
+		}
+		return probeSMTPHealth(cfg)
+	}
 	base, err := config.NormalizeBasePathname(cfg.BasePathname)
 	if err != nil {
 		return err
@@ -151,4 +158,29 @@ func healthcheckURL(scheme, host string, port int, base string) (string, error) 
 		return "", err
 	}
 	return (&url.URL{Scheme: scheme, Host: net.JoinHostPort(host, fmt.Sprint(port)), Path: decodedPath, RawPath: rawPath}).String(), nil
+}
+
+// A successful greeting, EHLO/HELO and QUIT verifies a real SMTP listener
+// without authenticating, delivering a message, or mutating the mailbox.
+func probeSMTPHealth(cfg *config.Config) error {
+	host := healthcheckHost(cfg.SMTPHost)
+	connection, err := net.DialTimeout("tcp", net.JoinHostPort(host, fmt.Sprint(cfg.SMTPPort)), 2*time.Second)
+	if err != nil {
+		return fmt.Errorf("SMTP healthcheck connect: %w", err)
+	}
+	defer func() { _ = connection.Close() }()
+	if err := connection.SetDeadline(time.Now().Add(2 * time.Second)); err != nil {
+		return err
+	}
+	client, err := smtp.NewClient(connection, host)
+	if err != nil {
+		return fmt.Errorf("SMTP healthcheck greeting: %w", err)
+	}
+	if err := client.Hello("localhost"); err != nil {
+		return fmt.Errorf("SMTP healthcheck EHLO: %w", err)
+	}
+	if err := client.Quit(); err != nil {
+		return fmt.Errorf("SMTP healthcheck QUIT: %w", err)
+	}
+	return nil
 }

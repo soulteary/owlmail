@@ -210,6 +210,7 @@ docker buildx build \
 | `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP コマンドおよび DATA の読み取りタイムアウト |
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 応答の書き込みタイムアウト |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 1 メッセージあたりの最大受信者数 |
+| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | HTTP リスナーを起動せず SMTP のみ実行 |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成するメール深層リンク用のブラウザー公開 HTTP(S) origin。プロキシのサブパスは `-base-pathname` で別途設定 |

@@ -209,6 +209,7 @@ docker buildx build \
 | `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP 명령 및 DATA 읽기 제한 시간 |
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 응답 쓰기 제한 시간 |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 메시지당 최대 수신자 수 |
+| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | HTTP 리스너 없이 SMTP만 실행 |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 생성된 이메일 딥 링크에 사용할 브라우저 공개 HTTP(S) origin. 프록시 하위 경로는 `-base-pathname`으로 별도 설정 |
