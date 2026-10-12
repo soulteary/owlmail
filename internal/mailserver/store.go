@@ -439,6 +439,9 @@ func (ms *MailServer) DeleteAllEmail() error {
 	files, err := os.ReadDir(ms.mailDir)
 	if err == nil {
 		for _, file := range files {
+			if strings.HasPrefix(strings.ToLower(file.Name()), runtimeReadinessPrefix) {
+				continue // Operational state and in-progress publication are not mailbox data.
+			}
 			if file.IsDir() && (file.Name() == quarantineDirName || file.Name() == webhookOutboxDirectoryName) {
 				continue
 			}

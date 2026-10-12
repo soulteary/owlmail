@@ -213,3 +213,59 @@ func TestRuntimeCleanupFailureDoesNotPreventSMTPLiveness(t *testing.T) {
 		t.Fatal("listener did not stop")
 	}
 }
+
+func TestMailboxClearPreservesRuntimeSnapshotAndInProgressPublication(t *testing.T) {
+	server, err := NewMailServerWithOptions(1025, "localhost", t.TempDir(), ServerOptions{RuntimeReadiness: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	if err := server.storeIncomingEmail("runtime-clear", bytes.NewReader(validMessage("mailbox clear")), nil); err != nil {
+		t.Fatal(err)
+	}
+	server.smtpReady.Store(true)
+	server.probeMailStorage()
+	if err := server.publishRuntimeReadiness(); err != nil {
+		t.Fatal(err)
+	}
+	path := RuntimeReadinessPath(server.mailDir, server.host, server.port)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Leave an actual publication temp file open across the mailbox clear.
+	pending, err := os.CreateTemp(server.mailDir, runtimeReadinessPrefix+"*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = pending.Close(); _ = os.Remove(pending.Name()) }()
+	if _, err := pending.Write(before); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.DeleteAllEmail(); err != nil {
+		t.Fatal(err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("mailbox clear changed runtime snapshot")
+	}
+	if _, err := os.Stat(server.mailDir + "/runtime-clear.eml"); !os.IsNotExist(err) {
+		t.Fatal("mailbox clear failed to delete email")
+	}
+	if err := pending.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(pending.Name(), path); err != nil {
+		t.Fatalf("mailbox clear broke in-progress publication: %v", err)
+	}
+	var status RuntimeReadiness
+	if err := json.Unmarshal(after, &status); err != nil {
+		t.Fatal(err)
+	}
+	if err := status.Validate("localhost", 1025, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+}
