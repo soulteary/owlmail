@@ -1508,3 +1508,17 @@ test('successful deletion removes its row even if preview refresh fails', async 
  assert.equal(h.run('state.emails.length'),0);
  assert.equal(h.run('state.total'),0);
 });
+
+test('live events preserve a foreground response if the deferred synchronization fails', async () => {
+ let complete, calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('offline'))});
+ h.run("state.searchQuery='new query'");
+ const foreground=h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'delete',id:'deleted'})");
+ complete(jsonResponse({previews:[{id:'fresh'},{id:'deleted'}],total:2})); await foreground;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.run('state.total'),1);
+ assert.equal(h.fetchRequests.length,2);
+});
