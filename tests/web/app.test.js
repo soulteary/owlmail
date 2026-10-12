@@ -1824,7 +1824,7 @@ test('failed pagination does not re-enable selectable rows from the previous pag
 
 test('language rerenders preserve unsubmitted filter drafts and expanded state', () => {
  const h=createHarness();
- h.run(`const filterRoot={innerHTML:'',querySelector:()=>({open:true})}; const originalElementLookup=document.getElementById; document.getElementById=id=>id==='mailboxTools'?filterRoot:id==='mailboxFilterForm'?{}:id==='mail-filter-from'?{value:'John "Boss"'}:originalElementLookup(id); mailboxFilters={from:'applied@example.test'}; state.lang='zh-CN'; renderMailboxTools()`);
+ h.run(`const filterRoot={innerHTML:'',querySelector:()=>({open:true})}; const originalElementLookup=document.getElementById; document.getElementById=id=>id==='mailboxTools'?filterRoot:id==='mailboxFilterForm'?{addEventListener(){}}:id==='mail-filter-from'?{value:'John "Boss"',addEventListener(){}}:originalElementLookup(id); mailboxFilters={from:'applied@example.test'}; state.lang='zh-CN'; renderMailboxTools()`);
  assert.match(h.run('filterRoot.innerHTML'),/John &quot;Boss&quot;/);
  assert.match(h.run('filterRoot.innerHTML'),/class="mailbox-filters" open/);
  assert.equal(h.run('mailboxFilters.from'),'applied@example.test');
