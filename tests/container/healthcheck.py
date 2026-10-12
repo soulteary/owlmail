@@ -87,6 +87,17 @@ def verify_conflict(image, feature, environment=False):
     print('PASS: SMTP-only rejects', feature, 'via', 'environment' if environment else 'CLI', flush=True)
 
 
+def verify_positional_arguments(image):
+    """Startup must reject arguments the healthcheck configuration cannot consume."""
+    for flags in ([''], ['-disable-web', ''], ['-disable-web', '--', '']):
+        result = subprocess.run(['docker', 'run', '--rm', image, *flags],
+                                capture_output=True, text=True, timeout=30)
+        output = result.stdout + result.stderr
+        if result.returncode != 1 or 'does not accept positional arguments' not in output:
+            raise RuntimeError('Unconsumed arguments were not rejected: ' + repr(flags) + ': ' + output)
+    print('PASS: startup rejects empty positional arguments', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', required=True)
@@ -94,6 +105,7 @@ def main():
     args = parser.parse_args()
     def scenario(name, flags, root, environment=(), expect_healthy=True):
         verify(args.image, name, flags, root, environment, expect_healthy, args.health_command)
+    verify_positional_arguments(args.image)
     for feature in ('mcp-enabled', 'metrics-enabled', 'maildev-rest-compat', 'mailcatcher-rest-compat'):
         verify_conflict(args.image, feature)
         verify_conflict(args.image, feature, environment=True)
@@ -111,7 +123,8 @@ def main():
                ('-e', 'OWLMAIL_WEB_PORT=18082', '-e', 'OWLMAIL_BASE_PATHNAME=/env'))
         scenario('owlmail-ci-health-cli', ['-web', '18080', '-base-pathname', '/mail'], root)
         scenario('owlmail-ci-health-https', ['-config', '/fixtures/config.yaml'], root)
-        scenario('owlmail-ci-health-smtp-only', ['-disable-web', '-ip', '', '-smtp', '18084'], root)
+        # Put the empty bind-host value last to catch procfs argv trimming.
+        scenario('owlmail-ci-health-smtp-only', ['-disable-web', '-smtp', '18084', '-ip', ''], root)
         scenario('owlmail-ci-health-smtp-env', [], root, ('-e', 'OWLMAIL_DISABLE_WEB=true', '-e', 'OWLMAIL_SMTP_PORT=18085'))
         scenario('owlmail-ci-health-ipv6', ['-web-ip', '::', '-web', '18083'], root)
         # Keep stdin open for a non-server mode; it must never probe a default
