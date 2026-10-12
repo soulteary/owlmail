@@ -940,3 +940,18 @@ not cancel delivery. Resume waiting continues watching the same job without
 resubmitting it. Delivery records remain available in the Deliveries tab. While
 an accepted job has an unknown final state, relay and deletion controls stay
 locked in the current session to prevent duplicate delivery or lost evidence.
+
+### Inbox filters and batch tools
+
+Expand Filters to query by sender, recipient, date range, read state and sort
+order. Filters combine with text search and reset pagination when applied.
+Select this page selects only visible messages; selection is pruned when the
+page or filter results change. Batch read/delete sends explicit IDs, confirms
+deletion, and preserves failed visible IDs for retry. Pending relay sources
+cannot be batch-deleted. Results show success and failure counts.
+
+Export selected downloads those IDs as a ZIP of `.eml` files. Export filtered
+results exports the active search/filter query across pages, subject to the
+existing server limits of 1,000 messages and 256 MiB of source data. Export does
+not include the browser's sort order. Empty selections never trigger a full
+mailbox export. All controls have labels and translations in supported locales.

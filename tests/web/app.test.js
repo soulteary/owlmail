@@ -1481,3 +1481,56 @@ test('bounded relay waiting times out without cancelling server delivery and can
  assert.equal(h.run("relayPending.has('mail-1')"),false);
  assert.equal(h.run("relayTracking.has('mail-1')"),false);
 });
+
+test('advanced filters are encoded on preview and filtered export queries', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run("state.searchQuery='invoice & receipt'; mailboxFilters={from:'Sender <s@example.test>',to:'r@example.test',read:'false',dateFrom:'2026-10-01',dateTo:'2026-10-12',sortBy:'size',sortOrder:'asc'}");
+ await h.run('loadEmails()');
+ const url=new URL(h.fetchRequests[0].url);
+ assert.equal(url.searchParams.get('from'),'Sender <s@example.test>');
+ assert.equal(url.searchParams.get('read'),'false');
+ assert.equal(url.searchParams.get('sortBy'),'size');
+ const exported=new URL(h.run('mailboxExportURL(false)'));
+ assert.equal(exported.pathname,'/api/v1/emails/export');
+ assert.equal(exported.searchParams.get('q'),'invoice & receipt');
+ assert.equal(exported.searchParams.get('dateTo'),'2026-10-12');
+ assert.equal(exported.searchParams.has('sortBy'),false);
+});
+test('selection is limited to the visible page and export uses explicit IDs', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:'next-page'}],total:1})});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; selectMailboxPage(true); toggleMailSelection('unknown',true)");
+ assert.equal(h.run('selectedMailIDs.size'),2);
+ assert.equal(new URL(h.run('mailboxExportURL(true)')).searchParams.get('ids'),'mail-1,mail-2');
+ await h.run('loadEmails()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+});
+test('batch deletion keeps failures selected and clears successfully deleted details', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'
+  ?jsonResponse({success:1,failed:1,failedIDs:['mail-2']})
+  :jsonResponse({previews:[{id:'mail-2'}],total:1})});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; state.currentEmail={id:'mail-1'}; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.deepEqual(JSON.parse(h.fetchRequests[0].options.body).ids,['mail-1','mail-2']);
+ assert.equal(h.run('state.currentEmail'),null);
+ assert.equal(h.run("selectedMailIDs.has('mail-2')"),true);
+ assert.equal(h.run('mailboxBatchBusy'),false);
+ assert.match(h.confirmations[0],/2 selected/);
+});
+test('batch deletion is blocked for selected pending relay sources', async () => {
+ const h=createHarness();
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true); relayPending.add('mail-1')");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.fetchRequests.length,0);
+ assert.equal(h.confirmations.length,0);
+});
+test('batch read uses the existing PATCH contract', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'
+  ?jsonResponse({success:1,failed:0,failedIDs:[]})
+  :jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(new URL(h.fetchRequests[0].url).pathname,'/api/v1/emails/batch/read');
+ assert.equal(h.fetchRequests[0].options.method,'PATCH');
+ assert.equal(h.run('state.emails[0].read'),true);
+});

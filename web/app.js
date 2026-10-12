@@ -856,6 +856,13 @@ Object.assign(i18n["it"], {"relayWaiting": "Attesa dello stato di consegna", "re
 Object.assign(i18n["fr"], {"relayWaiting": "En attente du statut de livraison", "relayPaused": "Attente suspendue", "relayStopWait": "Arrêter l’attente", "relayResumeWait": "Reprendre l’attente", "relayWaitStopped": "Attente arrêtée. La livraison continue ; reprenez ou consultez les livraisons.", "relayWaitTimeout": "Délai dépassé. La livraison continue ; reprenez ou consultez les livraisons."});
 Object.assign(i18n["ko"], {"relayWaiting": "전송 상태 대기 중", "relayPaused": "상태 대기 일시 중지", "relayStopWait": "대기 중지", "relayResumeWait": "대기 재개", "relayWaitStopped": "대기를 중지했습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요.", "relayWaitTimeout": "대기 시간이 초과되었습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요."});
 Object.assign(i18n["ja"], {"relayWaiting": "配信状態を待機中", "relayPaused": "状態の待機を停止中", "relayStopWait": "待機を停止", "relayResumeWait": "待機を再開", "relayWaitStopped": "待機を停止しました。配信は続行されます。待機を再開するか配信履歴を確認してください。", "relayWaitTimeout": "待機がタイムアウトしました。配信は続行されます。待機を再開するか配信履歴を確認してください。"});
+Object.assign(i18n["en"], {"mailFilters": "Filters", "filterFrom": "Sender", "filterTo": "Recipient", "filterDateFrom": "From date", "filterDateTo": "Through date", "filterRead": "Read state", "filterAny": "Any", "filterUnread": "Unread", "filterReadOnly": "Read", "filterSort": "Sort by", "sortDesc": "Newest first", "sortAsc": "Oldest first", "applyFilters": "Apply filters", "resetFilters": "Reset filters", "selectPage": "Select this page", "selectionCount": "{count} selected", "batchRead": "Mark selected read", "batchDelete": "Delete selected", "exportSelected": "Export selected (.zip)", "exportFiltered": "Export filtered results (.zip)", "selectMessage": "Select message: {subject}", "batchDeleteConfirm": "Delete {count} selected messages? This cannot be undone.", "batchResult": "Completed: {success}; failed: {failed}.", "sortTime": "Time", "sortSubject": "Subject", "sortFrom": "Sender", "sortSize": "Size", "sortStore": "Arrival order"});
+Object.assign(i18n["zh-CN"], {"mailFilters": "筛选", "filterFrom": "发件人", "filterTo": "收件人", "filterDateFrom": "起始日期", "filterDateTo": "截止日期", "filterRead": "已读状态", "filterAny": "全部", "filterUnread": "未读", "filterReadOnly": "已读", "filterSort": "排序字段", "sortDesc": "降序", "sortAsc": "升序", "applyFilters": "应用筛选", "resetFilters": "重置筛选", "selectPage": "选择当前页", "selectionCount": "已选择 {count} 封", "batchRead": "所选标为已读", "batchDelete": "删除所选", "exportSelected": "导出所选（.zip）", "exportFiltered": "导出筛选结果（.zip）", "selectMessage": "选择邮件：{subject}", "batchDeleteConfirm": "删除所选 {count} 封邮件？此操作不可撤销。", "batchResult": "成功：{success}；失败：{failed}。", "sortTime": "时间", "sortSubject": "主题", "sortFrom": "发件人", "sortSize": "大小", "sortStore": "接收顺序"});
+Object.assign(i18n["de"], {"mailFilters": "Filter", "filterFrom": "Absender", "filterTo": "Empfänger", "filterDateFrom": "Ab Datum", "filterDateTo": "Bis Datum", "filterRead": "Lesestatus", "filterAny": "Alle", "filterUnread": "Ungelesen", "filterReadOnly": "Gelesen", "filterSort": "Sortieren nach", "sortDesc": "Absteigend", "sortAsc": "Aufsteigend", "applyFilters": "Filter anwenden", "resetFilters": "Filter zurücksetzen", "selectPage": "Diese Seite auswählen", "selectionCount": "{count} ausgewählt", "batchRead": "Auswahl als gelesen markieren", "batchDelete": "Auswahl löschen", "exportSelected": "Auswahl exportieren (.zip)", "exportFiltered": "Gefilterte Ergebnisse exportieren (.zip)", "selectMessage": "Nachricht auswählen: {subject}", "batchDeleteConfirm": "{count} ausgewählte Nachrichten unwiderruflich löschen?", "batchResult": "Erfolgreich: {success}; fehlgeschlagen: {failed}.", "sortTime": "Zeit", "sortSubject": "Betreff", "sortFrom": "Absender", "sortSize": "Größe", "sortStore": "Eingangsreihenfolge", "filterSortOrder": "Sortierrichtung", "filterDateRangeError": "Das Enddatum darf nicht vor dem Startdatum liegen."});
+Object.assign(i18n["it"], {"mailFilters": "Filtri", "filterFrom": "Mittente", "filterTo": "Destinatario", "filterDateFrom": "Dalla data", "filterDateTo": "Alla data", "filterRead": "Stato di lettura", "filterAny": "Tutti", "filterUnread": "Non letti", "filterReadOnly": "Letti", "filterSort": "Ordina per", "sortDesc": "Decrescente", "sortAsc": "Crescente", "applyFilters": "Applica filtri", "resetFilters": "Reimposta filtri", "selectPage": "Seleziona questa pagina", "selectionCount": "{count} selezionati", "batchRead": "Segna selezionati come letti", "batchDelete": "Elimina selezionati", "exportSelected": "Esporta selezionati (.zip)", "exportFiltered": "Esporta risultati filtrati (.zip)", "selectMessage": "Seleziona messaggio: {subject}", "batchDeleteConfirm": "Eliminare definitivamente {count} messaggi selezionati?", "batchResult": "Completati: {success}; non riusciti: {failed}.", "sortTime": "Data", "sortSubject": "Oggetto", "sortFrom": "Mittente", "sortSize": "Dimensione", "sortStore": "Ordine di arrivo", "filterSortOrder": "Direzione di ordinamento", "filterDateRangeError": "La data finale non può precedere quella iniziale."});
+Object.assign(i18n["fr"], {"mailFilters": "Filtres", "filterFrom": "Expéditeur", "filterTo": "Destinataire", "filterDateFrom": "À partir du", "filterDateTo": "Jusqu’au", "filterRead": "État de lecture", "filterAny": "Tous", "filterUnread": "Non lus", "filterReadOnly": "Lus", "filterSort": "Trier par", "sortDesc": "Décroissant", "sortAsc": "Croissant", "applyFilters": "Appliquer les filtres", "resetFilters": "Réinitialiser les filtres", "selectPage": "Sélectionner cette page", "selectionCount": "{count} sélectionnés", "batchRead": "Marquer la sélection comme lue", "batchDelete": "Supprimer la sélection", "exportSelected": "Exporter la sélection (.zip)", "exportFiltered": "Exporter les résultats filtrés (.zip)", "selectMessage": "Sélectionner le message : {subject}", "batchDeleteConfirm": "Supprimer définitivement les {count} messages sélectionnés ?", "batchResult": "Réussis : {success} ; échoués : {failed}.", "sortTime": "Date", "sortSubject": "Objet", "sortFrom": "Expéditeur", "sortSize": "Taille", "sortStore": "Ordre de réception", "filterSortOrder": "Sens du tri", "filterDateRangeError": "La date de fin ne peut pas précéder la date de début."});
+Object.assign(i18n["ko"], {"mailFilters": "필터", "filterFrom": "보낸 사람", "filterTo": "받는 사람", "filterDateFrom": "시작 날짜", "filterDateTo": "종료 날짜", "filterRead": "읽음 상태", "filterAny": "전체", "filterUnread": "읽지 않음", "filterReadOnly": "읽음", "filterSort": "정렬 기준", "sortDesc": "내림차순", "sortAsc": "오름차순", "applyFilters": "필터 적용", "resetFilters": "필터 초기화", "selectPage": "현재 페이지 선택", "selectionCount": "{count}개 선택됨", "batchRead": "선택 항목 읽음 처리", "batchDelete": "선택 항목 삭제", "exportSelected": "선택 항목 내보내기 (.zip)", "exportFiltered": "필터 결과 내보내기 (.zip)", "selectMessage": "메일 선택: {subject}", "batchDeleteConfirm": "선택한 메일 {count}개를 영구 삭제할까요?", "batchResult": "성공: {success}; 실패: {failed}.", "sortTime": "시간", "sortSubject": "제목", "sortFrom": "보낸 사람", "sortSize": "크기", "sortStore": "수신 순서", "filterSortOrder": "정렬 방향", "filterDateRangeError": "종료 날짜는 시작 날짜보다 빠를 수 없습니다."});
+Object.assign(i18n["ja"], {"mailFilters": "フィルター", "filterFrom": "差出人", "filterTo": "宛先", "filterDateFrom": "開始日", "filterDateTo": "終了日", "filterRead": "既読状態", "filterAny": "すべて", "filterUnread": "未読", "filterReadOnly": "既読", "filterSort": "並べ替え項目", "sortDesc": "降順", "sortAsc": "昇順", "applyFilters": "フィルターを適用", "resetFilters": "フィルターをリセット", "selectPage": "このページを選択", "selectionCount": "{count} 件選択", "batchRead": "選択したメールを既読にする", "batchDelete": "選択したメールを削除", "exportSelected": "選択したメールをエクスポート (.zip)", "exportFiltered": "検索結果をエクスポート (.zip)", "selectMessage": "メールを選択: {subject}", "batchDeleteConfirm": "選択した {count} 件のメールを完全に削除しますか？", "batchResult": "成功: {success}、失敗: {failed}。", "sortTime": "日時", "sortSubject": "件名", "sortFrom": "差出人", "sortSize": "サイズ", "sortStore": "受信順", "filterSortOrder": "並べ替え順序", "filterDateRangeError": "終了日は開始日以降にしてください。"});
 let state = {
     emails: [],
     currentEmail: null,
@@ -1265,13 +1272,16 @@ async function handleAPIResponse(response) {
 
 // API Functions - 使用新的 RESTful API 设计
 const API = {
-    async getEmailPreviews(offset = 0, limit = 50, query = '') {
+    async getEmailPreviews(offset = 0, limit = 50, query = '', filters = {}) {
         const params = new URLSearchParams({
             offset: offset.toString(),
             limit: limit.toString()
         });
         if (query) {
             params.append('q', query);
+        }
+        for (const [key, value] of Object.entries(filters)) {
+            if (value !== '') params.set(key, value);
         }
         const response = await fetch(`${API_BASE}/emails/preview?${params}`);
         return await handleAPIResponse(response);
@@ -1429,6 +1439,7 @@ function handleWebSocketMessage(data) {
 
 // Update UI with current language
 function updateUI(renderDynamic = true) {
+    renderMailboxTools();
     // Update title
     document.title = t('title');
     
@@ -1528,7 +1539,9 @@ function renderEmailList() {
             : (email.hasAttachment ? '<div class="email-item-attachments">📎</div>' : '');
 
         return `
-            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}" tabindex="0" role="button">
+            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
+                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtml(email.id)}" aria-label="${escapeHtml(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxBatchBusy ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
+                <div class="email-item-open" data-id="${email.id}" tabindex="0" role="button">
                 <div class="email-item-header">
                     <span class="email-item-from">${escapeHtml(from)}</span>
                     <span class="email-item-time">${time}</span>
@@ -1536,12 +1549,13 @@ function renderEmailList() {
                 <div class="email-item-subject">${escapeHtml(email.subject || t('noSubject'))}</div>
                 ${preview ? `<div class="email-item-preview">${escapeHtml(preview)}</div>` : ''}
                 ${attachments}
+                </div>
             </div>
         `;
     }).join('');
 
     // Add click handlers
-    container.querySelectorAll('.email-item').forEach(item => {
+    container.querySelectorAll('.email-item-open').forEach(item => {
         item.addEventListener('click', () => {
             const id = item.dataset.id;
             loadEmailDetail(id);
@@ -1905,7 +1919,8 @@ async function loadEmails({ background = false } = {}) {
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
-            state.searchQuery
+            state.searchQuery,
+            mailboxFilters
         );
         if (sequence !== emailListRequestSequence) return;
         state.total = data.total || 0;
@@ -1915,6 +1930,9 @@ async function loadEmails({ background = false } = {}) {
             return await loadEmails({ background });
         }
         state.emails = data.previews || [];
+        const visible = new Set(state.emails.map(email => email.id));
+        for (const id of selectedMailIDs) if (!visible.has(id)) selectedMailIDs.delete(id);
+        updateMailboxSelectionControls();
         renderEmailList();
         updateEmailCount();
         updatePagination();
@@ -2193,6 +2211,7 @@ function viewEmailSource(id) {
 function searchEmails() {
     const query = document.getElementById('searchInput').value.trim();
     state.searchQuery = query;
+    selectedMailIDs.clear();
     state.currentPage = 0;
     loadEmails();
 }
@@ -2641,4 +2660,121 @@ async function retryEmailWorkflow(kind, index) {
         tools.busy = false;
         if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
     }
+}
+
+
+Object.assign(i18n.en, { filterSortOrder:'Sort direction', filterDateRangeError:'The through date must be on or after the from date.' });
+Object.assign(i18n['zh-CN'], { filterSortOrder:'排序方向', filterDateRangeError:'截止日期不能早于起始日期。' });
+let mailboxFilters = {};
+const selectedMailIDs = new Set();
+let mailboxBatchBusy = false;
+const MAILBOX_FILTER_FIELDS = ['from', 'to', 'dateFrom', 'dateTo', 'read', 'sortBy', 'sortOrder'];
+function renderMailboxTools() {
+    const root = document.getElementById('mailboxTools');
+    if (!root) return;
+    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtml(mailboxFilters[field] || '')}"></label>`;
+    const select = (field, label, options) => `<label>${t(label)}<select id="mail-filter-${field}">${options.map(([value, key]) => `<option value="${value}" ${String(mailboxFilters[field] || '') === value ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>`;
+    root.innerHTML = `<details class="mailbox-filters"><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
+        ${input('from','filterFrom')}${input('to','filterTo')}${input('dateFrom','filterDateFrom','date')}${input('dateTo','filterDateTo','date')}
+        ${select('read','filterRead',[['','filterAny'],['false','filterUnread'],['true','filterReadOnly']])}
+        ${select('sortBy','filterSort',[['','sortStore'],['time','sortTime'],['subject','sortSubject'],['from','sortFrom'],['size','sortSize']])}
+        ${select('sortOrder','filterSortOrder',[['','sortDesc'],['asc','sortAsc']])}
+        <div><button type="submit" class="btn btn-primary">${t('applyFilters')}</button><button type="button" class="btn btn-secondary" onclick="resetMailboxFilters()">${t('resetFilters')}</button></div>
+    </form></details>
+    <div class="mailbox-batch-actions"><label><input id="mailSelectPage" type="checkbox" onchange="selectMailboxPage(this.checked)"> ${t('selectPage')}</label>
+        <span id="mailSelectionCount" role="status"></span>
+        <button id="mailBatchRead" type="button" class="btn btn-secondary" onclick="runMailboxBatch('read')">${t('batchRead')}</button>
+        <button id="mailBatchDelete" type="button" class="btn btn-danger" onclick="runMailboxBatch('delete')">${t('batchDelete')}</button>
+        <button id="mailExportSelected" type="button" class="btn btn-secondary" onclick="exportMailbox(true)">${t('exportSelected')}</button>
+        <button id="mailExportFiltered" type="button" class="btn btn-secondary" onclick="exportMailbox(false)">${t('exportFiltered')}</button>
+        <span id="mailBatchResult" role="status"></span>
+    </div>`;
+    document.getElementById('mailboxFilterForm')?.addEventListener('submit', event => { event.preventDefault(); void applyMailboxFilters(); });
+    document.getElementById('mail-filter-dateTo')?.addEventListener('input', event => event.target.setCustomValidity(''));
+    document.getElementById('mail-filter-dateFrom')?.addEventListener('input', () => document.getElementById('mail-filter-dateTo')?.setCustomValidity(''));
+    updateMailboxSelectionControls();
+}
+async function applyMailboxFilters() {
+    const form = document.getElementById('mailboxFilterForm');
+    if (form && !form.reportValidity()) return;
+    const filters = {};
+    for (const field of MAILBOX_FILTER_FIELDS) {
+        const value = document.getElementById('mail-filter-' + field)?.value?.trim() || '';
+        if (value) filters[field] = value;
+    }
+    const through = document.getElementById('mail-filter-dateTo');
+    through?.setCustomValidity('');
+    if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) {
+        through?.setCustomValidity(t('filterDateRangeError')); form?.reportValidity(); return;
+    }
+    mailboxFilters = filters;
+    state.searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
+    state.currentPage = 0;
+    selectedMailIDs.clear();
+    await loadEmails();
+}
+async function resetMailboxFilters() {
+    mailboxFilters = {}; selectedMailIDs.clear(); state.currentPage = 0;
+    renderMailboxTools(); await loadEmails();
+}
+function toggleMailSelection(id, checked) {
+    if (mailboxBatchBusy || !state.emails.some(email => email.id === id)) return;
+    if (checked) selectedMailIDs.add(id); else selectedMailIDs.delete(id);
+    updateMailboxSelectionControls();
+}
+function selectMailboxPage(checked) {
+    if (mailboxBatchBusy) return;
+    for (const email of state.emails) { if (checked) selectedMailIDs.add(email.id); else selectedMailIDs.delete(email.id); }
+    renderEmailList(); updateMailboxSelectionControls();
+}
+function updateMailboxSelectionControls() {
+    const ids = Array.from(selectedMailIDs);
+    const count = document.getElementById('mailSelectionCount');
+    if (count) count.textContent = t('selectionCount', { count: ids.length });
+    const select = document.getElementById('mailSelectPage');
+    if (select) {
+        select.checked = state.emails.length > 0 && state.emails.every(email => selectedMailIDs.has(email.id));
+        select.indeterminate = ids.length > 0 && !select.checked;
+        select.disabled = mailboxBatchBusy || state.emails.length === 0;
+    }
+    for (const id of ['mailBatchRead','mailBatchDelete','mailExportSelected']) {
+        const button = document.getElementById(id);
+        if (button) button.disabled = mailboxBatchBusy || ids.length === 0 || id === 'mailBatchDelete' && ids.some(mailID => relayPending.has(mailID));
+    }
+    const filtered = document.getElementById('mailExportFiltered');
+    if (filtered) filtered.disabled = mailboxBatchBusy || state.total === 0;
+}
+async function runMailboxBatch(action) {
+    if (!['read','delete'].includes(action) || mailboxBatchBusy) return;
+    const ids = Array.from(selectedMailIDs);
+    if (!ids.length || action === 'delete' && ids.some(id => relayPending.has(id))) return;
+    if (action === 'delete' && !confirm(t('batchDeleteConfirm', { count: ids.length }))) return;
+    mailboxBatchBusy = true; updateMailboxSelectionControls(); renderEmailList();
+    try {
+        const response = await fetch(`${API_BASE}/emails/${action === 'read' ? 'batch/read' : 'batch'}`, {
+            method: action === 'read' ? 'PATCH' : 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids })
+        });
+        const result = await handleAPIResponse(response);
+        const failed = new Set(result.failedIDs || []);
+        for (const id of ids) if (!failed.has(id)) selectedMailIDs.delete(id);
+        if (action === 'delete' && state.currentEmail && ids.includes(state.currentEmail.id) && !failed.has(state.currentEmail.id)) clearEmailSelection('replace');
+        await loadEmails();
+        const message = document.getElementById('mailBatchResult');
+        if (message) message.textContent = t('batchResult', {success:result.success || 0,failed:result.failed || 0});
+    } catch (error) { alert(parseAPIError(error)); }
+    finally { mailboxBatchBusy = false; updateMailboxSelectionControls(); renderEmailList(); }
+}
+function mailboxExportURL(selected) {
+    const params = new URLSearchParams();
+    if (selected) { if (!selectedMailIDs.size) return ''; params.set('ids', Array.from(selectedMailIDs).join(',')); }
+    else {
+        if (state.searchQuery) params.set('q',state.searchQuery);
+        for (const [key,value] of Object.entries(mailboxFilters)) if (!key.startsWith('sort') && value !== '') params.set(key,value);
+    }
+    return `${API_BASE}/emails/export?${params}`;
+}
+function exportMailbox(selected) {
+    if (mailboxBatchBusy) return;
+    const url = mailboxExportURL(selected);
+    if (url) window.open(url, '_blank', 'noopener');
 }
