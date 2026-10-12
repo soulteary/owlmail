@@ -1602,3 +1602,13 @@ test('detail mutations stay inert until all overlapping detail requests finish',
  h.run("hideLoading('emailDetail')");
  assert.equal(h.emailDetail.inert,false);
 });
+
+test('deleting the whole mailbox clears selected-message actions', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({})});
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true)");
+ await h.run('deleteAllEmails()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+ assert.equal(h.run("t('sortDesc')"),'Descending');
+ assert.equal(h.run("t('sortAsc')"),'Ascending');
+});
