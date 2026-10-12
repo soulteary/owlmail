@@ -2146,6 +2146,7 @@ async function deleteAllEmails() {
         renderEmailList();
         updateEmailCount();
         updatePagination();
+        scheduleMailboxRefresh();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
         const errorMsg = parseAPIError(error);
