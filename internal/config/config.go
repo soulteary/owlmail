@@ -5,6 +5,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -275,6 +276,7 @@ type Config struct {
 	MailIndexPath       string
 
 	// Web API configuration
+	DisableWeb            bool
 	WebPort               int
 	WebHost               string
 	WebUser               string
@@ -379,6 +381,7 @@ func DefaultConfig() *Config {
 		MailMaxDiskMB:               0,
 		MailCleanupInterval:         DefaultMailCleanupInterval,
 		MailIndexPath:               "",
+		DisableWeb:                  false,
 		WebPort:                     1080,
 		WebHost:                     "localhost",
 		WebUser:                     "",
@@ -459,6 +462,7 @@ type FlagRefs struct {
 	MailMaxDiskMB               *int
 	MailCleanupInterval         *string
 	MailIndexPath               *string
+	DisableWeb                  *bool
 	WebPort                     *int
 	WebHost                     *string
 	WebUser                     *string
@@ -547,6 +551,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		MailMaxDiskMB:               fs.Int("mail-max-disk-mb", cfg.MailMaxDiskMB, "Maximum mailbox disk usage in MiB (0 = unlimited)"),
 		MailCleanupInterval:         fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
 		MailIndexPath:               fs.String("mail-index-path", cfg.MailIndexPath, "Optional SQLite mailbox index path"),
+		DisableWeb:                  fs.Bool("disable-web", cfg.DisableWeb, "Run SMTP without the Web, REST, WebSocket or HTTP MCP listener"),
 		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port"),
 		WebHost:                     fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
@@ -641,6 +646,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		MailCleanupInterval: resolveStringWithFlag(fs, "mail-cleanup-interval", "OWLMAIL_MAIL_CLEANUP_INTERVAL", *refs.MailCleanupInterval),
 		MailIndexPath:       resolveStringWithFlag(fs, "mail-index-path", "OWLMAIL_MAIL_INDEX_PATH", *refs.MailIndexPath),
 
+		DisableWeb:            resolveBoolWithFlag(fs, "disable-web", "OWLMAIL_DISABLE_WEB", *refs.DisableWeb),
 		WebPort:               resolveIntWithFlag(fs, "web", "OWLMAIL_WEB_PORT", *refs.WebPort),
 		WebHost:               resolveStringWithFlag(fs, "web-ip", "OWLMAIL_WEB_HOST", *refs.WebHost),
 		WebUser:               resolveStringWithFlag(fs, "web-user", "OWLMAIL_WEB_USER", *refs.WebUser),
@@ -793,6 +799,9 @@ func ParseFlags() (*Config, error) {
 	}
 	refs := DefineFlagsWithDefaults(fs, defaults)
 	flag.Parse()
+	if fs.NArg() != 0 {
+		return nil, errors.New("server configuration does not accept positional arguments")
+	}
 	cfg := ResolveConfig(fs, refs)
 	// A config file becomes the flag defaults above, so by the time the command
 	// line is resolved a value it supplied is indistinguishable from one nobody

@@ -54,6 +54,7 @@ type API struct {
 	webhookService          *webhook.Service
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
+	relayJobReadiness       *relayJobReadinessMonitor
 	relayRecoveryOnce       sync.Once
 	relaySourceMutex        sync.Mutex
 	relaySourceReleases     map[string]func()
@@ -117,6 +118,9 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 		relaySourceReleases:     make(map[string]func()),
 	}
 	api.wsUpgrader.CheckOrigin = api.webSocketOriginAllowed
+	api.relayJobReadiness = newRelayJobReadinessMonitor(api)
+	mailServer.SetRelayJobReadinessProvider(api.relayJobReadiness)
+	_ = mailServer.AddCloser(api.relayJobReadiness)
 	api.setupRoutes()
 	api.setupEventListeners()
 	if api.relayJobs.hasQueued() {
@@ -128,6 +132,7 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 // StartRelayRecovery starts queued durable work at most once.
 func (api *API) StartRelayRecovery() {
 	api.relayRecoveryOnce.Do(func() {
+		api.relayJobReadiness.Start()
 		if api.relayJobs.hasQueued() {
 			go api.recoverRelayJobs()
 		}
@@ -288,7 +293,7 @@ func (api *API) setupRoutes() {
 	if api.mcpHandler != nil {
 		// The origin guard is deliberately independent of Basic Auth: an
 		// unauthenticated MCP endpoint is exactly the one a browser can reach.
-		app.All(api.route("/mcp"), api.mcpOriginGuard(), adaptor.HTTPHandler(api.mcpHandler))
+		app.All(api.route("/mcp"), api.mcpOriginGuard(), mcpHTTPHandler(api.mcpHandler))
 	}
 
 	// Browser UI and local help.
@@ -420,6 +425,18 @@ func (api *API) Start() error {
 // StartWithReady binds the API listener, then calls ready immediately before
 // serving. A bind or TLS configuration failure is returned without calling it.
 func (api *API) StartWithReady(ready func()) error {
+	return api.StartWithCertificateReady(func(_ [][]byte) error {
+		if ready != nil {
+			ready()
+		}
+		return nil
+	})
+}
+
+// StartWithCertificateReady exposes a copy of the public certificate chain
+// actually loaded by the listener. An initialization error closes the bound
+// listener before serving; private keys never leave the listener configuration.
+func (api *API) StartWithCertificateReady(ready func([][]byte) error) error {
 	host := api.host
 	if strings.ContainsAny(host, "[]") {
 		if !strings.HasPrefix(host, "[") || !strings.HasSuffix(host, "]") {
@@ -434,13 +451,17 @@ func (api *API) StartWithReady(ready func()) error {
 
 	var listener net.Listener
 	var err error
+	var certificates [][]byte
 	if api.httpsEnabled {
 		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
 			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
 		}
-		certificate, err := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
-		if err != nil {
-			return fmt.Errorf("load HTTPS certificate: %w", err)
+		certificate, loadErr := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
+		if loadErr != nil {
+			return fmt.Errorf("load HTTPS certificate: %w", loadErr)
+		}
+		for _, der := range certificate.Certificate {
+			certificates = append(certificates, append([]byte(nil), der...))
 		}
 		listener, err = net.Listen("tcp", addr)
 		if err == nil {
@@ -457,7 +478,9 @@ func (api *API) StartWithReady(ready func()) error {
 	}
 	defer func() { _ = listener.Close() }()
 	if ready != nil {
-		ready()
+		if err := ready(certificates); err != nil {
+			return err
+		}
 	}
 	return api.app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
 }
@@ -533,42 +556,47 @@ type readinessResponse struct {
 }
 
 func (api *API) readiness(c fiber.Ctx) error {
+	status := api.mailServer.GetRuntimeReadiness()
 	response := readinessResponse{
 		Status: "ready",
 		Checks: map[string]readinessCheck{
-			"attachment_store": {Status: "disabled"},
+			"attachment_store":   {Status: "disabled"},
+			"relay":              {Status: "disabled"},
+			"outgoing_transport": {Status: "disabled"},
+			"relay_job_storage":  {Status: "disabled"},
 		},
 	}
-	smtpReady, storage := api.mailServer.GetServiceReadiness()
 	response.Checks["smtp"] = readinessCheck{Status: "ready"}
-	if !smtpReady {
+	if !status.SMTP {
 		response.Checks["smtp"] = readinessCheck{Status: "unready"}
-		response.Status = "unready"
 	}
-	response.Checks["mail_storage"] = readinessCheck{Status: string(storage.State), ErrorCategory: storage.ErrorCategory}
-	if !storage.CheckedAt.IsZero() {
-		check := response.Checks["mail_storage"]
-		check.CheckedAt = storage.CheckedAt.Format(time.RFC3339Nano)
-		response.Checks["mail_storage"] = check
+	response.Checks["mail_storage"] = readinessHealthCheck(status.Storage)
+	if status.Attachment != nil {
+		response.Checks["attachment_store"] = readinessHealthCheck(*status.Attachment)
 	}
-	if !storage.Ready() {
-		response.Status = "unready"
+	if status.RelayJobs != nil {
+		response.Checks["relay_job_storage"] = readinessHealthCheck(*status.RelayJobs)
 	}
-	status, enabled := api.mailServer.GetAttachmentHealth()
-	if !enabled {
-		if response.Status == "unready" {
-			return c.Status(http.StatusServiceUnavailable).JSON(response)
+	if status.Relay != nil && status.Relay.Enabled {
+		response.Checks["relay"] = readinessCheck{Status: "ready"}
+		if !status.Relay.Ready() {
+			response.Checks["relay"] = readinessCheck{Status: "unready"}
 		}
-		return c.Status(http.StatusOK).JSON(response)
 	}
-	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
-	if !status.CheckedAt.IsZero() {
-		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
+	if status.Transport != nil {
+		response.Checks["outgoing_transport"] = readinessHealthCheck(*status.Transport)
 	}
-	response.Checks["attachment_store"] = check
-	if !status.Ready() || response.Status == "unready" {
+	if status.ValidateService(status.UpdatedAt) != nil {
 		response.Status = "unready"
 		return c.Status(http.StatusServiceUnavailable).JSON(response)
 	}
 	return c.Status(http.StatusOK).JSON(response)
+}
+
+func readinessHealthCheck(status attachmentstore.HealthStatus) readinessCheck {
+	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
+	if !status.CheckedAt.IsZero() {
+		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
+	}
+	return check
 }

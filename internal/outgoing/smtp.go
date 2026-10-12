@@ -139,6 +139,23 @@ func sendMailWithConfig(ctx context.Context, addr string, auth smtp.Auth, from s
 // sendMailStreamWithConfig performs a bounded SMTP transaction while streaming
 // the message through net/smtp's DATA writer. It always closes source.
 func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, rawConfig *OutgoingConfig) error {
+	return smtpTransaction(ctx, addr, auth, from, to, source, rawConfig, false)
+}
+
+// ProbeSMTP verifies transport and configured authentication without sending mail.
+func ProbeSMTP(ctx context.Context, rawConfig *OutgoingConfig) error {
+	if rawConfig == nil || rawConfig.Host == "" {
+		return ErrNotConfigured
+	}
+	var auth smtp.Auth
+	if rawConfig.User != "" {
+		auth = smtp.PlainAuth("", rawConfig.User, rawConfig.Password, rawConfig.Host)
+	}
+	addr := net.JoinHostPort(rawConfig.Host, fmt.Sprint(rawConfig.Port))
+	return smtpTransaction(ctx, addr, auth, "", nil, io.NopCloser(strings.NewReader("")), rawConfig, true)
+}
+
+func smtpTransaction(ctx context.Context, addr string, auth smtp.Auth, from string, to []string, source io.ReadCloser, rawConfig *OutgoingConfig, probe bool) error {
 	if source == nil {
 		return fmt.Errorf("email source is nil")
 	}
@@ -229,6 +246,12 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		}
 	}()
 
+	if probe {
+		if err := client.Hello("localhost"); err != nil {
+			return relayContextError(ctx, err)
+		}
+	}
+
 	if config.TLSMode == TLSModeSTARTTLS {
 		if err := setPhaseDeadline(ctx, smtpConn, timeouts.tlsHandshake); err != nil {
 			return err
@@ -255,6 +278,13 @@ func sendMailStreamWithConfig(ctx context.Context, addr string, auth smtp.Auth, 
 		if err := client.Auth(auth); err != nil {
 			return relayContextError(ctx, err)
 		}
+	}
+
+	if probe {
+		if err := setPhaseDeadline(ctx, smtpConn, timeouts.quit); err != nil {
+			return err
+		}
+		return relayContextError(ctx, client.Quit())
 	}
 
 	// MAIL and every RCPT share one absolute deadline so the configured

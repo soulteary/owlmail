@@ -112,11 +112,17 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 		}
 	}
 	add("configuration", err == nil, message)
-	add("web_auth", (cfg.WebUser == "") == (cfg.WebPassword == ""), "Web username and password must be configured together")
-	collision, uncertain := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPPort, cfg.WebHost, cfg.WebPort)
+	add("web_auth", cfg.DisableWeb || (cfg.WebUser == "") == (cfg.WebPassword == ""), "Web username and password must be configured together")
+	collision, uncertain := false, false
+	if !cfg.DisableWeb {
+		collision, uncertain = doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPPort, cfg.WebHost, cfg.WebPort)
+	}
 	if cfg.TLSEnabled && cfg.SMTPSPort != 0 {
 		sameSMTP, _ := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPPort, cfg.SMTPHost, cfg.SMTPSPort)
-		sameWeb, unknownWeb := doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPSPort, cfg.WebHost, cfg.WebPort)
+		sameWeb, unknownWeb := false, false
+		if !cfg.DisableWeb {
+			sameWeb, unknownWeb = doctorListenerOverlap(cfg.SMTPHost, cfg.SMTPSPort, cfg.WebHost, cfg.WebPort)
+		}
 		collision = collision || sameSMTP || sameWeb
 		uncertain = uncertain || unknownWeb
 	}
@@ -128,7 +134,7 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 		name      string
 		enabled   bool
 		cert, key string
-	}{{"smtp_tls", cfg.TLSEnabled, cfg.TLSCertFile, cfg.TLSKeyFile}, {"web_https", cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile}} {
+	}{{"smtp_tls", cfg.TLSEnabled, cfg.TLSCertFile, cfg.TLSKeyFile}, {"web_https", cfg.HTTPSEnabled && !cfg.DisableWeb, cfg.HTTPSCertFile, cfg.HTTPSKeyFile}} {
 		if !item.enabled {
 			continue
 		}

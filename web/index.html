@@ -18,6 +18,7 @@
                     <select id="langSelect" class="lang-select" title="Switch Language"></select>
                     <a id="webhookBtn" class="btn btn-secondary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/webhooks">Webhooks</a>
                     <a id="helpBtn" class="btn btn-secondary btn-link" href="{{OWLMAIL_BASE_PATHNAME}}/help" target="_blank" rel="noopener">Help</a>
+                    <button id="commandPaletteButton" type="button" class="btn btn-secondary" aria-haspopup="dialog" aria-controls="commandPalette" aria-keyshortcuts="Control+k Meta+k ?">Commands and shortcuts</button>
                     <button id="themeToggle" class="btn btn-secondary" title="Toggle Theme">🌙</button>
                     <button id="notificationToggle" class="btn btn-secondary notification-toggle" type="button" aria-pressed="false" title="Enable browser notifications">🔕 Notifications off</button>
                     <button id="refreshBtn" class="btn btn-primary">Refresh</button>
@@ -29,6 +30,7 @@
                 <input type="text" id="searchInput" placeholder="Search emails..." class="search-input">
                 <button id="searchBtn" class="btn btn-primary">Search</button>
             </div>
+            <div id="mailboxTools"></div>
         </header>
 
         <!-- Main Content -->
@@ -62,6 +64,14 @@
 
     <!-- Browser notification feedback -->
     <div id="notificationStatus" class="notification-status" role="status" aria-live="polite" hidden></div>
+
+    <dialog id="commandPalette" class="command-palette" aria-labelledby="commandTitle">
+        <div class="command-heading"><h2 id="commandTitle">Commands and shortcuts</h2><button id="commandClose" type="button" class="btn btn-secondary">Close</button></div>
+        <p class="command-hint"><kbd>Ctrl / Cmd + K</kbd> · <kbd>?</kbd> · <kbd>↑ ↓</kbd> · <kbd>Enter</kbd> · <kbd>Esc</kbd></p>
+        <input id="commandSearch" type="search" class="search-input" autocomplete="off" aria-label="Search commands" aria-controls="commandList">
+        <div id="commandList" class="command-list"></div>
+        <p id="commandEmpty" role="status" hidden></p>
+    </dialog>
 
     <!-- Loading Overlay -->
     <div id="loadingOverlay" class="loading-overlay" style="display: none;">

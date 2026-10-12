@@ -237,6 +237,7 @@ the message body; clicking one focuses OwlMail and opens the message.
 | `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP command and DATA read timeout |
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP response write timeout |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximum recipients accepted per message |
+| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | Run SMTP without the HTTP listener (SMTP-only mode) |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
@@ -890,11 +891,75 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — one self-hosted email test gateway for developers, CI, automation, and AI agents. 🦉
 
+### SMTP-only mode
+
+Use `owlmail -disable-web` or `OWLMAIL_DISABLE_WEB=true` to capture mail without
+a Web UI, REST, WebSocket, metrics or HTTP MCP listener. The flat YAML/JSON
+configuration key is `disable-web`. SMTP AUTH, STARTTLS/SMTPS, storage retention,
+Webhook dispatch and automatic relay remain active; existing durable relay jobs
+are recovered. Configured HTTP MCP, metrics or REST compatibility flags conflict
+with this mode and fail configuration validation. Web port and HTTPS certificate
+settings are inactive, and no temporary Web password is generated.
+
+The packaged container healthcheck automatically probes the configured SMTP host
+and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
+Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
+deployments. For readiness, use `owlmail healthcheck --ready -disable-web` (or
+`healthcheck --ready --container` in the container). SMTP-only servers publish
+an atomic, owner-readable runtime snapshot in the mail directory every second.
+Readiness requires a matching listener and a snapshot no older than five seconds.
+It checks the running server's cached mail-directory write/sync/cleanup health,
+remote attachment-store health when enabled, and configured relay worker and
+queue availability. A full queue or no live worker makes an enabled relay unready.
+This measures worker lifecycle and queue capacity, not worker progress or index integrity.
+Configured outgoing relay also checks the native durable job store through
+`relay_job_storage`. Its owner checks the relay metadata subdirectory's
+create/write/sync/rename/cleanup operations in the background every 30 seconds;
+HTTP and SMTP-only probes only read the cached result. Application startup keeps
+configured relay pending before its queue owner registers or recovery starts.
+Failed job writes keep readiness unready until the same
+owner durably repairs the affected records; a successful scratch-file check does
+not conceal them. A full status store is unready while pending jobs or the
+minimum retention window prevent accepting another job. Evictable completed
+records do not cause backpressure. No outgoing host means this dependency is
+disabled. Failure to load recovery records requires repairing the records and
+restarting the service; the health probe never replaces the running queue owner.
+Snapshot reads are limited to 64 KiB and a two-second wait; a blocked storage
+publisher cannot keep an old healthy snapshot valid indefinitely. The server's
+mail-storage probe runs every 30 seconds; cached checking, failed or stale results
+are unready. Permission or filesystem failures that prevent snapshot publication
+are detected when its five-second freshness window expires.
+
+HTTP and SMTP-only readiness use the same cached dependency policy. When an
+outgoing SMTP host is configured, the running server verifies its greeting,
+EHLO/HELO, configured TLS mode, authentication and QUIT in the background every
+30 seconds, with a five-second total timeout. Both modes remain unready until
+that probe succeeds and reject transport or local-storage results older than
+45 seconds. Changing the live outgoing configuration invalidates its cached
+result and schedules another probe. Healthcheck commands do not reload outgoing
+credentials or relay rules and HTTP requests do not contact downstream SMTP.
+No MAIL, RCPT or DATA commands are sent. This does not guarantee recipient
+acceptance or final delivery.
+SMTP-only readiness requires an explicit absolute `-mail-directory` or
+`OWLMAIL_MAIL_DIR` (the container sets `/app/mail` by default); the process-specific
+temporary directory cannot be inferred by a separate native probe. Run native
+probes with the server configuration and filesystem namespace, using a user that
+can read the server's 0600 snapshot. Snapshot files are operational metadata and
+must not be edited; older binaries that do not publish runtime state cannot satisfy
+this readiness check. Liveness remains independent of storage and downstream availability. Publish only the SMTP ports
+you need; the default still starts SMTP and Web together.
+
+
 ### Container health checks
 
-The image runs `owlmail healthcheck --container`. It reads the OwlMail PID 1
-startup flags and resolves the same environment/config-file settings as startup,
-then probes the effective web host, port, base pathname and HTTP/HTTPS scheme.
+The image runs `owlmail healthcheck --container`. The OwlMail PID 1 server
+publishes a private, credential-free startup record in `/tmp`. The probe uses
+that record for the effective listener, mode, mail directory, base pathname and
+HTTP/HTTPS scheme, without reloading configuration files or environment values.
+Changing or removing a configuration file after startup does not change the
+probe target. The record includes the public HTTPS certificate loaded at startup
+and is bound to the current PID 1 process start time; missing or stale records fail.
+Container deployments with a read-only root filesystem must provide writable `/tmp`.
 Wildcard bind addresses use loopback. HTTPS verifies the configured certificate
 (including self-signed certificates); redirects and non-200 responses fail. The
 request has a two-second timeout and does not need web authentication.
@@ -905,6 +970,17 @@ use an `exec` entrypoint, or override the Docker health command for an init
 wrapper. Offline commands such as `doctor`, `sendmail`, and `mcp-stdio` do not
 provide the web listener and fail the container check instead of probing an
 unrelated default port. Reverse-proxy external URLs do not change the local probe.
+
+### Commands and keyboard help
+
+Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
+`Cmd+K` outside a text field. Search localized command names, use Up/Down to
+choose an available command, and press Enter to run it. Tab stays within the
+modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
+are shown beside their commands and are suspended while the modal is open.
+Commands that need a selected message or HTML preview are disabled when those
+are absent. Deletion retains the normal confirmation and relay protection.
+
 
 ### Mail preview controls
 
@@ -920,3 +996,38 @@ refreshes, `t` switches theme, Escape closes the selected message, and Delete
 deletes it after confirmation. Shortcuts are inactive while editing text, using
 buttons or links, composing text, or holding modifier keys. Preview width buttons
 are available with Tab and Enter/Space.
+
+### Live inbox consistency
+
+Search and page changes keep only the newest list response. Live mail events
+refresh the active server query in a short coalesced batch instead of inserting
+unfiltered messages into a page. Reconnection resynchronizes missed changes,
+and deleting the last result on a page returns to the last available page.
+
+### Loading and relay status waiting
+
+Inbox and detail requests show local busy state, so navigation stays available.
+Overlapping requests and mutations retain their loading indicator until all
+operations for that region finish.
+
+Accepted relay jobs are watched for up to 60 seconds, with a 10-second limit on
+each status request. Stop waiting pauses only the browser status check; it does
+not cancel delivery. Resume waiting continues watching the same job without
+resubmitting it. Delivery records remain available in the Deliveries tab. While
+an accepted job has an unknown final state, relay and deletion controls stay
+locked in the current session to prevent duplicate delivery or lost evidence.
+
+### Inbox filters and batch tools
+
+Expand Filters to query by sender, recipient, date range, read state and sort
+order. Filters combine with text search and reset pagination when applied.
+Select this page selects only visible messages; selection is pruned when the
+page or filter results change. Batch read/delete sends explicit IDs, confirms
+deletion, and preserves failed visible IDs for retry. Pending relay sources
+cannot be batch-deleted. Results show success and failure counts.
+
+Export selected downloads those IDs as a ZIP of `.eml` files. Export filtered
+results exports the active search/filter query across pages, subject to the
+existing server limits of 1,000 messages and 256 MiB of source data. Export does
+not include the browser's sort order. Empty selections never trigger a full
+mailbox export. All controls have labels and translations in supported locales.

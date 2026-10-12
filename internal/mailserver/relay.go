@@ -127,9 +127,14 @@ func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) error {
 			return err
 		}
 		ms.outgoing = outgoingRelay
+		ms.invalidateOutgoingReadiness()
 		return nil
 	}
-	return ms.outgoing.UpdateConfig(config)
+	if err := ms.outgoing.UpdateConfig(config); err != nil {
+		return err
+	}
+	ms.invalidateOutgoingReadiness()
+	return nil
 }
 
 // GetOutgoingConfig returns the outgoing mail configuration

@@ -74,17 +74,21 @@ type TLSConfig struct {
 type ServerOptions struct {
 	// ReadOnly requires an existing mail directory and prevents constructor
 	// writes. It is used by observer processes such as the MCP stdio bridge.
-	ReadOnly           bool
-	OutgoingConfig     *outgoing.OutgoingConfig
-	AuthConfig         *SMTPAuthConfig
-	AuthRequireTLS     bool
-	TLSConfig          *TLSConfig
-	UseUUIDForID       bool
-	MaxMessageBytes    int64
-	MaxDataConcurrency int
-	ReadTimeout        time.Duration
-	WriteTimeout       time.Duration
-	MaxRecipients      int
+	ReadOnly         bool
+	RuntimeReadiness bool
+	// RequireRelayJobReadiness keeps configured relay pending before the API
+	// queue owner registers. Standalone SMTP library users can omit this.
+	RequireRelayJobReadiness bool
+	OutgoingConfig           *outgoing.OutgoingConfig
+	AuthConfig               *SMTPAuthConfig
+	AuthRequireTLS           bool
+	TLSConfig                *TLSConfig
+	UseUUIDForID             bool
+	MaxMessageBytes          int64
+	MaxDataConcurrency       int
+	ReadTimeout              time.Duration
+	WriteTimeout             time.Duration
+	MaxRecipients            int
 	// SMTPSPort is the port of the implicit-TLS (SMTPS) listener started
 	// alongside the plain listener when TLSConfig is enabled. Zero starts no
 	// implicit-TLS listener, which leaves STARTTLS on the main port as the
@@ -111,11 +115,16 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	runtimeReadiness        bool
 	smtpReady               atomic.Bool
 	smtpsReady              atomic.Bool
 	shuttingDown            atomic.Bool
 	readinessMutex          sync.RWMutex
 	mailStorageHealth       attachmentstore.HealthStatus
+	relayJobHealth          attachmentstore.ReadinessProvider
+	relayJobHealthRequired  bool
+	outgoingTransportHealth attachmentstore.HealthStatus
+	outgoingReadinessWake   chan struct{}
 	webhookService          *webhook.Service
 	storeByID               map[string]*types.Email
 	storeOrder              []string
@@ -178,6 +187,7 @@ type MailServer struct {
 	}
 	outgoingMutex       sync.RWMutex
 	outgoingClosed      bool
+	outgoingGeneration  uint64
 	authConfig          *SMTPAuthConfig
 	authVerifier        *common.CredentialVerifier
 	authRequireTLS      bool

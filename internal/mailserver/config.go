@@ -42,6 +42,14 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	})
 }
 
+// ResolveSMTPHost returns the effective listener identity, preserving wildcard binds.
+func ResolveSMTPHost(host string) string {
+	if host == "" {
+		return defaultHost
+	}
+	return host
+}
+
 // ResolveMailDirectory returns the directory used by the server when callers
 // leave the mail directory unset. Keeping this resolution in one place lets
 // startup validate auxiliary storage paths against the effective directory.
@@ -55,6 +63,9 @@ func ResolveMailDirectory(mailDir string) string {
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.ReadOnly && options.RuntimeReadiness {
+		return nil, fmt.Errorf("read-only observers cannot publish runtime readiness")
+	}
 	if options.MaxDataConcurrency < 0 {
 		return nil, fmt.Errorf("SMTP DATA max concurrency must be zero or greater")
 	}
@@ -84,9 +95,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if port == 0 {
 		port = defaultPort
 	}
-	if host == "" {
-		host = defaultHost
-	}
+	host = ResolveSMTPHost(host)
 	mailDir = ResolveMailDirectory(mailDir)
 	maxMessageBytes := options.MaxMessageBytes
 	if maxMessageBytes <= 0 {
@@ -129,6 +138,9 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		receivedAtByID:          make(map[string]time.Time),
 		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
+		runtimeReadiness:        options.RuntimeReadiness,
+		relayJobHealthRequired:  options.RequireRelayJobReadiness,
+		outgoingReadinessWake:   make(chan struct{}, 1),
 		port:                    port,
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,

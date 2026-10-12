@@ -210,6 +210,7 @@ docker buildx build \
 | `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | Lese-Timeout für SMTP-Befehle und DATA |
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | Schreib-Timeout für SMTP-Antworten |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximale Empfängerzahl pro Nachricht |
+| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | Nur SMTP betreiben, ohne HTTP-Listener |
 | `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web-API-Port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web-API-Host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-sichtbarer HTTP(S)-Origin für generierte E-Mail-Deep-Links; Proxy-Unterpfade werden separat mit `-base-pathname` konfiguriert |

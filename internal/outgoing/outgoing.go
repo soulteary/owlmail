@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/soulteary/owlmail/internal/common"
@@ -57,6 +58,7 @@ type OutgoingMail struct {
 	config         *OutgoingConfig
 	queue          chan *RelayTask
 	workerCount    int
+	liveWorkers    atomic.Int32
 	enqueueTimeout time.Duration
 	wg             sync.WaitGroup
 	enqueueWG      sync.WaitGroup
@@ -109,6 +111,7 @@ func NewOutgoingMail(config *OutgoingConfig) *OutgoingMail {
 // worker processes relay tasks from the queue
 func (om *OutgoingMail) worker() {
 	defer om.wg.Done()
+	defer om.liveWorkers.Add(-1)
 
 	for {
 		select {
@@ -143,6 +146,7 @@ func (om *OutgoingMail) startWorkersLocked() {
 	om.workerStarted = true
 	for i := 0; i < om.workerCount; i++ {
 		om.wg.Add(1)
+		om.liveWorkers.Add(1)
 		go om.worker()
 	}
 }
@@ -557,4 +561,23 @@ func relayContextError(ctx context.Context, err error) error {
 		return contextErr
 	}
 	return err
+}
+
+// RuntimeReadiness describes queue capacity and worker lifecycle, without doing network I/O.
+type RuntimeReadiness struct {
+	Enabled  bool  `json:"enabled"`
+	Closed   bool  `json:"closed"`
+	Workers  int32 `json:"workers"`
+	Queued   int   `json:"queued"`
+	Capacity int   `json:"capacity"`
+}
+
+func (status RuntimeReadiness) Ready() bool {
+	return !status.Closed && (!status.Enabled || (status.Workers > 0 && status.Queued < status.Capacity))
+}
+
+func (om *OutgoingMail) RuntimeReadiness() RuntimeReadiness {
+	om.mu.RLock()
+	defer om.mu.RUnlock()
+	return RuntimeReadiness{Enabled: om.enabled, Closed: om.closed, Workers: om.liveWorkers.Load(), Queued: len(om.queue), Capacity: cap(om.queue)}
 }
