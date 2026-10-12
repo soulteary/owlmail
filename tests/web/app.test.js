@@ -204,7 +204,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
             setItem(key, value) { storage.set(key, value); }
         },
         console,
-        setTimeout(callback) { Promise.resolve().then(callback); return 1; },
+        setTimeout(callback, delay = 0) { if (delay <= 1000) Promise.resolve().then(callback); return 1; },
         clearTimeout() {},
         fetch: async (url, options) => {
             fetchRequests.push({ url: String(url), options });
@@ -215,6 +215,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         URL,
         URLSearchParams,
         Blob,
+        AbortController,
         TextEncoder,
         alert(message) { alerts.push(String(message)); },
         confirm(message) { confirmations.push(String(message)); return true; }
@@ -1446,4 +1447,37 @@ test('websocket reconnect invalidates and refreshes missed changes', async () =>
  h.run('connectWebSocket(); state.ws.onopen()');
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.fetchRequests.length,1);
+});
+
+test('overlapping local loads keep aria-busy until both finish', () => {
+ const h=createHarness();
+ h.run("showLoading('emailList'); showLoading('emailList'); hideLoading('emailList')");
+ assert.equal(h.emailList.attributes.get('aria-busy'),'true');
+ h.run("hideLoading('emailList')");
+ assert.equal(h.emailList.attributes.get('aria-busy'),'false');
+ assert.equal(h.run('loadingCounts.size'),0);
+});
+test('stopping a stalled relay wait keeps the accepted job and blocks resubmission', async () => {
+ const h=createHarness({fetchImpl:()=>new Promise(()=>{})});
+ h.run("relayEnabled=true; relayPending.add('mail-1'); relayTracking.set('mail-1',{statusUrl:'/api/v1/relay-jobs/job-1'});");
+ const waiting=h.run("resumeRelayWaiting('mail-1')");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.run("stopRelayWaiting('mail-1')");
+ await waiting;
+ assert.equal(h.run("relayTracking.get('mail-1').paused"),true);
+ assert.equal(h.run("relayPending.has('mail-1')"),true);
+ assert.match(h.alerts.at(-1),/queued delivery continues/);
+ assert.equal(h.fetchRequests.filter(r=>r.options?.method==='POST').length,0);
+});
+test('bounded relay waiting times out without cancelling server delivery and can resume', async () => {
+ let done=false;
+ const h=createHarness({fetchImpl:()=>done?Promise.resolve(jsonResponse({data:{status:'succeeded'}})):new Promise(()=>{})});
+ h.run("relayPending.add('mail-1'); relayTracking.set('mail-1',{statusUrl:'/api/v1/relay-jobs/job-1'});");
+ await h.run("resumeRelayWaiting('mail-1',0)");
+ assert.equal(h.run("relayTracking.get('mail-1').paused"),true);
+ assert.match(h.alerts.at(-1),/timed out/);
+ done=true;
+ await h.run("resumeRelayWaiting('mail-1')");
+ assert.equal(h.run("relayPending.has('mail-1')"),false);
+ assert.equal(h.run("relayTracking.has('mail-1')"),false);
 });

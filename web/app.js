@@ -849,6 +849,13 @@ function setLanguage(lang, renderDynamic = true) {
 }
 
 // Global State
+Object.assign(i18n["en"], {"relayWaiting": "Waiting for delivery status", "relayPaused": "Status waiting paused", "relayStopWait": "Stop waiting", "relayResumeWait": "Resume waiting", "relayWaitStopped": "Stopped waiting. The queued delivery continues; resume here or check Deliveries.", "relayWaitTimeout": "Waiting timed out. The queued delivery continues; resume here or check Deliveries."});
+Object.assign(i18n["zh-CN"], {"relayWaiting": "正在等待投递状态", "relayPaused": "状态等待已暂停", "relayStopWait": "停止等待", "relayResumeWait": "继续等待", "relayWaitStopped": "已停止等待。已提交的投递会继续，可继续等待或查看投递记录。", "relayWaitTimeout": "等待超时。已提交的投递会继续，可继续等待或查看投递记录。"});
+Object.assign(i18n["de"], {"relayWaiting": "Warte auf Zustellstatus", "relayPaused": "Statusabfrage pausiert", "relayStopWait": "Warten stoppen", "relayResumeWait": "Warten fortsetzen", "relayWaitStopped": "Warten beendet. Die Zustellung läuft weiter; fortsetzen oder Zustellungen prüfen.", "relayWaitTimeout": "Zeitlimit erreicht. Die Zustellung läuft weiter; fortsetzen oder Zustellungen prüfen."});
+Object.assign(i18n["it"], {"relayWaiting": "Attesa dello stato di consegna", "relayPaused": "Attesa sospesa", "relayStopWait": "Interrompi attesa", "relayResumeWait": "Riprendi attesa", "relayWaitStopped": "Attesa interrotta. La consegna continua; riprendi o controlla le consegne.", "relayWaitTimeout": "Attesa scaduta. La consegna continua; riprendi o controlla le consegne."});
+Object.assign(i18n["fr"], {"relayWaiting": "En attente du statut de livraison", "relayPaused": "Attente suspendue", "relayStopWait": "Arrêter l’attente", "relayResumeWait": "Reprendre l’attente", "relayWaitStopped": "Attente arrêtée. La livraison continue ; reprenez ou consultez les livraisons.", "relayWaitTimeout": "Délai dépassé. La livraison continue ; reprenez ou consultez les livraisons."});
+Object.assign(i18n["ko"], {"relayWaiting": "전송 상태 대기 중", "relayPaused": "상태 대기 일시 중지", "relayStopWait": "대기 중지", "relayResumeWait": "대기 재개", "relayWaitStopped": "대기를 중지했습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요.", "relayWaitTimeout": "대기 시간이 초과되었습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요."});
+Object.assign(i18n["ja"], {"relayWaiting": "配信状態を待機中", "relayPaused": "状態の待機を停止中", "relayStopWait": "待機を停止", "relayResumeWait": "待機を再開", "relayWaitStopped": "待機を停止しました。配信は続行されます。待機を再開するか配信履歴を確認してください。", "relayWaitTimeout": "待機がタイムアウトしました。配信は続行されます。待機を再開するか配信履歴を確認してください。"});
 let state = {
     emails: [],
     currentEmail: null,
@@ -860,6 +867,8 @@ let state = {
 };
 let relayEnabled = false;
 const relayPending = new Set();
+const relayTracking = new Map();
+const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
@@ -1351,8 +1360,10 @@ const API = {
         return await handleAPIResponse(response);
     },
 
-    async getRelayJob(statusURL) {
-        const response = await fetch(new URL(statusURL, window.location.origin).toString());
+    async getRelayJob(statusURL, signal) {
+        const url = new URL(statusURL, window.location.origin);
+        if (url.origin !== window.location.origin) throw new Error("Relay status URL must use the inbox origin");
+        const response = await fetch(url.toString(), { signal });
         return await handleAPIResponse(response);
     }
 };
@@ -1890,7 +1901,7 @@ let emailListRequestSequence = 0;
 async function loadEmails({ background = false } = {}) {
     const sequence = ++emailListRequestSequence;
     try {
-        if (!background) showLoading();
+        if (!background) showLoading('emailList');
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
@@ -1912,15 +1923,21 @@ async function loadEmails({ background = false } = {}) {
         console.error('Failed to load emails:', error);
         if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
-        if (!background) hideLoading();
+        if (!background) hideLoading('emailList');
     }
 }
 
 function renderEmailRelayActions(email) {
     if (!relayEnabled) return '';
+    const tracking = relayTracking.get(email.id);
+    const waiting = relayWaitControllers.has(email.id);
     return `<button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
-        <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>`;
+        <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
+        ${tracking ? `<span role="status">${t(waiting ? 'relayWaiting' : 'relayPaused')}</span>
+            <button class="btn btn-secondary" onclick="${waiting ? 'stopRelayWaiting' : 'resumeRelayWaiting'}('${email.id}')">${t(waiting ? 'relayStopWait' : 'relayResumeWait')}</button>
+            <button class="btn btn-secondary" onclick="setEmailContentTab('deliveries')">${t('contentDeliveries')}</button>` : ''}`;
 }
+
 function updateEmailRelayControls() {
     if (!state.currentEmail) return;
     const actions = document.getElementById('emailRelayActions');
@@ -1941,24 +1958,69 @@ async function loadRelayAvailability() {
     }
 }
 
-async function waitForRelayJob(statusUrl) {
+function relayWaitError(code) {
+    const error = new Error(code);
+    error.code = code;
+    return error;
+}
+function relayWaitOperation(operation, signal, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+        const controller = new AbortController();
+        let settled = false;
+        const finish = (error, value) => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timer);
+            signal?.removeEventListener('abort', abort);
+            controller.abort();
+            if (error) reject(error); else resolve(value);
+        };
+        const abort = () => finish(relayWaitError(signal.reason || 'RELAY_WAIT_STOPPED'));
+        const timer = setTimeout(() => finish(relayWaitError('RELAY_REQUEST_TIMEOUT')), timeoutMs);
+        if (signal?.aborted) { abort(); return; }
+        signal?.addEventListener('abort', abort, { once: true });
+        Promise.resolve().then(() => operation(controller.signal)).then(value => finish(null, value), finish);
+    });
+}
+async function waitForRelayJob(statusUrl, { signal } = {}) {
     while (true) {
         let statusResult;
         try {
-            statusResult = await API.getRelayJob(statusUrl);
+            statusResult = await relayWaitOperation(requestSignal => API.getRelayJob(statusUrl, requestSignal), signal);
         } catch (error) {
-            if (!relayStatusErrorIsTransient(error)) {
-                throw error;
-            }
+            if (signal?.aborted || !relayStatusErrorIsTransient(error)) throw error;
             console.warn('Relay status check failed; retrying:', error);
-            await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
-            continue;
         }
         const current = statusResult && statusResult.data;
-        if (current && (current.status === 'succeeded' || current.status === 'failed')) {
-            return current;
-        }
-        await new Promise((resolve) => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS));
+        if (current && (current.status === 'succeeded' || current.status === 'failed')) return current;
+        await relayWaitOperation(() => new Promise(resolve => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS)), signal);
+    }
+}
+function stopRelayWaiting(id) {
+    relayWaitControllers.get(id)?.abort('RELAY_WAIT_STOPPED');
+}
+async function resumeRelayWaiting(id, timeoutMs = 60000) {
+    const tracking = relayTracking.get(id);
+    if (!tracking || relayWaitControllers.has(id)) return;
+    const controller = new AbortController();
+    relayWaitControllers.set(id, controller);
+    tracking.paused = false;
+    updateEmailRelayControls();
+    const timer = setTimeout(() => controller.abort('RELAY_WAIT_TIMEOUT'), timeoutMs);
+    try {
+        const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
+        tracking.onCompleted?.(completed);
+        relayTracking.delete(id);
+        relayPending.delete(id);
+        if (completed.status === 'failed') alert(t('relayError', { error: completed.errorCategory || 'delivery failed' }));
+    } catch (error) {
+        tracking.paused = true;
+        alert(t(error.code === 'RELAY_WAIT_TIMEOUT' ? 'relayWaitTimeout' : error.code === 'RELAY_WAIT_STOPPED' ? 'relayWaitStopped' : 'relayError', { error: parseAPIError(error) }));
+    } finally {
+        clearTimeout(timer);
+        relayWaitControllers.delete(id);
+        syncRelayMutationControls();
+        if (state.currentEmail && state.currentEmail.id === id) updateEmailRelayControls();
     }
 }
 
@@ -2010,12 +2072,12 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         if (!data || !data.statusUrl) {
             throw new Error('Relay status URL is missing');
         }
-        const completed = await waitForRelayJob(data.statusUrl);
-        if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
+        relayTracking.set(id, { statusUrl: data.statusUrl, paused: false });
+        await resumeRelayWaiting(id);
     } catch (error) {
         alert(t('relayError', { error: parseAPIError(error) }));
     } finally {
-        relayPending.delete(id);
+        if (!relayTracking.has(id)) relayPending.delete(id);
         syncRelayMutationControls();
         if (state.currentEmail && state.currentEmail.id === id) updateEmailRelayControls();
     }
@@ -2028,7 +2090,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
     }
     const requestSequence = ++emailDetailRequestSequence;
     try {
-        showLoading();
+        showLoading('emailDetail');
         const email = await API.getEmail(id);
         if (requestSequence !== emailDetailRequestSequence) return;
         if (historyMode === 'none' && currentEmailIDFromLocation() !== id) return;
@@ -2056,7 +2118,7 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
         const errorMsg = parseAPIError(error);
         alert(t('loadEmailDetailError', { error: errorMsg }));
     } finally {
-        hideLoading();
+        hideLoading('emailDetail');
     }
 }
 
@@ -2237,14 +2299,22 @@ function updatePagination() {
     if (nextBtn) nextBtn.disabled = state.currentPage >= maxPage;
 }
 
-function showLoading() {
-    const overlay = document.getElementById('loadingOverlay');
-    if (overlay) overlay.style.display = 'flex';
+const loadingCounts = new Map();
+function showLoading(region = 'global') {
+    loadingCounts.set(region, (loadingCounts.get(region) || 0) + 1);
+    const element = document.getElementById(region === 'global' ? 'loadingOverlay' : region);
+    if (!element) return;
+    if (region === 'global') element.style.display = 'flex';
+    else { element.setAttribute('aria-busy', 'true'); element.classList.add('is-loading'); }
 }
-
-function hideLoading() {
-    const overlay = document.getElementById('loadingOverlay');
-    if (overlay) overlay.style.display = 'none';
+function hideLoading(region = 'global') {
+    const count = Math.max(0, (loadingCounts.get(region) || 0) - 1);
+    if (count) loadingCounts.set(region, count); else loadingCounts.delete(region);
+    if (count) return;
+    const element = document.getElementById(region === 'global' ? 'loadingOverlay' : region);
+    if (!element) return;
+    if (region === 'global') element.style.display = 'none';
+    else { element.setAttribute('aria-busy', 'false'); element.classList.remove('is-loading'); }
 }
 
 // Theme Management
@@ -2556,16 +2626,15 @@ async function retryEmailWorkflow(kind, index) {
             if (!data?.job || !data.statusUrl) throw new Error('Relay retry status is missing');
             tools.relay.jobs.unshift(data.job);
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
-            const completed = await waitForRelayJob(data.statusUrl);
-            Object.assign(data.job, completed);
-            tools.notice = '';
-            if (completed.status === 'failed') throw new Error(completed.errorCategory || 'delivery failed');
+            relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => Object.assign(data.job, completed) });
+            await resumeRelayWaiting(tools.id);
+            tools.notice = relayTracking.has(tools.id) ? t('relayPaused') : '';
         } else { job.status = 'queued'; }
     }
     catch (error) { tools.notice = String(error.message || error); }
     finally {
         if (kind === 'relay') {
-            relayPending.delete(tools.id);
+            if (!relayTracking.has(tools.id)) relayPending.delete(tools.id);
             syncRelayMutationControls();
             if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
         }

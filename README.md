@@ -927,3 +927,16 @@ Search and page changes keep only the newest list response. Live mail events
 refresh the active server query in a short coalesced batch instead of inserting
 unfiltered messages into a page. Reconnection resynchronizes missed changes,
 and deleting the last result on a page returns to the last available page.
+
+### Loading and relay status waiting
+
+Inbox and detail requests show local busy state, so navigation stays available.
+Overlapping requests and mutations retain their loading indicator until all
+operations for that region finish.
+
+Accepted relay jobs are watched for up to 60 seconds, with a 10-second limit on
+each status request. Stop waiting pauses only the browser status check; it does
+not cancel delivery. Resume waiting continues watching the same job without
+resubmitting it. Delivery records remain available in the Deliveries tab. While
+an accepted job has an unknown final state, relay and deletion controls stay
+locked in the current session to prevent duplicate delivery or lost evidence.
