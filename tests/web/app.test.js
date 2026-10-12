@@ -92,6 +92,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['deleteAllBtn', deleteAllBtn],
         ['emailDetail', emailDetail],
         ['emailList', emailList],
+        ['mailBatchResult', createElement()],
         ['emailViewportFrame', emailViewportFrame],
         ['emailViewportStage', emailViewportStage],
         ['email-content-tab-source', emailSourceTab],
@@ -1864,4 +1865,12 @@ test('late terminal history updates replacement delivery tools before unlocking'
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
  assert.equal(h.run('relayTracking.size'),0);
  assert.equal(h.run('completedRelayJobs.size'),0);
+});
+
+test('batch-read completion accounts for selected messages that were already read', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({total:1,success:0,failed:0,failedIDs:[]}):jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("state.emails=[{id:'mail-1',read:true}]; state.total=1; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(h.run("document.getElementById('mailBatchResult').textContent"),'Completed: 1; failed: 0.');
+ assert.equal(h.run('selectedMailIDs.size'),0);
 });

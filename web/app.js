@@ -2913,7 +2913,8 @@ async function runMailboxBatch(action) {
         if (action === 'delete' && state.currentEmail && ids.includes(state.currentEmail.id) && !failed.has(state.currentEmail.id)) clearEmailSelection('replace');
         await loadEmails();
         const message = document.getElementById('mailBatchResult');
-        if (message) message.textContent = t('batchResult', {success:result.success || 0,failed:result.failed || 0});
+        const completed = action === 'read' ? Math.max(0, (result.total ?? ids.length) - (result.failed || 0)) : result.success || 0;
+        if (message) message.textContent = t('batchResult', {success:completed,failed:result.failed || 0});
     } catch (error) { alert(parseAPIError(error)); }
     finally { mailboxBatchBusy = false; updateMailboxSelectionControls(); renderEmailList(); }
 }
