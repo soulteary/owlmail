@@ -61,3 +61,13 @@ func TestRuntimeProbeBoundsBlockedFilesystemRead(t *testing.T) {
 		t.Fatal("timed-out reader did not release")
 	}
 }
+
+func TestRuntimeProbeUsesEffectiveEmptySMTPHost(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = t.TempDir()
+	writeHealthyRuntimeSnapshot(t, cfg) // Default server identity is localhost.
+	cfg.SMTPHost = ""
+	if err := probeRuntimeReadiness(cfg); err != nil {
+		t.Fatalf("empty SMTP host did not resolve to running server: %v", err)
+	}
+}

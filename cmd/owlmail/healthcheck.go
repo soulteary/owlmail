@@ -224,7 +224,7 @@ func probeSMTPReadiness(cfg *config.Config) error {
 func probeRuntimeReadiness(cfg *config.Config) error {
 	result := make(chan error, 1)
 	go func() {
-		file, err := os.Open(mailserver.RuntimeReadinessPath(cfg.MailDir, cfg.SMTPHost, cfg.SMTPPort))
+		file, err := os.Open(mailserver.RuntimeReadinessPath(cfg.MailDir, mailserver.ResolveSMTPHost(cfg.SMTPHost), cfg.SMTPPort))
 		if err != nil {
 			result <- fmt.Errorf("runtime readiness is unavailable")
 			return
@@ -236,7 +236,7 @@ func probeRuntimeReadiness(cfg *config.Config) error {
 			result <- fmt.Errorf("runtime readiness is invalid")
 			return
 		}
-		result <- status.Validate(cfg.SMTPHost, cfg.SMTPPort, time.Now())
+		result <- status.Validate(mailserver.ResolveSMTPHost(cfg.SMTPHost), cfg.SMTPPort, time.Now())
 	}()
 	select {
 	case err := <-result:

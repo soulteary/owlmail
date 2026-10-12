@@ -42,6 +42,14 @@ func NewMailServerWithFullConfig(port int, host, mailDir string, outgoingConfig 
 	})
 }
 
+// ResolveSMTPHost returns the effective listener identity, preserving wildcard binds.
+func ResolveSMTPHost(host string) string {
+	if host == "" {
+		return defaultHost
+	}
+	return host
+}
+
 // ResolveMailDirectory returns the directory used by the server when callers
 // leave the mail directory unset. Keeping this resolution in one place lets
 // startup validate auxiliary storage paths against the effective directory.
@@ -87,9 +95,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	if port == 0 {
 		port = defaultPort
 	}
-	if host == "" {
-		host = defaultHost
-	}
+	host = ResolveSMTPHost(host)
 	mailDir = ResolveMailDirectory(mailDir)
 	maxMessageBytes := options.MaxMessageBytes
 	if maxMessageBytes <= 0 {
