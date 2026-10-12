@@ -1926,6 +1926,10 @@ async function loadEmails({ background = false } = {}) {
         const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
         if (state.currentPage > lastPage) {
             state.currentPage = lastPage;
+            state.emails = [];
+            renderEmailList();
+            updateEmailCount();
+            updatePagination();
             return await loadEmails({ background });
         }
         state.emails = data.previews || [];
