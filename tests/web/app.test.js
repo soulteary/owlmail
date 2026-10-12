@@ -1671,3 +1671,17 @@ test('history reconciliation ends an active stalled waiter without a false pause
  assert.equal(h.run('relayWaitControllers.size'),0);
  assert.equal(h.alerts.length,0);
 });
+
+test('late terminal history updates replacement delivery tools before unlocking', async () => {
+ let finishOld, historyCalls=0;
+ const h=createHarness({fetchImpl:async url=>!url.includes('/relay-jobs?')?jsonResponse({deliveries:[]}):++historyCalls===1?new Promise(resolve=>{finishOld=resolve;}):jsonResponse({jobs:[{id:'tracked-job',status:'queued'}]})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; relayPending.add('mail-1'); relayTracking.set('mail-1',{jobID:'tracked-job',statusUrl:'/api/v1/relay-jobs/tracked-job',paused:true})");
+ const old=h.run('refreshEmailDeliveries()');
+ h.run("emailToolsFor({id:'another-mail'}); emailToolsFor(state.currentEmail)");
+ await h.run('refreshEmailDeliveries()');
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'queued');
+ finishOld(jsonResponse({jobs:[{id:'tracked-job',status:'succeeded'}]})); await old;
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('relayTracking.size'),0);
+ assert.equal(h.run('completedRelayJobs.size'),0);
+});
