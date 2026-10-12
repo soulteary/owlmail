@@ -235,7 +235,7 @@ jobs:
           fi
 
       - name: Generate Linux amd64 SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           file: owlmail-linux-amd64
           format: spdx-json
@@ -244,7 +244,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate Linux arm64 SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           file: owlmail-linux-arm64
           format: spdx-json
@@ -253,7 +253,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate macOS amd64 SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           file: owlmail-darwin-amd64
           format: spdx-json
@@ -262,7 +262,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate macOS arm64 SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           file: owlmail-darwin-arm64
           format: spdx-json
@@ -271,7 +271,7 @@ jobs:
           upload-release-assets: false
 
       - name: Generate Windows amd64 SBOM
-        uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
+        uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
         with:
           file: owlmail-windows-amd64.exe
           format: spdx-json
