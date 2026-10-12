@@ -1469,7 +1469,7 @@ function updateUI(renderDynamic = true) {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
     if (deleteAllBtn) {
         deleteAllBtn.textContent = t('deleteAll');
-        deleteAllBtn.disabled = relayPending.size > 0;
+        deleteAllBtn.disabled = relayPending.size > 0 || mailboxBatchBusy;
     }
 
     const webhookBtn = document.getElementById('webhookBtn');
