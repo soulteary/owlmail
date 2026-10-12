@@ -1,0 +1,6 @@
+{
+  "name": "owlmail-browser-regressions",
+  "private": true,
+  "scripts": { "test": "playwright test" },
+  "devDependencies": { "@playwright/test": "1.62.1" }
+}

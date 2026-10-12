@@ -419,7 +419,7 @@ func (api *API) Start() error {
 // StartWithReady binds the API listener, then calls ready immediately before
 // serving. A bind or TLS configuration failure is returned without calling it.
 func (api *API) StartWithReady(ready func()) error {
-	addr := fmt.Sprintf("%s:%d", api.host, api.port)
+	addr := net.JoinHostPort(strings.Trim(api.host, "[]"), fmt.Sprint(api.port))
 
 	var listener net.Listener
 	var err error
