@@ -44,6 +44,9 @@ func TestSMTPOnlyConfiguration(t *testing.T) {
 		if err := config.ValidateConfig(cfg); err == nil {
 			t.Fatalf("accepted HTTP feature %s", feature)
 		}
+		if err := initializeApplication(cfg); err == nil {
+			t.Fatalf("startup accepted HTTP feature %s", feature)
+		}
 	}
 }
 

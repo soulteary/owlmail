@@ -48,6 +48,18 @@ def verify(image, name, flags, fixture, environment=(), expect_healthy=True, hea
         command('docker', 'rm', '--force', container)
 
 
+def verify_conflict(image, feature, environment=False):
+    """Exercise the production entrypoint, including its nonzero exit status."""
+    options = ['-e', 'OWLMAIL_DISABLE_WEB=true'] if environment else []
+    flags = [] if environment else ['-disable-web']
+    result = subprocess.run(['docker', 'run', '--rm', *options, image, *flags,
+                             '-' + feature], capture_output=True, text=True, timeout=30)
+    output = result.stdout + result.stderr
+    if result.returncode != 1 or 'disable-web cannot be combined' not in output:
+        raise RuntimeError('SMTP-only conflict was not rejected: ' + feature + ': ' + output)
+    print('PASS: SMTP-only rejects', feature, 'via', 'environment' if environment else 'CLI', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', required=True)
@@ -55,6 +67,9 @@ def main():
     args = parser.parse_args()
     def scenario(name, flags, root, environment=(), expect_healthy=True):
         verify(args.image, name, flags, root, environment, expect_healthy, args.health_command)
+    for feature in ('mcp-enabled', 'metrics-enabled', 'maildev-rest-compat', 'mailcatcher-rest-compat'):
+        verify_conflict(args.image, feature)
+        verify_conflict(args.image, feature, environment=True)
     with tempfile.TemporaryDirectory(prefix='owlmail-health-ci-') as folder:
         root = pathlib.Path(folder)
         root.chmod(0o755)

@@ -752,6 +752,9 @@ func initializeApplication(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if err := config.ValidateWebMode(cfg); err != nil {
+		return err
+	}
 	if cfg.LogFormat == "" {
 		cfg.LogFormat = "console"
 	}

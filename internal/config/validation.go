@@ -24,6 +24,18 @@ func ValidateLogFormat(format string) error {
 	return nil
 }
 
+// ValidateWebMode rejects HTTP features when the Web listener is disabled.
+// Startup and diagnostic validation share this check so options cannot be silently ignored.
+func ValidateWebMode(cfg *Config) error {
+	if cfg == nil {
+		return fmt.Errorf("config cannot be nil")
+	}
+	if cfg.DisableWeb && (cfg.MCPEnabled || cfg.MetricsEnabled || cfg.MailDevRESTCompat || cfg.MailCatcherRESTCompat) {
+		return fmt.Errorf("disable-web cannot be combined with HTTP MCP, metrics or REST compatibility endpoints")
+	}
+	return nil
+}
+
 // ValidateConfig validates all configuration values and returns an error if any are invalid.
 func ValidateConfig(cfg *Config) error {
 	if cfg == nil {
@@ -39,8 +51,8 @@ func ValidateConfig(cfg *Config) error {
 			return err
 		}
 	}
-	if cfg.DisableWeb && (cfg.MCPEnabled || cfg.MetricsEnabled || cfg.MailDevRESTCompat || cfg.MailCatcherRESTCompat) {
-		return fmt.Errorf("disable-web cannot be combined with HTTP MCP, metrics or REST compatibility endpoints")
+	if err := ValidateWebMode(cfg); err != nil {
+		return err
 	}
 	// Zero is the documented way to run without an implicit-TLS listener, so
 	// only a non-zero port is range checked. Validating it whether or not TLS
