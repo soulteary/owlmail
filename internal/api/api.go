@@ -288,7 +288,7 @@ func (api *API) setupRoutes() {
 	if api.mcpHandler != nil {
 		// The origin guard is deliberately independent of Basic Auth: an
 		// unauthenticated MCP endpoint is exactly the one a browser can reach.
-		app.All(api.route("/mcp"), api.mcpOriginGuard(), adaptor.HTTPHandler(api.mcpHandler))
+		app.All(api.route("/mcp"), api.mcpOriginGuard(), mcpHTTPHandler(api.mcpHandler))
 	}
 
 	// Browser UI and local help.
