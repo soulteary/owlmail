@@ -906,6 +906,17 @@ wrapper. Offline commands such as `doctor`, `sendmail`, and `mcp-stdio` do not
 provide the web listener and fail the container check instead of probing an
 unrelated default port. Reverse-proxy external URLs do not change the local probe.
 
+### Commands and keyboard help
+
+Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
+`Cmd+K` outside a text field. Search localized command names, use Up/Down to
+choose an available command, and press Enter to run it. Tab stays within the
+modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
+are shown beside their commands and are suspended while the modal is open.
+Commands that need a selected message or HTML preview are disabled when those
+are absent. Deletion retains the normal confirmation and relay protection.
+
+
 ### Mail preview controls
 
 The interface follows the system color scheme until a theme is chosen with the
@@ -928,12 +939,15 @@ refresh the active server query in a short coalesced batch instead of inserting
 unfiltered messages into a page. Reconnection resynchronizes missed changes,
 and deleting the last result on a page returns to the last available page.
 
-### Commands and keyboard help
+### Loading and relay status waiting
 
-Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
-`Cmd+K` outside a text field. Search localized command names, use Up/Down to
-choose an available command, and press Enter to run it. Tab stays within the
-modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
-are shown beside their commands and are suspended while the modal is open.
-Commands that need a selected message or HTML preview are disabled when those
-are absent. Deletion retains the normal confirmation and relay protection.
+Inbox and detail requests show local busy state, so navigation stays available.
+Overlapping requests and mutations retain their loading indicator until all
+operations for that region finish.
+
+Accepted relay jobs are watched for up to 60 seconds, with a 10-second limit on
+each status request. Stop waiting pauses only the browser status check; it does
+not cancel delivery. Resume waiting continues watching the same job without
+resubmitting it. Delivery records remain available in the Deliveries tab. While
+an accepted job has an unknown final state, relay and deletion controls stay
+locked in the current session to prevent duplicate delivery or lost evidence.

@@ -12,6 +12,23 @@ body {
     line-height: 1.6;
 }
 
+/* Native modal dialog supplies focus containment and inert background content. */
+.command-palette { width: min(560px, calc(100vw - 32px)); max-height: 85vh; padding: 20px; border: 1px solid #bbc4cc; border-radius: 8px; color: #252a30; background: #fff; }
+.command-palette::backdrop { background: rgba(0, 0, 0, .5); }
+.command-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.command-heading h2 { font-size: 20px; margin: 0; }
+.command-hint { font-size: 13px; color: #58636b; margin: 12px 0; }
+.command-palette .search-input { width: 100%; box-sizing: border-box; }
+.command-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; max-height: 50vh; overflow: auto; }
+.command-option { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px; text-align: left; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.command-option:hover, .command-option:focus-visible { border-color: #3498db; background: #edf1f4; }
+.command-option:disabled { opacity: .5; cursor: default; }
+.command-option kbd { flex-shrink: 0; font-size: 13px; }
+body.dark-theme .command-palette { color: #eee; background: #222; border-color: #555; }
+body.dark-theme .command-hint { color: #bbb; }
+body.dark-theme .command-option:hover, body.dark-theme .command-option:focus-visible { background: #333; }
+
+
 .container {
     max-width: 1400px;
     margin: 0 auto;
@@ -930,18 +947,4 @@ body.dark-theme ::-webkit-scrollbar-thumb:hover {
 
 body.dark-theme .email-tools input:not([type="checkbox"]) { color: #eee; background: #252525; border-color: #555; }
 
-/* Native modal dialog supplies focus containment and inert background content. */
-.command-palette { width: min(560px, calc(100vw - 32px)); max-height: 85vh; padding: 20px; border: 1px solid #bbc4cc; border-radius: 8px; color: #252a30; background: #fff; }
-.command-palette::backdrop { background: rgba(0, 0, 0, .5); }
-.command-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.command-heading h2 { font-size: 20px; margin: 0; }
-.command-hint { font-size: 13px; color: #58636b; margin: 12px 0; }
-.command-palette .search-input { width: 100%; box-sizing: border-box; }
-.command-list { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; max-height: 50vh; overflow: auto; }
-.command-option { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px; text-align: left; border: 1px solid transparent; border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-.command-option:hover, .command-option:focus-visible { border-color: #3498db; background: #edf1f4; }
-.command-option:disabled { opacity: .5; cursor: default; }
-.command-option kbd { flex-shrink: 0; font-size: 13px; }
-body.dark-theme .command-palette { color: #eee; background: #222; border-color: #555; }
-body.dark-theme .command-hint { color: #bbb; }
-body.dark-theme .command-option:hover, body.dark-theme .command-option:focus-visible { background: #333; }
+.is-loading { opacity: 0.65; }
