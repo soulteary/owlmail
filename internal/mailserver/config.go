@@ -162,12 +162,6 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
-	if options.RuntimeReadiness {
-		if err := os.Remove(RuntimeReadinessPath(mailDir, host, port)); err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("clear previous runtime readiness: %w", err)
-		}
-	}
-
 	ms.retainAllHeaders.Store(options.RetainAllHeaders)
 
 	// Setup outgoing mail if config provided

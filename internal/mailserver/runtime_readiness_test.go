@@ -1,7 +1,9 @@
 package mailserver
 
 import (
+	"bytes"
 	"encoding/json"
+	"net"
 	"os"
 	"testing"
 	"time"
@@ -100,5 +102,45 @@ func TestRuntimeReadinessNamespaceCannotBeUsedAsMailboxIndex(t *testing.T) {
 	directory := t.TempDir()
 	if err := ValidateMailboxIndexPath(directory, RuntimeReadinessPath(directory, "localhost", 1025)); err == nil {
 		t.Fatal("index allowed to collide with runtime snapshot")
+	}
+}
+
+func TestFailedDuplicateStartupPreservesOwnersRuntimeSnapshot(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = listener.Close() }()
+	directory := t.TempDir()
+	port := listener.Addr().(*net.TCPAddr).Port
+	owner, err := NewMailServerWithOptions(port, "127.0.0.1", directory, ServerOptions{RuntimeReadiness: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = owner.Close() }()
+	owner.smtpReady.Store(true)
+	owner.probeMailStorage()
+	if err := owner.publishRuntimeReadiness(); err != nil {
+		t.Fatal(err)
+	}
+	path := RuntimeReadinessPath(directory, "127.0.0.1", port)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	duplicate, err := NewMailServerWithOptions(port, "127.0.0.1", directory, ServerOptions{RuntimeReadiness: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = duplicate.Close() }()
+	if err := duplicate.ListenWithReady(nil); err == nil {
+		t.Fatal("duplicate unexpectedly acquired listener")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(before, after) {
+		t.Fatal("failed duplicate modified live owner's snapshot")
 	}
 }

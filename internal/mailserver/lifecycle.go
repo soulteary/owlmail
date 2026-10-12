@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 
 	"github.com/soulteary/owlmail/internal/common"
 )
@@ -103,6 +104,13 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 		common.Log("SMTP DATA concurrency is unlimited")
 	} else {
 		common.Log("SMTP DATA concurrency limit: %d per process", ms.maxDataConcurrency)
+	}
+	// Only the listener owner may invalidate the previous runtime snapshot.
+	// A duplicate process that fails to bind must not disrupt a live owner's state.
+	if ms.runtimeReadiness {
+		if err := os.Remove(RuntimeReadinessPath(ms.mailDir, ms.host, ms.port)); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("clear previous runtime readiness: %w", err)
+		}
 	}
 	stopReadiness := ms.startMailStorageReadiness()
 	defer stopReadiness()
