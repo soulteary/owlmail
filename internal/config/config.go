@@ -5,6 +5,7 @@
 package config
 
 import (
+	"errors"
 	"flag"
 	"io"
 	"os"
@@ -798,6 +799,9 @@ func ParseFlags() (*Config, error) {
 	}
 	refs := DefineFlagsWithDefaults(fs, defaults)
 	flag.Parse()
+	if fs.NArg() != 0 {
+		return nil, errors.New("server configuration does not accept positional arguments")
+	}
 	cfg := ResolveConfig(fs, refs)
 	// A config file becomes the flag defaults above, so by the time the command
 	// line is resolved a value it supplied is indistinguishable from one nobody

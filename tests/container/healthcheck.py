@@ -87,6 +87,17 @@ def verify_conflict(image, feature, environment=False):
     print('PASS: SMTP-only rejects', feature, 'via', 'environment' if environment else 'CLI', flush=True)
 
 
+def verify_positional_arguments(image):
+    """Startup must reject arguments the healthcheck configuration cannot consume."""
+    for flags in ([''], ['-disable-web', ''], ['-disable-web', '--', '']):
+        result = subprocess.run(['docker', 'run', '--rm', image, *flags],
+                                capture_output=True, text=True, timeout=30)
+        output = result.stdout + result.stderr
+        if result.returncode != 1 or 'does not accept positional arguments' not in output:
+            raise RuntimeError('Unconsumed arguments were not rejected: ' + repr(flags) + ': ' + output)
+    print('PASS: startup rejects empty positional arguments', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', required=True)
@@ -94,6 +105,7 @@ def main():
     args = parser.parse_args()
     def scenario(name, flags, root, environment=(), expect_healthy=True):
         verify(args.image, name, flags, root, environment, expect_healthy, args.health_command)
+    verify_positional_arguments(args.image)
     for feature in ('mcp-enabled', 'metrics-enabled', 'maildev-rest-compat', 'mailcatcher-rest-compat'):
         verify_conflict(args.image, feature)
         verify_conflict(args.image, feature, environment=True)
