@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -162,5 +163,71 @@ func TestMCPStreamingContextLivesUntilHTTPHandlerReturns(t *testing.T) {
 	}
 	if !errors.Is(ctx.Err(), context.Canceled) {
 		t.Fatalf("finished streaming request context = %v; want canceled", ctx.Err())
+	}
+}
+
+func TestMCPStreamingContextCanceledOnFiberShutdown(t *testing.T) {
+	app := fiber.New()
+	canceled := make(chan error, 1)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseHandler := func() { releaseOnce.Do(func() { close(release) }) }
+	app.All("/mcp", mcpHTTPHandler(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		_, _ = io.WriteString(writer, "start\n")
+		writer.(http.Flusher).Flush()
+		select {
+		case <-request.Context().Done():
+			canceled <- request.Context().Err()
+		case <-release:
+		}
+	})))
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finished := make(chan error, 1)
+	go func() {
+		finished <- app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
+	}()
+	t.Cleanup(func() {
+		releaseHandler()
+		_ = app.ShutdownWithTimeout(2 * time.Second)
+		_ = listener.Close()
+		select {
+		case err := <-finished:
+			if err != nil {
+				t.Error(err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Error("Fiber listener did not stop")
+		}
+	})
+	client := &http.Client{Timeout: 3 * time.Second}
+	response, err := client.Get("http://" + listener.Addr().String() + "/mcp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = response.Body.Close() }()
+	first, err := bufio.NewReader(response.Body).ReadString('\n')
+	if err != nil || first != "start\n" {
+		t.Fatalf("initial stream data = %q; err=%v", first, err)
+	}
+	shutdown := make(chan error, 1)
+	go func() { shutdown <- app.ShutdownWithTimeout(2 * time.Second) }()
+	select {
+	case err := <-canceled:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("shutdown cancellation = %v; want canceled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Fiber shutdown did not cancel the streaming MCP request")
+	}
+	select {
+	case err := <-shutdown:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Fiber shutdown did not finish")
 	}
 }
