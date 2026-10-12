@@ -868,6 +868,7 @@ let state = {
 let relayEnabled = false;
 const relayPending = new Set();
 const relayTracking = new Map();
+const completedRelayJobs = new Map();
 const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
@@ -2032,6 +2033,7 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     const timer = setTimeout(() => controller.abort('RELAY_WAIT_TIMEOUT'), timeoutMs);
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
+        if (completed.id) completedRelayJobs.set(completed.id, { emailID: id, job: completed });
         tracking.onCompleted?.(completed);
         if (!tracking.onCompleted && emailTools?.id === id) {
             const tools = emailTools;
@@ -2635,6 +2637,14 @@ async function refreshEmailDeliveries() {
     const query = `?email_id=${encodeURIComponent(tools.id)}&limit=100`;
     const results = await Promise.allSettled([emailToolRequest(`/relay-jobs${query}`), emailToolRequest(`/webhook-deliveries${query}`)]);
     tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
+    if (Array.isArray(tools.relay?.jobs)) {
+        for (const { emailID, job } of completedRelayJobs.values()) {
+            if (emailID !== tools.id) continue;
+            const cached = tools.relay.jobs.find(candidate => candidate.id === job.id);
+            if (cached) Object.assign(cached, job);
+            else tools.relay.jobs.unshift({ ...job });
+        }
+    }
     tools.webhook = results[1].status === 'fulfilled' ? results[1].value : { error: String(results[1].reason.message || results[1].reason) };
     tools.busy = false; tools.loaded = true;
     if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
