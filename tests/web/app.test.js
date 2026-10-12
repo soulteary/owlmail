@@ -1541,3 +1541,11 @@ test('a newer foreground query cancels a delayed background refresh', async () =
  complete(jsonResponse({previews:[{id:'new-query'}],total:1})); await foreground;
  assert.equal(h.run('state.emails[0].id'),'new-query');
 });
+
+test('manual relay completion updates an already loaded delivery panel', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({data:{id:'job-1',status:'succeeded'}})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; const tools=emailToolsFor(state.currentEmail); tools.loaded=true; tools.relay={jobs:[{id:'job-1',status:'queued'}]}; relayPending.add('mail-1'); relayTracking.set('mail-1',{statusUrl:'/api/v1/relay-jobs/job-1'}); let deliveryRenders=0; renderEmailDetailKeepingTabFocus=()=>deliveryRenders++");
+ await h.run("resumeRelayWaiting('mail-1')");
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('deliveryRenders'),1);
+});
