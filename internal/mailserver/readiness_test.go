@@ -81,6 +81,7 @@ func TestStorageProbeWaitsForRecoveryTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
+	server.probeMailStorage()
 	server.storageTransactionMutex.Lock()
 	done := make(chan struct{})
 	go func() { server.probeMailStorage(); close(done) }()
@@ -89,6 +90,11 @@ func TestStorageProbeWaitsForRecoveryTransaction(t *testing.T) {
 		server.storageTransactionMutex.Unlock()
 		t.Fatal("probe ran during exclusive recovery transaction")
 	case <-time.After(50 * time.Millisecond):
+	}
+	_, checking := server.GetServiceReadiness()
+	if checking.Ready() || checking.State != attachmentstore.HealthChecking {
+		server.storageTransactionMutex.Unlock()
+		t.Fatalf("blocked probe kept stale readiness: %+v", checking)
 	}
 	server.storageTransactionMutex.Unlock()
 	select {
