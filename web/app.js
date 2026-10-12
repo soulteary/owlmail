@@ -2115,6 +2115,7 @@ async function deleteAllEmails() {
         clearEmailSelection('replace');
         renderEmailList();
         updateEmailCount();
+        updatePagination();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
         const errorMsg = parseAPIError(error);

@@ -1492,3 +1492,11 @@ test('failed fallback loading clears rows from a deleted last page', async () =>
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('state.total'),1);
 });
+
+test('delete all resets the pagination controls with page state', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({})});
+ h.run('state.currentPage=3; state.total=200; let paginationUpdates=0; updatePagination=()=>paginationUpdates++');
+ await h.run('deleteAllEmails()');
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('paginationUpdates'),1);
+});
