@@ -20,6 +20,7 @@ type relayJobReadinessMonitor struct {
 	mu                  sync.RWMutex
 	storage             attachmentstore.HealthStatus
 	persistenceFailures int
+	persistenceEpoch    uint64
 	capacityBlocked     bool
 	capacityAvailableAt time.Time
 	started             bool
@@ -65,6 +66,7 @@ func (monitor *relayJobReadinessMonitor) recordPersistenceErrors(count int, err 
 	monitor.mu.Lock()
 	monitor.persistenceFailures = count
 	if err != nil {
+		monitor.persistenceEpoch++
 		monitor.storage = attachmentstore.HealthStatus{State: attachmentstore.HealthUnready, ErrorCategory: attachmentstore.HealthErrorUnavailable, CheckedAt: time.Now()}
 	}
 	monitor.mu.Unlock()
@@ -137,6 +139,7 @@ func (monitor *relayJobReadinessMonitor) probe() {
 		return
 	}
 	monitor.storage = attachmentstore.HealthStatus{State: attachmentstore.HealthChecking, ErrorCategory: attachmentstore.HealthErrorPending, CheckedAt: time.Now()}
+	epoch := monitor.persistenceEpoch
 	monitor.mu.Unlock()
 	if monitor.loadErr != nil {
 		return // A failed load cannot be recovered by reopening the live queue.
@@ -174,7 +177,7 @@ func (monitor *relayJobReadinessMonitor) probe() {
 		}
 	}
 	monitor.mu.Lock()
-	if !monitor.closed {
+	if !monitor.closed && (err != nil || monitor.persistenceEpoch == epoch) {
 		monitor.storage = status
 	}
 	monitor.mu.Unlock()

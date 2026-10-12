@@ -142,6 +142,36 @@ func TestDurableRelayRejectedWriteRequiresStorageRecoveryEvenAfterCleanup(t *tes
 	}
 }
 
+func TestDurableRelayProbeCannotOverwriteAnInterveningRejectedWrite(t *testing.T) {
+	api, _ := newRelayReadinessTestAPI(t)
+	prepareRelayReadinessProbe(api)
+	monitor, store := api.relayJobReadiness, api.relayJobs
+	monitor.probe()
+	monitor.check = func(path string) error {
+		calls := 0
+		store.syncDirectory = func(directory string) error {
+			calls++
+			if calls == 1 {
+				return errors.New("write failed during directory check")
+			}
+			return syncRelayJobDirectory(directory)
+		}
+		if _, err := store.create("intervening-rejection", ""); !errors.Is(err, errRelayJobPersistence) {
+			t.Fatalf("create error = %v", err)
+		}
+		return checkRelayJobDirectory(path)
+	}
+	monitor.probe()
+	if monitor.Snapshot().Ready() {
+		t.Fatal("scratch probe overwrote a newer rejected write")
+	}
+	monitor.check = checkRelayJobDirectory
+	monitor.probe()
+	if !monitor.Snapshot().Ready() {
+		t.Fatal("later clean probe did not recover")
+	}
+}
+
 func TestDurableRelayReadinessCapacityRespectsCompletedRecordRetention(t *testing.T) {
 	api, _ := newRelayReadinessTestAPI(t)
 	prepareRelayReadinessProbe(api)
