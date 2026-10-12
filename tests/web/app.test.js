@@ -1552,7 +1552,7 @@ test('resumed retry completion clears paused notice and refreshes deliveries', a
  h.run("stopRelayWaiting('mail-1')"); await retry;
  assert.equal(h.run('emailTools.notice'),h.run("t('relayPaused')"));
  completed=true;
- h.run("emailTools.relay.jobs=[{id:'new-job',status:'queued'}]");
+ h.run("emailToolsFor({id:'other-mail'}); const replacement=emailToolsFor(state.currentEmail); replacement.loaded=true; replacement.notice=t('relayPaused'); replacement.relay={jobs:[{id:'new-job',status:'queued'}]}");
  h.run('let resumedPanelRenders=0; const renderBeforeResume=renderEmailDetailKeepingTabFocus; renderEmailDetailKeepingTabFocus=()=>{resumedPanelRenders++; renderBeforeResume();}');
  await h.run("resumeRelayWaiting('mail-1')");
  assert.equal(h.run('emailTools.notice'),'');
@@ -1674,4 +1674,12 @@ test('delete all resets the pagination controls with page state', async () => {
  await h.run('deleteAllEmails()');
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('paginationUpdates'),1);
+});
+
+test('successful deletion removes its row even if preview refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({}):Promise.reject(new Error('offline'))});
+ h.run("state.emails=[{id:'deleted'}]; state.total=1");
+ await h.run("deleteEmail('deleted')");
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
 });
