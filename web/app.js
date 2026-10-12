@@ -2626,7 +2626,11 @@ async function retryEmailWorkflow(kind, index) {
             if (!data?.job || !data.statusUrl) throw new Error('Relay retry status is missing');
             tools.relay.jobs.unshift(data.job);
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
-            relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => Object.assign(data.job, completed) });
+            relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => {
+                Object.assign(data.job, completed);
+                tools.notice = '';
+                if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
+            } });
             await resumeRelayWaiting(tools.id);
             tools.notice = relayTracking.has(tools.id) ? t('relayPaused') : '';
         } else { job.status = 'queued'; }

@@ -1481,3 +1481,19 @@ test('bounded relay waiting times out without cancelling server delivery and can
  assert.equal(h.run("relayPending.has('mail-1')"),false);
  assert.equal(h.run("relayTracking.has('mail-1')"),false);
 });
+
+test('resumed retry completion clears paused notice and refreshes deliveries', async () => {
+ let completed=false;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='POST'?jsonResponse({data:{job:{id:'new-job',status:'queued'},statusUrl:'/api/v1/relay-jobs/new-job'}}):completed?jsonResponse({data:{id:'new-job',status:'succeeded'}}):new Promise(()=>{})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; emailToolsFor(state.currentEmail).relay={jobs:[{id:'old-job',status:'failed'}]}");
+ const retry=h.run("retryEmailWorkflow('relay',0)");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.run("stopRelayWaiting('mail-1')"); await retry;
+ assert.equal(h.run('emailTools.notice'),h.run("t('relayPaused')"));
+ completed=true;
+ h.run('let resumedPanelRenders=0; const renderBeforeResume=renderEmailDetailKeepingTabFocus; renderEmailDetailKeepingTabFocus=()=>{resumedPanelRenders++; renderBeforeResume();}');
+ await h.run("resumeRelayWaiting('mail-1')");
+ assert.equal(h.run('emailTools.notice'),'');
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('resumedPanelRenders'),1);
+});
