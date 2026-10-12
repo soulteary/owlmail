@@ -54,3 +54,20 @@ func TestAPIStartWithIPv6Listener(t *testing.T) {
 		t.Fatal("IPv6 API did not stop")
 	}
 }
+
+func TestAPIRejectsMalformedBracketedHosts(t *testing.T) {
+	server, err := mailserver.NewMailServer(0, "127.0.0.1", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	for _, host := range []string{"[", "]", "[]", "[::1", "::1]", "[[::1]]", "[localhost]", "[127.0.0.1]"} {
+		t.Run(host, func(t *testing.T) {
+			api := NewAPI(server, 0, host)
+			ready := false
+			if err := api.StartWithReady(func() { ready = true; _ = api.app.Shutdown() }); err == nil || ready {
+				t.Fatalf("malformed host bound a listener: %q", host)
+			}
+		})
+	}
+}
