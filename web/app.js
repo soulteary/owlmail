@@ -2840,7 +2840,20 @@ async function runMailboxBatch(action) {
         const result = await handleAPIResponse(response);
         const failed = new Set(result.failedIDs || []);
         for (const id of ids) if (!failed.has(id)) selectedMailIDs.delete(id);
-        if (action === 'delete') removeKnownDeletedEmail(ids.filter(id => !failed.has(id)));
+        const succeeded = new Set(ids.filter(id => !failed.has(id)));
+        if (action === 'delete') removeKnownDeletedEmail([...succeeded]);
+        else {
+            for (const email of state.emails) if (succeeded.has(email.id)) email.read = true;
+            if (state.currentEmail && succeeded.has(state.currentEmail.id)) state.currentEmail.read = true;
+            if (mailboxFilters.read === 'false') {
+                const remaining = state.emails.filter(email => !succeeded.has(email.id));
+                state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
+                state.emails = remaining;
+                const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
+                if (state.currentPage > lastPage) { state.currentPage = lastPage; state.emails = []; }
+            }
+            renderEmailList(); updateEmailCount(); updatePagination(); updateMailboxSelectionControls();
+        }
         if (action === 'delete' && state.currentEmail && ids.includes(state.currentEmail.id) && !failed.has(state.currentEmail.id)) clearEmailSelection('replace');
         await loadEmails();
         const message = document.getElementById('mailBatchResult');

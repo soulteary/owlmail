@@ -1714,3 +1714,13 @@ test('live events preserve a foreground response if the deferred synchronization
  assert.equal(h.run('state.total'),1);
  assert.equal(h.fetchRequests.length,2);
 });
+
+test('successful batch reads reconcile unread filters when refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({success:1,failed:1,failedIDs:['mail-2']}):Promise.reject(new Error('offline'))});
+ h.run("mailboxFilters={read:'false'}; state.emails=[{id:'mail-1',read:false},{id:'mail-2',read:false}]; state.total=2; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'mail-2');
+ assert.equal(h.run('state.total'),1);
+ assert.equal(h.run("selectedMailIDs.has('mail-2')"),true);
+});
