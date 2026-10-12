@@ -2225,8 +2225,8 @@ async function deleteAllEmails() {
         state.currentPage = 0;
         state.emails = [];
         selectedMailIDs.clear();
-        updateMailboxSelectionControls();
         state.total = 0;
+        updateMailboxSelectionControls();
         clearEmailSelection('replace');
         renderEmailList();
         updateEmailCount();
