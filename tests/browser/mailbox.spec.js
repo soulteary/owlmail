@@ -1,7 +1,10 @@
 const { test, expect } = require('@playwright/test');
 const { execFileSync } = require('node:child_process');
 
-test.beforeAll(() => {
+test.beforeAll(async ({ request, baseURL }) => {
+    // A retried worker shares the server, so replace the previous fixture.
+    const cleared = await request.delete(new URL('api/v1/emails', baseURL).href);
+    expect(cleared.ok()).toBe(true);
     execFileSync('python3', ['-c', `
 import smtplib
 from email.message import EmailMessage
