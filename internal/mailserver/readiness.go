@@ -27,6 +27,8 @@ func (ms *MailServer) GetServiceReadiness() (bool, attachmentstore.HealthStatus)
 }
 
 func (ms *MailServer) probeMailStorage() {
+	ms.storageTransactionMutex.RLock()
+	defer ms.storageTransactionMutex.RUnlock()
 	status := attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}
 	err := checkMailDirectory(ms.mailDir)
 	if err != nil {

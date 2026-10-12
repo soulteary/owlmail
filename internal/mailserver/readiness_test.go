@@ -67,3 +67,40 @@ func TestServiceReadinessTracksListenersStorageAndShutdown(t *testing.T) {
 		t.Fatal("listener did not stop")
 	}
 }
+
+func TestStorageProbeWaitsForRecoveryTransaction(t *testing.T) {
+	server, err := NewMailServer(0, "127.0.0.1", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	server.storageTransactionMutex.Lock()
+	done := make(chan struct{})
+	go func() { server.probeMailStorage(); close(done) }()
+	select {
+	case <-done:
+		server.storageTransactionMutex.Unlock()
+		t.Fatal("probe ran during exclusive recovery transaction")
+	case <-time.After(50 * time.Millisecond):
+	}
+	server.storageTransactionMutex.Unlock()
+	select {
+	case <-done:
+	case <-time.After(3 * time.Second):
+		t.Fatal("probe did not resume after recovery")
+	}
+	_, health := server.GetServiceReadiness()
+	if !health.Ready() {
+		t.Fatalf("storage probe failed: %+v", health)
+	}
+	if err := server.LoadMailsFromDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(server.mailDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("probe left recovery artifacts: %v", entries)
+	}
+}
