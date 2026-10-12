@@ -1648,3 +1648,12 @@ test('failed fallback loading clears rows from a deleted last page', async () =>
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('state.total'),1);
 });
+
+test('failed filter application immediately clears selection checkboxes', async () => {
+ const h=createHarness({fetchImpl:async()=>{throw new Error('offline');}});
+ h.run("state.emails=[{id:'mail-1',from:[],to:[]}]; selectMailboxPage(true)");
+ assert.match(h.emailList.innerHTML,/checked/);
+ await h.run('applyMailboxFilters()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/ checked /);
+});

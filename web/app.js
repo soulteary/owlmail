@@ -2248,6 +2248,8 @@ function searchEmails() {
     const query = document.getElementById('searchInput').value.trim();
     state.searchQuery = query;
     selectedMailIDs.clear();
+    renderEmailList();
+    updateMailboxSelectionControls();
     state.currentPage = 0;
     loadEmails();
 }
@@ -2754,11 +2756,13 @@ async function applyMailboxFilters() {
     state.searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
     state.currentPage = 0;
     selectedMailIDs.clear();
+    renderEmailList();
+    updateMailboxSelectionControls();
     await loadEmails();
 }
 async function resetMailboxFilters() {
     mailboxFilters = {}; selectedMailIDs.clear(); state.currentPage = 0;
-    renderMailboxTools(); await loadEmails();
+    renderMailboxTools(); renderEmailList(); await loadEmails();
 }
 function toggleMailSelection(id, checked) {
     if (mailboxBatchBusy || !state.emails.some(email => email.id === id)) return;
