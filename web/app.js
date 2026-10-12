@@ -1389,7 +1389,8 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
-            if (websocketHasConnected) scheduleMailboxRefresh();
+            if (websocketHasConnected || emailListLoadsPending === 0) scheduleMailboxRefresh();
+            else mailboxRefreshAfterLoad = true;
             websocketHasConnected = true;
         };
 
@@ -1914,8 +1915,11 @@ function renderAttachments(attachments, emailId) {
 
 // Action Functions
 let emailListRequestSequence = 0;
+let emailListLoadsPending = 0;
+let mailboxRefreshAfterLoad = false;
 async function loadEmails({ background = false } = {}) {
     const sequence = ++emailListRequestSequence;
+    emailListLoadsPending += 1;
     try {
         if (!background) showLoading('emailList');
         const data = await API.getEmailPreviews(
@@ -1944,6 +1948,11 @@ async function loadEmails({ background = false } = {}) {
         if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
         if (!background) hideLoading('emailList');
+        emailListLoadsPending -= 1;
+        if (emailListLoadsPending === 0 && mailboxRefreshAfterLoad) {
+            mailboxRefreshAfterLoad = false;
+            scheduleMailboxRefresh();
+        }
     }
 }
 

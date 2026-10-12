@@ -1561,12 +1561,24 @@ test('resumed retry completion clears paused notice and refreshes deliveries', a
 
 test('first socket open preserves the successful initial mailbox request', async () => {
  let complete;
- const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ let calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('sync temporarily unavailable'))});
  const initial=h.run('loadEmails()');
  h.run('connectWebSocket(); state.ws.onopen()');
  complete(jsonResponse({previews:[{id:'initial'}],total:1}));
  await initial;
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.run('state.emails[0].id'),'initial');
- assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.fetchRequests.length,2);
+ assert.equal(h.alerts.length,0);
+});
+
+test('first socket open after the initial list settles synchronizes missed changes', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:++calls===1?'snapshot':'fresh'}],total:1})});
+ await h.run('loadEmails()');
+ h.run('connectWebSocket(); state.ws.onopen()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.fetchRequests.length,2);
 });
