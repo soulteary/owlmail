@@ -87,6 +87,53 @@ def verify_conflict(image, feature, environment=False):
     print('PASS: SMTP-only rejects', feature, 'via', 'environment' if environment else 'CLI', flush=True)
 
 
+def verify_config_drift(image, fixture, smtp_only=False):
+    """A running service keeps its startup settings after mounted inputs change."""
+    name = 'owlmail-ci-config-drift-' + ('smtp' if smtp_only else 'https')
+    configuration = fixture / 'drift.yaml'
+    configuration.write_text('smtp: 18086\nweb: 18087\nbase-pathname: /startup\n' +
+                             ('disable-web: true\n' if smtp_only else
+                              'https: true\nhttps-cert: /fixtures/cert.pem\nhttps-key: /fixtures/key.pem\n'))
+    configuration.chmod(0o644)
+    container = command('docker', 'create', '--name', name,
+                        '-e', 'OWLMAIL_SMTP_PORT=', '-e', 'OWLMAIL_WEB_PORT=',
+                        image, '-config', '/fixtures/drift.yaml')
+    try:
+        command('docker', 'cp', str(fixture), container + ':/fixtures')
+        command('docker', 'start', container)
+        probe = ['docker', 'exec', container, '/app/owlmail', 'healthcheck', '--ready', '--container']
+        for _ in range(20):
+            if subprocess.run(probe, capture_output=True, timeout=15).returncode == 0:
+                break
+            time.sleep(1)
+        else:
+            raise RuntimeError('Config drift fixture never became ready: ' + command('docker', 'logs', container))
+        configuration.write_text('smtp: 1\nweb: 1\nbase-pathname: /changed\ndisable-web: ' +
+                                 ('false\n' if smtp_only else 'true\n'))
+        command('docker', 'cp', str(configuration), container + ':/fixtures/drift.yaml')
+        for stage in ('changed', 'removed'):
+            if stage == 'removed':
+                command('docker', 'exec', '--user', '0', container, 'rm', '/fixtures/drift.yaml', '/fixtures/cert.pem')
+            for option in ([], ['--ready']):
+                command('docker', 'exec', '-e', 'OWLMAIL_SMTP_PORT=2', '-e', 'OWLMAIL_WEB_PORT=2',
+                        '-e', 'OWLMAIL_DISABLE_WEB=' + ('false' if smtp_only else 'true'),
+                        container, '/app/owlmail', 'healthcheck', *option, '--container')
+        print('PASS:', name, 'startup configuration survives edits/removal and probe environment overrides', flush=True)
+    finally:
+        command('docker', 'rm', '--force', container)
+
+
+def verify_positional_arguments(image):
+    """Startup must reject arguments the healthcheck configuration cannot consume."""
+    for flags in ([''], ['-disable-web', ''], ['-disable-web', '--', '']):
+        result = subprocess.run(['docker', 'run', '--rm', image, *flags],
+                                capture_output=True, text=True, timeout=30)
+        output = result.stdout + result.stderr
+        if result.returncode != 1 or 'does not accept positional arguments' not in output:
+            raise RuntimeError('Unconsumed arguments were not rejected: ' + repr(flags) + ': ' + output)
+    print('PASS: startup rejects empty positional arguments', flush=True)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--image', required=True)
@@ -94,6 +141,7 @@ def main():
     args = parser.parse_args()
     def scenario(name, flags, root, environment=(), expect_healthy=True):
         verify(args.image, name, flags, root, environment, expect_healthy, args.health_command)
+    verify_positional_arguments(args.image)
     for feature in ('mcp-enabled', 'metrics-enabled', 'maildev-rest-compat', 'mailcatcher-rest-compat'):
         verify_conflict(args.image, feature)
         verify_conflict(args.image, feature, environment=True)
@@ -111,9 +159,12 @@ def main():
                ('-e', 'OWLMAIL_WEB_PORT=18082', '-e', 'OWLMAIL_BASE_PATHNAME=/env'))
         scenario('owlmail-ci-health-cli', ['-web', '18080', '-base-pathname', '/mail'], root)
         scenario('owlmail-ci-health-https', ['-config', '/fixtures/config.yaml'], root)
-        scenario('owlmail-ci-health-smtp-only', ['-disable-web', '-ip', '', '-smtp', '18084'], root)
+        # Put the empty bind-host value last to catch procfs argv trimming.
+        scenario('owlmail-ci-health-smtp-only', ['-disable-web', '-smtp', '18084', '-ip', ''], root)
         scenario('owlmail-ci-health-smtp-env', [], root, ('-e', 'OWLMAIL_DISABLE_WEB=true', '-e', 'OWLMAIL_SMTP_PORT=18085'))
         scenario('owlmail-ci-health-ipv6', ['-web-ip', '::', '-web', '18083'], root)
+        verify_config_drift(args.image, root, smtp_only=True)
+        verify_config_drift(args.image, root)
         # Keep stdin open for a non-server mode; it must never probe a default
         # web listener or report a healthy container.
         scenario('owlmail-ci-health-stdio', ['mcp-stdio'], root, ('-i',), False)

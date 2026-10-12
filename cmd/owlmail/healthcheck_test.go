@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -22,14 +23,44 @@ import (
 )
 
 func TestContainerServerArgs(t *testing.T) {
-	args, err := containerServerArgs([]byte("/app/owlmail\x00-web\x009999\x00-config\x00/app/config.yaml\x00"))
-	if err != nil || len(args) != 4 || args[1] != "9999" {
-		t.Fatalf("args=%v err=%v", args, err)
+	for _, test := range []struct {
+		name    string
+		command string
+		want    []string
+	}{
+		{"defaults", "/app/owlmail\x00", []string{}},
+		{"flags", "/app/owlmail\x00-web\x009999\x00-config\x00/app/config.yaml\x00", []string{"-web", "9999", "-config", "/app/config.yaml"}},
+		{"final empty value", "/app/owlmail\x00-disable-web\x00-smtp\x0018084\x00-ip\x00\x00", []string{"-disable-web", "-smtp", "18084", "-ip", ""}},
+		{"empty values", "/app/owlmail\x00-ip\x00\x00-web-ip\x00\x00", []string{"-ip", "", "-web-ip", ""}},
+		{"consecutive trailing empty arguments", "/app/owlmail\x00-web-user\x00\x00\x00", []string{"-web-user", "", ""}},
+		{"unterminated command", "/app/owlmail\x00-web\x009999", []string{"-web", "9999"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			args, err := containerServerArgs([]byte(test.command))
+			if err != nil || !reflect.DeepEqual(args, test.want) {
+				t.Fatalf("args=%q want=%q err=%v", args, test.want, err)
+			}
+		})
 	}
-	for _, command := range []string{"/app/owlmail\x00doctor\x00", "/app/owlmail\x00mcp-stdio\x00", "/bin/sh\x00", ""} {
+	for _, command := range []string{"/app/owlmail\x00doctor\x00", "/app/owlmail\x00mcp-stdio\x00", "/app/owlmail\x00\x00", "/bin/sh\x00", ""} {
 		if _, err := containerServerArgs([]byte(command)); err == nil {
 			t.Fatalf("accepted non-server command %q", command)
 		}
+	}
+}
+
+func TestContainerServerArgsPreservesEmptyFinalFlagValue(t *testing.T) {
+	t.Setenv("OWLMAIL_SMTP_HOST", "127.0.0.1")
+	args, err := containerServerArgs([]byte("/app/owlmail\x00-disable-web\x00-smtp\x0018084\x00-ip\x00\x00"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := commandConfig("healthcheck", args)
+	if err != nil {
+		t.Fatalf("empty final flag value failed configuration parsing: %v", err)
+	}
+	if !cfg.DisableWeb || cfg.SMTPPort != 18084 || cfg.SMTPHost != "" {
+		t.Fatalf("startup options changed: disable-web=%t smtp=%d ip=%q", cfg.DisableWeb, cfg.SMTPPort, cfg.SMTPHost)
 	}
 }
 

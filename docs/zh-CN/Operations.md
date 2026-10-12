@@ -510,10 +510,12 @@ Web HTTPS 示例：
   -https-key ./certs/web-key.pem
 ```
 
-镜像内置检查执行 `owlmail healthcheck --container`，读取作为 PID 1 运行的
-OwlMail 服务启动参数，并解析实际环境变量和配置文件，自动适配 Web 绑定地址、端口、
-基础路径和 HTTP/HTTPS 设置。HTTPS 会验证配置的证书，也支持自签名证书；启用 HTTPS
-无需覆盖健康检查。
+镜像内置检查执行 `owlmail healthcheck --container`。作为 PID 1 运行的 OwlMail
+在 `/tmp` 写入权限为 0600、没有凭据的启动记录，包含实际监听地址、端口、运行模式、
+邮件目录、基础路径和公开 HTTPS 证书。探针校验 PID 1 的进程启动时间并读取该记录；
+服务启动后修改或删除配置、证书文件，以及覆盖探针环境变量，都不会改变探测目标和证书信任。
+记录缺失或属于旧进程时检查失败。使用只读根文件系统时，请提供可写的 `/tmp`。
+HTTPS 会验证启动时的证书，也支持自签名证书；启用 HTTPS 无需覆盖健康检查。
 
 使用 `exec` 入口确保 OwlMail 是 PID 1。如果使用 init 包装器，则覆盖为
 `owlmail healthcheck`，并传入与服务相同的配置参数和环境变量；原生部署也使用该命令。

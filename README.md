@@ -912,16 +912,34 @@ It checks the running server's cached mail-directory write/sync/cleanup health,
 remote attachment-store health when enabled, and configured relay worker and
 queue availability. A full queue or no live worker makes an enabled relay unready.
 This measures worker lifecycle and queue capacity, not worker progress or index integrity.
+Configured outgoing relay also checks the native durable job store through
+`relay_job_storage`. Its owner checks the relay metadata subdirectory's
+create/write/sync/rename/cleanup operations in the background every 30 seconds;
+HTTP and SMTP-only probes only read the cached result. Application startup keeps
+configured relay pending before its queue owner registers or recovery starts.
+Failed job writes keep readiness unready until the same
+owner durably repairs the affected records; a successful scratch-file check does
+not conceal them. A full status store is unready while pending jobs or the
+minimum retention window prevent accepting another job. Evictable completed
+records do not cause backpressure. No outgoing host means this dependency is
+disabled. Failure to load recovery records requires repairing the records and
+restarting the service; the health probe never replaces the running queue owner.
 Snapshot reads are limited to 64 KiB and a two-second wait; a blocked storage
 publisher cannot keep an old healthy snapshot valid indefinitely. The server's
 mail-storage probe runs every 30 seconds; cached checking, failed or stale results
 are unready. Permission or filesystem failures that prevent snapshot publication
 are detected when its five-second freshness window expires.
 
-When an outgoing SMTP host is configured, readiness also verifies its greeting,
-EHLO/HELO, configured TLS mode, authentication and QUIT, with a five-second total
-downstream timeout. No MAIL, RCPT or DATA commands are sent. This does not guarantee
-recipient acceptance or final delivery, and relay rule files are not reloaded.
+HTTP and SMTP-only readiness use the same cached dependency policy. When an
+outgoing SMTP host is configured, the running server verifies its greeting,
+EHLO/HELO, configured TLS mode, authentication and QUIT in the background every
+30 seconds, with a five-second total timeout. Both modes remain unready until
+that probe succeeds and reject transport or local-storage results older than
+45 seconds. Changing the live outgoing configuration invalidates its cached
+result and schedules another probe. Healthcheck commands do not reload outgoing
+credentials or relay rules and HTTP requests do not contact downstream SMTP.
+No MAIL, RCPT or DATA commands are sent. This does not guarantee recipient
+acceptance or final delivery.
 SMTP-only readiness requires an explicit absolute `-mail-directory` or
 `OWLMAIL_MAIL_DIR` (the container sets `/app/mail` by default); the process-specific
 temporary directory cannot be inferred by a separate native probe. Run native
@@ -934,9 +952,14 @@ you need; the default still starts SMTP and Web together.
 
 ### Container health checks
 
-The image runs `owlmail healthcheck --container`. It reads the OwlMail PID 1
-startup flags and resolves the same environment/config-file settings as startup,
-then probes the effective web host, port, base pathname and HTTP/HTTPS scheme.
+The image runs `owlmail healthcheck --container`. The OwlMail PID 1 server
+publishes a private, credential-free startup record in `/tmp`. The probe uses
+that record for the effective listener, mode, mail directory, base pathname and
+HTTP/HTTPS scheme, without reloading configuration files or environment values.
+Changing or removing a configuration file after startup does not change the
+probe target. The record includes the public HTTPS certificate loaded at startup
+and is bound to the current PID 1 process start time; missing or stale records fail.
+Container deployments with a read-only root filesystem must provide writable `/tmp`.
 Wildcard bind addresses use loopback. HTTPS verifies the configured certificate
 (including self-signed certificates); redirects and non-200 responses fail. The
 request has a two-second timeout and does not need web authentication.

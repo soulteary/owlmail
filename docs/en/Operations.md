@@ -142,8 +142,9 @@ uses `/healthz` for this reason.
 
 `GET /readyz` and `GET /api/v1/ready` are readiness checks. With local
 attachment storage they require bound SMTP listeners and a successful local
-mail-directory write/sync/remove probe. Local storage is sampled before SMTP
-startup and every 30 seconds afterwards; request handlers read the cache.
+mail-directory write/sync/remove probe. Local storage is sampled asynchronously
+when SMTP starts and every 30 seconds afterwards; request handlers read the
+cache and reject successful results older than 45 seconds.
 Shutdown immediately marks the service unready. With S3 enabled, OwlMail
 runs a read-only `HeadBucket` probe in the background. If a least-privilege
 policy rejects the bucket-wide operation, it falls back to `ListObjectsV2`
@@ -151,6 +152,18 @@ scoped to the attachment prefix and `MaxKeys=1`. OwlMail caches the latest resul
 and refreshes it every 30 seconds by default. Each probe has a five-second
 deadline. An HTTP readiness request only reads that cache; it never performs or
 waits for a remote S3 request.
+
+HTTP readiness and SMTP-only `healthcheck --ready` apply the same listener,
+storage, relay-worker and queue policy. If an outgoing SMTP host is configured,
+both also require a cached transport/authentication probe to succeed, even if
+automatic relay is disabled. The server refreshes that probe every 30 seconds
+with a five-second deadline and rejects results older than 45 seconds. A live
+outgoing configuration update clears the previous result and schedules a new
+probe. The SMTP transaction ends with QUIT without sending MAIL, RCPT or DATA;
+it cannot prove recipient acceptance or final delivery. Readiness requests
+perform no network I/O and outages do not affect liveness. The HTTP response
+includes `relay` and `outgoing_transport` checks, with disabled dependencies
+reported as `disabled` and failure categories kept free of credentials.
 
 ```bash
 OWLMAIL_S3_STARTUP_CHECK=false \
@@ -292,6 +305,26 @@ readiness probe, or `owlmail healthcheck --ready --container` in the image.
 Probe options precede normal configuration flags. Docker can opt into this
 check with `--health-cmd='/app/owlmail healthcheck --ready --container'`;
 Kubernetes should use `/healthz` for liveness and `/readyz` for readiness.
+
+When outgoing relay is configured, both HTTP and SMTP-only readiness also
+include `relay_job_storage`. The API owns the durable relay records and publishes
+a cached status to the SMTP server. Its background check verifies the actual
+`.owlmail-meta/relay-jobs` subdirectory, including write, file sync, atomic rename,
+cleanup and directory sync, every 30 seconds. A stuck check changes the cache to
+checking; healthy results older than 45 seconds fail readiness. Checks and
+shutdown never wait for this background filesystem work.
+
+Readiness is pending before the application registers the queue owner and until
+relay recovery is started, fails immediately after a
+job persistence failure, and recovers only after the owner retries the affected
+records successfully. A successful directory check cannot erase an unresolved
+job error. A failed initial recovery load stays unready until the service is
+restarted after repair. Probes do not reopen stores or acquire another owner.
+Status retention capacity fails readiness only when the next native relay job
+cannot be accepted; completed records whose minimum retention has elapsed are
+evictable and do not make the service unready. These dependency failures leave
+`/healthz` and SMTP liveness unchanged. Unconfigured outgoing relay omits this
+check, so an incoming-only deployment does not depend on unused relay storage.
 
 ### 3. Persistent Docker deployment
 
@@ -622,11 +655,16 @@ Example web HTTPS:
   -https-key ./certs/web-key.pem
 ```
 
-The image's built-in check runs `owlmail healthcheck --container`. It reads the
-OwlMail server's PID 1 arguments and resolves the effective environment and
-configuration file, adapting to the web bind address, port, base pathname and
-HTTP/HTTPS setting. HTTPS verifies the configured certificate, including
-self-signed certificates; enabling HTTPS does not require overriding the check.
+The image's built-in check runs `owlmail healthcheck --container`. The PID 1
+server writes a private, credential-free startup record in `/tmp`, containing
+its effective listener, mode, mail directory, base pathname and public HTTPS
+certificate. The probe reads this immutable record and verifies the current
+PID 1 process start time. Later edits or removal of configuration/certificate
+files, or probe environment overrides, do not change the target or certificate
+trust. Missing or mismatched records fail instead of falling back to defaults.
+Provide writable `/tmp` when using a read-only root filesystem. HTTPS verifies
+the startup certificate, including self-signed certificates; enabling HTTPS
+does not require overriding the check.
 
 Use an `exec` entrypoint so OwlMail is PID 1. For an init wrapper, override the
 check with `owlmail healthcheck` and the same configuration flags/environment as

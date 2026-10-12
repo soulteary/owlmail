@@ -638,7 +638,15 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		}
 	}
 
-	if err := apiServer.StartWithReady(apiServer.StartRelayRecovery); err != nil {
+	if err := apiServer.StartWithCertificateReady(func(certificates [][]byte) error {
+		if os.Getpid() == 1 {
+			if err := publishContainerProbeConfig(cfg, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat", certificates...); err != nil {
+				return fmt.Errorf("publish container probe configuration: %w", err)
+			}
+		}
+		apiServer.StartRelayRecovery()
+		return nil
+	}); err != nil {
 		return nil, fmt.Errorf("failed to start API server: %w", err)
 	}
 
@@ -896,22 +904,23 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
-		OutgoingConfig:     outgoingConfig,
-		AuthConfig:         authConfig,
-		AuthRequireTLS:     cfg.SMTPAuthRequireTLS,
-		TLSConfig:          tlsConfig,
-		UseUUIDForID:       cfg.UseUUIDForEmailID,
-		MaxMessageBytes:    int64(maxMessageMB) << 20,
-		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
-		RuntimeReadiness:   cfg.DisableWeb,
-		ReadTimeout:        readTimeout,
-		WriteTimeout:       writeTimeout,
-		MaxRecipients:      maxRecipients,
-		SMTPSPort:          cfg.SMTPSPort,
-		RetainAllHeaders:   cfg.MailDevRESTCompat,
-		AttachmentStore:    attachmentStore,
-		AttachmentHealth:   healthProvider,
-		MailboxIndex:       mailboxIndex,
+		OutgoingConfig:           outgoingConfig,
+		AuthConfig:               authConfig,
+		AuthRequireTLS:           cfg.SMTPAuthRequireTLS,
+		TLSConfig:                tlsConfig,
+		UseUUIDForID:             cfg.UseUUIDForEmailID,
+		MaxMessageBytes:          int64(maxMessageMB) << 20,
+		MaxDataConcurrency:       cfg.SMTPMaxConcurrency,
+		RuntimeReadiness:         cfg.DisableWeb,
+		RequireRelayJobReadiness: true,
+		ReadTimeout:              readTimeout,
+		WriteTimeout:             writeTimeout,
+		MaxRecipients:            maxRecipients,
+		SMTPSPort:                cfg.SMTPSPort,
+		RetainAllHeaders:         cfg.MailDevRESTCompat,
+		AttachmentStore:          attachmentStore,
+		AttachmentHealth:         healthProvider,
+		MailboxIndex:             mailboxIndex,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
@@ -1234,6 +1243,13 @@ func main() {
 	}
 
 	// Start servers
+	if os.Getpid() == 1 && cfg.DisableWeb {
+		if err := publishContainerProbeConfig(cfg, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat"); err != nil {
+			_ = server.Close()
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to publish container probe configuration: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	if err := startServers(server, cfg); err != nil {
 		if fatalErr := common.Fatal("Failed to start servers: %v", err); fatalErr != nil {
 			// In test environments, this will return an error instead of exiting

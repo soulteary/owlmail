@@ -29,6 +29,7 @@ func TestRuntimeReadinessRejectsStaleAndUnreadyComponents(t *testing.T) {
 		{"SMTP stopped", func(s *RuntimeReadiness) { s.SMTP = false }},
 		{"storage pending", func(s *RuntimeReadiness) { s.Storage.State = attachmentstore.HealthChecking }},
 		{"stale storage", func(s *RuntimeReadiness) { s.Storage.CheckedAt = now.Add(-time.Minute) }},
+		{"future storage", func(s *RuntimeReadiness) { s.Storage.CheckedAt = now.Add(time.Minute) }},
 		{"remote attachments unavailable", func(s *RuntimeReadiness) {
 			s.Attachment = &attachmentstore.HealthStatus{State: attachmentstore.HealthUnready}
 		}},
@@ -36,12 +37,24 @@ func TestRuntimeReadinessRejectsStaleAndUnreadyComponents(t *testing.T) {
 		{"queue full", func(s *RuntimeReadiness) {
 			s.Relay = &outgoing.RuntimeReadiness{Enabled: true, Workers: 1, Queued: 100, Capacity: 100}
 		}},
+		{"missing transport result", func(s *RuntimeReadiness) {
+			s.Relay = &outgoing.RuntimeReadiness{Enabled: true, Workers: 1, Capacity: 100}
+		}},
+		{"unavailable transport", func(s *RuntimeReadiness) {
+			s.Transport = &attachmentstore.HealthStatus{State: attachmentstore.HealthUnready, CheckedAt: now}
+		}},
+		{"stale transport", func(s *RuntimeReadiness) {
+			s.Transport = &attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: now.Add(-time.Minute)}
+		}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			status := healthy
 			test.change(&status)
 			if err := status.Validate("localhost", 1025, now); err == nil {
 				t.Fatal("unready state accepted")
+			}
+			if test.name != "stale snapshot" && test.name != "future snapshot" && test.name != "wrong listener" && status.ValidateService(now) == nil {
+				t.Fatal("shared service validation accepted unready state")
 			}
 		})
 	}

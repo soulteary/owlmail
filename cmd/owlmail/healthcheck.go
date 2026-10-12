@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -19,13 +18,14 @@ import (
 
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
-	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
 // containerServerArgs reads the actual PID 1 command rather than assuming that
 // environment defaults describe the listener (CLI flags and config files win).
 func containerServerArgs(data []byte) ([]string, error) {
-	argv := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
+	// procfs terminates argv with one NUL; earlier NULs can delimit empty
+	// arguments, including an explicit empty value for the final flag.
+	argv := strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
 	if len(argv) == 0 || filepath.Base(argv[0]) != "owlmail" {
 		return nil, fmt.Errorf("container healthcheck requires OwlMail as PID 1")
 	}
@@ -59,10 +59,15 @@ options:
 		if err != nil {
 			return fmt.Errorf("read container startup command: %w", err)
 		}
-		args, err = containerServerArgs(data)
+		_, err = containerServerArgs(data)
 		if err != nil {
 			return err
 		}
+		probe, err := readContainerProbeConfig(containerProbeConfigPath, "/proc/1/stat")
+		if err != nil {
+			return err
+		}
+		return probeHealthEndpointWithCertificate(probe.config(), ready, probe.CertificatePEM)
 	}
 	cfg, err := commandConfig("healthcheck", args)
 	if err != nil {
@@ -74,6 +79,10 @@ options:
 func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, false) }
 
 func probeHealthEndpoint(cfg *config.Config, ready bool) error {
+	return probeHealthEndpointWithCertificate(cfg, ready, nil)
+}
+
+func probeHealthEndpointWithCertificate(cfg *config.Config, ready bool, certificatePEM []byte) error {
 	if cfg.DisableWeb {
 		if err := probeSMTPHealth(cfg); err != nil {
 			return err
@@ -93,9 +102,11 @@ func probeHealthEndpoint(cfg *config.Config, ready bool) error {
 	defer transport.CloseIdleConnections()
 	if cfg.HTTPSEnabled {
 		scheme = "https"
-		certificatePEM, err := os.ReadFile(cfg.HTTPSCertFile)
-		if err != nil {
-			return fmt.Errorf("read HTTPS certificate: %w", err)
+		if certificatePEM == nil {
+			certificatePEM, err = os.ReadFile(cfg.HTTPSCertFile)
+			if err != nil {
+				return fmt.Errorf("read HTTPS certificate: %w", err)
+			}
 		}
 		roots := x509.NewCertPool()
 		if !roots.AppendCertsFromPEM(certificatePEM) {
@@ -193,8 +204,8 @@ func probeSMTPHealth(cfg *config.Config) error {
 	return nil
 }
 
-// SMTP-only readiness runs in the probe process with the resolved server configuration.
-// It does not open storage owners, acquire leases, or submit SMTP envelopes.
+// SMTP-only readiness reads the running owner's cached dependency state.
+// The probe does not open storage owners or contact downstream SMTP itself.
 func probeSMTPReadiness(cfg *config.Config) error {
 	if cfg.MailDir == "" {
 		return fmt.Errorf("SMTP readiness requires -mail-directory or OWLMAIL_MAIL_DIR; the default temporary directory is private to the server process")
@@ -202,21 +213,7 @@ func probeSMTPReadiness(cfg *config.Config) error {
 	if !filepath.IsAbs(cfg.MailDir) {
 		return fmt.Errorf("SMTP readiness requires an absolute mail directory; relative paths depend on the server working directory")
 	}
-	if err := probeRuntimeReadiness(cfg); err != nil {
-		return err
-	}
-	relay, err := setupOutgoingTransportConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("SMTP readiness: invalid outgoing configuration")
-	}
-	if relay != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := outgoing.ProbeSMTP(ctx, relay); err != nil {
-			return fmt.Errorf("SMTP readiness: outgoing SMTP transport or authentication unavailable")
-		}
-	}
-	return nil
+	return probeRuntimeReadiness(cfg)
 }
 
 // The buffered result channel allows a blocked filesystem call to finish after

@@ -161,6 +161,9 @@ func (store *relayJobStore) recordPersistenceResultLocked(id string, err error) 
 		unresolved = append(unresolved, failure)
 	}
 	store.lastPersistenceErr = errors.Join(unresolved...)
+	if store.readiness != nil {
+		store.readiness.recordPersistenceErrors(len(store.persistenceErrors), err)
+	}
 }
 
 func (store *relayJobStore) persistLocked(job relayJob) error {
