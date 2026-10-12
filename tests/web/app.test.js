@@ -1641,3 +1641,14 @@ test('delete all invalidates a stalled query without blocking later live events'
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.run('state.emails[0].id'),'arrived');
 });
+
+test('delete all completion synchronizes mail arriving before its response', async () => {
+ let finishDelete, gets=0;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?new Promise(resolve=>{finishDelete=resolve;}):++gets===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived-after-delete'}],total:1})});
+ h.run('loadEmails({background:true})');
+ const deletion=h.run('deleteAllEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'arrived-after-delete'}})");
+ finishDelete(jsonResponse({})); await deletion;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'arrived-after-delete');
+});
