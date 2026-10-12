@@ -926,6 +926,17 @@ wrapper. Offline commands such as `doctor`, `sendmail`, and `mcp-stdio` do not
 provide the web listener and fail the container check instead of probing an
 unrelated default port. Reverse-proxy external URLs do not change the local probe.
 
+### Commands and keyboard help
+
+Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
+`Cmd+K` outside a text field. Search localized command names, use Up/Down to
+choose an available command, and press Enter to run it. Tab stays within the
+modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
+are shown beside their commands and are suspended while the modal is open.
+Commands that need a selected message or HTML preview are disabled when those
+are absent. Deletion retains the normal confirmation and relay protection.
+
+
 ### Mail preview controls
 
 The interface follows the system color scheme until a theme is chosen with the
@@ -960,3 +971,18 @@ not cancel delivery. Resume waiting continues watching the same job without
 resubmitting it. Delivery records remain available in the Deliveries tab. While
 an accepted job has an unknown final state, relay and deletion controls stay
 locked in the current session to prevent duplicate delivery or lost evidence.
+
+### Inbox filters and batch tools
+
+Expand Filters to query by sender, recipient, date range, read state and sort
+order. Filters combine with text search and reset pagination when applied.
+Select this page selects only visible messages; selection is pruned when the
+page or filter results change. Batch read/delete sends explicit IDs, confirms
+deletion, and preserves failed visible IDs for retry. Pending relay sources
+cannot be batch-deleted. Results show success and failure counts.
+
+Export selected downloads those IDs as a ZIP of `.eml` files. Export filtered
+results exports the active search/filter query across pages, subject to the
+existing server limits of 1,000 messages and 256 MiB of source data. Export does
+not include the browser's sort order. Empty selections never trigger a full
+mailbox export. All controls have labels and translations in supported locales.

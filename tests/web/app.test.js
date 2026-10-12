@@ -92,6 +92,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         ['deleteAllBtn', deleteAllBtn],
         ['emailDetail', emailDetail],
         ['emailList', emailList],
+        ['mailBatchResult', createElement()],
         ['emailViewportFrame', emailViewportFrame],
         ['emailViewportStage', emailViewportStage],
         ['email-content-tab-source', emailSourceTab],
@@ -248,6 +249,60 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         run(source) { return vm.runInContext(source, sandbox); }
     };
 }
+
+function installCommandPalette(harness) {
+    harness.run(`
+        const paletteIDs = ['commandPalette','commandPaletteButton','commandSearch','commandList','commandTitle','commandClose','commandEmpty'];
+        const paletteElements = new Map(paletteIDs.map(id => [id, document.createElement('div')]));
+        const originalLookup = document.getElementById.bind(document);
+        document.getElementById = id => paletteElements.get(id) || originalLookup(id);
+        for (const [id, element] of paletteElements) { element.id = id; element.isConnected = true; }
+        const palette = paletteElements.get('commandPalette');
+        palette.open = false;
+        palette.showModal = () => { palette.open = true; };
+        palette.close = () => { palette.open = false; palette.listeners.get('close')?.(); };
+        initializeCommandPalette();
+    `);
+}
+
+test('palette has translated searchable commands in every supported language', () => {
+    const harness = createHarness();
+    for (const lang of ['en', 'zh-CN', 'de', 'fr', 'it', 'ja', 'ko']) {
+        harness.run(`currentLang = '${lang}'`);
+        assert.notEqual(harness.run("t('commandsTitle')"), 'commandsTitle');
+        assert.equal(harness.run("filteredMailboxCommands(t('refresh')).some(command => command.id === 'refresh')"), true);
+    }
+    assert.equal(harness.run("filteredMailboxCommands('no-such-command').length"), 0);
+});
+
+test('palette protects disabled operations and returns focus without stealing command focus', () => {
+    const harness = createHarness();
+    installCommandPalette(harness);
+    harness.run("document.activeElement = paletteElements.get('commandPaletteButton'); openCommandPalette()");
+    assert.equal(harness.run('palette.open'), true);
+    assert.equal(harness.run("mailboxCommands().find(command => command.id === 'delete-email').disabled"), true);
+    harness.run("executeMailboxCommand('delete-email')");
+    assert.equal(harness.run('palette.open'), true);
+    assert.equal(harness.confirmations.length, 0);
+    harness.run('closeCommandPalette()');
+    assert.equal(harness.run("paletteElements.get('commandPaletteButton').focused"), true);
+    assert.equal(harness.run('palette.open'), false);
+});
+
+test('palette shortcuts open outside editing and suppress mailbox actions while modal is open', () => {
+    const harness = createHarness();
+    installCommandPalette(harness);
+    harness.run("handleMailboxKeydown({key:'?',shiftKey:true,preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), true);
+    harness.run("handleMailboxKeydown({key:'t',preventDefault(){}})");
+    assert.equal(harness.run('currentTheme'), 'light');
+    harness.run('closeCommandPalette()');
+    harness.run("handleMailboxKeydown({key:'k',ctrlKey:true,target:{tagName:'INPUT'},preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), false);
+    harness.run("handleMailboxKeydown({key:'k',ctrlKey:true,target:{tagName:'BUTTON'},preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), true);
+});
+
 
 test('browser routes use the configured base pathname', async () => {
     const harness = createHarness({
@@ -1482,6 +1537,67 @@ test('bounded relay waiting times out without cancelling server delivery and can
  assert.equal(h.run("relayTracking.has('mail-1')"),false);
 });
 
+test('advanced filters are encoded on preview and filtered export queries', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run("state.searchQuery='invoice & receipt'; mailboxFilters={from:'Sender <s@example.test>',to:'r@example.test',read:'false',dateFrom:'2026-10-01',dateTo:'2026-10-12',sortBy:'size',sortOrder:'asc'}");
+ await h.run('loadEmails()');
+ const url=new URL(h.fetchRequests[0].url);
+ assert.equal(url.searchParams.get('from'),'Sender <s@example.test>');
+ assert.equal(url.searchParams.get('read'),'false');
+ assert.equal(url.searchParams.get('sortBy'),'size');
+ const exported=new URL(h.run('mailboxExportURL(false)'));
+ assert.equal(exported.pathname,'/api/v1/emails/export');
+ assert.equal(exported.searchParams.get('q'),'invoice & receipt');
+ assert.equal(exported.searchParams.get('dateTo'),'2026-10-12');
+ assert.equal(exported.searchParams.has('sortBy'),false);
+});
+test('selection is limited to the visible page and export uses explicit IDs', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:'next-page'}],total:1})});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; selectMailboxPage(true); toggleMailSelection('unknown',true)");
+ assert.equal(h.run('selectedMailIDs.size'),2);
+ assert.equal(new URL(h.run('mailboxExportURL(true)')).searchParams.get('ids'),'mail-1,mail-2');
+ await h.run('loadEmails()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+});
+test('batch deletion keeps failures selected and clears successfully deleted details', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'
+  ?jsonResponse({success:1,failed:1,failedIDs:['mail-2']})
+  :jsonResponse({previews:[{id:'mail-2'}],total:1})});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; state.currentEmail={id:'mail-1'}; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.deepEqual(JSON.parse(h.fetchRequests[0].options.body).ids,['mail-1','mail-2']);
+ assert.equal(h.run('state.currentEmail'),null);
+ assert.equal(h.run("selectedMailIDs.has('mail-2')"),true);
+ assert.equal(h.run('mailboxBatchBusy'),false);
+ assert.match(h.confirmations[0],/2 selected/);
+});
+test('batch deletion is blocked for selected pending relay sources', async () => {
+ const h=createHarness();
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true); relayPending.add('mail-1')");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.fetchRequests.length,0);
+ assert.equal(h.confirmations.length,0);
+});
+test('batch read uses the existing PATCH contract', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'
+  ?jsonResponse({success:1,failed:0,failedIDs:[]})
+  :jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(new URL(h.fetchRequests[0].url).pathname,'/api/v1/emails/batch/read');
+ assert.equal(h.fetchRequests[0].options.method,'PATCH');
+ assert.equal(h.run('state.emails[0].read'),true);
+});
+
+test('arrival-order filter sends the explicit store sort to the API', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run("const sortControl={value:'store'}; const originalGetElement=document.getElementById; document.getElementById=id=>id==='mail-filter-sortBy'?sortControl:originalGetElement(id)");
+ await h.run('applyMailboxFilters()');
+ assert.equal(new URL(h.fetchRequests.at(-1).url).searchParams.get('sortBy'),'store');
+ assert.match(appSource, /\['store','sortStore'\]/);
+});
+
 test('resumed retry completion clears paused notice and refreshes deliveries', async () => {
  let completed=false;
  const h=createHarness({fetchImpl:async(url,options)=>options?.method==='POST'?jsonResponse({data:{job:{id:'new-job',status:'queued'},statusUrl:'/api/v1/relay-jobs/new-job'}}):completed?jsonResponse({data:{id:'new-job',status:'succeeded'}}):new Promise(()=>{})});
@@ -1523,6 +1639,17 @@ test('first socket open after the initial list settles synchronizes missed chang
  assert.equal(h.fetchRequests.length,2);
 });
 
+test('mail selection labels escape attacker-controlled subject quotes', () => {
+ const h=createHarness();
+ h.run(`state.emails=[{id:'mail-1',subject:'" onclick="alert(1)',from:[],to:[]}]; renderEmailList()`);
+ assert.match(h.emailList.innerHTML,/aria-label="Select message: &quot; onclick=&quot;alert\(1\)"/);
+});
+test('relay mutation changes refresh selected-message batch controls', () => {
+ const h=createHarness();
+ h.run("let batchControlRefreshes=0; updateMailboxSelectionControls=()=>batchControlRefreshes++; relayPending.add('mail-1'); syncRelayMutationControls(); relayPending.delete('mail-1'); syncRelayMutationControls()");
+ assert.equal(h.run('batchControlRefreshes'),2);
+});
+
 test('detail mutations stay inert until all overlapping detail requests finish', () => {
  const h=createHarness();
  h.run("showLoading('emailDetail'); showLoading('emailDetail'); hideLoading('emailDetail')");
@@ -1530,6 +1657,16 @@ test('detail mutations stay inert until all overlapping detail requests finish',
  assert.notEqual(h.emailList.inert,true);
  h.run("hideLoading('emailDetail')");
  assert.equal(h.emailDetail.inert,false);
+});
+
+test('deleting the whole mailbox clears selected-message actions', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({})});
+ h.run("state.emails=[{id:'mail-1'}]; selectMailboxPage(true)");
+ await h.run('deleteAllEmails()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+ assert.equal(h.run("t('sortDesc')"),'Descending');
+ assert.equal(h.run("t('sortAsc')"),'Ascending');
 });
 
 test('a newer foreground query cancels a delayed background refresh', async () => {
@@ -1551,6 +1688,12 @@ test('manual relay completion updates an already loaded delivery panel', async (
  assert.equal(h.run('deliveryRenders'),1);
 });
 
+test('restored filter values escape quoted display names', () => {
+ const h=createHarness();
+ assert.match(h.run(`escapeHtmlAttribute('John "Boss"')`), /John &quot;Boss&quot;/);
+ assert.match(appSource,/escapeHtmlAttribute\(draft\[field\] \|\| ''\)/);
+});
+
 test('failed fallback loading clears rows from a deleted last page', async () => {
  let calls=0;
  const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('unavailable'))});
@@ -1559,6 +1702,15 @@ test('failed fallback loading clears rows from a deleted last page', async () =>
  assert.equal(h.run('state.emails.length'),0);
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('state.total'),1);
+});
+
+test('failed filter application immediately clears selection checkboxes', async () => {
+ const h=createHarness({fetchImpl:async()=>{throw new Error('offline');}});
+ h.run("state.emails=[{id:'mail-1',from:[],to:[]}]; selectMailboxPage(true)");
+ assert.match(h.emailList.innerHTML,/checked/);
+ await h.run('applyMailboxFilters()');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/ checked /);
 });
 
 test('a delayed delivery snapshot cannot overwrite a terminal relay result', async () => {
@@ -1589,6 +1741,15 @@ test('successful deletion removes its row even if preview refresh fails', async 
  assert.equal(h.run('state.total'),0);
 });
 
+test('confirmed batch deletions remain removed if the follow-up query fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({success:2,failed:0,failedIDs:[]}):Promise.reject(new Error('offline'))});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; state.total=2; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+});
+
 test('global Delete shortcut cannot mutate the old email during detail loading', async () => {
  const h=createHarness();
  h.run("state.currentEmail={id:'old-mail'}; showLoading('emailDetail')");
@@ -1609,6 +1770,16 @@ test('live events preserve a foreground response if the deferred synchronization
  assert.equal(h.run('state.emails[0].id'),'fresh');
  assert.equal(h.run('state.total'),1);
  assert.equal(h.fetchRequests.length,2);
+});
+
+test('successful batch reads reconcile unread filters when refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({success:1,failed:1,failedIDs:['mail-2']}):Promise.reject(new Error('offline'))});
+ h.run("mailboxFilters={read:'false'}; state.emails=[{id:'mail-1',read:false},{id:'mail-2',read:false}]; state.total=2; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'mail-2');
+ assert.equal(h.run('state.total'),1);
+ assert.equal(h.run("selectedMailIDs.has('mail-2')"),true);
 });
 
 test('an obsolete stalled request cannot block realtime synchronization', async () => {
@@ -1642,6 +1813,16 @@ test('delete all invalidates a stalled query without blocking later live events'
  assert.equal(h.run('state.emails[0].id'),'arrived');
 });
 
+test('failed fallback requests clear selections from an invalid page', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('offline'))});
+ h.run("state.currentPage=1; state.total=51; state.emails=[{id:'deleted'}]; selectMailboxPage(true)");
+ await h.run('loadEmails({background:true})');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.equal(h.run('mailboxExportURL(true)'),'');
+});
+
 test('delete all completion synchronizes mail arriving before its response', async () => {
  let finishDelete, gets=0;
  const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?new Promise(resolve=>{finishDelete=resolve;}):++gets===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived-after-delete'}],total:1})});
@@ -1651,6 +1832,60 @@ test('delete all completion synchronizes mail arriving before its response', asy
  finishDelete(jsonResponse({})); await deletion;
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.run('state.emails[0].id'),'arrived-after-delete');
+});
+
+test('starting pagination clears page selections before a stalled response', () => {
+ const h=createHarness({fetchImpl:()=>new Promise(()=>{})});
+ h.run("state.total=100; state.emails=[{id:'mail-1'}]; selectMailboxPage(true); nextPage()");
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/ checked /);
+});
+test('mark all read clears unread-filter rows even when refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({count:1}):Promise.reject(new Error('offline'))});
+ h.run("mailboxFilters={read:'false'}; state.emails=[{id:'mail-1',read:false}]; state.total=1; selectMailboxPage(true)");
+ await h.run('markAllRead()');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+});
+
+test('active mailbox requests block stale selection and batch actions until settled', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ h.run("state.emails=[{id:'old-page'}]; state.total=100; selectMailboxPage(true)");
+ const load=h.run('loadEmails()');
+ assert.equal(h.emailList.inert,true);
+ assert.match(h.emailList.innerHTML,/ disabled /);
+ h.run("toggleMailSelection('old-page',true); selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.confirmations.length,0);
+ complete(jsonResponse({previews:[{id:'new-page'}],total:1})); await load;
+ assert.equal(h.emailList.inert,false);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ h.run("toggleMailSelection('new-page',true)");
+ assert.equal(h.run('selectedMailIDs.size'),1);
+});
+
+test('failed pagination does not re-enable selectable rows from the previous page', async () => {
+ const h=createHarness({fetchImpl:async()=>{throw new Error('offline');}});
+ h.run("state.emails=[{id:'old-page'}]; state.total=100; selectMailboxPage(true); nextPage()");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails.length'),0);
+ h.run("toggleMailSelection('old-page',true); selectMailboxPage(true)");
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/data-mail-select/);
+});
+
+test('language rerenders preserve unsubmitted filter drafts and expanded state', () => {
+ const h=createHarness();
+ h.run(`const filterRoot={innerHTML:'',querySelector:()=>({open:true})}; const originalElementLookup=document.getElementById; document.getElementById=id=>id==='mailboxTools'?filterRoot:id==='mailboxFilterForm'?{addEventListener(){}}:id==='mail-filter-from'?{value:'John "Boss"',addEventListener(){}}:originalElementLookup(id); mailboxFilters={from:'applied@example.test'}; state.lang='zh-CN'; renderMailboxTools()`);
+ assert.match(h.run('filterRoot.innerHTML'),/John &quot;Boss&quot;/);
+ assert.match(h.run('filterRoot.innerHTML'),/class="mailbox-filters" open/);
+ assert.equal(h.run('mailboxFilters.from'),'applied@example.test');
+ h.run('renderMailboxTools({preserveDraft:false})');
+ assert.doesNotMatch(h.run('filterRoot.innerHTML'),/John &quot;Boss&quot;/);
+ assert.match(h.run('filterRoot.innerHTML'),/applied@example.test/);
 });
 
 test('terminal delivery history releases a paused relay lock without resubmission', async () => {
@@ -1684,4 +1919,27 @@ test('late terminal history updates replacement delivery tools before unlocking'
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
  assert.equal(h.run('relayTracking.size'),0);
  assert.equal(h.run('completedRelayJobs.size'),0);
+});
+
+test('batch-read completion accounts for selected messages that were already read', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({total:1,success:0,failed:0,failedIDs:[]}):jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("state.emails=[{id:'mail-1',read:true}]; state.total=1; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('read')");
+ assert.equal(h.run("document.getElementById('mailBatchResult').textContent"),'Completed: 1; failed: 0.');
+ assert.equal(h.run('selectedMailIDs.size'),0);
+});
+
+test('pending batch operations lock existing mutations and unlock on completion', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?new Promise(resolve=>{complete=resolve;}):jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("relayEnabled=true; state.currentEmail={id:'mail-1',text:'hello'}; state.emails=[{id:'mail-1'}]; state.total=1; emailToolsFor(state.currentEmail).relay={jobs:[{id:'old-job',status:'failed'}]}; selectMailboxPage(true)");
+ const batch=h.run("runMailboxBatch('read')");
+ assert.equal(h.deleteAllBtn.disabled,true);
+ assert.equal(h.run("document.getElementById('emailDeleteAction').disabled"),true);
+ await h.run("deleteEmail('mail-1'); deleteAllEmails(); markAllRead(); relayCurrentEmail('mail-1'); retryEmailWorkflow('relay',0); handleMailboxKeydown({key:'Delete',target:{tagName:'BODY'},preventDefault(){}})");
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.confirmations.length,0);
+ complete(jsonResponse({total:1,success:1,failed:0,failedIDs:[]})); await batch;
+ assert.equal(h.deleteAllBtn.disabled,false);
+ assert.equal(h.run("document.getElementById('emailDeleteAction').disabled"),false);
 });

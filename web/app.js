@@ -856,6 +856,13 @@ Object.assign(i18n["it"], {"relayWaiting": "Attesa dello stato di consegna", "re
 Object.assign(i18n["fr"], {"relayWaiting": "En attente du statut de livraison", "relayPaused": "Attente suspendue", "relayStopWait": "Arrêter l’attente", "relayResumeWait": "Reprendre l’attente", "relayWaitStopped": "Attente arrêtée. La livraison continue ; reprenez ou consultez les livraisons.", "relayWaitTimeout": "Délai dépassé. La livraison continue ; reprenez ou consultez les livraisons."});
 Object.assign(i18n["ko"], {"relayWaiting": "전송 상태 대기 중", "relayPaused": "상태 대기 일시 중지", "relayStopWait": "대기 중지", "relayResumeWait": "대기 재개", "relayWaitStopped": "대기를 중지했습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요.", "relayWaitTimeout": "대기 시간이 초과되었습니다. 전송은 계속됩니다. 대기를 재개하거나 전송 내역을 확인하세요."});
 Object.assign(i18n["ja"], {"relayWaiting": "配信状態を待機中", "relayPaused": "状態の待機を停止中", "relayStopWait": "待機を停止", "relayResumeWait": "待機を再開", "relayWaitStopped": "待機を停止しました。配信は続行されます。待機を再開するか配信履歴を確認してください。", "relayWaitTimeout": "待機がタイムアウトしました。配信は続行されます。待機を再開するか配信履歴を確認してください。"});
+Object.assign(i18n["en"], {"mailFilters": "Filters", "filterFrom": "Sender", "filterTo": "Recipient", "filterDateFrom": "From date", "filterDateTo": "Through date", "filterRead": "Read state", "filterAny": "Any", "filterUnread": "Unread", "filterReadOnly": "Read", "filterSort": "Sort by", "sortDesc": "Descending", "sortAsc": "Ascending", "applyFilters": "Apply filters", "resetFilters": "Reset filters", "selectPage": "Select this page", "selectionCount": "{count} selected", "batchRead": "Mark selected read", "batchDelete": "Delete selected", "exportSelected": "Export selected (.zip)", "exportFiltered": "Export filtered results (.zip)", "selectMessage": "Select message: {subject}", "batchDeleteConfirm": "Delete {count} selected messages? This cannot be undone.", "batchResult": "Completed: {success}; failed: {failed}.", "sortTime": "Time", "sortSubject": "Subject", "sortFrom": "Sender", "sortSize": "Size", "sortStore": "Arrival order"});
+Object.assign(i18n["zh-CN"], {"mailFilters": "筛选", "filterFrom": "发件人", "filterTo": "收件人", "filterDateFrom": "起始日期", "filterDateTo": "截止日期", "filterRead": "已读状态", "filterAny": "全部", "filterUnread": "未读", "filterReadOnly": "已读", "filterSort": "排序字段", "sortDesc": "降序", "sortAsc": "升序", "applyFilters": "应用筛选", "resetFilters": "重置筛选", "selectPage": "选择当前页", "selectionCount": "已选择 {count} 封", "batchRead": "所选标为已读", "batchDelete": "删除所选", "exportSelected": "导出所选（.zip）", "exportFiltered": "导出筛选结果（.zip）", "selectMessage": "选择邮件：{subject}", "batchDeleteConfirm": "删除所选 {count} 封邮件？此操作不可撤销。", "batchResult": "成功：{success}；失败：{failed}。", "sortTime": "时间", "sortSubject": "主题", "sortFrom": "发件人", "sortSize": "大小", "sortStore": "接收顺序"});
+Object.assign(i18n["de"], {"mailFilters": "Filter", "filterFrom": "Absender", "filterTo": "Empfänger", "filterDateFrom": "Ab Datum", "filterDateTo": "Bis Datum", "filterRead": "Lesestatus", "filterAny": "Alle", "filterUnread": "Ungelesen", "filterReadOnly": "Gelesen", "filterSort": "Sortieren nach", "sortDesc": "Absteigend", "sortAsc": "Aufsteigend", "applyFilters": "Filter anwenden", "resetFilters": "Filter zurücksetzen", "selectPage": "Diese Seite auswählen", "selectionCount": "{count} ausgewählt", "batchRead": "Auswahl als gelesen markieren", "batchDelete": "Auswahl löschen", "exportSelected": "Auswahl exportieren (.zip)", "exportFiltered": "Gefilterte Ergebnisse exportieren (.zip)", "selectMessage": "Nachricht auswählen: {subject}", "batchDeleteConfirm": "{count} ausgewählte Nachrichten unwiderruflich löschen?", "batchResult": "Erfolgreich: {success}; fehlgeschlagen: {failed}.", "sortTime": "Zeit", "sortSubject": "Betreff", "sortFrom": "Absender", "sortSize": "Größe", "sortStore": "Eingangsreihenfolge", "filterSortOrder": "Sortierrichtung", "filterDateRangeError": "Das Enddatum darf nicht vor dem Startdatum liegen."});
+Object.assign(i18n["it"], {"mailFilters": "Filtri", "filterFrom": "Mittente", "filterTo": "Destinatario", "filterDateFrom": "Dalla data", "filterDateTo": "Alla data", "filterRead": "Stato di lettura", "filterAny": "Tutti", "filterUnread": "Non letti", "filterReadOnly": "Letti", "filterSort": "Ordina per", "sortDesc": "Decrescente", "sortAsc": "Crescente", "applyFilters": "Applica filtri", "resetFilters": "Reimposta filtri", "selectPage": "Seleziona questa pagina", "selectionCount": "{count} selezionati", "batchRead": "Segna selezionati come letti", "batchDelete": "Elimina selezionati", "exportSelected": "Esporta selezionati (.zip)", "exportFiltered": "Esporta risultati filtrati (.zip)", "selectMessage": "Seleziona messaggio: {subject}", "batchDeleteConfirm": "Eliminare definitivamente {count} messaggi selezionati?", "batchResult": "Completati: {success}; non riusciti: {failed}.", "sortTime": "Data", "sortSubject": "Oggetto", "sortFrom": "Mittente", "sortSize": "Dimensione", "sortStore": "Ordine di arrivo", "filterSortOrder": "Direzione di ordinamento", "filterDateRangeError": "La data finale non può precedere quella iniziale."});
+Object.assign(i18n["fr"], {"mailFilters": "Filtres", "filterFrom": "Expéditeur", "filterTo": "Destinataire", "filterDateFrom": "À partir du", "filterDateTo": "Jusqu’au", "filterRead": "État de lecture", "filterAny": "Tous", "filterUnread": "Non lus", "filterReadOnly": "Lus", "filterSort": "Trier par", "sortDesc": "Décroissant", "sortAsc": "Croissant", "applyFilters": "Appliquer les filtres", "resetFilters": "Réinitialiser les filtres", "selectPage": "Sélectionner cette page", "selectionCount": "{count} sélectionnés", "batchRead": "Marquer la sélection comme lue", "batchDelete": "Supprimer la sélection", "exportSelected": "Exporter la sélection (.zip)", "exportFiltered": "Exporter les résultats filtrés (.zip)", "selectMessage": "Sélectionner le message : {subject}", "batchDeleteConfirm": "Supprimer définitivement les {count} messages sélectionnés ?", "batchResult": "Réussis : {success} ; échoués : {failed}.", "sortTime": "Date", "sortSubject": "Objet", "sortFrom": "Expéditeur", "sortSize": "Taille", "sortStore": "Ordre de réception", "filterSortOrder": "Sens du tri", "filterDateRangeError": "La date de fin ne peut pas précéder la date de début."});
+Object.assign(i18n["ko"], {"mailFilters": "필터", "filterFrom": "보낸 사람", "filterTo": "받는 사람", "filterDateFrom": "시작 날짜", "filterDateTo": "종료 날짜", "filterRead": "읽음 상태", "filterAny": "전체", "filterUnread": "읽지 않음", "filterReadOnly": "읽음", "filterSort": "정렬 기준", "sortDesc": "내림차순", "sortAsc": "오름차순", "applyFilters": "필터 적용", "resetFilters": "필터 초기화", "selectPage": "현재 페이지 선택", "selectionCount": "{count}개 선택됨", "batchRead": "선택 항목 읽음 처리", "batchDelete": "선택 항목 삭제", "exportSelected": "선택 항목 내보내기 (.zip)", "exportFiltered": "필터 결과 내보내기 (.zip)", "selectMessage": "메일 선택: {subject}", "batchDeleteConfirm": "선택한 메일 {count}개를 영구 삭제할까요?", "batchResult": "성공: {success}; 실패: {failed}.", "sortTime": "시간", "sortSubject": "제목", "sortFrom": "보낸 사람", "sortSize": "크기", "sortStore": "수신 순서", "filterSortOrder": "정렬 방향", "filterDateRangeError": "종료 날짜는 시작 날짜보다 빠를 수 없습니다."});
+Object.assign(i18n["ja"], {"mailFilters": "フィルター", "filterFrom": "差出人", "filterTo": "宛先", "filterDateFrom": "開始日", "filterDateTo": "終了日", "filterRead": "既読状態", "filterAny": "すべて", "filterUnread": "未読", "filterReadOnly": "既読", "filterSort": "並べ替え項目", "sortDesc": "降順", "sortAsc": "昇順", "applyFilters": "フィルターを適用", "resetFilters": "フィルターをリセット", "selectPage": "このページを選択", "selectionCount": "{count} 件選択", "batchRead": "選択したメールを既読にする", "batchDelete": "選択したメールを削除", "exportSelected": "選択したメールをエクスポート (.zip)", "exportFiltered": "検索結果をエクスポート (.zip)", "selectMessage": "メールを選択: {subject}", "batchDeleteConfirm": "選択した {count} 件のメールを完全に削除しますか？", "batchResult": "成功: {success}、失敗: {failed}。", "sortTime": "日時", "sortSubject": "件名", "sortFrom": "差出人", "sortSize": "サイズ", "sortStore": "受信順", "filterSortOrder": "並べ替え順序", "filterDateRangeError": "終了日は開始日以降にしてください。"});
 let state = {
     emails: [],
     currentEmail: null,
@@ -874,7 +881,10 @@ const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
-    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0;
+    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0 || mailboxBatchBusy;
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) markAllReadBtn.disabled = mailboxBatchBusy;
+    updateMailboxSelectionControls();
 }
 
 function relayStatusErrorIsTransient(error) {
@@ -923,6 +933,120 @@ function clearEmailSelection(historyMode = 'push') {
     if (historyMode !== 'none') updateEmailLocation('', historyMode);
 }
 
+// Command labels share the existing language selection and fallback rules.
+Object.assign(i18n["en"], {"commandsTitle": "Commands and shortcuts", "commandsSearch": "Search commands…", "commandsEmpty": "No matching commands", "commandsClose": "Close", "commandNext": "Next message", "commandPrevious": "Previous message", "commandCloseEmail": "Close selected message", "commandDeleteEmail": "Delete selected message", "commandSearch": "Focus mailbox search"});
+Object.assign(i18n["zh-CN"], {"commandsTitle": "命令与快捷键", "commandsSearch": "搜索命令…", "commandsEmpty": "没有匹配的命令", "commandsClose": "关闭", "commandNext": "下一封邮件", "commandPrevious": "上一封邮件", "commandCloseEmail": "关闭当前邮件", "commandDeleteEmail": "删除当前邮件", "commandSearch": "聚焦邮件搜索"});
+Object.assign(i18n["de"], {"commandsTitle": "Befehle und Tastenkürzel", "commandsSearch": "Befehle suchen…", "commandsEmpty": "Keine passenden Befehle", "commandsClose": "Schließen", "commandNext": "Nächste Nachricht", "commandPrevious": "Vorherige Nachricht", "commandCloseEmail": "Auswahl schließen", "commandDeleteEmail": "Ausgewählte Nachricht löschen", "commandSearch": "E-Mail-Suche fokussieren"});
+Object.assign(i18n["fr"], {"commandsTitle": "Commandes et raccourcis", "commandsSearch": "Rechercher une commande…", "commandsEmpty": "Aucune commande correspondante", "commandsClose": "Fermer", "commandNext": "Message suivant", "commandPrevious": "Message précédent", "commandCloseEmail": "Fermer le message sélectionné", "commandDeleteEmail": "Supprimer le message sélectionné", "commandSearch": "Activer la recherche de messages"});
+Object.assign(i18n["it"], {"commandsTitle": "Comandi e scorciatoie", "commandsSearch": "Cerca comandi…", "commandsEmpty": "Nessun comando corrispondente", "commandsClose": "Chiudi", "commandNext": "Messaggio successivo", "commandPrevious": "Messaggio precedente", "commandCloseEmail": "Chiudi il messaggio selezionato", "commandDeleteEmail": "Elimina il messaggio selezionato", "commandSearch": "Attiva la ricerca email"});
+Object.assign(i18n["ja"], {"commandsTitle": "コマンドとショートカット", "commandsSearch": "コマンドを検索…", "commandsEmpty": "一致するコマンドはありません", "commandsClose": "閉じる", "commandNext": "次のメール", "commandPrevious": "前のメール", "commandCloseEmail": "選択中のメールを閉じる", "commandDeleteEmail": "選択中のメールを削除", "commandSearch": "メール検索にフォーカス"});
+Object.assign(i18n["ko"], {"commandsTitle": "명령 및 단축키", "commandsSearch": "명령 검색…", "commandsEmpty": "일치하는 명령 없음", "commandsClose": "닫기", "commandNext": "다음 메일", "commandPrevious": "이전 메일", "commandCloseEmail": "선택한 메일 닫기", "commandDeleteEmail": "선택한 메일 삭제", "commandSearch": "메일 검색에 초점 맞추기"});
+let commandPaletteReturnFocus = null;
+
+function mailboxCommands() {
+    const selected = !!state.currentEmail;
+    const commands = [
+        { id: 'search', label: t('commandSearch'), shortcut: '/', run: () => document.getElementById('searchInput')?.focus() },
+        { id: 'refresh', label: t('refresh'), shortcut: 'r', run: loadEmails },
+        { id: 'theme', label: t('toggleTheme'), shortcut: 't', run: toggleTheme },
+        { id: 'next', label: t('commandNext'), shortcut: 'j / ↓', disabled: state.emails.length === 0, run: () => handleMailboxKeydown({ key: 'j', preventDefault() {} }) },
+        { id: 'previous', label: t('commandPrevious'), shortcut: 'k / ↑', disabled: state.emails.length === 0, run: () => handleMailboxKeydown({ key: 'k', preventDefault() {} }) },
+        { id: 'close-email', label: t('commandCloseEmail'), shortcut: 'Esc', disabled: !selected, run: () => clearEmailSelection('push') },
+        { id: 'delete-email', label: t('commandDeleteEmail'), shortcut: 'Delete', disabled: !selected || relayPending.has(state.currentEmail?.id), run: () => deleteEmail(state.currentEmail.id) }
+    ];
+    for (const preset of EMAIL_VIEWPORT_PRESETS) {
+        commands.push({ id: 'width-' + preset.key, label: t('emailViewportWidth', { width: preset.label }), shortcut: '',
+            disabled: !document.getElementById('emailViewportFrame'), run: () => setEmailViewport(preset.key) });
+    }
+    return commands;
+}
+
+function filteredMailboxCommands(query = '') {
+    const normalized = String(query).trim().toLocaleLowerCase();
+    return mailboxCommands().filter(command => command.label.toLocaleLowerCase().includes(normalized));
+}
+
+function renderCommandPalette() {
+    const input = document.getElementById('commandSearch');
+    const list = document.getElementById('commandList');
+    if (!list) return;
+    const commands = filteredMailboxCommands(input?.value || '');
+    list.innerHTML = commands.map(command => `<button type="button" class="command-option" data-command="${escapeHtml(command.id)}" ${command.disabled ? 'disabled' : ''}><span>${escapeHtml(command.label)}</span><kbd>${escapeHtml(command.shortcut)}</kbd></button>`).join('');
+    const empty = document.getElementById('commandEmpty');
+    if (empty) { empty.textContent = t('commandsEmpty'); empty.hidden = commands.length !== 0; }
+}
+
+function updateCommandPaletteLanguage() {
+    const labels = { commandPaletteButton: 'commandsTitle', commandTitle: 'commandsTitle', commandClose: 'commandsClose' };
+    for (const [id, key] of Object.entries(labels)) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = t(key);
+    }
+    const input = document.getElementById('commandSearch');
+    if (input) { input.placeholder = t('commandsSearch'); input.setAttribute('aria-label', t('commandsSearch')); }
+    renderCommandPalette();
+}
+
+function openCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (!dialog || dialog.open) return;
+    commandPaletteReturnFocus = document.activeElement;
+    const input = document.getElementById('commandSearch');
+    if (input) input.value = '';
+    updateCommandPaletteLanguage();
+    dialog.showModal();
+    input?.focus();
+}
+
+function closeCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (dialog?.open) {
+        const opener = commandPaletteReturnFocus;
+        commandPaletteReturnFocus = null;
+        dialog.close();
+        if (opener?.isConnected) opener.focus();
+    }
+}
+
+function executeMailboxCommand(id) {
+    const command = mailboxCommands().find(candidate => candidate.id === id);
+    if (!command || command.disabled) return;
+    closeCommandPalette();
+    return command.run();
+}
+
+function initializeCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (!dialog) return;
+    document.getElementById('commandPaletteButton')?.addEventListener('click', openCommandPalette);
+    document.getElementById('commandClose')?.addEventListener('click', closeCommandPalette);
+    document.getElementById('commandSearch')?.addEventListener('input', renderCommandPalette);
+    dialog.addEventListener('close', () => {
+        if (commandPaletteReturnFocus?.isConnected) commandPaletteReturnFocus.focus();
+        commandPaletteReturnFocus = null;
+    });
+    dialog.addEventListener('click', event => {
+        const button = event.target.closest('[data-command]');
+        if (button && !button.disabled) void executeMailboxCommand(button.dataset.command);
+    });
+    dialog.addEventListener('keydown', event => {
+        if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
+        const buttons = Array.from(dialog.querySelectorAll('[data-command]:not(:disabled)'));
+        const index = buttons.indexOf(document.activeElement);
+        if (event.key === 'Enter') {
+            if (event.target.id === 'commandSearch' && buttons.length) { event.preventDefault(); buttons[0].click(); }
+            return;
+        }
+        if (!buttons.length) return;
+        event.preventDefault();
+        const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1)
+            : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].focus();
+    });
+    updateCommandPaletteLanguage();
+}
+
 function isEditableKeyboardTarget(target) {
     if (!target) return false;
     if (target.isContentEditable) return true;
@@ -931,6 +1055,12 @@ function isEditableKeyboardTarget(target) {
 }
 
 function handleMailboxKeydown(event) {
+    if (document.getElementById('commandPalette')?.open) return;
+    if (event && !event.defaultPrevented && !event.isComposing && !event.repeat && !event.altKey && !isEditableKeyboardTarget(event.target)) {
+        const paletteShortcut = (event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey) && !event.shiftKey)
+            || (event.key === '?' && !event.ctrlKey && !event.metaKey);
+        if (paletteShortcut) { event.preventDefault(); openCommandPalette(); return; }
+    }
     if (!event || event.defaultPrevented || event.isComposing || event.repeat || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
         return;
     }
@@ -942,7 +1072,7 @@ function handleMailboxKeydown(event) {
     }
     if (event.key === 'r') { event.preventDefault(); return loadEmails(); }
     if (event.key === 't') { event.preventDefault(); toggleTheme(); return; }
-    if (event.key === 'Delete' && state.currentEmail && !loadingCounts.has('emailDetail')) {
+    if (event.key === 'Delete' && state.currentEmail && !mailboxBatchBusy && !loadingCounts.has('emailDetail')) {
         event.preventDefault();
         return deleteEmail(state.currentEmail.id);
     }
@@ -1267,13 +1397,16 @@ async function handleAPIResponse(response) {
 
 // API Functions - 使用新的 RESTful API 设计
 const API = {
-    async getEmailPreviews(offset = 0, limit = 50, query = '') {
+    async getEmailPreviews(offset = 0, limit = 50, query = '', filters = {}) {
         const params = new URLSearchParams({
             offset: offset.toString(),
             limit: limit.toString()
         });
         if (query) {
             params.append('q', query);
+        }
+        for (const [key, value] of Object.entries(filters)) {
+            if (value !== '') params.set(key, value);
         }
         const response = await fetch(`${API_BASE}/emails/preview?${params}`);
         return await handleAPIResponse(response);
@@ -1442,6 +1575,7 @@ function handleWebSocketMessage(data) {
 
 // Update UI with current language
 function updateUI(renderDynamic = true) {
+    renderMailboxTools();
     // Update title
     document.title = t('title');
     
@@ -1455,7 +1589,7 @@ function updateUI(renderDynamic = true) {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
     if (deleteAllBtn) {
         deleteAllBtn.textContent = t('deleteAll');
-        deleteAllBtn.disabled = relayPending.size > 0;
+        deleteAllBtn.disabled = relayPending.size > 0 || mailboxBatchBusy;
     }
 
     const webhookBtn = document.getElementById('webhookBtn');
@@ -1470,6 +1604,8 @@ function updateUI(renderDynamic = true) {
         helpBtn.title = t('help');
     }
     
+    updateCommandPaletteLanguage();
+
     // Update search
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.placeholder = t('searchPlaceholder');
@@ -1519,8 +1655,12 @@ function updateUI(renderDynamic = true) {
 
 // UI Rendering Functions
 function renderEmailList() {
+    const visible = new Set(state.emails.map(email => email.id));
+    for (const id of selectedMailIDs) if (!visible.has(id)) selectedMailIDs.delete(id);
+    updateMailboxSelectionControls();
     const container = document.getElementById('emailList');
     if (!container) return;
+    container.inert = emailListActiveSequence !== null;
 
     if (state.emails.length === 0) {
         container.innerHTML = `<div class="loading">${t('noEmails')}</div>`;
@@ -1541,7 +1681,9 @@ function renderEmailList() {
             : (email.hasAttachment ? '<div class="email-item-attachments">📎</div>' : '');
 
         return `
-            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}" tabindex="0" role="button">
+            <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
+                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtmlAttribute(email.id)}" aria-label="${escapeHtmlAttribute(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxControlsBusy() ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
+                <div class="email-item-open" data-id="${email.id}" tabindex="0" role="button">
                 <div class="email-item-header">
                     <span class="email-item-from">${escapeHtml(from)}</span>
                     <span class="email-item-time">${time}</span>
@@ -1549,12 +1691,13 @@ function renderEmailList() {
                 <div class="email-item-subject">${escapeHtml(email.subject || t('noSubject'))}</div>
                 ${preview ? `<div class="email-item-preview">${escapeHtml(preview)}</div>` : ''}
                 ${attachments}
+                </div>
             </div>
         `;
     }).join('');
 
     // Add click handlers
-    container.querySelectorAll('.email-item').forEach(item => {
+    container.querySelectorAll('.email-item-open').forEach(item => {
         item.addEventListener('click', () => {
             const id = item.dataset.id;
             loadEmailDetail(id);
@@ -1598,7 +1741,7 @@ function renderEmailDetail() {
             <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">${t('downloadEml')}</button>
             <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button>
             <span id="emailRelayActions">${renderEmailRelayActions(email)}</span>
-            <button id="emailDeleteAction" class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
+            <button id="emailDeleteAction" class="btn btn-danger" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
             <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
@@ -1922,12 +2065,14 @@ async function loadEmails({ background = false } = {}) {
     const sequence = ++emailListRequestSequence;
     emailListActiveSequence = sequence;
     knownDeletedMailIDs.clear();
+    renderEmailList();
     try {
         if (!background) showLoading('emailList');
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
-            state.searchQuery
+            state.searchQuery,
+            mailboxFilters
         );
         if (sequence !== emailListRequestSequence) return;
         const previews = data.previews || [];
@@ -1954,6 +2099,7 @@ async function loadEmails({ background = false } = {}) {
         if (!background) hideLoading('emailList');
         if (emailListActiveSequence === sequence) {
             emailListActiveSequence = null;
+            renderEmailList();
             if (mailboxRefreshAfterLoad) {
                 mailboxRefreshAfterLoad = false;
                 scheduleMailboxRefresh();
@@ -1966,8 +2112,8 @@ function renderEmailRelayActions(email) {
     if (!relayEnabled) return '';
     const tracking = relayTracking.get(email.id);
     const waiting = relayWaitControllers.has(email.id);
-    return `<button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
-        <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
+    return `<button class="btn btn-secondary" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
+        <button class="btn btn-secondary" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
         ${tracking ? `<span role="status">${t(waiting ? 'relayWaiting' : 'relayPaused')}</span>
             <button class="btn btn-secondary" onclick="${waiting ? 'stopRelayWaiting' : 'resumeRelayWaiting'}('${email.id}')">${t(waiting ? 'relayStopWait' : 'relayResumeWait')}</button>
             <button class="btn btn-secondary" onclick="setEmailContentTab('deliveries')">${t('contentDeliveries')}</button>` : ''}`;
@@ -1978,7 +2124,7 @@ function updateEmailRelayControls() {
     const actions = document.getElementById('emailRelayActions');
     if (actions) actions.innerHTML = renderEmailRelayActions(state.currentEmail);
     const deletion = document.getElementById('emailDeleteAction');
-    if (deletion) deletion.disabled = relayPending.has(state.currentEmail.id);
+    if (deletion) deletion.disabled = relayPending.has(state.currentEmail.id) || mailboxBatchBusy;
 }
 
 async function loadRelayAvailability() {
@@ -2077,7 +2223,7 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
 }
 
 async function relayCurrentEmail(id, askForRecipient = false) {
-    if (!relayEnabled || relayPending.has(id)) return;
+    if (!relayEnabled || relayPending.has(id) || mailboxBatchBusy) return;
     let relayTo = '';
     if (askForRecipient) {
         relayTo = (prompt(t('relayRecipientPrompt')) || '').trim();
@@ -2101,7 +2247,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
             alert(t('relayError', { error: parseAPIError(error) }));
             return;
         }
-        if (!state.currentEmail || state.currentEmail.id !== id) return;
+        if (!state.currentEmail || state.currentEmail.id !== id || mailboxBatchBusy) return;
         confirmedRecipients = preflight && preflight.data && Array.isArray(preflight.data.recipients)
             ? preflight.data.recipients
             : [];
@@ -2175,9 +2321,10 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
 }
 
 function removeKnownDeletedEmail(id) {
-    knownDeletedMailIDs.add(id);
-    const remaining = state.emails.filter(email => email.id !== id);
-    if (remaining.length === state.emails.length) return;
+    const deleted = new Set(Array.isArray(id) ? id : [id]);
+    for (const value of deleted) { selectedMailIDs.delete(value); knownDeletedMailIDs.add(value); }
+    const remaining = state.emails.filter(email => !deleted.has(email.id));
+    if (remaining.length === state.emails.length) { updateMailboxSelectionControls(); return; }
     state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
     state.emails = remaining;
     const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
@@ -2190,9 +2337,10 @@ function removeKnownDeletedEmail(id) {
     renderEmailList();
     updateEmailCount();
     updatePagination();
+    updateMailboxSelectionControls();
 }
 async function deleteEmail(id) {
-    if (relayPending.has(id)) return;
+    if (relayPending.has(id) || mailboxBatchBusy) return;
     if (!confirm(t('deleteConfirm'))) return;
 
     try {
@@ -2211,7 +2359,7 @@ async function deleteEmail(id) {
 }
 
 async function deleteAllEmails() {
-    if (relayPending.size > 0) return;
+    if (relayPending.size > 0 || mailboxBatchBusy) return;
     if (!confirm(t('deleteAllConfirm'))) return;
 
     try {
@@ -2222,7 +2370,9 @@ async function deleteAllEmails() {
         mailboxRefreshAfterLoad = false;
         state.currentPage = 0;
         state.emails = [];
+        selectedMailIDs.clear();
         state.total = 0;
+        updateMailboxSelectionControls();
         clearEmailSelection('replace');
         renderEmailList();
         updateEmailCount();
@@ -2238,10 +2388,16 @@ async function deleteAllEmails() {
 }
 
 async function markAllRead() {
+    if (mailboxBatchBusy) return;
     try {
         showLoading();
         const result = await API.markAllRead();
-        // Reload emails to update read status
+        for (const email of state.emails) email.read = true;
+        if (state.currentEmail) state.currentEmail.read = true;
+        if (mailboxFilters.read === 'false') {
+            state.emails = []; state.total = 0; state.currentPage = 0;
+        }
+        renderEmailList(); updateEmailCount(); updatePagination();
         await loadEmails();
         const successMsg = parseAPISuccess(result) || t('markAllReadSuccess', { count: result.count || 0 });
         alert(successMsg);
@@ -2268,6 +2424,7 @@ function searchEmails() {
     const query = document.getElementById('searchInput').value.trim();
     state.searchQuery = query;
     state.currentPage = 0;
+    clearMailboxQueryRows(true);
     loadEmails();
 }
 
@@ -2275,6 +2432,7 @@ function nextPage() {
     const maxPage = Math.ceil(state.total / state.pageSize) - 1;
     if (state.currentPage < maxPage) {
         state.currentPage++;
+        clearMailboxQueryRows();
         loadEmails();
     }
 }
@@ -2282,6 +2440,7 @@ function nextPage() {
 function prevPage() {
     if (state.currentPage > 0) {
         state.currentPage--;
+        clearMailboxQueryRows();
         loadEmails();
     }
 }
@@ -2486,6 +2645,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize language selector
     initLanguageSelector();
     
+    initializeCommandPalette();
+
     // Initialize theme
     initTheme();
 
@@ -2645,7 +2806,7 @@ function renderEmailDeliveries(email) {
                 ${kind === 'relay' ? `<p>Attempts: ${escapeHtml(String(job.attempts))}; ${escapeHtml(job.errorCategory || '')}</p>
                 <p>${escapeHtml((job.confirmedRecipients || []).join(', '))}</p>
                 ${job.nextAttemptAt ? `<p>Next attempt: ${escapeHtml(job.nextAttemptAt)}</p>` : ''}` : `<ul>${(job.outcomes || []).map(outcome => `<li>${escapeHtml(outcome.target || 'Queue')}: ${escapeHtml(outcome.error_category || 'Succeeded')}; attempts: ${escapeHtml(String(outcome.attempts))}; HTTP: ${escapeHtml(String(outcome.status_code))}</li>`).join('')}</ul>`}
-                ${emailWorkflowRetryable(kind, job) ? `<button id="${escapeHtml(emailWorkflowActionID(kind, job.id))}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
+                ${emailWorkflowRetryable(kind, job) ? `<button id="${escapeHtml(emailWorkflowActionID(kind, job.id))}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy || mailboxBatchBusy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
             ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
     };
     return `<section id="emailDeliveriesPanel" class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
@@ -2713,7 +2874,7 @@ async function retryEmailWorkflow(kind, index) {
     const tools = emailToolsFor(state.currentEmail);
     const field = kind === 'relay' ? 'jobs' : 'deliveries';
     const job = tools[kind]?.[field]?.[index];
-    if (tools.busy || kind === 'relay' && relayPending.has(tools.id) || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
+    if (mailboxBatchBusy || tools.busy || kind === 'relay' && relayPending.has(tools.id) || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     if (kind === 'relay') {
         relayPending.add(tools.id);
@@ -2749,4 +2910,152 @@ async function retryEmailWorkflow(kind, index) {
         tools.busy = false;
         if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
     }
+}
+
+
+Object.assign(i18n.en, { filterSortOrder:'Sort direction', filterDateRangeError:'The through date must be on or after the from date.' });
+Object.assign(i18n['zh-CN'], { filterSortOrder:'排序方向', filterDateRangeError:'截止日期不能早于起始日期。' });
+let mailboxFilters = {};
+const selectedMailIDs = new Set();
+let mailboxBatchBusy = false;
+const MAILBOX_FILTER_FIELDS = ['from', 'to', 'dateFrom', 'dateTo', 'read', 'sortBy', 'sortOrder'];
+function renderMailboxTools({ preserveDraft = true } = {}) {
+    const root = document.getElementById('mailboxTools');
+    if (!root) return;
+    const draft = { ...mailboxFilters };
+    if (preserveDraft && document.getElementById('mailboxFilterForm')) {
+        for (const field of MAILBOX_FILTER_FIELDS) {
+            const control = document.getElementById('mail-filter-' + field);
+            if (control) draft[field] = control.value;
+        }
+    }
+    const expanded = root.querySelector?.('.mailbox-filters')?.open || false;
+    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtmlAttribute(draft[field] || '')}"></label>`;
+    const select = (field, label, options) => `<label>${t(label)}<select id="mail-filter-${field}">${options.map(([value, key]) => `<option value="${value}" ${String(draft[field] || '') === value ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>`;
+    root.innerHTML = `<details class="mailbox-filters" ${expanded ? 'open' : ''}><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
+        ${input('from','filterFrom')}${input('to','filterTo')}${input('dateFrom','filterDateFrom','date')}${input('dateTo','filterDateTo','date')}
+        ${select('read','filterRead',[['','filterAny'],['false','filterUnread'],['true','filterReadOnly']])}
+        ${select('sortBy','filterSort',[['time','sortTime'],['store','sortStore'],['subject','sortSubject'],['from','sortFrom'],['size','sortSize']])}
+        ${select('sortOrder','filterSortOrder',[['','sortDesc'],['asc','sortAsc']])}
+        <div><button type="submit" class="btn btn-primary">${t('applyFilters')}</button><button type="button" class="btn btn-secondary" onclick="resetMailboxFilters()">${t('resetFilters')}</button></div>
+    </form></details>
+    <div class="mailbox-batch-actions"><label><input id="mailSelectPage" type="checkbox" onchange="selectMailboxPage(this.checked)"> ${t('selectPage')}</label>
+        <span id="mailSelectionCount" role="status"></span>
+        <button id="mailBatchRead" type="button" class="btn btn-secondary" onclick="runMailboxBatch('read')">${t('batchRead')}</button>
+        <button id="mailBatchDelete" type="button" class="btn btn-danger" onclick="runMailboxBatch('delete')">${t('batchDelete')}</button>
+        <button id="mailExportSelected" type="button" class="btn btn-secondary" onclick="exportMailbox(true)">${t('exportSelected')}</button>
+        <button id="mailExportFiltered" type="button" class="btn btn-secondary" onclick="exportMailbox(false)">${t('exportFiltered')}</button>
+        <span id="mailBatchResult" role="status"></span>
+    </div>`;
+    document.getElementById('mailboxFilterForm')?.addEventListener('submit', event => { event.preventDefault(); void applyMailboxFilters(); });
+    document.getElementById('mail-filter-dateTo')?.addEventListener('input', event => event.target.setCustomValidity(''));
+    document.getElementById('mail-filter-dateFrom')?.addEventListener('input', () => document.getElementById('mail-filter-dateTo')?.setCustomValidity(''));
+    updateMailboxSelectionControls();
+}
+async function applyMailboxFilters() {
+    const form = document.getElementById('mailboxFilterForm');
+    if (form && !form.reportValidity()) return;
+    const filters = {};
+    for (const field of MAILBOX_FILTER_FIELDS) {
+        const value = document.getElementById('mail-filter-' + field)?.value?.trim() || '';
+        if (value) filters[field] = value;
+    }
+    const through = document.getElementById('mail-filter-dateTo');
+    through?.setCustomValidity('');
+    if (filters.dateFrom && filters.dateTo && filters.dateFrom > filters.dateTo) {
+        through?.setCustomValidity(t('filterDateRangeError')); form?.reportValidity(); return;
+    }
+    mailboxFilters = filters;
+    state.searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
+    state.currentPage = 0;
+    clearMailboxQueryRows(true);
+    await loadEmails();
+}
+async function resetMailboxFilters() {
+    mailboxFilters = {}; state.currentPage = 0;
+    clearMailboxQueryRows(true);
+    renderMailboxTools({ preserveDraft: false }); await loadEmails();
+}
+function clearMailboxQueryRows(resetTotal = false) {
+    selectedMailIDs.clear();
+    state.emails = [];
+    if (resetTotal) state.total = 0;
+    renderEmailList(); updateEmailCount(); updatePagination();
+}
+function mailboxControlsBusy() { return mailboxBatchBusy || emailListActiveSequence !== null; }
+function toggleMailSelection(id, checked) {
+    if (mailboxControlsBusy() || !state.emails.some(email => email.id === id)) return;
+    if (checked) selectedMailIDs.add(id); else selectedMailIDs.delete(id);
+    updateMailboxSelectionControls();
+}
+function selectMailboxPage(checked) {
+    if (mailboxControlsBusy()) return;
+    for (const email of state.emails) { if (checked) selectedMailIDs.add(email.id); else selectedMailIDs.delete(email.id); }
+    renderEmailList(); updateMailboxSelectionControls();
+}
+function updateMailboxSelectionControls() {
+    const ids = Array.from(selectedMailIDs);
+    const count = document.getElementById('mailSelectionCount');
+    if (count) count.textContent = t('selectionCount', { count: ids.length });
+    const select = document.getElementById('mailSelectPage');
+    if (select) {
+        select.checked = state.emails.length > 0 && state.emails.every(email => selectedMailIDs.has(email.id));
+        select.indeterminate = ids.length > 0 && !select.checked;
+        select.disabled = mailboxControlsBusy() || state.emails.length === 0;
+    }
+    for (const id of ['mailBatchRead','mailBatchDelete','mailExportSelected']) {
+        const button = document.getElementById(id);
+        if (button) button.disabled = mailboxControlsBusy() || ids.length === 0 || id === 'mailBatchDelete' && ids.some(mailID => relayPending.has(mailID));
+    }
+    const filtered = document.getElementById('mailExportFiltered');
+    if (filtered) filtered.disabled = mailboxControlsBusy() || state.total === 0;
+}
+async function runMailboxBatch(action) {
+    if (!['read','delete'].includes(action) || mailboxControlsBusy() || loadingCounts.has('global')) return;
+    const ids = Array.from(selectedMailIDs);
+    if (!ids.length || action === 'delete' && ids.some(id => relayPending.has(id))) return;
+    if (action === 'delete' && !confirm(t('batchDeleteConfirm', { count: ids.length }))) return;
+    mailboxBatchBusy = true; syncRelayMutationControls(); updateEmailRelayControls(); updateMailboxSelectionControls(); renderEmailList();
+    try {
+        const response = await fetch(`${API_BASE}/emails/${action === 'read' ? 'batch/read' : 'batch'}`, {
+            method: action === 'read' ? 'PATCH' : 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids })
+        });
+        const result = await handleAPIResponse(response);
+        const failed = new Set(result.failedIDs || []);
+        for (const id of ids) if (!failed.has(id)) selectedMailIDs.delete(id);
+        const succeeded = new Set(ids.filter(id => !failed.has(id)));
+        if (action === 'delete') removeKnownDeletedEmail([...succeeded]);
+        else {
+            for (const email of state.emails) if (succeeded.has(email.id)) email.read = true;
+            if (state.currentEmail && succeeded.has(state.currentEmail.id)) state.currentEmail.read = true;
+            if (mailboxFilters.read === 'false') {
+                const remaining = state.emails.filter(email => !succeeded.has(email.id));
+                state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
+                state.emails = remaining;
+                const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
+                if (state.currentPage > lastPage) { state.currentPage = lastPage; state.emails = []; }
+            }
+            renderEmailList(); updateEmailCount(); updatePagination(); updateMailboxSelectionControls();
+        }
+        if (action === 'delete' && state.currentEmail && ids.includes(state.currentEmail.id) && !failed.has(state.currentEmail.id)) clearEmailSelection('replace');
+        await loadEmails();
+        const message = document.getElementById('mailBatchResult');
+        const completed = action === 'read' ? Math.max(0, (result.total ?? ids.length) - (result.failed || 0)) : result.success || 0;
+        if (message) message.textContent = t('batchResult', {success:completed,failed:result.failed || 0});
+    } catch (error) { alert(parseAPIError(error)); }
+    finally { mailboxBatchBusy = false; syncRelayMutationControls(); updateEmailRelayControls(); updateMailboxSelectionControls(); renderEmailList(); }
+}
+function mailboxExportURL(selected) {
+    const params = new URLSearchParams();
+    if (selected) { if (!selectedMailIDs.size) return ''; params.set('ids', Array.from(selectedMailIDs).join(',')); }
+    else {
+        if (state.searchQuery) params.set('q',state.searchQuery);
+        for (const [key,value] of Object.entries(mailboxFilters)) if (!key.startsWith('sort') && value !== '') params.set(key,value);
+    }
+    return `${API_BASE}/emails/export?${params}`;
+}
+function exportMailbox(selected) {
+    if (mailboxControlsBusy()) return;
+    const url = mailboxExportURL(selected);
+    if (url) window.open(url, '_blank', 'noopener');
 }
