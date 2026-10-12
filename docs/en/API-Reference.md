@@ -276,7 +276,14 @@ cached S3 probe is checking or failing:
 
 The response never includes raw SDK errors, endpoints, access keys, secret
 keys, or session tokens. A readiness request reads a background-refreshed cache
-and does not synchronously contact S3.
+and does not synchronously contact S3 or downstream SMTP. HTTP and SMTP-only
+readiness require the same cached listener, mail-storage, attachment and relay
+state. The `relay` check describes worker/queue availability; `outgoing_transport`
+describes the configured downstream SMTP/TLS/authentication handshake. They are
+`disabled` when no corresponding dependency is configured. Outgoing probes run
+every 30 seconds with a five-second deadline, without sending a message. Local
+mail-storage and outgoing transport results expire after 45 seconds. Updating
+the live outgoing configuration immediately invalidates its previous result.
 
 A release build returns version provenance similar to:
 
@@ -543,4 +550,3 @@ HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Ass
 `POST /api/v1/webhook-deliveries/:jobID/retry` replays only failed named targets that are still configured, using the original delivery ID for receiver deduplication. Successful targets are excluded. A replay replaces that delivery's terminal summary with its latest outcomes. Current target credentials/templates apply. The source email must still exist. Replays are serialized per delivery within the process; queue-only errors recover through the existing queue. A failed enqueue can leave recoverable outbox work, so delivery remains at least once. Receivers must deduplicate delivery IDs.
 
 An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled or unavailable webhook queue/persistence service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee. Malformed history is quarantined and delivery startup continues; recovery health remains false until a clean restart. Deletion-side relay storage failures also report unhealthy persistence.
-

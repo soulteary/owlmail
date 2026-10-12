@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -19,7 +18,6 @@ import (
 
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
-	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
 // containerServerArgs reads the actual PID 1 command rather than assuming that
@@ -193,8 +191,8 @@ func probeSMTPHealth(cfg *config.Config) error {
 	return nil
 }
 
-// SMTP-only readiness runs in the probe process with the resolved server configuration.
-// It does not open storage owners, acquire leases, or submit SMTP envelopes.
+// SMTP-only readiness reads the running owner's cached dependency state.
+// The probe does not open storage owners or contact downstream SMTP itself.
 func probeSMTPReadiness(cfg *config.Config) error {
 	if cfg.MailDir == "" {
 		return fmt.Errorf("SMTP readiness requires -mail-directory or OWLMAIL_MAIL_DIR; the default temporary directory is private to the server process")
@@ -202,21 +200,7 @@ func probeSMTPReadiness(cfg *config.Config) error {
 	if !filepath.IsAbs(cfg.MailDir) {
 		return fmt.Errorf("SMTP readiness requires an absolute mail directory; relative paths depend on the server working directory")
 	}
-	if err := probeRuntimeReadiness(cfg); err != nil {
-		return err
-	}
-	relay, err := setupOutgoingTransportConfig(cfg)
-	if err != nil {
-		return fmt.Errorf("SMTP readiness: invalid outgoing configuration")
-	}
-	if relay != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := outgoing.ProbeSMTP(ctx, relay); err != nil {
-			return fmt.Errorf("SMTP readiness: outgoing SMTP transport or authentication unavailable")
-		}
-	}
-	return nil
+	return probeRuntimeReadiness(cfg)
 }
 
 // The buffered result channel allows a blocked filesystem call to finish after
