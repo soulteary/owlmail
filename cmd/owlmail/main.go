@@ -109,8 +109,8 @@ func parseLogLevel(levelStr string) common.LogLevel {
 	}
 }
 
-// setupOutgoingConfig creates outgoing mail configuration from config
-func setupOutgoingConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
+// setupOutgoingTransportConfig validates transport settings without reading relay rules.
+func setupOutgoingTransportConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
 	if cfg.OutgoingHost == "" {
 		return nil, nil
 	}
@@ -134,6 +134,16 @@ func setupOutgoingConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
 	}
 	if err := outgoingConfig.Validate(); err != nil {
 		return nil, err
+	}
+
+	return outgoingConfig, nil
+}
+
+// setupOutgoingConfig also loads rule files for the server's startup snapshot.
+func setupOutgoingConfig(cfg *config.Config) (*outgoing.OutgoingConfig, error) {
+	outgoingConfig, err := setupOutgoingTransportConfig(cfg)
+	if err != nil || outgoingConfig == nil {
+		return outgoingConfig, err
 	}
 
 	// Load auto relay rules from JSON file if provided

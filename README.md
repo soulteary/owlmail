@@ -911,7 +911,7 @@ mail directory. When an outgoing SMTP host is configured, readiness also verifie
 its greeting, EHLO/HELO, configured TLS mode, authentication and QUIT, with a
 five-second total downstream timeout. No MAIL, RCPT or DATA commands are sent.
 This does not guarantee recipient acceptance or final delivery, check remote
-attachment storage, or inspect the running relay queue. SMTP-only readiness requires an explicit `-mail-directory` or `OWLMAIL_MAIL_DIR`
+attachment storage, or inspect the running relay queue. Relay rule files are not reloaded by transport probes. SMTP-only readiness requires an explicit absolute `-mail-directory` or `OWLMAIL_MAIL_DIR`
 (the container sets `/app/mail` by default); the process-specific temporary
 directory cannot be inferred by a separate native probe. Run native probes with
 the server configuration, filesystem namespace and user; a differently privileged

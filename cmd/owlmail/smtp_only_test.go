@@ -183,3 +183,19 @@ func TestSMTPReadinessStorageAndDownstreamFailures(t *testing.T) {
 		t.Fatal("unreachable downstream reported ready")
 	}
 }
+
+func TestSMTPReadinessRequiresAbsoluteStorageAndIgnoresRuleFiles(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = "."
+	if err := probeSMTPReadiness(cfg); err == nil {
+		t.Fatal("readiness accepted a working-directory-dependent mail path")
+	}
+	cfg.OutgoingHost = "localhost"
+	cfg.AutoRelayRules = filepath.Join(t.TempDir(), "missing-rules.json")
+	if _, err := setupOutgoingTransportConfig(cfg); err != nil {
+		t.Fatalf("transport probe loaded relay rules: %v", err)
+	}
+	if _, err := setupOutgoingConfig(cfg); err == nil {
+		t.Fatal("server startup stopped validating its relay rules")
+	}
+}

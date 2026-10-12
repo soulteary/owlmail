@@ -197,10 +197,13 @@ func probeSMTPReadiness(cfg *config.Config) error {
 	if cfg.MailDir == "" {
 		return fmt.Errorf("SMTP readiness requires -mail-directory or OWLMAIL_MAIL_DIR; the default temporary directory is private to the server process")
 	}
+	if !filepath.IsAbs(cfg.MailDir) {
+		return fmt.Errorf("SMTP readiness requires an absolute mail directory; relative paths depend on the server working directory")
+	}
 	if err := mailserver.CheckMailDirectory(cfg.MailDir); err != nil {
 		return fmt.Errorf("SMTP readiness: mail storage is not writable")
 	}
-	relay, err := setupOutgoingConfig(cfg)
+	relay, err := setupOutgoingTransportConfig(cfg)
 	if err != nil {
 		return fmt.Errorf("SMTP readiness: invalid outgoing configuration")
 	}
