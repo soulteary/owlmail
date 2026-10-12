@@ -1657,3 +1657,21 @@ test('failed filter application immediately clears selection checkboxes', async 
  assert.equal(h.run('selectedMailIDs.size'),0);
  assert.doesNotMatch(h.emailList.innerHTML,/ checked /);
 });
+
+test('a delayed delivery snapshot cannot overwrite a terminal relay result', async () => {
+ let finishHistory;
+ const h=createHarness({fetchImpl:async url=>url.endsWith('/job-1')?jsonResponse({data:{id:'job-1',status:'succeeded'}}):url.includes('/relay-jobs?')?new Promise(resolve=>{finishHistory=resolve;}):jsonResponse({deliveries:[]})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; emailToolsFor(state.currentEmail).relay={jobs:[{id:'job-1',status:'queued'}]}; relayTracking.set('mail-1',{statusUrl:'/api/v1/relay-jobs/job-1'}); relayPending.add('mail-1')");
+ const history=h.run('refreshEmailDeliveries()');
+ await h.run("resumeRelayWaiting('mail-1')");
+ finishHistory(jsonResponse({jobs:[{id:'job-1',status:'queued'}]})); await history;
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+});
+
+test('delete all resets the pagination controls with page state', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({})});
+ h.run('state.currentPage=3; state.total=200; let paginationUpdates=0; updatePagination=()=>paginationUpdates++');
+ await h.run('deleteAllEmails()');
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('paginationUpdates'),1);
+});
