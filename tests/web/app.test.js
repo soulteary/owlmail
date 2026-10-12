@@ -1636,7 +1636,7 @@ test('manual relay completion updates an already loaded delivery panel', async (
 test('restored filter values escape quoted display names', () => {
  const h=createHarness();
  assert.match(h.run(`escapeHtmlAttribute('John "Boss"')`), /John &quot;Boss&quot;/);
- assert.match(appSource,/escapeHtmlAttribute\(mailboxFilters\[field\] \|\| ''\)/);
+ assert.match(appSource,/escapeHtmlAttribute\(draft\[field\] \|\| ''\)/);
 });
 
 test('failed fallback loading clears rows from a deleted last page', async () => {
@@ -1820,4 +1820,15 @@ test('failed pagination does not re-enable selectable rows from the previous pag
  h.run("toggleMailSelection('old-page',true); selectMailboxPage(true)");
  assert.equal(h.run('selectedMailIDs.size'),0);
  assert.doesNotMatch(h.emailList.innerHTML,/data-mail-select/);
+});
+
+test('language rerenders preserve unsubmitted filter drafts and expanded state', () => {
+ const h=createHarness();
+ h.run(`const filterRoot={innerHTML:'',querySelector:()=>({open:true})}; const originalElementLookup=document.getElementById; document.getElementById=id=>id==='mailboxTools'?filterRoot:id==='mailboxFilterForm'?{}:id==='mail-filter-from'?{value:'John "Boss"'}:originalElementLookup(id); mailboxFilters={from:'applied@example.test'}; state.lang='zh-CN'; renderMailboxTools()`);
+ assert.match(h.run('filterRoot.innerHTML'),/John &quot;Boss&quot;/);
+ assert.match(h.run('filterRoot.innerHTML'),/class="mailbox-filters" open/);
+ assert.equal(h.run('mailboxFilters.from'),'applied@example.test');
+ h.run('renderMailboxTools({preserveDraft:false})');
+ assert.doesNotMatch(h.run('filterRoot.innerHTML'),/John &quot;Boss&quot;/);
+ assert.match(h.run('filterRoot.innerHTML'),/applied@example.test/);
 });

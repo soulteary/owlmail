@@ -2774,12 +2774,20 @@ let mailboxFilters = {};
 const selectedMailIDs = new Set();
 let mailboxBatchBusy = false;
 const MAILBOX_FILTER_FIELDS = ['from', 'to', 'dateFrom', 'dateTo', 'read', 'sortBy', 'sortOrder'];
-function renderMailboxTools() {
+function renderMailboxTools({ preserveDraft = true } = {}) {
     const root = document.getElementById('mailboxTools');
     if (!root) return;
-    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtmlAttribute(mailboxFilters[field] || '')}"></label>`;
-    const select = (field, label, options) => `<label>${t(label)}<select id="mail-filter-${field}">${options.map(([value, key]) => `<option value="${value}" ${String(mailboxFilters[field] || '') === value ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>`;
-    root.innerHTML = `<details class="mailbox-filters"><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
+    const draft = { ...mailboxFilters };
+    if (preserveDraft && document.getElementById('mailboxFilterForm')) {
+        for (const field of MAILBOX_FILTER_FIELDS) {
+            const control = document.getElementById('mail-filter-' + field);
+            if (control) draft[field] = control.value;
+        }
+    }
+    const expanded = root.querySelector?.('.mailbox-filters')?.open || false;
+    const input = (field, label, type = 'text') => `<label>${t(label)}<input id="mail-filter-${field}" type="${type}" value="${escapeHtmlAttribute(draft[field] || '')}"></label>`;
+    const select = (field, label, options) => `<label>${t(label)}<select id="mail-filter-${field}">${options.map(([value, key]) => `<option value="${value}" ${String(draft[field] || '') === value ? 'selected' : ''}>${t(key)}</option>`).join('')}</select></label>`;
+    root.innerHTML = `<details class="mailbox-filters" ${expanded ? 'open' : ''}><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
         ${input('from','filterFrom')}${input('to','filterTo')}${input('dateFrom','filterDateFrom','date')}${input('dateTo','filterDateTo','date')}
         ${select('read','filterRead',[['','filterAny'],['false','filterUnread'],['true','filterReadOnly']])}
         ${select('sortBy','filterSort',[['time','sortTime'],['store','sortStore'],['subject','sortSubject'],['from','sortFrom'],['size','sortSize']])}
@@ -2821,7 +2829,7 @@ async function applyMailboxFilters() {
 async function resetMailboxFilters() {
     mailboxFilters = {}; state.currentPage = 0;
     clearMailboxQueryRows(true);
-    renderMailboxTools(); await loadEmails();
+    renderMailboxTools({ preserveDraft: false }); await loadEmails();
 }
 function clearMailboxQueryRows(resetTotal = false) {
     selectedMailIDs.clear();
