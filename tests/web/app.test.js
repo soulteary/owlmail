@@ -1482,3 +1482,13 @@ test('a newer foreground query cancels a delayed background refresh', async () =
  complete(jsonResponse({previews:[{id:'new-query'}],total:1})); await foreground;
  assert.equal(h.run('state.emails[0].id'),'new-query');
 });
+
+test('failed fallback loading clears rows from a deleted last page', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('unavailable'))});
+ h.run("state.currentPage=1; state.emails=[{id:'deleted'}]");
+ await h.run('loadEmails({background:true})');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.total'),1);
+});
