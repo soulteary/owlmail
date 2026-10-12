@@ -104,7 +104,7 @@ SBOMs.
 
 ### Go install
 
-Source installation requires Go 1.27.2 or newer:
+Source installation requires Go 1.27.0 or newer:
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.6.0
