@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -69,7 +70,11 @@ func TestContainerProbeUsesImmutablePublicStartupSettings(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			if err := publishContainerProbeConfig(cfg, dir, path, stat); err != nil {
+			var certificates [][]byte
+			if secure {
+				certificates = server.TLS.Certificates[0].Certificate
+			}
+			if err := publishContainerProbeConfig(cfg, dir, path, stat, certificates...); err != nil {
 				t.Fatal(err)
 			}
 			data, err := os.ReadFile(path)
@@ -163,6 +168,36 @@ func TestProcessStartIdentityRejectsMalformedStat(t *testing.T) {
 		if _, err := processStartIdentity(path); err == nil {
 			t.Fatalf("accepted malformed proc stat %q", data)
 		}
+	}
+}
+
+func TestContainerProbeCertificateComesFromListener(t *testing.T) {
+	listener := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }))
+	defer listener.Close()
+	dir := t.TempDir()
+	stat := filepath.Join(dir, "stat")
+	path := filepath.Join(dir, "probe.json")
+	writeProbeProcessStat(t, stat, "100")
+	cfg := config.DefaultConfig()
+	cfg.HTTPSEnabled = true
+	cfg.HTTPSCertFile = filepath.Join(dir, "rotated.pem")
+	if err := os.WriteFile(cfg.HTTPSCertFile, []byte("rotated certificate input"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	chain := listener.TLS.Certificates[0].Certificate
+	if err := publishContainerProbeConfig(cfg, dir, path, stat, chain...); err != nil {
+		t.Fatal("publisher reloaded the mounted certificate:", err)
+	}
+	probe, err := readContainerProbeConfig(path, stat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, rest := pem.Decode(probe.CertificatePEM)
+	if block == nil || block.Type != "CERTIFICATE" || !bytes.Equal(block.Bytes, chain[0]) || len(rest) != 0 {
+		t.Fatal("probe did not retain the listener's actual certificate")
+	}
+	if err := publishContainerProbeConfig(cfg, dir, path, stat); err == nil {
+		t.Fatal("accepted HTTPS record without a listener certificate")
 	}
 }
 

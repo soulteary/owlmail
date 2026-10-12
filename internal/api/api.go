@@ -420,6 +420,18 @@ func (api *API) Start() error {
 // StartWithReady binds the API listener, then calls ready immediately before
 // serving. A bind or TLS configuration failure is returned without calling it.
 func (api *API) StartWithReady(ready func()) error {
+	return api.StartWithCertificateReady(func(_ [][]byte) error {
+		if ready != nil {
+			ready()
+		}
+		return nil
+	})
+}
+
+// StartWithCertificateReady exposes a copy of the public certificate chain
+// actually loaded by the listener. An initialization error closes the bound
+// listener before serving; private keys never leave the listener configuration.
+func (api *API) StartWithCertificateReady(ready func([][]byte) error) error {
 	host := api.host
 	if strings.ContainsAny(host, "[]") {
 		if !strings.HasPrefix(host, "[") || !strings.HasSuffix(host, "]") {
@@ -434,13 +446,17 @@ func (api *API) StartWithReady(ready func()) error {
 
 	var listener net.Listener
 	var err error
+	var certificates [][]byte
 	if api.httpsEnabled {
 		if api.httpsCertFile == "" || api.httpsKeyFile == "" {
 			return fmt.Errorf("HTTPS enabled but certificate or key file not provided")
 		}
-		certificate, err := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
-		if err != nil {
-			return fmt.Errorf("load HTTPS certificate: %w", err)
+		certificate, loadErr := tls.LoadX509KeyPair(api.httpsCertFile, api.httpsKeyFile)
+		if loadErr != nil {
+			return fmt.Errorf("load HTTPS certificate: %w", loadErr)
+		}
+		for _, der := range certificate.Certificate {
+			certificates = append(certificates, append([]byte(nil), der...))
 		}
 		listener, err = net.Listen("tcp", addr)
 		if err == nil {
@@ -457,7 +473,9 @@ func (api *API) StartWithReady(ready func()) error {
 	}
 	defer func() { _ = listener.Close() }()
 	if ready != nil {
-		ready()
+		if err := ready(certificates); err != nil {
+			return err
+		}
 	}
 	return api.app.Listener(listener, fiber.ListenConfig{DisableStartupMessage: true})
 }

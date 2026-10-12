@@ -63,7 +63,7 @@ func processStartIdentity(path string) (string, error) {
 	return fields[19], nil
 }
 
-func publishContainerProbeConfig(cfg *config.Config, mailDir, path, processStat string) error {
+func publishContainerProbeConfig(cfg *config.Config, mailDir, path, processStat string, certificates ...[]byte) error {
 	identity, err := processStartIdentity(processStat)
 	if err != nil {
 		return err
@@ -76,22 +76,11 @@ func publishContainerProbeConfig(cfg *config.Config, mailDir, path, processStat 
 		SMTPHost: mailserver.ResolveSMTPHost(cfg.SMTPHost), SMTPPort: cfg.SMTPPort, WebHost: cfg.WebHost,
 		WebPort: cfg.WebPort, BasePathname: cfg.BasePathname, HTTPSEnabled: cfg.HTTPSEnabled, MailDir: mailDir}
 	if cfg.HTTPSEnabled && !cfg.DisableWeb {
-		certificate, err := os.ReadFile(cfg.HTTPSCertFile)
-		if err != nil {
-			return fmt.Errorf("read startup HTTPS certificate: %w", err)
-		}
-		for len(certificate) > 0 {
-			var block *pem.Block
-			block, certificate = pem.Decode(certificate)
-			if block == nil {
-				break
-			}
-			if block.Type == "CERTIFICATE" {
-				probe.CertificatePEM = append(probe.CertificatePEM, pem.EncodeToMemory(block)...)
-			}
+		for _, der := range certificates {
+			probe.CertificatePEM = append(probe.CertificatePEM, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der})...)
 		}
 		if len(probe.CertificatePEM) == 0 {
-			return fmt.Errorf("invalid startup HTTPS certificate")
+			return fmt.Errorf("listener did not provide its HTTPS certificate")
 		}
 	}
 	data, err := json.Marshal(probe)
