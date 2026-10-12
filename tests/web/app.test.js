@@ -1552,6 +1552,7 @@ test('resumed retry completion clears paused notice and refreshes deliveries', a
  h.run("stopRelayWaiting('mail-1')"); await retry;
  assert.equal(h.run('emailTools.notice'),h.run("t('relayPaused')"));
  completed=true;
+ h.run("emailTools.relay.jobs=[{id:'new-job',status:'queued'}]");
  h.run('let resumedPanelRenders=0; const renderBeforeResume=renderEmailDetailKeepingTabFocus; renderEmailDetailKeepingTabFocus=()=>{resumedPanelRenders++; renderBeforeResume();}');
  await h.run("resumeRelayWaiting('mail-1')");
  assert.equal(h.run('emailTools.notice'),'');
@@ -1636,4 +1637,14 @@ test('restored filter values escape quoted display names', () => {
  const h=createHarness();
  assert.match(h.run(`escapeHtmlAttribute('John "Boss"')`), /John &quot;Boss&quot;/);
  assert.match(appSource,/escapeHtmlAttribute\(mailboxFilters\[field\] \|\| ''\)/);
+});
+
+test('failed fallback loading clears rows from a deleted last page', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('unavailable'))});
+ h.run("state.currentPage=1; state.emails=[{id:'deleted'}]");
+ await h.run('loadEmails({background:true})');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.total'),1);
 });

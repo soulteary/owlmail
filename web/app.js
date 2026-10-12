@@ -1942,6 +1942,10 @@ async function loadEmails({ background = false } = {}) {
         const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
         if (state.currentPage > lastPage) {
             state.currentPage = lastPage;
+            state.emails = [];
+            renderEmailList();
+            updateEmailCount();
+            updatePagination();
             return await loadEmails({ background });
         }
         state.emails = data.previews || [];
@@ -2679,6 +2683,9 @@ async function retryEmailWorkflow(kind, index) {
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
             relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => {
                 Object.assign(data.job, completed);
+                const cachedJob = tools.relay?.jobs?.find(job => job.id === data.job.id);
+                if (cachedJob) Object.assign(cachedJob, completed);
+                else tools.loaded = false;
                 tools.notice = '';
                 if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
             } });
