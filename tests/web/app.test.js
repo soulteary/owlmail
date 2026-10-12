@@ -1793,3 +1793,21 @@ test('mark all read clears unread-filter rows even when refresh fails', async ()
  assert.equal(h.run('state.total'),0);
  assert.equal(h.run('selectedMailIDs.size'),0);
 });
+
+test('active mailbox requests block stale selection and batch actions until settled', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ h.run("state.emails=[{id:'old-page'}]; state.total=100; selectMailboxPage(true)");
+ const load=h.run('loadEmails()');
+ assert.equal(h.emailList.inert,true);
+ assert.match(h.emailList.innerHTML,/ disabled /);
+ h.run("toggleMailSelection('old-page',true); selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.confirmations.length,0);
+ complete(jsonResponse({previews:[{id:'new-page'}],total:1})); await load;
+ assert.equal(h.emailList.inert,false);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ h.run("toggleMailSelection('new-page',true)");
+ assert.equal(h.run('selectedMailIDs.size'),1);
+});

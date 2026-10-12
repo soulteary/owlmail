@@ -1536,6 +1536,7 @@ function renderEmailList() {
     updateMailboxSelectionControls();
     const container = document.getElementById('emailList');
     if (!container) return;
+    container.inert = emailListActiveSequence !== null;
 
     if (state.emails.length === 0) {
         container.innerHTML = `<div class="loading">${t('noEmails')}</div>`;
@@ -1557,7 +1558,7 @@ function renderEmailList() {
 
         return `
             <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
-                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtmlAttribute(email.id)}" aria-label="${escapeHtmlAttribute(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxBatchBusy ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
+                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtmlAttribute(email.id)}" aria-label="${escapeHtmlAttribute(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxControlsBusy() ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
                 <div class="email-item-open" data-id="${email.id}" tabindex="0" role="button">
                 <div class="email-item-header">
                     <span class="email-item-from">${escapeHtml(from)}</span>
@@ -1940,6 +1941,7 @@ async function loadEmails({ background = false } = {}) {
     const sequence = ++emailListRequestSequence;
     emailListActiveSequence = sequence;
     knownDeletedMailIDs.clear();
+    renderEmailList();
     try {
         if (!background) showLoading('emailList');
         const data = await API.getEmailPreviews(
@@ -1973,6 +1975,7 @@ async function loadEmails({ background = false } = {}) {
         if (!background) hideLoading('emailList');
         if (emailListActiveSequence === sequence) {
             emailListActiveSequence = null;
+            renderEmailList();
             if (mailboxRefreshAfterLoad) {
                 mailboxRefreshAfterLoad = false;
                 scheduleMailboxRefresh();
@@ -2823,13 +2826,14 @@ async function resetMailboxFilters() {
     mailboxFilters = {}; selectedMailIDs.clear(); state.currentPage = 0;
     renderMailboxTools(); renderEmailList(); await loadEmails();
 }
+function mailboxControlsBusy() { return mailboxBatchBusy || emailListActiveSequence !== null; }
 function toggleMailSelection(id, checked) {
-    if (mailboxBatchBusy || !state.emails.some(email => email.id === id)) return;
+    if (mailboxControlsBusy() || !state.emails.some(email => email.id === id)) return;
     if (checked) selectedMailIDs.add(id); else selectedMailIDs.delete(id);
     updateMailboxSelectionControls();
 }
 function selectMailboxPage(checked) {
-    if (mailboxBatchBusy) return;
+    if (mailboxControlsBusy()) return;
     for (const email of state.emails) { if (checked) selectedMailIDs.add(email.id); else selectedMailIDs.delete(email.id); }
     renderEmailList(); updateMailboxSelectionControls();
 }
@@ -2841,17 +2845,17 @@ function updateMailboxSelectionControls() {
     if (select) {
         select.checked = state.emails.length > 0 && state.emails.every(email => selectedMailIDs.has(email.id));
         select.indeterminate = ids.length > 0 && !select.checked;
-        select.disabled = mailboxBatchBusy || state.emails.length === 0;
+        select.disabled = mailboxControlsBusy() || state.emails.length === 0;
     }
     for (const id of ['mailBatchRead','mailBatchDelete','mailExportSelected']) {
         const button = document.getElementById(id);
-        if (button) button.disabled = mailboxBatchBusy || ids.length === 0 || id === 'mailBatchDelete' && ids.some(mailID => relayPending.has(mailID));
+        if (button) button.disabled = mailboxControlsBusy() || ids.length === 0 || id === 'mailBatchDelete' && ids.some(mailID => relayPending.has(mailID));
     }
     const filtered = document.getElementById('mailExportFiltered');
-    if (filtered) filtered.disabled = mailboxBatchBusy || state.total === 0;
+    if (filtered) filtered.disabled = mailboxControlsBusy() || state.total === 0;
 }
 async function runMailboxBatch(action) {
-    if (!['read','delete'].includes(action) || mailboxBatchBusy) return;
+    if (!['read','delete'].includes(action) || mailboxControlsBusy()) return;
     const ids = Array.from(selectedMailIDs);
     if (!ids.length || action === 'delete' && ids.some(id => relayPending.has(id))) return;
     if (action === 'delete' && !confirm(t('batchDeleteConfirm', { count: ids.length }))) return;
@@ -2894,7 +2898,7 @@ function mailboxExportURL(selected) {
     return `${API_BASE}/emails/export?${params}`;
 }
 function exportMailbox(selected) {
-    if (mailboxBatchBusy) return;
+    if (mailboxControlsBusy()) return;
     const url = mailboxExportURL(selected);
     if (url) window.open(url, '_blank', 'noopener');
 }
