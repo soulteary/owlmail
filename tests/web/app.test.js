@@ -1444,7 +1444,7 @@ test('removing the last result on a page falls back to the last valid page', asy
 });
 test('websocket reconnect invalidates and refreshes missed changes', async () => {
  const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
- h.run('connectWebSocket(); state.ws.onopen()');
+ h.run('connectWebSocket(); state.ws.onopen(); connectWebSocket(); state.ws.onopen()');
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.fetchRequests.length,1);
 });
@@ -1496,4 +1496,16 @@ test('resumed retry completion clears paused notice and refreshes deliveries', a
  assert.equal(h.run('emailTools.notice'),'');
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
  assert.equal(h.run('resumedPanelRenders'),1);
+});
+
+test('first socket open preserves the successful initial mailbox request', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ const initial=h.run('loadEmails()');
+ h.run('connectWebSocket(); state.ws.onopen()');
+ complete(jsonResponse({previews:[{id:'initial'}],total:1}));
+ await initial;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'initial');
+ assert.equal(h.fetchRequests.length,1);
 });

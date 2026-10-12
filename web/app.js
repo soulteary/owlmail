@@ -1369,6 +1369,7 @@ const API = {
 };
 
 // WebSocket Connection - 使用新的 API v1 WebSocket 端点
+let websocketHasConnected = false;
 function connectWebSocket() {
     try {
         // Use ws:// or wss:// based on current protocol
@@ -1378,7 +1379,8 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
-            scheduleMailboxRefresh();
+            if (websocketHasConnected) scheduleMailboxRefresh();
+            websocketHasConnected = true;
         };
 
         ws.onmessage = (event) => {
