@@ -1593,3 +1593,12 @@ test('relay mutation changes refresh selected-message batch controls', () => {
  h.run("let batchControlRefreshes=0; updateMailboxSelectionControls=()=>batchControlRefreshes++; relayPending.add('mail-1'); syncRelayMutationControls(); relayPending.delete('mail-1'); syncRelayMutationControls()");
  assert.equal(h.run('batchControlRefreshes'),2);
 });
+
+test('detail mutations stay inert until all overlapping detail requests finish', () => {
+ const h=createHarness();
+ h.run("showLoading('emailDetail'); showLoading('emailDetail'); hideLoading('emailDetail')");
+ assert.equal(h.emailDetail.inert,true);
+ assert.notEqual(h.emailList.inert,true);
+ h.run("hideLoading('emailDetail')");
+ assert.equal(h.emailDetail.inert,false);
+});
