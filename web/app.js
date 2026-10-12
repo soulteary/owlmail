@@ -2677,7 +2677,7 @@ function renderMailboxTools() {
     root.innerHTML = `<details class="mailbox-filters"><summary>${t('mailFilters')}</summary><form id="mailboxFilterForm" class="mailbox-filter-grid">
         ${input('from','filterFrom')}${input('to','filterTo')}${input('dateFrom','filterDateFrom','date')}${input('dateTo','filterDateTo','date')}
         ${select('read','filterRead',[['','filterAny'],['false','filterUnread'],['true','filterReadOnly']])}
-        ${select('sortBy','filterSort',[['','sortStore'],['time','sortTime'],['subject','sortSubject'],['from','sortFrom'],['size','sortSize']])}
+        ${select('sortBy','filterSort',[['time','sortTime'],['store','sortStore'],['subject','sortSubject'],['from','sortFrom'],['size','sortSize']])}
         ${select('sortOrder','filterSortOrder',[['','sortDesc'],['asc','sortAsc']])}
         <div><button type="submit" class="btn btn-primary">${t('applyFilters')}</button><button type="button" class="btn btn-secondary" onclick="resetMailboxFilters()">${t('resetFilters')}</button></div>
     </form></details>

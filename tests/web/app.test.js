@@ -1534,3 +1534,11 @@ test('batch read uses the existing PATCH contract', async () => {
  assert.equal(h.fetchRequests[0].options.method,'PATCH');
  assert.equal(h.run('state.emails[0].read'),true);
 });
+
+test('arrival-order filter sends the explicit store sort to the API', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run("const sortControl={value:'store'}; const originalGetElement=document.getElementById; document.getElementById=id=>id==='mail-filter-sortBy'?sortControl:originalGetElement(id)");
+ await h.run('applyMailboxFilters()');
+ assert.equal(new URL(h.fetchRequests.at(-1).url).searchParams.get('sortBy'),'store');
+ assert.match(appSource, /\['store','sortStore'\]/);
+});
