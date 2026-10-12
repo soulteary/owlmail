@@ -1582,3 +1582,14 @@ test('first socket open after the initial list settles synchronizes missed chang
  assert.equal(h.run('state.emails[0].id'),'fresh');
  assert.equal(h.fetchRequests.length,2);
 });
+
+test('mail selection labels escape attacker-controlled subject quotes', () => {
+ const h=createHarness();
+ h.run(`state.emails=[{id:'mail-1',subject:'" onclick="alert(1)',from:[],to:[]}]; renderEmailList()`);
+ assert.match(h.emailList.innerHTML,/aria-label="Select message: &quot; onclick=&quot;alert\(1\)"/);
+});
+test('relay mutation changes refresh selected-message batch controls', () => {
+ const h=createHarness();
+ h.run("let batchControlRefreshes=0; updateMailboxSelectionControls=()=>batchControlRefreshes++; relayPending.add('mail-1'); syncRelayMutationControls(); relayPending.delete('mail-1'); syncRelayMutationControls()");
+ assert.equal(h.run('batchControlRefreshes'),2);
+});

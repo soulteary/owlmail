@@ -880,6 +880,7 @@ const relayWaitControllers = new Map();
 function syncRelayMutationControls() {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
     if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0;
+    updateMailboxSelectionControls();
 }
 
 function relayStatusErrorIsTransient(error) {
@@ -1543,7 +1544,7 @@ function renderEmailList() {
 
         return `
             <div class="email-item ${unreadClass} ${selectedClass}" data-id="${email.id}">
-                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtml(email.id)}" aria-label="${escapeHtml(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxBatchBusy ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
+                <label class="email-item-selection"><input type="checkbox" data-mail-select="${escapeHtmlAttribute(email.id)}" aria-label="${escapeHtmlAttribute(t('selectMessage', {subject:email.subject || t('noSubject')}))}" ${selectedMailIDs.has(email.id) ? 'checked' : ''} ${mailboxBatchBusy ? 'disabled' : ''} onchange="toggleMailSelection(this.dataset.mailSelect, this.checked)"></label>
                 <div class="email-item-open" data-id="${email.id}" tabindex="0" role="button">
                 <div class="email-item-header">
                     <span class="email-item-from">${escapeHtml(from)}</span>
