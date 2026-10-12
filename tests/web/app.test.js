@@ -1666,6 +1666,8 @@ test('a delayed delivery snapshot cannot overwrite a terminal relay result', asy
  await h.run("resumeRelayWaiting('mail-1')");
  finishHistory(jsonResponse({jobs:[{id:'job-1',status:'queued'}]})); await history;
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('completedRelayJobs.size'),0);
+ assert.equal(h.run('deliveryRefreshesInFlight.size'),0);
 });
 
 test('delete all resets the pagination controls with page state', async () => {
@@ -1723,4 +1725,25 @@ test('successful batch reads reconcile unread filters when refresh fails', async
  assert.equal(h.run('state.emails[0].id'),'mail-2');
  assert.equal(h.run('state.total'),1);
  assert.equal(h.run("selectedMailIDs.has('mail-2')"),true);
+});
+
+test('an obsolete stalled request cannot block realtime synchronization', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(()=>{}):Promise.resolve(jsonResponse({previews:[{id:calls===2?'snapshot':'fresh'}],total:1}))});
+ h.run('loadEmails()'); await h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'fresh'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.fetchRequests.length,3);
+});
+test('deletion-triggered page changes discard responses from the old offset', async () => {
+ let complete, calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('offline'))});
+ h.run("state.currentPage=1; state.total=51; state.emails=[{id:'deleted'}]");
+ const old=h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'delete',id:'deleted'})");
+ complete(jsonResponse({previews:[{id:'wrong-page'}],total:51})); await old;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.emails.length'),0);
 });

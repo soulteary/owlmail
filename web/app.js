@@ -876,6 +876,7 @@ let relayEnabled = false;
 const relayPending = new Set();
 const relayTracking = new Map();
 const completedRelayJobs = new Map();
+const deliveryRefreshesInFlight = new Set();
 const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
@@ -1391,7 +1392,7 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
-            if (websocketHasConnected || emailListLoadsPending === 0) scheduleMailboxRefresh();
+            if (websocketHasConnected || emailListActiveSequence === null) scheduleMailboxRefresh();
             else mailboxRefreshAfterLoad = true;
             websocketHasConnected = true;
         };
@@ -1428,7 +1429,7 @@ const knownDeletedMailIDs = new Set();
 function scheduleMailboxRefresh() {
     // Events invalidate the query result; only the server can correctly apply
     // filtering, sorting, pagination and total counts to the current query.
-    if (emailListLoadsPending > 0) {
+    if (emailListActiveSequence !== null) {
         mailboxRefreshAfterLoad = true;
         return;
     }
@@ -1925,7 +1926,7 @@ function renderAttachments(attachments, emailId) {
 
 // Action Functions
 let emailListRequestSequence = 0;
-let emailListLoadsPending = 0;
+let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
 async function loadEmails({ background = false } = {}) {
     if (!background && mailboxRefreshTimer !== null) {
@@ -1934,7 +1935,8 @@ async function loadEmails({ background = false } = {}) {
         mailboxRefreshGeneration += 1;
     }
     const sequence = ++emailListRequestSequence;
-    emailListLoadsPending += 1;
+    emailListActiveSequence = sequence;
+    knownDeletedMailIDs.clear();
     try {
         if (!background) showLoading('emailList');
         const data = await API.getEmailPreviews(
@@ -1969,10 +1971,12 @@ async function loadEmails({ background = false } = {}) {
         if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
         if (!background) hideLoading('emailList');
-        emailListLoadsPending -= 1;
-        if (emailListLoadsPending === 0 && mailboxRefreshAfterLoad) {
-            mailboxRefreshAfterLoad = false;
-            scheduleMailboxRefresh();
+        if (emailListActiveSequence === sequence) {
+            emailListActiveSequence = null;
+            if (mailboxRefreshAfterLoad) {
+                mailboxRefreshAfterLoad = false;
+                scheduleMailboxRefresh();
+            }
         }
     }
 }
@@ -2059,7 +2063,8 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     const timer = setTimeout(() => controller.abort('RELAY_WAIT_TIMEOUT'), timeoutMs);
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
-        if (completed.id) completedRelayJobs.set(completed.id, { emailID: id, job: completed });
+        const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
+        if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
         tracking.onCompleted?.(completed);
         if (emailTools?.id === id) {
             const tools = emailTools;
@@ -2193,6 +2198,8 @@ function removeKnownDeletedEmail(id) {
     state.emails = remaining;
     const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
     if (state.currentPage > lastPage) {
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
         state.currentPage = lastPage;
         state.emails = [];
     }
@@ -2686,15 +2693,21 @@ async function refreshEmailDeliveries() {
     if (tools.busy) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     const query = `?email_id=${encodeURIComponent(tools.id)}&limit=100`;
+    deliveryRefreshesInFlight.add(tools);
     const results = await Promise.allSettled([emailToolRequest(`/relay-jobs${query}`), emailToolRequest(`/webhook-deliveries${query}`)]);
     tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
     if (Array.isArray(tools.relay?.jobs)) {
-        for (const { emailID, job } of completedRelayJobs.values()) {
-            if (emailID !== tools.id) continue;
+        for (const { refreshes, job } of completedRelayJobs.values()) {
+            if (!refreshes.has(tools)) continue;
             const cached = tools.relay.jobs.find(candidate => candidate.id === job.id);
             if (cached) Object.assign(cached, job);
             else tools.relay.jobs.unshift({ ...job });
         }
+    }
+    deliveryRefreshesInFlight.delete(tools);
+    for (const [id, completion] of completedRelayJobs) {
+        completion.refreshes.delete(tools);
+        if (!completion.refreshes.size) completedRelayJobs.delete(id);
     }
     tools.webhook = results[1].status === 'fulfilled' ? results[1].value : { error: String(results[1].reason.message || results[1].reason) };
     tools.busy = false; tools.loaded = true;
