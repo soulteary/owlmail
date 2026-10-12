@@ -1747,3 +1747,13 @@ test('deletion-triggered page changes discard responses from the old offset', as
  assert.equal(h.run('state.currentPage'),0);
  assert.equal(h.run('state.emails.length'),0);
 });
+
+test('delete all invalidates a stalled query without blocking later live events', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({}):++calls===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived'}],total:1})});
+ h.run('loadEmails({background:true})');
+ await h.run('deleteAllEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'arrived'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'arrived');
+});
