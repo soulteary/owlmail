@@ -2246,6 +2246,7 @@ async function deleteAllEmails() {
         renderEmailList();
         updateEmailCount();
         updatePagination();
+        scheduleMailboxRefresh();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
         const errorMsg = parseAPIError(error);
@@ -2259,7 +2260,12 @@ async function markAllRead() {
     try {
         showLoading();
         const result = await API.markAllRead();
-        // Reload emails to update read status
+        for (const email of state.emails) email.read = true;
+        if (state.currentEmail) state.currentEmail.read = true;
+        if (mailboxFilters.read === 'false') {
+            state.emails = []; state.total = 0; state.currentPage = 0;
+        }
+        renderEmailList(); updateEmailCount(); updatePagination();
         await loadEmails();
         const successMsg = parseAPISuccess(result) || t('markAllReadSuccess', { count: result.count || 0 });
         alert(successMsg);
@@ -2296,6 +2302,7 @@ function nextPage() {
     const maxPage = Math.ceil(state.total / state.pageSize) - 1;
     if (state.currentPage < maxPage) {
         state.currentPage++;
+        selectedMailIDs.clear(); renderEmailList(); updatePagination();
         loadEmails();
     }
 }
@@ -2303,6 +2310,7 @@ function nextPage() {
 function prevPage() {
     if (state.currentPage > 0) {
         state.currentPage--;
+        selectedMailIDs.clear(); renderEmailList(); updatePagination();
         loadEmails();
     }
 }

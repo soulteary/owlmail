@@ -1767,3 +1767,29 @@ test('failed fallback requests clear selections from an invalid page', async () 
  assert.equal(h.run('selectedMailIDs.size'),0);
  assert.equal(h.run('mailboxExportURL(true)'),'');
 });
+
+test('delete all completion synchronizes mail arriving before its response', async () => {
+ let finishDelete, gets=0;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?new Promise(resolve=>{finishDelete=resolve;}):++gets===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived-after-delete'}],total:1})});
+ h.run('loadEmails({background:true})');
+ const deletion=h.run('deleteAllEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'arrived-after-delete'}})");
+ finishDelete(jsonResponse({})); await deletion;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'arrived-after-delete');
+});
+
+test('starting pagination clears page selections before a stalled response', () => {
+ const h=createHarness({fetchImpl:()=>new Promise(()=>{})});
+ h.run("state.total=100; state.emails=[{id:'mail-1'}]; selectMailboxPage(true); nextPage()");
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/ checked /);
+});
+test('mark all read clears unread-filter rows even when refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?jsonResponse({count:1}):Promise.reject(new Error('offline'))});
+ h.run("mailboxFilters={read:'false'}; state.emails=[{id:'mail-1',read:false}]; state.total=1; selectMailboxPage(true)");
+ await h.run('markAllRead()');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+});
