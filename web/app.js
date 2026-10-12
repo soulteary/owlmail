@@ -2048,6 +2048,16 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
         tracking.onCompleted?.(completed);
+        if (!tracking.onCompleted && emailTools?.id === id) {
+            const tools = emailTools;
+            const job = tools.relay?.jobs?.find(job => job.id === completed.id);
+            if (job) Object.assign(job, completed);
+            else tools.loaded = false;
+            if (state.currentEmail?.id === id && emailContentTab === 'deliveries') {
+                if (job) renderEmailDetailKeepingTabFocus();
+                else void refreshEmailDeliveries();
+            }
+        }
         relayTracking.delete(id);
         relayPending.delete(id);
         if (completed.status === 'failed') alert(t('relayError', { error: completed.errorCategory || 'delivery failed' }));
