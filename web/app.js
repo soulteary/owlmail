@@ -869,6 +869,7 @@ let relayEnabled = false;
 const relayPending = new Set();
 const relayTracking = new Map();
 const completedRelayJobs = new Map();
+const deliveryRefreshesInFlight = new Set();
 const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
@@ -2040,7 +2041,8 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     const timer = setTimeout(() => controller.abort('RELAY_WAIT_TIMEOUT'), timeoutMs);
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
-        if (completed.id) completedRelayJobs.set(completed.id, { emailID: id, job: completed });
+        const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
+        if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
         tracking.onCompleted?.(completed);
         if (emailTools?.id === id) {
             const tools = emailTools;
@@ -2660,15 +2662,21 @@ async function refreshEmailDeliveries() {
     if (tools.busy) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     const query = `?email_id=${encodeURIComponent(tools.id)}&limit=100`;
+    deliveryRefreshesInFlight.add(tools);
     const results = await Promise.allSettled([emailToolRequest(`/relay-jobs${query}`), emailToolRequest(`/webhook-deliveries${query}`)]);
     tools.relay = results[0].status === 'fulfilled' ? results[0].value : { error: String(results[0].reason.message || results[0].reason) };
     if (Array.isArray(tools.relay?.jobs)) {
-        for (const { emailID, job } of completedRelayJobs.values()) {
-            if (emailID !== tools.id) continue;
+        for (const { refreshes, job } of completedRelayJobs.values()) {
+            if (!refreshes.has(tools)) continue;
             const cached = tools.relay.jobs.find(candidate => candidate.id === job.id);
             if (cached) Object.assign(cached, job);
             else tools.relay.jobs.unshift({ ...job });
         }
+    }
+    deliveryRefreshesInFlight.delete(tools);
+    for (const [id, completion] of completedRelayJobs) {
+        completion.refreshes.delete(tools);
+        if (!completion.refreshes.size) completedRelayJobs.delete(id);
     }
     tools.webhook = results[1].status === 'fulfilled' ? results[1].value : { error: String(results[1].reason.message || results[1].reason) };
     tools.busy = false; tools.loaded = true;

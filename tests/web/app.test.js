@@ -1569,6 +1569,8 @@ test('a delayed delivery snapshot cannot overwrite a terminal relay result', asy
  await h.run("resumeRelayWaiting('mail-1')");
  finishHistory(jsonResponse({jobs:[{id:'job-1',status:'queued'}]})); await history;
  assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('completedRelayJobs.size'),0);
+ assert.equal(h.run('deliveryRefreshesInFlight.size'),0);
 });
 
 test('delete all resets the pagination controls with page state', async () => {
