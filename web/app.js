@@ -2657,6 +2657,9 @@ async function retryEmailWorkflow(kind, index) {
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
             relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => {
                 Object.assign(data.job, completed);
+                const cachedJob = tools.relay?.jobs?.find(job => job.id === data.job.id);
+                if (cachedJob) Object.assign(cachedJob, completed);
+                else tools.loaded = false;
                 tools.notice = '';
                 if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
             } });
