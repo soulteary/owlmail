@@ -21,6 +21,7 @@ func RuntimeReadinessPath(directory, host string, port int) string {
 }
 
 const RuntimeReadinessMaxAge = 5 * time.Second
+const serviceReadinessMaxAge = 45 * time.Second
 
 // RuntimeReadiness is a credential-free snapshot published by the SMTP owner.
 // It describes cached health, not final delivery or index integrity.
@@ -35,6 +36,7 @@ type RuntimeReadiness struct {
 	Attachment *attachmentstore.HealthStatus `json:"attachment_store,omitempty"`
 	Relay      *outgoing.RuntimeReadiness    `json:"relay,omitempty"`
 	RelayJobs  *attachmentstore.HealthStatus `json:"relay_job_storage,omitempty"`
+	Transport  *attachmentstore.HealthStatus `json:"outgoing_transport,omitempty"`
 }
 
 func (status RuntimeReadiness) Validate(host string, port int, now time.Time) error {
@@ -45,13 +47,19 @@ func (status RuntimeReadiness) Validate(host string, port int, now time.Time) er
 	if status.UpdatedAt.IsZero() || age < -time.Second || age > RuntimeReadinessMaxAge {
 		return fmt.Errorf("runtime readiness is stale or unavailable")
 	}
+	return status.ValidateService(now)
+}
+
+// ValidateService applies the same dependency policy to HTTP readiness and
+// snapshots. Snapshot ownership and publication freshness are checked by Validate.
+func (status RuntimeReadiness) ValidateService(now time.Time) error {
 	if !status.SMTP {
 		return fmt.Errorf("runtime SMTP listeners are not ready")
 	}
 	if !status.Storage.Ready() {
 		return fmt.Errorf("runtime mail storage is not writable")
 	}
-	if status.Storage.CheckedAt.IsZero() || now.Sub(status.Storage.CheckedAt) > 45*time.Second {
+	if !readinessFresh(status.Storage, now) {
 		return fmt.Errorf("runtime mail storage check is stale")
 	}
 	if status.Attachment != nil && !status.Attachment.Ready() {
@@ -60,15 +68,37 @@ func (status RuntimeReadiness) Validate(host string, port int, now time.Time) er
 	if status.Relay != nil && !status.Relay.Ready() {
 		return fmt.Errorf("runtime relay workers or queue are not ready")
 	}
-	if status.RelayJobs != nil && (!status.RelayJobs.Ready() || status.RelayJobs.CheckedAt.IsZero() || now.Sub(status.RelayJobs.CheckedAt) > 45*time.Second) {
+	if status.RelayJobs != nil && (!status.RelayJobs.Ready() || !readinessFresh(*status.RelayJobs, now)) {
 		return fmt.Errorf("runtime durable relay storage is not ready")
+	}
+	if (status.Relay != nil && status.Relay.Enabled && status.Transport == nil) || (status.Transport != nil && (!status.Transport.Ready() || !readinessFresh(*status.Transport, now))) {
+		return fmt.Errorf("runtime outgoing SMTP transport or authentication is not ready")
 	}
 	return nil
 }
 
-func (ms *MailServer) runtimeSnapshot() RuntimeReadiness {
+func readinessFresh(status attachmentstore.HealthStatus, now time.Time) bool {
+	age := now.Sub(status.CheckedAt)
+	return !status.CheckedAt.IsZero() && age >= -time.Second && age <= serviceReadinessMaxAge
+}
+
+func freshReadinessStatus(status attachmentstore.HealthStatus, now time.Time) attachmentstore.HealthStatus {
+	if status.State == "" {
+		status.State = attachmentstore.HealthChecking
+		status.ErrorCategory = attachmentstore.HealthErrorPending
+	} else if status.Ready() && !readinessFresh(status, now) {
+		status.State = attachmentstore.HealthUnready
+		status.ErrorCategory = attachmentstore.HealthErrorTimeout
+	}
+	return status
+}
+
+// GetRuntimeReadiness returns credential-free cached state for either mode.
+// It never touches disk or connects to a dependency.
+func (ms *MailServer) GetRuntimeReadiness() RuntimeReadiness {
 	smtp, storage := ms.GetServiceReadiness()
-	result := RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: ms.host, Port: ms.port, UpdatedAt: time.Now(), SMTP: smtp, Storage: storage}
+	now := time.Now()
+	result := RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: ms.host, Port: ms.port, UpdatedAt: now, SMTP: smtp, Storage: freshReadinessStatus(storage, now)}
 	if attachment, enabled := ms.GetAttachmentHealth(); enabled {
 		result.Attachment = &attachment
 	}
@@ -78,7 +108,7 @@ func (ms *MailServer) runtimeSnapshot() RuntimeReadiness {
 	ms.outgoingMutex.RLock()
 	relay := ms.outgoing
 	closed := ms.outgoingClosed
-	ms.outgoingMutex.RUnlock()
+	defer ms.outgoingMutex.RUnlock()
 	if relay != nil {
 		status := outgoing.RuntimeReadiness{Closed: true}
 		if provider, ok := relay.(interface {
@@ -88,8 +118,18 @@ func (ms *MailServer) runtimeSnapshot() RuntimeReadiness {
 		}
 		status.Closed = status.Closed || closed
 		result.Relay = &status
+		if status.Enabled {
+			ms.readinessMutex.RLock()
+			transport := freshReadinessStatus(ms.outgoingTransportHealth, now)
+			ms.readinessMutex.RUnlock()
+			result.Transport = &transport
+		}
 	}
 	return result
+}
+
+func (ms *MailServer) runtimeSnapshot() RuntimeReadiness {
+	return ms.GetRuntimeReadiness()
 }
 
 func (ms *MailServer) publishRuntimeReadiness() error {

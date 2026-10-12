@@ -915,8 +915,9 @@ This measures worker lifecycle and queue capacity, not worker progress or index 
 Configured outgoing relay also checks the native durable job store through
 `relay_job_storage`. Its owner checks the relay metadata subdirectory's
 create/write/sync/rename/cleanup operations in the background every 30 seconds;
-HTTP and SMTP-only probes only read the cached result. Deferred recovery remains
-pending until started. Failed job writes keep readiness unready until the same
+HTTP and SMTP-only probes only read the cached result. Application startup keeps
+configured relay pending before its queue owner registers or recovery starts.
+Failed job writes keep readiness unready until the same
 owner durably repairs the affected records; a successful scratch-file check does
 not conceal them. A full status store is unready while pending jobs or the
 minimum retention window prevent accepting another job. Evictable completed
@@ -929,10 +930,16 @@ mail-storage probe runs every 30 seconds; cached checking, failed or stale resul
 are unready. Permission or filesystem failures that prevent snapshot publication
 are detected when its five-second freshness window expires.
 
-When an outgoing SMTP host is configured, readiness also verifies its greeting,
-EHLO/HELO, configured TLS mode, authentication and QUIT, with a five-second total
-downstream timeout. No MAIL, RCPT or DATA commands are sent. This does not guarantee
-recipient acceptance or final delivery, and relay rule files are not reloaded.
+HTTP and SMTP-only readiness use the same cached dependency policy. When an
+outgoing SMTP host is configured, the running server verifies its greeting,
+EHLO/HELO, configured TLS mode, authentication and QUIT in the background every
+30 seconds, with a five-second total timeout. Both modes remain unready until
+that probe succeeds and reject transport or local-storage results older than
+45 seconds. Changing the live outgoing configuration invalidates its cached
+result and schedules another probe. Healthcheck commands do not reload outgoing
+credentials or relay rules and HTTP requests do not contact downstream SMTP.
+No MAIL, RCPT or DATA commands are sent. This does not guarantee recipient
+acceptance or final delivery.
 SMTP-only readiness requires an explicit absolute `-mail-directory` or
 `OWLMAIL_MAIL_DIR` (the container sets `/app/mail` by default); the process-specific
 temporary directory cannot be inferred by a separate native probe. Run native

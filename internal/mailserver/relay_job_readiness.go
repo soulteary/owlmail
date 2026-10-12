@@ -11,6 +11,7 @@ import (
 func (ms *MailServer) SetRelayJobReadinessProvider(provider attachmentstore.ReadinessProvider) {
 	ms.readinessMutex.Lock()
 	ms.relayJobHealth = provider
+	ms.relayJobHealthRequired = true
 	ms.readinessMutex.Unlock()
 }
 
@@ -22,15 +23,16 @@ func (ms *MailServer) GetRelayJobHealth() (attachmentstore.HealthStatus, bool) {
 	}
 	ms.readinessMutex.RLock()
 	provider := ms.relayJobHealth
+	required := ms.relayJobHealthRequired
 	ms.readinessMutex.RUnlock()
 	if provider == nil {
-		return attachmentstore.HealthStatus{}, false
+		return attachmentstore.HealthStatus{State: attachmentstore.HealthChecking, ErrorCategory: attachmentstore.HealthErrorPending}, required
 	}
 	status := provider.Snapshot()
 	if ms.shuttingDown.Load() {
 		status.State, status.ErrorCategory = attachmentstore.HealthClosed, attachmentstore.HealthErrorClosed
-	} else if status.Ready() && (status.CheckedAt.IsZero() || time.Since(status.CheckedAt) < -time.Second || time.Since(status.CheckedAt) > 45*time.Second) {
-		status.State, status.ErrorCategory = attachmentstore.HealthUnready, attachmentstore.HealthErrorTimeout
+	} else {
+		status = freshReadinessStatus(status, time.Now())
 	}
 	return status, true
 }

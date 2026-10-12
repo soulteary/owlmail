@@ -71,3 +71,19 @@ func TestRuntimeProbeUsesEffectiveEmptySMTPHost(t *testing.T) {
 		t.Fatalf("empty SMTP host did not resolve to running server: %v", err)
 	}
 }
+
+func TestApplicationRequiresDurableRelayOwnerBeforeAPIStartup(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.MailDir = t.TempDir()
+	cfg.DisableWeb = true
+	cfg.OutgoingHost = "127.0.0.1"
+	server, err := createMailServer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	status, enabled := server.GetRelayJobHealth()
+	if !enabled || status.Ready() {
+		t.Fatalf("CLI service omitted required owner: %+v, enabled=%t", status, enabled)
+	}
+}

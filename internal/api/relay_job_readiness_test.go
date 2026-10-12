@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	smtp "github.com/emersion/go-smtp"
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
@@ -18,7 +20,15 @@ import (
 
 func newRelayReadinessTestAPI(t *testing.T) (*API, *mailserver.MailServer) {
 	t.Helper()
-	server, err := mailserver.NewMailServer(0, "127.0.0.1", t.TempDir())
+	reserved, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := reserved.Addr().(*net.TCPAddr).Port
+	if err := reserved.Close(); err != nil {
+		t.Fatal(err)
+	}
+	server, err := mailserver.NewMailServer(port, "127.0.0.1", t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +278,16 @@ func TestDurableRelayBlockedProbeKeepsCacheAndShutdownResponsive(t *testing.T) {
 
 func TestDurableRelayHTTPReadinessFailsAndRecoversWhileLivenessStaysHealthy(t *testing.T) {
 	api, server := newRelayReadinessTestAPI(t)
-	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "localhost", Port: 2525}); err != nil {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiver := smtp.NewServer(&retryFaultBackend{})
+	receiver.Domain = "localhost"
+	receiverDone := make(chan error, 1)
+	go func() { receiverDone <- receiver.Serve(listener) }()
+	defer func() { _ = receiver.Close(); <-receiverDone }()
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port, TLSMode: outgoing.TLSModePlain}); err != nil {
 		t.Fatal(err)
 	}
 	ready := make(chan struct{})
@@ -285,12 +304,12 @@ func TestDurableRelayHTTPReadinessFailsAndRecoversWhileLivenessStaysHealthy(t *t
 	api.relayJobReadiness.probe()
 	deadline := time.Now().Add(3 * time.Second)
 	for {
-		_, storage := server.GetServiceReadiness()
-		if storage.Ready() {
+		status := server.GetRuntimeReadiness()
+		if status.ValidateService(time.Now()) == nil {
 			break
 		}
 		if time.Now().After(deadline) {
-			t.Fatal("local storage did not become ready")
+			t.Fatalf("dependencies did not become ready: %+v", status)
 		}
 		time.Sleep(time.Millisecond)
 	}

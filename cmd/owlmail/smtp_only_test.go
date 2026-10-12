@@ -13,6 +13,7 @@ import (
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
 func TestSMTPOnlyConfiguration(t *testing.T) {
@@ -181,18 +182,25 @@ func TestSMTPReadinessStorageAndDownstreamFailures(t *testing.T) {
 		t.Fatal("probe created storage")
 	}
 	cfg.MailDir = t.TempDir()
+	// A changed probe configuration must not replace the owner's transport state.
 	writeHealthyRuntimeSnapshot(t, cfg)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	cfg.OutgoingHost = "127.0.0.1"
+	cfg.OutgoingPort = 1
+	if err := probeSMTPReadiness(cfg); err != nil {
+		t.Fatal(err)
+	}
+	status := healthyRuntimeSnapshot(cfg)
+	status.Relay = &outgoing.RuntimeReadiness{Enabled: true, Workers: 1, Capacity: 100}
+	status.Transport = &attachmentstore.HealthStatus{State: attachmentstore.HealthUnready, CheckedAt: time.Now(), ErrorCategory: attachmentstore.HealthErrorUnavailable}
+	data, err := json.Marshal(status)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.OutgoingHost = "127.0.0.1"
-	cfg.OutgoingPort = listener.Addr().(*net.TCPAddr).Port
-	if err := listener.Close(); err != nil {
+	if err := os.WriteFile(mailserver.RuntimeReadinessPath(cfg.MailDir, cfg.SMTPHost, cfg.SMTPPort), data, 0600); err != nil {
 		t.Fatal(err)
 	}
 	if err := probeSMTPReadiness(cfg); err == nil {
-		t.Fatal("unreachable downstream reported ready")
+		t.Fatal("owner's unavailable downstream reported ready")
 	}
 }
 
@@ -214,7 +222,7 @@ func TestSMTPReadinessRequiresAbsoluteStorageAndIgnoresRuleFiles(t *testing.T) {
 
 func writeHealthyRuntimeSnapshot(t *testing.T, cfg *config.Config) {
 	t.Helper()
-	status := mailserver.RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: cfg.SMTPHost, Port: cfg.SMTPPort, SMTP: true, UpdatedAt: time.Now(), Storage: attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}}
+	status := healthyRuntimeSnapshot(cfg)
 	data, err := json.Marshal(status)
 	if err != nil {
 		t.Fatal(err)
@@ -222,4 +230,8 @@ func writeHealthyRuntimeSnapshot(t *testing.T, cfg *config.Config) {
 	if err := os.WriteFile(mailserver.RuntimeReadinessPath(cfg.MailDir, cfg.SMTPHost, cfg.SMTPPort), data, 0600); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func healthyRuntimeSnapshot(cfg *config.Config) mailserver.RuntimeReadiness {
+	return mailserver.RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: cfg.SMTPHost, Port: cfg.SMTPPort, SMTP: true, UpdatedAt: time.Now(), Storage: attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}}
 }
