@@ -73,3 +73,54 @@ test('blocked preference storage does not prevent mailbox startup', async ({ pag
     await page.locator('#themeToggle').click();
     await expect(page.locator('body')).toHaveClass('light-theme');
 });
+
+test('command palette supports filtering, keyboard execution and focus restoration', async ({ page }) => {
+    await page.goto('./');
+    const opener = page.locator('#commandPaletteButton');
+    const dialog = page.locator('#commandPalette');
+    const input = page.locator('#commandSearch');
+    await opener.click();
+    await expect(dialog).toBeVisible();
+    await expect(input).toBeFocused();
+    await expect(page.locator('[data-command="delete-email"]')).toBeDisabled();
+    await input.fill('no-such-command');
+    await expect(page.locator('#commandEmpty')).toBeVisible();
+    await expect(page.locator('.command-option')).toHaveCount(0);
+    await input.fill('refresh');
+    await expect(page.locator('.command-option')).toHaveCount(1);
+    await page.keyboard.press('Enter');
+    await expect(dialog).not.toBeVisible();
+    await expect(opener).toBeFocused();
+    await page.keyboard.press('Control+k');
+    await expect(input).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(opener).toBeFocused();
+    await opener.click();
+    await input.fill('Focus mailbox search');
+    await page.keyboard.press('ArrowDown');
+    await expect(page.locator('[data-command="search"]')).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#searchInput')).toBeFocused();
+    await page.keyboard.type('?');
+    await expect(dialog).not.toBeVisible();
+});
+
+test('palette is localized, fits mobile screens and keeps delete confirmation', async ({ page }) => {
+    await page.goto('./');
+    await page.locator('.email-item').filter({ hasText: 'Browser regression fixture' }).click();
+    await page.locator('#commandPaletteButton').click();
+    await page.locator('#commandSearch').fill('Delete selected message');
+    const confirmation = page.waitForEvent('dialog');
+    const activation = page.keyboard.press('Enter');
+    const prompt = await confirmation;
+    expect(prompt.type()).toBe('confirm');
+    await prompt.dismiss();
+    await activation;
+    await expect(page.locator('.email-item')).toHaveCount(1);
+    await page.locator('#langSelect').selectOption('zh-CN');
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.locator('#commandPaletteButton').click();
+    await expect(page.locator('#commandTitle')).toHaveText('命令与快捷键');
+    await expect.poll(() => page.locator('#commandPalette').evaluate(node => node.getBoundingClientRect().width)).toBeLessThanOrEqual(375);
+    await page.keyboard.press('Escape');
+});

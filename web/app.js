@@ -912,6 +912,120 @@ function clearEmailSelection(historyMode = 'push') {
     if (historyMode !== 'none') updateEmailLocation('', historyMode);
 }
 
+// Command labels share the existing language selection and fallback rules.
+Object.assign(i18n["en"], {"commandsTitle": "Commands and shortcuts", "commandsSearch": "Search commands…", "commandsEmpty": "No matching commands", "commandsClose": "Close", "commandNext": "Next message", "commandPrevious": "Previous message", "commandCloseEmail": "Close selected message", "commandDeleteEmail": "Delete selected message", "commandSearch": "Focus mailbox search"});
+Object.assign(i18n["zh-CN"], {"commandsTitle": "命令与快捷键", "commandsSearch": "搜索命令…", "commandsEmpty": "没有匹配的命令", "commandsClose": "关闭", "commandNext": "下一封邮件", "commandPrevious": "上一封邮件", "commandCloseEmail": "关闭当前邮件", "commandDeleteEmail": "删除当前邮件", "commandSearch": "聚焦邮件搜索"});
+Object.assign(i18n["de"], {"commandsTitle": "Befehle und Tastenkürzel", "commandsSearch": "Befehle suchen…", "commandsEmpty": "Keine passenden Befehle", "commandsClose": "Schließen", "commandNext": "Nächste Nachricht", "commandPrevious": "Vorherige Nachricht", "commandCloseEmail": "Auswahl schließen", "commandDeleteEmail": "Ausgewählte Nachricht löschen", "commandSearch": "E-Mail-Suche fokussieren"});
+Object.assign(i18n["fr"], {"commandsTitle": "Commandes et raccourcis", "commandsSearch": "Rechercher une commande…", "commandsEmpty": "Aucune commande correspondante", "commandsClose": "Fermer", "commandNext": "Message suivant", "commandPrevious": "Message précédent", "commandCloseEmail": "Fermer le message sélectionné", "commandDeleteEmail": "Supprimer le message sélectionné", "commandSearch": "Activer la recherche de messages"});
+Object.assign(i18n["it"], {"commandsTitle": "Comandi e scorciatoie", "commandsSearch": "Cerca comandi…", "commandsEmpty": "Nessun comando corrispondente", "commandsClose": "Chiudi", "commandNext": "Messaggio successivo", "commandPrevious": "Messaggio precedente", "commandCloseEmail": "Chiudi il messaggio selezionato", "commandDeleteEmail": "Elimina il messaggio selezionato", "commandSearch": "Attiva la ricerca email"});
+Object.assign(i18n["ja"], {"commandsTitle": "コマンドとショートカット", "commandsSearch": "コマンドを検索…", "commandsEmpty": "一致するコマンドはありません", "commandsClose": "閉じる", "commandNext": "次のメール", "commandPrevious": "前のメール", "commandCloseEmail": "選択中のメールを閉じる", "commandDeleteEmail": "選択中のメールを削除", "commandSearch": "メール検索にフォーカス"});
+Object.assign(i18n["ko"], {"commandsTitle": "명령 및 단축키", "commandsSearch": "명령 검색…", "commandsEmpty": "일치하는 명령 없음", "commandsClose": "닫기", "commandNext": "다음 메일", "commandPrevious": "이전 메일", "commandCloseEmail": "선택한 메일 닫기", "commandDeleteEmail": "선택한 메일 삭제", "commandSearch": "메일 검색에 초점 맞추기"});
+let commandPaletteReturnFocus = null;
+
+function mailboxCommands() {
+    const selected = !!state.currentEmail;
+    const commands = [
+        { id: 'search', label: t('commandSearch'), shortcut: '/', run: () => document.getElementById('searchInput')?.focus() },
+        { id: 'refresh', label: t('refresh'), shortcut: 'r', run: loadEmails },
+        { id: 'theme', label: t('toggleTheme'), shortcut: 't', run: toggleTheme },
+        { id: 'next', label: t('commandNext'), shortcut: 'j / ↓', disabled: state.emails.length === 0, run: () => handleMailboxKeydown({ key: 'j', preventDefault() {} }) },
+        { id: 'previous', label: t('commandPrevious'), shortcut: 'k / ↑', disabled: state.emails.length === 0, run: () => handleMailboxKeydown({ key: 'k', preventDefault() {} }) },
+        { id: 'close-email', label: t('commandCloseEmail'), shortcut: 'Esc', disabled: !selected, run: () => clearEmailSelection('push') },
+        { id: 'delete-email', label: t('commandDeleteEmail'), shortcut: 'Delete', disabled: !selected || relayPending.has(state.currentEmail?.id), run: () => deleteEmail(state.currentEmail.id) }
+    ];
+    for (const preset of EMAIL_VIEWPORT_PRESETS) {
+        commands.push({ id: 'width-' + preset.key, label: t('emailViewportWidth', { width: preset.label }), shortcut: '',
+            disabled: !document.getElementById('emailViewportFrame'), run: () => setEmailViewport(preset.key) });
+    }
+    return commands;
+}
+
+function filteredMailboxCommands(query = '') {
+    const normalized = String(query).trim().toLocaleLowerCase();
+    return mailboxCommands().filter(command => command.label.toLocaleLowerCase().includes(normalized));
+}
+
+function renderCommandPalette() {
+    const input = document.getElementById('commandSearch');
+    const list = document.getElementById('commandList');
+    if (!list) return;
+    const commands = filteredMailboxCommands(input?.value || '');
+    list.innerHTML = commands.map(command => `<button type="button" class="command-option" data-command="${escapeHtml(command.id)}" ${command.disabled ? 'disabled' : ''}><span>${escapeHtml(command.label)}</span><kbd>${escapeHtml(command.shortcut)}</kbd></button>`).join('');
+    const empty = document.getElementById('commandEmpty');
+    if (empty) { empty.textContent = t('commandsEmpty'); empty.hidden = commands.length !== 0; }
+}
+
+function updateCommandPaletteLanguage() {
+    const labels = { commandPaletteButton: 'commandsTitle', commandTitle: 'commandsTitle', commandClose: 'commandsClose' };
+    for (const [id, key] of Object.entries(labels)) {
+        const element = document.getElementById(id);
+        if (element) element.textContent = t(key);
+    }
+    const input = document.getElementById('commandSearch');
+    if (input) { input.placeholder = t('commandsSearch'); input.setAttribute('aria-label', t('commandsSearch')); }
+    renderCommandPalette();
+}
+
+function openCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (!dialog || dialog.open) return;
+    commandPaletteReturnFocus = document.activeElement;
+    const input = document.getElementById('commandSearch');
+    if (input) input.value = '';
+    updateCommandPaletteLanguage();
+    dialog.showModal();
+    input?.focus();
+}
+
+function closeCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (dialog?.open) {
+        const opener = commandPaletteReturnFocus;
+        commandPaletteReturnFocus = null;
+        dialog.close();
+        if (opener?.isConnected) opener.focus();
+    }
+}
+
+function executeMailboxCommand(id) {
+    const command = mailboxCommands().find(candidate => candidate.id === id);
+    if (!command || command.disabled) return;
+    closeCommandPalette();
+    return command.run();
+}
+
+function initializeCommandPalette() {
+    const dialog = document.getElementById('commandPalette');
+    if (!dialog) return;
+    document.getElementById('commandPaletteButton')?.addEventListener('click', openCommandPalette);
+    document.getElementById('commandClose')?.addEventListener('click', closeCommandPalette);
+    document.getElementById('commandSearch')?.addEventListener('input', renderCommandPalette);
+    dialog.addEventListener('close', () => {
+        if (commandPaletteReturnFocus?.isConnected) commandPaletteReturnFocus.focus();
+        commandPaletteReturnFocus = null;
+    });
+    dialog.addEventListener('click', event => {
+        const button = event.target.closest('[data-command]');
+        if (button && !button.disabled) void executeMailboxCommand(button.dataset.command);
+    });
+    dialog.addEventListener('keydown', event => {
+        if (event.isComposing || event.altKey || event.ctrlKey || event.metaKey) return;
+        if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Enter') return;
+        const buttons = Array.from(dialog.querySelectorAll('[data-command]:not(:disabled)'));
+        const index = buttons.indexOf(document.activeElement);
+        if (event.key === 'Enter') {
+            if (event.target.id === 'commandSearch' && buttons.length) { event.preventDefault(); buttons[0].click(); }
+            return;
+        }
+        if (!buttons.length) return;
+        event.preventDefault();
+        const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : buttons.length - 1)
+            : (index + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+        buttons[next].focus();
+    });
+    updateCommandPaletteLanguage();
+}
+
 function isEditableKeyboardTarget(target) {
     if (!target) return false;
     if (target.isContentEditable) return true;
@@ -920,6 +1034,12 @@ function isEditableKeyboardTarget(target) {
 }
 
 function handleMailboxKeydown(event) {
+    if (document.getElementById('commandPalette')?.open) return;
+    if (event && !event.defaultPrevented && !event.isComposing && !event.repeat && !event.altKey && !isEditableKeyboardTarget(event.target)) {
+        const paletteShortcut = (event.key.toLowerCase() === 'k' && (event.ctrlKey || event.metaKey) && !event.shiftKey)
+            || (event.key === '?' && !event.ctrlKey && !event.metaKey);
+        if (paletteShortcut) { event.preventDefault(); openCommandPalette(); return; }
+    }
     if (!event || event.defaultPrevented || event.isComposing || event.repeat || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey || isEditableKeyboardTarget(event.target)) {
         return;
     }
@@ -1445,6 +1565,8 @@ function updateUI(renderDynamic = true) {
         helpBtn.title = t('help');
     }
     
+    updateCommandPaletteLanguage();
+
     // Update search
     const searchInput = document.getElementById('searchInput');
     if (searchInput) searchInput.placeholder = t('searchPlaceholder');
@@ -2337,6 +2459,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize language selector
     initLanguageSelector();
     
+    initializeCommandPalette();
+
     // Initialize theme
     initTheme();
 

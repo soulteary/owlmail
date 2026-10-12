@@ -1408,3 +1408,56 @@ test('inbox preserves an explicit session theme when storage is blocked', () => 
     media.change();
     assert.equal(harness.run('currentTheme'), 'light');
 });
+
+function installCommandPalette(harness) {
+    harness.run(`
+        const paletteIDs = ['commandPalette','commandPaletteButton','commandSearch','commandList','commandTitle','commandClose','commandEmpty'];
+        const paletteElements = new Map(paletteIDs.map(id => [id, document.createElement('div')]));
+        const originalLookup = document.getElementById.bind(document);
+        document.getElementById = id => paletteElements.get(id) || originalLookup(id);
+        for (const [id, element] of paletteElements) { element.id = id; element.isConnected = true; }
+        const palette = paletteElements.get('commandPalette');
+        palette.open = false;
+        palette.showModal = () => { palette.open = true; };
+        palette.close = () => { palette.open = false; palette.listeners.get('close')?.(); };
+        initializeCommandPalette();
+    `);
+}
+
+test('palette has translated searchable commands in every supported language', () => {
+    const harness = createHarness();
+    for (const lang of ['en', 'zh-CN', 'de', 'fr', 'it', 'ja', 'ko']) {
+        harness.run(`currentLang = '${lang}'`);
+        assert.notEqual(harness.run("t('commandsTitle')"), 'commandsTitle');
+        assert.equal(harness.run("filteredMailboxCommands(t('refresh')).some(command => command.id === 'refresh')"), true);
+    }
+    assert.equal(harness.run("filteredMailboxCommands('no-such-command').length"), 0);
+});
+
+test('palette protects disabled operations and returns focus without stealing command focus', () => {
+    const harness = createHarness();
+    installCommandPalette(harness);
+    harness.run("document.activeElement = paletteElements.get('commandPaletteButton'); openCommandPalette()");
+    assert.equal(harness.run('palette.open'), true);
+    assert.equal(harness.run("mailboxCommands().find(command => command.id === 'delete-email').disabled"), true);
+    harness.run("executeMailboxCommand('delete-email')");
+    assert.equal(harness.run('palette.open'), true);
+    assert.equal(harness.confirmations.length, 0);
+    harness.run('closeCommandPalette()');
+    assert.equal(harness.run("paletteElements.get('commandPaletteButton').focused"), true);
+    assert.equal(harness.run('palette.open'), false);
+});
+
+test('palette shortcuts open outside editing and suppress mailbox actions while modal is open', () => {
+    const harness = createHarness();
+    installCommandPalette(harness);
+    harness.run("handleMailboxKeydown({key:'?',shiftKey:true,preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), true);
+    harness.run("handleMailboxKeydown({key:'t',preventDefault(){}})");
+    assert.equal(harness.run('currentTheme'), 'light');
+    harness.run('closeCommandPalette()');
+    harness.run("handleMailboxKeydown({key:'k',ctrlKey:true,target:{tagName:'INPUT'},preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), false);
+    harness.run("handleMailboxKeydown({key:'k',ctrlKey:true,target:{tagName:'BUTTON'},preventDefault(){}})");
+    assert.equal(harness.run('palette.open'), true);
+});

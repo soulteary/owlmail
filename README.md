@@ -920,3 +920,13 @@ refreshes, `t` switches theme, Escape closes the selected message, and Delete
 deletes it after confirmation. Shortcuts are inactive while editing text, using
 buttons or links, composing text, or holding modifier keys. Preview width buttons
 are available with Tab and Enter/Space.
+
+### Commands and keyboard help
+
+Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
+`Cmd+K` outside a text field. Search localized command names, use Up/Down to
+choose an available command, and press Enter to run it. Tab stays within the
+modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
+are shown beside their commands and are suspended while the modal is open.
+Commands that need a selected message or HTML preview are disabled when those
+are absent. Deletion retains the normal confirmation and relay protection.
