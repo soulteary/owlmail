@@ -59,10 +59,15 @@ options:
 		if err != nil {
 			return fmt.Errorf("read container startup command: %w", err)
 		}
-		args, err = containerServerArgs(data)
+		_, err = containerServerArgs(data)
 		if err != nil {
 			return err
 		}
+		probe, err := readContainerProbeConfig(containerProbeConfigPath, "/proc/1/stat")
+		if err != nil {
+			return err
+		}
+		return probeHealthEndpointWithCertificate(probe.config(), ready, probe.CertificatePEM)
 	}
 	cfg, err := commandConfig("healthcheck", args)
 	if err != nil {
@@ -74,6 +79,10 @@ options:
 func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, false) }
 
 func probeHealthEndpoint(cfg *config.Config, ready bool) error {
+	return probeHealthEndpointWithCertificate(cfg, ready, nil)
+}
+
+func probeHealthEndpointWithCertificate(cfg *config.Config, ready bool, certificatePEM []byte) error {
 	if cfg.DisableWeb {
 		if err := probeSMTPHealth(cfg); err != nil {
 			return err
@@ -93,9 +102,11 @@ func probeHealthEndpoint(cfg *config.Config, ready bool) error {
 	defer transport.CloseIdleConnections()
 	if cfg.HTTPSEnabled {
 		scheme = "https"
-		certificatePEM, err := os.ReadFile(cfg.HTTPSCertFile)
-		if err != nil {
-			return fmt.Errorf("read HTTPS certificate: %w", err)
+		if certificatePEM == nil {
+			certificatePEM, err = os.ReadFile(cfg.HTTPSCertFile)
+			if err != nil {
+				return fmt.Errorf("read HTTPS certificate: %w", err)
+			}
 		}
 		roots := x509.NewCertPool()
 		if !roots.AppendCertsFromPEM(certificatePEM) {

@@ -1234,6 +1234,13 @@ func main() {
 	}
 
 	// Start servers
+	if os.Getpid() == 1 {
+		if err := publishContainerProbeConfig(cfg, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat"); err != nil {
+			_ = server.Close()
+			_, _ = fmt.Fprintf(os.Stderr, "Failed to publish container probe configuration: %v\n", err)
+			os.Exit(1)
+		}
+	}
 	if err := startServers(server, cfg); err != nil {
 		if fatalErr := common.Fatal("Failed to start servers: %v", err); fatalErr != nil {
 			// In test environments, this will return an error instead of exiting

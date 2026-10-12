@@ -622,11 +622,16 @@ Example web HTTPS:
   -https-key ./certs/web-key.pem
 ```
 
-The image's built-in check runs `owlmail healthcheck --container`. It reads the
-OwlMail server's PID 1 arguments and resolves the effective environment and
-configuration file, adapting to the web bind address, port, base pathname and
-HTTP/HTTPS setting. HTTPS verifies the configured certificate, including
-self-signed certificates; enabling HTTPS does not require overriding the check.
+The image's built-in check runs `owlmail healthcheck --container`. The PID 1
+server writes a private, credential-free startup record in `/tmp`, containing
+its effective listener, mode, mail directory, base pathname and public HTTPS
+certificate. The probe reads this immutable record and verifies the current
+PID 1 process start time. Later edits or removal of configuration/certificate
+files, or probe environment overrides, do not change the target or certificate
+trust. Missing or mismatched records fail instead of falling back to defaults.
+Provide writable `/tmp` when using a read-only root filesystem. HTTPS verifies
+the startup certificate, including self-signed certificates; enabling HTTPS
+does not require overriding the check.
 
 Use an `exec` entrypoint so OwlMail is PID 1. For an init wrapper, override the
 check with `owlmail healthcheck` and the same configuration flags/environment as

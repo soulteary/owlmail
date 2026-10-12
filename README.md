@@ -934,9 +934,14 @@ you need; the default still starts SMTP and Web together.
 
 ### Container health checks
 
-The image runs `owlmail healthcheck --container`. It reads the OwlMail PID 1
-startup flags and resolves the same environment/config-file settings as startup,
-then probes the effective web host, port, base pathname and HTTP/HTTPS scheme.
+The image runs `owlmail healthcheck --container`. The OwlMail PID 1 server
+publishes a private, credential-free startup record in `/tmp`. The probe uses
+that record for the effective listener, mode, mail directory, base pathname and
+HTTP/HTTPS scheme, without reloading configuration files or environment values.
+Changing or removing a configuration file after startup does not change the
+probe target. The record includes the public HTTPS certificate loaded at startup
+and is bound to the current PID 1 process start time; missing or stale records fail.
+Container deployments with a read-only root filesystem must provide writable `/tmp`.
 Wildcard bind addresses use loopback. HTTPS verifies the configured certificate
 (including self-signed certificates); redirects and non-200 responses fail. The
 request has a two-second timeout and does not need web authentication.
