@@ -1368,7 +1368,7 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
-            if (websocketHasConnected || emailListLoadsPending === 0) scheduleMailboxRefresh();
+            if (websocketHasConnected || emailListActiveSequence === null) scheduleMailboxRefresh();
             else mailboxRefreshAfterLoad = true;
             websocketHasConnected = true;
         };
@@ -1405,7 +1405,7 @@ const knownDeletedMailIDs = new Set();
 function scheduleMailboxRefresh() {
     // Events invalidate the query result; only the server can correctly apply
     // filtering, sorting, pagination and total counts to the current query.
-    if (emailListLoadsPending > 0) {
+    if (emailListActiveSequence !== null) {
         mailboxRefreshAfterLoad = true;
         return;
     }
@@ -1898,7 +1898,7 @@ function renderAttachments(attachments, emailId) {
 
 // Action Functions
 let emailListRequestSequence = 0;
-let emailListLoadsPending = 0;
+let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
 async function loadEmails({ background = false } = {}) {
     if (!background && mailboxRefreshTimer !== null) {
@@ -1907,7 +1907,8 @@ async function loadEmails({ background = false } = {}) {
         mailboxRefreshGeneration += 1;
     }
     const sequence = ++emailListRequestSequence;
-    emailListLoadsPending += 1;
+    emailListActiveSequence = sequence;
+    knownDeletedMailIDs.clear();
     try {
         if (!background) showLoading();
         const data = await API.getEmailPreviews(
@@ -1938,10 +1939,12 @@ async function loadEmails({ background = false } = {}) {
         if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
         if (!background) hideLoading();
-        emailListLoadsPending -= 1;
-        if (emailListLoadsPending === 0 && mailboxRefreshAfterLoad) {
-            mailboxRefreshAfterLoad = false;
-            scheduleMailboxRefresh();
+        if (emailListActiveSequence === sequence) {
+            emailListActiveSequence = null;
+            if (mailboxRefreshAfterLoad) {
+                mailboxRefreshAfterLoad = false;
+                scheduleMailboxRefresh();
+            }
         }
     }
 }
@@ -2098,6 +2101,8 @@ function removeKnownDeletedEmail(id) {
     state.emails = remaining;
     const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
     if (state.currentPage > lastPage) {
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
         state.currentPage = lastPage;
         state.emails = [];
     }
