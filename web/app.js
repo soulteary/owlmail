@@ -2316,7 +2316,7 @@ function showLoading(region = 'global') {
     const element = document.getElementById(region === 'global' ? 'loadingOverlay' : region);
     if (!element) return;
     if (region === 'global') element.style.display = 'flex';
-    else { element.setAttribute('aria-busy', 'true'); element.classList.add('is-loading'); }
+    else { element.setAttribute('aria-busy', 'true'); element.classList.add('is-loading'); if (region === 'emailDetail') element.inert = true; }
 }
 function hideLoading(region = 'global') {
     const count = Math.max(0, (loadingCounts.get(region) || 0) - 1);
@@ -2325,7 +2325,7 @@ function hideLoading(region = 'global') {
     const element = document.getElementById(region === 'global' ? 'loadingOverlay' : region);
     if (!element) return;
     if (region === 'global') element.style.display = 'none';
-    else { element.setAttribute('aria-busy', 'false'); element.classList.remove('is-loading'); }
+    else { element.setAttribute('aria-busy', 'false'); element.classList.remove('is-loading'); if (region === 'emailDetail') element.inert = false; }
 }
 
 // Theme Management

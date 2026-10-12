@@ -1521,3 +1521,12 @@ test('first socket open after the initial list settles synchronizes missed chang
  assert.equal(h.run('state.emails[0].id'),'fresh');
  assert.equal(h.fetchRequests.length,2);
 });
+
+test('detail mutations stay inert until all overlapping detail requests finish', () => {
+ const h=createHarness();
+ h.run("showLoading('emailDetail'); showLoading('emailDetail'); hideLoading('emailDetail')");
+ assert.equal(h.emailDetail.inert,true);
+ assert.notEqual(h.emailList.inert,true);
+ h.run("hideLoading('emailDetail')");
+ assert.equal(h.emailDetail.inert,false);
+});
