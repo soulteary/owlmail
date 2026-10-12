@@ -2179,7 +2179,10 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
 }
 
 function removeKnownDeletedEmail(id) {
-    const remaining = state.emails.filter(email => email.id !== id);
+    const deleted = new Set(Array.isArray(id) ? id : [id]);
+    for (const value of deleted) selectedMailIDs.delete(value);
+    updateMailboxSelectionControls();
+    const remaining = state.emails.filter(email => !deleted.has(email.id));
     if (remaining.length === state.emails.length) return;
     state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
     state.emails = remaining;
@@ -2831,6 +2834,7 @@ async function runMailboxBatch(action) {
         const result = await handleAPIResponse(response);
         const failed = new Set(result.failedIDs || []);
         for (const id of ids) if (!failed.has(id)) selectedMailIDs.delete(id);
+        if (action === 'delete') removeKnownDeletedEmail(ids.filter(id => !failed.has(id)));
         if (action === 'delete' && state.currentEmail && ids.includes(state.currentEmail.id) && !failed.has(state.currentEmail.id)) clearEmailSelection('replace');
         await loadEmails();
         const message = document.getElementById('mailBatchResult');

@@ -1683,3 +1683,12 @@ test('successful deletion removes its row even if preview refresh fails', async 
  assert.equal(h.run('state.emails.length'),0);
  assert.equal(h.run('state.total'),0);
 });
+
+test('confirmed batch deletions remain removed if the follow-up query fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({success:2,failed:0,failedIDs:[]}):Promise.reject(new Error('offline'))});
+ h.run("state.emails=[{id:'mail-1'},{id:'mail-2'}]; state.total=2; selectMailboxPage(true)");
+ await h.run("runMailboxBatch('delete')");
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+ assert.equal(h.run('selectedMailIDs.size'),0);
+});
