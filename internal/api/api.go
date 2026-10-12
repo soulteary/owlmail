@@ -533,42 +533,43 @@ type readinessResponse struct {
 }
 
 func (api *API) readiness(c fiber.Ctx) error {
+	status := api.mailServer.GetRuntimeReadiness()
 	response := readinessResponse{
 		Status: "ready",
 		Checks: map[string]readinessCheck{
-			"attachment_store": {Status: "disabled"},
+			"attachment_store":   {Status: "disabled"},
+			"relay":              {Status: "disabled"},
+			"outgoing_transport": {Status: "disabled"},
 		},
 	}
-	smtpReady, storage := api.mailServer.GetServiceReadiness()
 	response.Checks["smtp"] = readinessCheck{Status: "ready"}
-	if !smtpReady {
+	if !status.SMTP {
 		response.Checks["smtp"] = readinessCheck{Status: "unready"}
-		response.Status = "unready"
 	}
-	response.Checks["mail_storage"] = readinessCheck{Status: string(storage.State), ErrorCategory: storage.ErrorCategory}
-	if !storage.CheckedAt.IsZero() {
-		check := response.Checks["mail_storage"]
-		check.CheckedAt = storage.CheckedAt.Format(time.RFC3339Nano)
-		response.Checks["mail_storage"] = check
+	response.Checks["mail_storage"] = readinessHealthCheck(status.Storage)
+	if status.Attachment != nil {
+		response.Checks["attachment_store"] = readinessHealthCheck(*status.Attachment)
 	}
-	if !storage.Ready() {
-		response.Status = "unready"
-	}
-	status, enabled := api.mailServer.GetAttachmentHealth()
-	if !enabled {
-		if response.Status == "unready" {
-			return c.Status(http.StatusServiceUnavailable).JSON(response)
+	if status.Relay != nil && status.Relay.Enabled {
+		response.Checks["relay"] = readinessCheck{Status: "ready"}
+		if !status.Relay.Ready() {
+			response.Checks["relay"] = readinessCheck{Status: "unready"}
 		}
-		return c.Status(http.StatusOK).JSON(response)
 	}
-	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
-	if !status.CheckedAt.IsZero() {
-		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
+	if status.Transport != nil {
+		response.Checks["outgoing_transport"] = readinessHealthCheck(*status.Transport)
 	}
-	response.Checks["attachment_store"] = check
-	if !status.Ready() || response.Status == "unready" {
+	if status.ValidateService(status.UpdatedAt) != nil {
 		response.Status = "unready"
 		return c.Status(http.StatusServiceUnavailable).JSON(response)
 	}
 	return c.Status(http.StatusOK).JSON(response)
+}
+
+func readinessHealthCheck(status attachmentstore.HealthStatus) readinessCheck {
+	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
+	if !status.CheckedAt.IsZero() {
+		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
+	}
+	return check
 }

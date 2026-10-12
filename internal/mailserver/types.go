@@ -118,6 +118,8 @@ type MailServer struct {
 	shuttingDown            atomic.Bool
 	readinessMutex          sync.RWMutex
 	mailStorageHealth       attachmentstore.HealthStatus
+	outgoingTransportHealth attachmentstore.HealthStatus
+	outgoingReadinessWake   chan struct{}
 	webhookService          *webhook.Service
 	storeByID               map[string]*types.Email
 	storeOrder              []string
@@ -180,6 +182,7 @@ type MailServer struct {
 	}
 	outgoingMutex       sync.RWMutex
 	outgoingClosed      bool
+	outgoingGeneration  uint64
 	authConfig          *SMTPAuthConfig
 	authVerifier        *common.CredentialVerifier
 	authRequireTLS      bool

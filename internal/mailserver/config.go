@@ -139,6 +139,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
 		runtimeReadiness:        options.RuntimeReadiness,
+		outgoingReadinessWake:   make(chan struct{}, 1),
 		port:                    port,
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
