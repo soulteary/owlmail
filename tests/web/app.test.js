@@ -1652,3 +1652,22 @@ test('delete all completion synchronizes mail arriving before its response', asy
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.run('state.emails[0].id'),'arrived-after-delete');
 });
+
+test('terminal delivery history releases a paused relay lock without resubmission', async () => {
+ const h=createHarness({fetchImpl:async url=>jsonResponse(url.includes('/relay-jobs?')?{jobs:[{id:'tracked-job',status:'failed'}]}:{deliveries:[]})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; relayPending.add('mail-1'); relayTracking.set('mail-1',{jobID:'tracked-job',statusUrl:'/api/v1/relay-jobs/tracked-job',paused:true}); syncRelayMutationControls()");
+ await h.run('refreshEmailDeliveries()');
+ assert.equal(h.run("relayPending.has('mail-1')"),false);
+ assert.equal(h.run("relayTracking.has('mail-1')"),false);
+ assert.equal(h.deleteAllBtn.disabled,false);
+ assert.equal(h.fetchRequests.some(r=>r.options?.method==='POST'),false);
+});
+test('history reconciliation ends an active stalled waiter without a false pause alert', async () => {
+ const h=createHarness({fetchImpl:async url=>url.endsWith('/tracked-job')?new Promise(()=>{}):jsonResponse(url.includes('/relay-jobs?')?{jobs:[{id:'tracked-job',status:'succeeded'}]}:{deliveries:[]})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; relayPending.add('mail-1'); relayTracking.set('mail-1',{jobID:'tracked-job',statusUrl:'/api/v1/relay-jobs/tracked-job'})");
+ const waiting=h.run("resumeRelayWaiting('mail-1')");
+ await h.run('refreshEmailDeliveries()'); await waiting;
+ assert.equal(h.run('relayTracking.size'),0);
+ assert.equal(h.run('relayWaitControllers.size'),0);
+ assert.equal(h.alerts.length,0);
+});

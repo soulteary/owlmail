@@ -2044,6 +2044,7 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     const timer = setTimeout(() => controller.abort('RELAY_WAIT_TIMEOUT'), timeoutMs);
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
+        if (relayTracking.get(id) !== tracking) return;
         const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
         if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
         tracking.onCompleted?.(completed);
@@ -2062,11 +2063,12 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
         relayPending.delete(id);
         if (completed.status === 'failed') alert(t('relayError', { error: completed.errorCategory || 'delivery failed' }));
     } catch (error) {
+        if (relayTracking.get(id) !== tracking) return;
         tracking.paused = true;
         alert(t(error.code === 'RELAY_WAIT_TIMEOUT' ? 'relayWaitTimeout' : error.code === 'RELAY_WAIT_STOPPED' ? 'relayWaitStopped' : 'relayError', { error: parseAPIError(error) }));
     } finally {
         clearTimeout(timer);
-        relayWaitControllers.delete(id);
+        if (relayWaitControllers.get(id) === controller) relayWaitControllers.delete(id);
         syncRelayMutationControls();
         if (state.currentEmail && state.currentEmail.id === id) updateEmailRelayControls();
     }
@@ -2120,7 +2122,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
         if (!data || !data.statusUrl) {
             throw new Error('Relay status URL is missing');
         }
-        relayTracking.set(id, { statusUrl: data.statusUrl, paused: false });
+        relayTracking.set(id, { jobID: job?.id, statusUrl: data.statusUrl, paused: false });
         await resumeRelayWaiting(id);
     } catch (error) {
         alert(t('relayError', { error: parseAPIError(error) }));
@@ -2681,6 +2683,19 @@ async function refreshEmailDeliveries() {
             else tools.relay.jobs.unshift({ ...job });
         }
     }
+    const tracking = relayTracking.get(tools.id);
+    const terminal = tracking?.jobID && tools.relay?.jobs?.find(job => job.id === tracking.jobID && ['succeeded', 'failed'].includes(job.status));
+    if (terminal) {
+        tracking.onCompleted?.(terminal);
+        relayTracking.delete(tools.id);
+        relayPending.delete(tools.id);
+        const waiter = relayWaitControllers.get(tools.id);
+        relayWaitControllers.delete(tools.id);
+        waiter?.abort('RELAY_WAIT_RECONCILED');
+        tools.notice = '';
+        syncRelayMutationControls();
+        if (state.currentEmail?.id === tools.id) updateEmailRelayControls();
+    }
     deliveryRefreshesInFlight.delete(tools);
     for (const [id, completion] of completedRelayJobs) {
         completion.refreshes.delete(tools);
@@ -2710,7 +2725,7 @@ async function retryEmailWorkflow(kind, index) {
             if (!data?.job || !data.statusUrl) throw new Error('Relay retry status is missing');
             tools.relay.jobs.unshift(data.job);
             if (emailContentTab === 'deliveries' && state.currentEmail?.id === tools.id) renderEmailDetailKeepingTabFocus();
-            relayTracking.set(tools.id, { statusUrl: data.statusUrl, paused: false, onCompleted: completed => {
+            relayTracking.set(tools.id, { jobID: data.job.id, statusUrl: data.statusUrl, paused: false, onCompleted: completed => {
                 Object.assign(data.job, completed);
                 const cachedJob = tools.relay?.jobs?.find(job => job.id === data.job.id);
                 if (cachedJob) Object.assign(cachedJob, completed);
