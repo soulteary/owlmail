@@ -2294,10 +2294,8 @@ function viewEmailSource(id) {
 function searchEmails() {
     const query = document.getElementById('searchInput').value.trim();
     state.searchQuery = query;
-    selectedMailIDs.clear();
-    renderEmailList();
-    updateMailboxSelectionControls();
     state.currentPage = 0;
+    clearMailboxQueryRows(true);
     loadEmails();
 }
 
@@ -2305,7 +2303,7 @@ function nextPage() {
     const maxPage = Math.ceil(state.total / state.pageSize) - 1;
     if (state.currentPage < maxPage) {
         state.currentPage++;
-        selectedMailIDs.clear(); renderEmailList(); updatePagination();
+        clearMailboxQueryRows();
         loadEmails();
     }
 }
@@ -2313,7 +2311,7 @@ function nextPage() {
 function prevPage() {
     if (state.currentPage > 0) {
         state.currentPage--;
-        selectedMailIDs.clear(); renderEmailList(); updatePagination();
+        clearMailboxQueryRows();
         loadEmails();
     }
 }
@@ -2817,14 +2815,19 @@ async function applyMailboxFilters() {
     mailboxFilters = filters;
     state.searchQuery = document.getElementById('searchInput')?.value?.trim() || '';
     state.currentPage = 0;
-    selectedMailIDs.clear();
-    renderEmailList();
-    updateMailboxSelectionControls();
+    clearMailboxQueryRows(true);
     await loadEmails();
 }
 async function resetMailboxFilters() {
-    mailboxFilters = {}; selectedMailIDs.clear(); state.currentPage = 0;
-    renderMailboxTools(); renderEmailList(); await loadEmails();
+    mailboxFilters = {}; state.currentPage = 0;
+    clearMailboxQueryRows(true);
+    renderMailboxTools(); await loadEmails();
+}
+function clearMailboxQueryRows(resetTotal = false) {
+    selectedMailIDs.clear();
+    state.emails = [];
+    if (resetTotal) state.total = 0;
+    renderEmailList(); updateEmailCount(); updatePagination();
 }
 function mailboxControlsBusy() { return mailboxBatchBusy || emailListActiveSequence !== null; }
 function toggleMailSelection(id, checked) {

@@ -1811,3 +1811,13 @@ test('active mailbox requests block stale selection and batch actions until sett
  h.run("toggleMailSelection('new-page',true)");
  assert.equal(h.run('selectedMailIDs.size'),1);
 });
+
+test('failed pagination does not re-enable selectable rows from the previous page', async () => {
+ const h=createHarness({fetchImpl:async()=>{throw new Error('offline');}});
+ h.run("state.emails=[{id:'old-page'}]; state.total=100; selectMailboxPage(true); nextPage()");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails.length'),0);
+ h.run("toggleMailSelection('old-page',true); selectMailboxPage(true)");
+ assert.equal(h.run('selectedMailIDs.size'),0);
+ assert.doesNotMatch(h.emailList.innerHTML,/data-mail-select/);
+});
