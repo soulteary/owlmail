@@ -116,7 +116,7 @@ If you find a bug or have a feature suggestion, please:
 
 ### Prerequisites
 
-- Go 1.27.0 or higher
+- Go 1.27.2 or higher
 - Bun version pinned in `.bun-version`
 - Git
 

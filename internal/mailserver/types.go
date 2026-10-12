@@ -111,6 +111,11 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	smtpReady               atomic.Bool
+	smtpsReady              atomic.Bool
+	shuttingDown            atomic.Bool
+	readinessMutex          sync.RWMutex
+	mailStorageHealth       attachmentstore.HealthStatus
 	webhookService          *webhook.Service
 	storeByID               map[string]*types.Email
 	storeOrder              []string

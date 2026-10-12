@@ -90,7 +90,7 @@ provenance attestation 覆盖二进制和 SBOM。
 
 ### Go 安装
 
-从源码安装需要 Go 1.27.2 或更高版本：
+从源码安装需要 Go 1.27.0 或更高版本：
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.6.0

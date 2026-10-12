@@ -37,6 +37,10 @@ func (ms *MailServer) Listen() error {
 // and serving. Binding failures are returned without calling ready, so a
 // listener that never came up cannot be reported as a successful start.
 func (ms *MailServer) ListenWithReady(ready func()) error {
+	if ms.shuttingDown.Load() {
+		return fmt.Errorf("mail server is shutting down")
+	}
+	defer ms.smtpReady.Store(false)
 	listener, err := net.Listen("tcp", ms.smtpServer.Addr)
 	if err != nil {
 		return err
@@ -65,6 +69,8 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 		}
 		tlsListener := tls.NewListener(smtpsListener, ms.smtpsServer.TLSConfig)
 		ms.setSMTPSListener(tlsListener)
+		ms.smtpsReady.Store(true)
+		defer ms.smtpsReady.Store(false)
 		defer func() {
 			if bound := ms.takeSMTPSListener(); bound != nil {
 				_ = bound.Close()
@@ -72,6 +78,7 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 		}()
 		common.Log("owlmail SMTPS Server running at %s", ms.smtpsServer.Addr)
 		go func() {
+			defer ms.smtpsReady.Store(false)
 			if err := ms.smtpsServer.Serve(tlsListener); err != nil {
 				common.Error("SMTPS server error: %v", err)
 			}
@@ -97,6 +104,9 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	} else {
 		common.Log("SMTP DATA concurrency limit: %d per process", ms.maxDataConcurrency)
 	}
+	stopReadiness := ms.startMailStorageReadiness()
+	defer stopReadiness()
+	ms.smtpReady.Store(true)
 	if ready != nil {
 		ready()
 	}
@@ -105,6 +115,9 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 
 // Close stops the SMTP server
 func (ms *MailServer) Close() error {
+	ms.shuttingDown.Store(true)
+	ms.smtpReady.Store(false)
+	ms.smtpsReady.Store(false)
 	ms.storeMutex.Lock()
 	ms.initDeliveriesLocked()
 	if !ms.deliveryClosed {

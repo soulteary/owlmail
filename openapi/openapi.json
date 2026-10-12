@@ -1483,7 +1483,7 @@
         "tags": [
           "Operations"
         ],
-        "summary": "Check cached dependency readiness",
+        "summary": "Check cached SMTP and storage readiness",
         "description": "Reads the cached attachment-store health and never performs a synchronous S3 request. Responses expose only safe categories. This endpoint is unauthenticated, but when Basic Auth deployment middleware is active, a browser request with a foreign `Origin` is rejected with a plain-text 403 before reaching this handler.",
         "operationId": "getReadiness",
         "security": [],
@@ -1501,6 +1501,12 @@
                   "checks": {
                     "attachment_store": {
                       "status": "disabled"
+                    },
+                    "smtp": {
+                      "status": "ready"
+                    },
+                    "mail_storage": {
+                      "status": "ready"
                     }
                   }
                 }
@@ -1521,6 +1527,12 @@
                       "status": "unready",
                       "error_category": "permission",
                       "checked_at": "2026-09-02T12:00:00Z"
+                    },
+                    "smtp": {
+                      "status": "ready"
+                    },
+                    "mail_storage": {
+                      "status": "ready"
                     }
                   }
                 }
@@ -3702,10 +3714,18 @@
           "checks": {
             "type": "object",
             "required": [
+              "smtp",
+              "mail_storage",
               "attachment_store"
             ],
             "properties": {
               "attachment_store": {
+                "$ref": "#/components/schemas/ReadinessCheck"
+              },
+              "smtp": {
+                "$ref": "#/components/schemas/ReadinessCheck"
+              },
+              "mail_storage": {
                 "$ref": "#/components/schemas/ReadinessCheck"
               }
             },

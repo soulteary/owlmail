@@ -144,6 +144,9 @@ jobs:
           # answering its health probe.
           python3 examples/testing/python/email_test.py
 
+      - name: Verify configured container health checks
+        run: python3 tests/container/healthcheck.py --image "${SMOKE_IMAGE}"
+
   build-and-push:
     name: Build and Push Docker Image
     if: github.event_name != 'pull_request'
