@@ -1367,6 +1367,7 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
+            scheduleMailboxRefresh();
         };
 
         ws.onmessage = (event) => {
@@ -1395,24 +1396,24 @@ function connectWebSocket() {
     }
 }
 
+let mailboxRefreshTimer = null;
+function scheduleMailboxRefresh() {
+    // Events invalidate the query result; only the server can correctly apply
+    // filtering, sorting, pagination and total counts to the current query.
+    emailListRequestSequence += 1;
+    if (mailboxRefreshTimer !== null) return;
+    mailboxRefreshTimer = setTimeout(() => {
+        mailboxRefreshTimer = null;
+        void loadEmails({ background: true });
+    }, 100);
+}
 function handleWebSocketMessage(data) {
-    if (data.type === 'new') {
-        // Add new email to the list
-        state.emails.unshift(data.email);
-        state.total++;
-        renderEmailList();
-        updateEmailCount();
-        notifyBrowserForEmail(data.email);
-    } else if (data.type === 'delete') {
-        // Remove deleted email from the list
-        state.emails = state.emails.filter(e => e.id !== data.id);
-        state.total--;
-        renderEmailList();
-        updateEmailCount();
-        if (state.currentEmail && state.currentEmail.id === data.id) {
-            clearEmailSelection('replace');
-        }
+    if (!data || (data.type !== 'new' && data.type !== 'delete')) return;
+    if (data.type === 'new' && data.email) notifyBrowserForEmail(data.email);
+    if (data.type === 'delete' && state.currentEmail && state.currentEmail.id === data.id) {
+        clearEmailSelection('replace');
     }
+    scheduleMailboxRefresh();
 }
 
 // Update UI with current language
@@ -1885,25 +1886,33 @@ function renderAttachments(attachments, emailId) {
 }
 
 // Action Functions
-async function loadEmails() {
+let emailListRequestSequence = 0;
+async function loadEmails({ background = false } = {}) {
+    const sequence = ++emailListRequestSequence;
     try {
-        showLoading();
+        if (!background) showLoading();
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
             state.searchQuery
         );
-        state.emails = data.previews || [];
+        if (sequence !== emailListRequestSequence) return;
         state.total = data.total || 0;
+        const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
+        if (state.currentPage > lastPage) {
+            state.currentPage = lastPage;
+            return await loadEmails({ background });
+        }
+        state.emails = data.previews || [];
         renderEmailList();
         updateEmailCount();
         updatePagination();
     } catch (error) {
+        if (sequence !== emailListRequestSequence) return;
         console.error('Failed to load emails:', error);
-        const errorMsg = parseAPIError(error);
-        alert(t('loadEmailsError', { error: errorMsg }));
+        if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
-        hideLoading();
+        if (!background) hideLoading();
     }
 }
 
@@ -2058,14 +2067,8 @@ async function deleteEmail(id) {
     try {
         showLoading();
         await API.deleteEmail(id);
-        // Remove from list
-        state.emails = state.emails.filter(e => e.id !== id);
-        state.total--;
-        if (state.currentEmail && state.currentEmail.id === id) {
-            clearEmailSelection('replace');
-        }
-        renderEmailList();
-        updateEmailCount();
+        if (state.currentEmail && state.currentEmail.id === id) clearEmailSelection('replace');
+        await loadEmails();
     } catch (error) {
         console.error('Failed to delete email:', error);
         const errorMsg = parseAPIError(error);
@@ -2082,6 +2085,8 @@ async function deleteAllEmails() {
     try {
         showLoading();
         await API.deleteAllEmails();
+        emailListRequestSequence += 1;
+        state.currentPage = 0;
         state.emails = [];
         state.total = 0;
         clearEmailSelection('replace');

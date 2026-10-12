@@ -277,7 +277,7 @@ test('browser routes remain root-relative by default', () => {
 test('mailbox lists use the preview endpoint and consume preview results', async () => {
     const harness = createHarness({
         fetchImpl: async () => jsonResponse({
-            total: 1,
+            total: 51,
             limit: 25,
             offset: 50,
             previews: [{
@@ -309,7 +309,7 @@ test('mailbox lists use the preview endpoint and consume preview results', async
     assert.equal(harness.run('state.emails[0].read'), false);
     assert.equal(harness.run('state.emails[0].time'), '2026-09-01T00:00:00Z');
     assert.equal(harness.run('state.emails[0].preview'), 'Compact body preview');
-    assert.equal(harness.run('state.total'), 1);
+    assert.equal(harness.run('state.total'), 51);
     assert.match(harness.emailList.innerHTML, /email-item unread/);
     assert.match(harness.emailList.innerHTML, /sender@example\.test/);
     assert.match(harness.emailList.innerHTML, /Compact body preview/);
@@ -1407,4 +1407,43 @@ test('inbox preserves an explicit session theme when storage is blocked', () => 
     assert.equal(harness.run('currentTheme'), 'light');
     media.change();
     assert.equal(harness.run('currentTheme'), 'light');
+});
+
+
+test('latest list query wins even when the old response arrives last', async () => {
+ const pending=[];
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>pending.push(resolve))});
+ const old=h.run('loadEmails()');
+ h.run("state.searchQuery='invoice'");
+ const fresh=h.run('loadEmails()');
+ pending[1](jsonResponse({previews:[{id:'new'}],total:1})); await fresh;
+ pending[0](jsonResponse({previews:[{id:'old'}],total:10})); await old;
+ assert.equal(h.run('state.emails[0].id'),'new');
+ assert.equal(h.run('state.total'),1);
+});
+test('realtime bursts refetch the active filtered page without inserting duplicate messages', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:'filtered'}],total:101})});
+ h.run("state.searchQuery='invoice'; state.currentPage=2;");
+ h.run("handleWebSocketMessage({type:'new',email:{id:'unrelated'}}); handleWebSocketMessage({type:'new',email:{id:'unrelated'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'filtered');
+ const url=new URL(h.fetchRequests[0].url);
+ assert.equal(url.searchParams.get('q'),'invoice');
+ assert.equal(url.searchParams.get('offset'),'100');
+});
+test('removing the last result on a page falls back to the last valid page', async () => {
+ const h=createHarness({fetchImpl:async url=>jsonResponse({previews:new URL(url).searchParams.get('offset')==='0'?[{id:'remaining'}]:[],total:1})});
+ h.run('state.currentPage=1');
+ await h.run('loadEmails()');
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.emails[0].id'),'remaining');
+ assert.equal(h.fetchRequests.length,2);
+});
+test('websocket reconnect invalidates and refreshes missed changes', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run('connectWebSocket(); state.ws.onopen()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
 });
