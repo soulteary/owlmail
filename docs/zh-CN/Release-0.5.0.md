@@ -97,7 +97,7 @@ chmod +x owlmail-linux-amd64
 
 ### Go 安装
 
-从源码安装需要 Go 1.27.2 或更高版本：
+从源码安装需要 Go 1.27.0 或更高版本：
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.5.0

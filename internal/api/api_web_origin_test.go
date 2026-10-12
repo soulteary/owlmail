@@ -158,8 +158,12 @@ func TestWebOriginValidationLeavesHealthEndpointsReachable(t *testing.T) {
 				// No credentials are sent: health routes are exempt from Basic
 				// Auth, and the origin guard must not reintroduce a gate there.
 				response := webRequest(t, api, http.MethodGet, target, "", false)
-				if response.StatusCode != http.StatusOK {
-					t.Fatalf("%s status = %d, want 200", target, response.StatusCode)
+				expected := http.StatusOK
+				if strings.HasSuffix(target, "/readyz") || strings.HasSuffix(target, "/ready") {
+					expected = http.StatusServiceUnavailable
+				}
+				if response.StatusCode != expected {
+					t.Fatalf("%s status = %d, want %d", target, response.StatusCode, expected)
 				}
 			}
 		})

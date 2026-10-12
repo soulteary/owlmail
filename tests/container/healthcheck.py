@@ -1,0 +1,79 @@
+#!/usr/bin/env python3
+"""Exercise the packaged HEALTHCHECK without relying on host path mounts."""
+import argparse
+import json
+import pathlib
+import subprocess
+import shlex
+import tempfile
+import time
+
+
+def command(*args):
+    result = subprocess.run(args, capture_output=True, text=True, timeout=30)
+    if result.returncode:
+        raise RuntimeError(args[0] + ' failed: ' + result.stderr.strip())
+    return result.stdout.strip()
+
+
+def verify(image, name, flags, fixture, environment=(), expect_healthy=True, health_override=None):
+    metadata = json.loads(command('docker', 'image', 'inspect', image))[0]['Config']
+    test = metadata.get('Healthcheck', {}).get('Test', [])
+    if test and test[0] in ('CMD', 'CMD-SHELL'):
+        health_command = test[1] if test[0] == 'CMD-SHELL' else shlex.join(test[1:])
+    elif health_override:
+        health_command = health_override
+    else:
+        raise RuntimeError('Image must define an executable healthcheck; OCI-only local runtimes may use --health-command explicitly')
+    container = command('docker', 'create', '--name', name, '--health-cmd', health_command, '--health-interval=1s',
+                        '--health-start-period=1s', '--health-retries=2', *environment, image, *flags)
+    try:
+        command('docker', 'cp', str(fixture), container + ':/fixtures')
+        command('docker', 'start', container)
+        wanted = 'healthy' if expect_healthy else 'unhealthy'
+        for _ in range(40):
+            state = json.loads(command('docker', 'inspect', container))[0]['State']
+            if state.get('Health', {}).get('Status') == wanted:
+                break
+            if not state.get('Running'):
+                raise RuntimeError('Container exited: ' + command('docker', 'logs', container))
+            time.sleep(1)
+        else:
+            raise RuntimeError('Health state did not reach ' + wanted + ': ' + json.dumps(state))
+        result = subprocess.run(['docker', 'exec', container, '/app/owlmail', 'healthcheck', '--container'], capture_output=True)
+        if (result.returncode == 0) != expect_healthy:
+            raise RuntimeError('Manual probe disagrees with expected health status')
+        print('PASS:', name, wanted, flush=True)
+    finally:
+        command('docker', 'rm', '--force', container)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--image', required=True)
+    parser.add_argument('--health-command', help='Local-only override for OCI runtimes that omit image healthcheck metadata; CI must not use it')
+    args = parser.parse_args()
+    def scenario(name, flags, root, environment=(), expect_healthy=True):
+        verify(args.image, name, flags, root, environment, expect_healthy, args.health_command)
+    with tempfile.TemporaryDirectory(prefix='owlmail-health-ci-') as folder:
+        root = pathlib.Path(folder)
+        root.chmod(0o755)
+        command('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+                '-subj', '/CN=localhost', '-addext', 'subjectAltName=DNS:localhost',
+                '-keyout', str(root / 'key.pem'), '-out', str(root / 'cert.pem'))
+        for name in ('key.pem', 'cert.pem'):
+            (root / name).chmod(0o644)
+        (root / 'config.yaml').write_text('web: 18081\nbase-pathname: /secure\nhttps: true\nhttps-cert: /fixtures/cert.pem\nhttps-key: /fixtures/key.pem\n')
+        (root / 'config.yaml').chmod(0o644)
+        scenario('owlmail-ci-health-env', [], root,
+               ('-e', 'OWLMAIL_WEB_PORT=18082', '-e', 'OWLMAIL_BASE_PATHNAME=/env'))
+        scenario('owlmail-ci-health-cli', ['-web', '18080', '-base-pathname', '/mail'], root)
+        scenario('owlmail-ci-health-https', ['-config', '/fixtures/config.yaml'], root)
+        scenario('owlmail-ci-health-ipv6', ['-web-ip', '::', '-web', '18083'], root)
+        # Keep stdin open for a non-server mode; it must never probe a default
+        # web listener or report a healthy container.
+        scenario('owlmail-ci-health-stdio', ['mcp-stdio'], root, ('-i',), False)
+
+
+if __name__ == '__main__':
+    main()

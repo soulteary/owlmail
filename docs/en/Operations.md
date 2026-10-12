@@ -141,7 +141,10 @@ container restart loop. The image's built-in Docker healthcheck intentionally
 uses `/healthz` for this reason.
 
 `GET /readyz` and `GET /api/v1/ready` are readiness checks. With local
-attachment storage they return ready immediately. With S3 enabled, OwlMail
+attachment storage they require bound SMTP listeners and a successful local
+mail-directory write/sync/remove probe. Local storage is sampled before SMTP
+startup and every 30 seconds afterwards; request handlers read the cache.
+Shutdown immediately marks the service unready. With S3 enabled, OwlMail
 runs a read-only `HeadBucket` probe in the background. If a least-privilege
 policy rejects the bucket-wide operation, it falls back to `ListObjectsV2`
 scoped to the attachment prefix and `MaxKeys=1`. OwlMail caches the latest result
@@ -270,6 +273,25 @@ if requested, finishing local deletion without uploading again. Repeating the
 command is therefore idempotent. Pending storage fences must first be resolved
 by a normal OwlMail startup. This command intentionally supports only local to
 S3 migration; it does not download S3 objects back to local storage.
+
+
+### Choosing the healthcheck command
+
+`/healthz` confirms that the HTTP process responds and remains independent of
+storage failures. The image keeps this liveness check to avoid restart loops.
+`/readyz` (also `/api/v1/ready`) returns 200 only when configured SMTP listeners
+are bound, the local mail directory passes a cached write/sync/remove probe,
+and any enabled external attachment store is ready; otherwise it returns 503.
+Local storage is sampled before SMTP readiness and every 30 seconds afterwards.
+Storage recovery appears on the next sample. Shutdown immediately makes the
+service unready. Responses expose only bounded categories, never paths or raw
+filesystem errors; health HTTP requests perform no storage I/O.
+
+Use `owlmail healthcheck --ready` with the server configuration flags for a
+readiness probe, or `owlmail healthcheck --ready --container` in the image.
+Probe options precede normal configuration flags. Docker can opt into this
+check with `--health-cmd='/app/owlmail healthcheck --ready --container'`;
+Kubernetes should use `/healthz` for liveness and `/readyz` for readiness.
 
 ### 3. Persistent Docker deployment
 

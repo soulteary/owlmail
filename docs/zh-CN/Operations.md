@@ -117,8 +117,9 @@ OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用
 因此对象存储暂时不可用时不会造成容器反复重启；镜像内置 Docker 健康检查也刻意
 使用 `/healthz`。
 
-`GET /readyz` 与 `GET /api/v1/ready` 是 readiness 检查。本地附件存储会立即
-返回 ready。启用 S3 后，OwlMail 在后台优先执行只读 `HeadBucket`；若最小权限策略
+`GET /readyz` 与 `GET /api/v1/ready` 是 readiness 检查。本地附件存储也要求 SMTP 监听器已绑定且邮件目录的写入、同步与清理探测成功。
+本地存储在 SMTP 启动前探测，之后每 30 秒更新一次缓存；HTTP 请求只读取缓存。
+关闭过程立即标记为未就绪。启用 S3 后，OwlMail 在后台优先执行只读 `HeadBucket`；若最小权限策略
 拒绝 bucket 级操作，则回退到附件前缀下 `MaxKeys=1` 的 `ListObjectsV2`。最近结果会
 被缓存，默认每 30 秒刷新一次，单次探测最多等待 5 秒。HTTP readiness 请求只读取缓存，
 不会同步访问或等待 S3。

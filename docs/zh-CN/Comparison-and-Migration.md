@@ -17,7 +17,7 @@ Current stable release: 0.10.1. The source-reviewed comparison baseline below re
 - MailCatcher：GitHub 最新 Release 为 v0.10.0；main 已声明 0.11.0，
   审查提交为 43e488e2a5692532c131a87d5bd16a973ee8db56。
 - Mailpit：审查提交为 0bbbb233db56b185035ec3d1730228506dbb8f04，`go.mod` 声明
-  Go 1.27.2。tag `v1.31.1`（94445c801111689305625395d3543c07c50c7af8）是该提交的
+  Go 1.26.0。tag `v1.31.1`（94445c801111689305625395d3543c07c50c7af8）是该提交的
   祖先，该提交位于其后第三个提交且自身不带 tag，因此被审查的代码树即该版本加上
   `56d501b`、`39351ee`、`0bbbb23` 三个提交。v1.31.1 是仓库中最新的 tag。
 

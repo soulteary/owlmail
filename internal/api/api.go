@@ -6,6 +6,7 @@ import (
 	"html"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -419,7 +420,17 @@ func (api *API) Start() error {
 // StartWithReady binds the API listener, then calls ready immediately before
 // serving. A bind or TLS configuration failure is returned without calling it.
 func (api *API) StartWithReady(ready func()) error {
-	addr := fmt.Sprintf("%s:%d", api.host, api.port)
+	host := api.host
+	if strings.ContainsAny(host, "[]") {
+		if !strings.HasPrefix(host, "[") || !strings.HasSuffix(host, "]") {
+			return fmt.Errorf("invalid bracketed web host %q", host)
+		}
+		host = host[1 : len(host)-1]
+		if address, err := netip.ParseAddr(host); err != nil || !address.Is6() {
+			return fmt.Errorf("invalid IPv6 web host %q", api.host)
+		}
+	}
+	addr := net.JoinHostPort(host, fmt.Sprint(api.port))
 
 	var listener net.Listener
 	var err error
@@ -528,8 +539,26 @@ func (api *API) readiness(c fiber.Ctx) error {
 			"attachment_store": {Status: "disabled"},
 		},
 	}
+	smtpReady, storage := api.mailServer.GetServiceReadiness()
+	response.Checks["smtp"] = readinessCheck{Status: "ready"}
+	if !smtpReady {
+		response.Checks["smtp"] = readinessCheck{Status: "unready"}
+		response.Status = "unready"
+	}
+	response.Checks["mail_storage"] = readinessCheck{Status: string(storage.State), ErrorCategory: storage.ErrorCategory}
+	if !storage.CheckedAt.IsZero() {
+		check := response.Checks["mail_storage"]
+		check.CheckedAt = storage.CheckedAt.Format(time.RFC3339Nano)
+		response.Checks["mail_storage"] = check
+	}
+	if !storage.Ready() {
+		response.Status = "unready"
+	}
 	status, enabled := api.mailServer.GetAttachmentHealth()
 	if !enabled {
+		if response.Status == "unready" {
+			return c.Status(http.StatusServiceUnavailable).JSON(response)
+		}
 		return c.Status(http.StatusOK).JSON(response)
 	}
 	check := readinessCheck{Status: string(status.State), ErrorCategory: status.ErrorCategory}
@@ -537,7 +566,7 @@ func (api *API) readiness(c fiber.Ctx) error {
 		check.CheckedAt = status.CheckedAt.Format(time.RFC3339Nano)
 	}
 	response.Checks["attachment_store"] = check
-	if !status.Ready() {
+	if !status.Ready() || response.Status == "unready" {
 		response.Status = "unready"
 		return c.Status(http.StatusServiceUnavailable).JSON(response)
 	}

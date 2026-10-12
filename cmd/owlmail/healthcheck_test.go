@@ -210,3 +210,25 @@ func TestProbeHealthEscapedBasePaths(t *testing.T) {
 		})
 	}
 }
+
+func TestReadyProbeTargetsReadinessWithoutChangingDefaultLiveness(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/mail/readyz" {
+			w.WriteHeader(503)
+		} else if r.URL.Path != "/mail/healthz" {
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
+	}))
+	defer server.Close()
+	host, port, _ := net.SplitHostPort(server.Listener.Addr().String())
+	cfg := config.DefaultConfig()
+	cfg.WebHost = host
+	cfg.WebPort, _ = strconv.Atoi(port)
+	cfg.BasePathname = "/mail"
+	if err := probeHealthEndpoint(cfg, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := probeHealthEndpoint(cfg, true); err == nil {
+		t.Fatal("readiness failure was accepted")
+	}
+}
