@@ -33,7 +33,7 @@ func (ms *MailServer) probeMailStorage() {
 	ms.storageTransactionMutex.RLock()
 	defer ms.storageTransactionMutex.RUnlock()
 	status := attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}
-	err := checkMailDirectory(ms.mailDir)
+	err := CheckMailDirectory(ms.mailDir)
 	if err != nil {
 		status.State = attachmentstore.HealthUnready
 		status.ErrorCategory = attachmentstore.HealthErrorUnavailable
@@ -49,7 +49,9 @@ func (ms *MailServer) probeMailStorage() {
 	ms.readinessMutex.Unlock()
 }
 
-func checkMailDirectory(directory string) error {
+// CheckMailDirectory verifies create, write, sync, close and removal in an existing mail directory.
+// It never creates the directory or opens the mailbox index.
+func CheckMailDirectory(directory string) error {
 	file, err := os.CreateTemp(directory, storageTempPrefix+"health-")
 	if err != nil {
 		return err

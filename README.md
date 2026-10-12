@@ -904,9 +904,19 @@ settings are inactive, and no temporary Web password is generated.
 The packaged container healthcheck automatically probes the configured SMTP host
 and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
 Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
-deployments. This verifies SMTP responsiveness, not storage writability or
-downstream delivery: `healthcheck --ready` fails explicitly in SMTP-only mode
-because the HTTP readiness endpoint is unavailable. Publish only the SMTP ports
+deployments. For readiness, use `owlmail healthcheck --ready -disable-web` (or
+`healthcheck --ready --container` in the container). In addition to SMTP
+responsiveness, this writes, syncs and removes a temporary file in the existing
+mail directory. When an outgoing SMTP host is configured, readiness also verifies
+its greeting, EHLO/HELO, configured TLS mode, authentication and QUIT, with a
+five-second total downstream timeout. No MAIL, RCPT or DATA commands are sent.
+This does not guarantee recipient acceptance or final delivery, check remote
+attachment storage, or inspect the running relay queue. SMTP-only readiness requires an explicit `-mail-directory` or `OWLMAIL_MAIL_DIR`
+(the container sets `/app/mail` by default); the process-specific temporary
+directory cannot be inferred by a separate native probe. Run native probes with
+the server configuration, filesystem namespace and user; a differently privileged
+probe cannot establish the server's storage permissions. Liveness remains
+independent of storage and downstream availability. Publish only the SMTP ports
 you need; the default still starts SMTP and Web together.
 
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -15,6 +16,8 @@ import (
 	"time"
 
 	"github.com/soulteary/owlmail/internal/config"
+	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/outgoing"
 )
 
 // containerServerArgs reads the actual PID 1 command rather than assuming that
@@ -70,10 +73,13 @@ func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, fal
 
 func probeHealthEndpoint(cfg *config.Config, ready bool) error {
 	if cfg.DisableWeb {
-		if ready {
-			return fmt.Errorf("SMTP-only mode has no storage readiness endpoint; use the SMTP liveness probe without --ready")
+		if err := probeSMTPHealth(cfg); err != nil {
+			return err
 		}
-		return probeSMTPHealth(cfg)
+		if ready {
+			return probeSMTPReadiness(cfg)
+		}
+		return nil
 	}
 	base, err := config.NormalizeBasePathname(cfg.BasePathname)
 	if err != nil {
@@ -181,6 +187,29 @@ func probeSMTPHealth(cfg *config.Config) error {
 	}
 	if err := client.Quit(); err != nil {
 		return fmt.Errorf("SMTP healthcheck QUIT: %w", err)
+	}
+	return nil
+}
+
+// SMTP-only readiness runs in the probe process with the resolved server configuration.
+// It does not open storage owners, acquire leases, or submit SMTP envelopes.
+func probeSMTPReadiness(cfg *config.Config) error {
+	if cfg.MailDir == "" {
+		return fmt.Errorf("SMTP readiness requires -mail-directory or OWLMAIL_MAIL_DIR; the default temporary directory is private to the server process")
+	}
+	if err := mailserver.CheckMailDirectory(cfg.MailDir); err != nil {
+		return fmt.Errorf("SMTP readiness: mail storage is not writable")
+	}
+	relay, err := setupOutgoingConfig(cfg)
+	if err != nil {
+		return fmt.Errorf("SMTP readiness: invalid outgoing configuration")
+	}
+	if relay != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := outgoing.ProbeSMTP(ctx, relay); err != nil {
+			return fmt.Errorf("SMTP readiness: outgoing SMTP transport or authentication unavailable")
+		}
 	}
 	return nil
 }

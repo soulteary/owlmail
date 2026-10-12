@@ -93,8 +93,8 @@ func TestSMTPOnlyServicesAndProbe(t *testing.T) {
 	if err := probeHealth(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := probeHealthEndpoint(cfg, true); err == nil {
-		t.Fatal("SMTP probe claimed storage readiness")
+	if err := probeHealthEndpoint(cfg, true); err != nil {
+		t.Fatalf("SMTP readiness: %v", err)
 	}
 	address := net.JoinHostPort(cfg.SMTPHost, fmt.Sprint(cfg.SMTPPort))
 	if err := smtp.SendMail(address, nil, "sender@example.test", []string{"reader@example.test"}, []byte("Subject: Headless capture\r\n\r\nBody\r\n")); err != nil {
@@ -147,4 +147,39 @@ func TestSMTPOnlyRejectsNonSMTPListener(t *testing.T) {
 		t.Fatal("accepted a non-SMTP listener")
 	}
 	<-done
+}
+
+func TestSMTPReadinessStorageAndDownstreamFailures(t *testing.T) {
+	cfg := config.DefaultConfig()
+	if err := probeSMTPReadiness(cfg); err == nil {
+		t.Fatal("probe guessed a server-private temporary directory")
+	}
+	cfg.MailDir = t.TempDir()
+	if err := probeSMTPReadiness(cfg); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(cfg.MailDir)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("probe left files: %v, %v", entries, err)
+	}
+	cfg.MailDir = filepath.Join(cfg.MailDir, "missing")
+	if err := probeSMTPReadiness(cfg); err == nil {
+		t.Fatal("missing storage reported ready")
+	}
+	if _, err := os.Stat(cfg.MailDir); !os.IsNotExist(err) {
+		t.Fatal("probe created storage")
+	}
+	cfg.MailDir = t.TempDir()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg.OutgoingHost = "127.0.0.1"
+	cfg.OutgoingPort = listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := probeSMTPReadiness(cfg); err == nil {
+		t.Fatal("unreachable downstream reported ready")
+	}
 }
