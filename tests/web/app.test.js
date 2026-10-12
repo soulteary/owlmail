@@ -1471,3 +1471,14 @@ test('first socket open after the initial list settles synchronizes missed chang
  assert.equal(h.run('state.emails[0].id'),'fresh');
  assert.equal(h.fetchRequests.length,2);
 });
+
+test('a newer foreground query cancels a delayed background refresh', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ h.run("scheduleMailboxRefresh(); state.searchQuery='new query'");
+ const foreground=h.run('loadEmails()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
+ complete(jsonResponse({previews:[{id:'new-query'}],total:1})); await foreground;
+ assert.equal(h.run('state.emails[0].id'),'new-query');
+});
