@@ -1874,3 +1874,18 @@ test('batch-read completion accounts for selected messages that were already rea
  assert.equal(h.run("document.getElementById('mailBatchResult').textContent"),'Completed: 1; failed: 0.');
  assert.equal(h.run('selectedMailIDs.size'),0);
 });
+
+test('pending batch operations lock existing mutations and unlock on completion', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='PATCH'?new Promise(resolve=>{complete=resolve;}):jsonResponse({previews:[{id:'mail-1',read:true}],total:1})});
+ h.run("relayEnabled=true; state.currentEmail={id:'mail-1',text:'hello'}; state.emails=[{id:'mail-1'}]; state.total=1; emailToolsFor(state.currentEmail).relay={jobs:[{id:'old-job',status:'failed'}]}; selectMailboxPage(true)");
+ const batch=h.run("runMailboxBatch('read')");
+ assert.equal(h.deleteAllBtn.disabled,true);
+ assert.equal(h.run("document.getElementById('emailDeleteAction').disabled"),true);
+ await h.run("deleteEmail('mail-1'); deleteAllEmails(); markAllRead(); relayCurrentEmail('mail-1'); retryEmailWorkflow('relay',0); handleMailboxKeydown({key:'Delete',target:{tagName:'BODY'},preventDefault(){}})");
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.confirmations.length,0);
+ complete(jsonResponse({total:1,success:1,failed:0,failedIDs:[]})); await batch;
+ assert.equal(h.deleteAllBtn.disabled,false);
+ assert.equal(h.run("document.getElementById('emailDeleteAction').disabled"),false);
+});

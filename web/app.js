@@ -881,7 +881,9 @@ const relayWaitControllers = new Map();
 
 function syncRelayMutationControls() {
     const deleteAllBtn = document.getElementById('deleteAllBtn');
-    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0;
+    if (deleteAllBtn) deleteAllBtn.disabled = relayPending.size > 0 || mailboxBatchBusy;
+    const markAllReadBtn = document.getElementById('markAllReadBtn');
+    if (markAllReadBtn) markAllReadBtn.disabled = mailboxBatchBusy;
     updateMailboxSelectionControls();
 }
 
@@ -950,7 +952,7 @@ function handleMailboxKeydown(event) {
     }
     if (event.key === 'r') { event.preventDefault(); return loadEmails(); }
     if (event.key === 't') { event.preventDefault(); toggleTheme(); return; }
-    if (event.key === 'Delete' && state.currentEmail && !loadingCounts.has('emailDetail')) {
+    if (event.key === 'Delete' && state.currentEmail && !mailboxBatchBusy && !loadingCounts.has('emailDetail')) {
         event.preventDefault();
         return deleteEmail(state.currentEmail.id);
     }
@@ -1617,7 +1619,7 @@ function renderEmailDetail() {
             <button class="btn btn-primary" onclick="downloadEmail('${email.id}')">${t('downloadEml')}</button>
             <button class="btn btn-secondary" onclick="viewEmailSource('${email.id}')">${t('viewSource')}</button>
             <span id="emailRelayActions">${renderEmailRelayActions(email)}</span>
-            <button id="emailDeleteAction" class="btn btn-danger" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
+            <button id="emailDeleteAction" class="btn btn-danger" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="deleteEmail('${email.id}')">${t('delete')}</button>
         </div>
         <div class="email-detail-header">
             <h2 class="email-detail-subject">${escapeHtml(email.subject || t('noSubject'))}</h2>
@@ -1988,8 +1990,8 @@ function renderEmailRelayActions(email) {
     if (!relayEnabled) return '';
     const tracking = relayTracking.get(email.id);
     const waiting = relayWaitControllers.has(email.id);
-    return `<button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
-        <button class="btn btn-secondary" ${relayPending.has(email.id) ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
+    return `<button class="btn btn-secondary" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}')">${t('relayOriginal')}</button>
+        <button class="btn btn-secondary" ${relayPending.has(email.id) || mailboxBatchBusy ? 'disabled' : ''} onclick="relayCurrentEmail('${email.id}', true)">${t('relayOverride')}</button>
         ${tracking ? `<span role="status">${t(waiting ? 'relayWaiting' : 'relayPaused')}</span>
             <button class="btn btn-secondary" onclick="${waiting ? 'stopRelayWaiting' : 'resumeRelayWaiting'}('${email.id}')">${t(waiting ? 'relayStopWait' : 'relayResumeWait')}</button>
             <button class="btn btn-secondary" onclick="setEmailContentTab('deliveries')">${t('contentDeliveries')}</button>` : ''}`;
@@ -2000,7 +2002,7 @@ function updateEmailRelayControls() {
     const actions = document.getElementById('emailRelayActions');
     if (actions) actions.innerHTML = renderEmailRelayActions(state.currentEmail);
     const deletion = document.getElementById('emailDeleteAction');
-    if (deletion) deletion.disabled = relayPending.has(state.currentEmail.id);
+    if (deletion) deletion.disabled = relayPending.has(state.currentEmail.id) || mailboxBatchBusy;
 }
 
 async function loadRelayAvailability() {
@@ -2099,7 +2101,7 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
 }
 
 async function relayCurrentEmail(id, askForRecipient = false) {
-    if (!relayEnabled || relayPending.has(id)) return;
+    if (!relayEnabled || relayPending.has(id) || mailboxBatchBusy) return;
     let relayTo = '';
     if (askForRecipient) {
         relayTo = (prompt(t('relayRecipientPrompt')) || '').trim();
@@ -2123,7 +2125,7 @@ async function relayCurrentEmail(id, askForRecipient = false) {
             alert(t('relayError', { error: parseAPIError(error) }));
             return;
         }
-        if (!state.currentEmail || state.currentEmail.id !== id) return;
+        if (!state.currentEmail || state.currentEmail.id !== id || mailboxBatchBusy) return;
         confirmedRecipients = preflight && preflight.data && Array.isArray(preflight.data.recipients)
             ? preflight.data.recipients
             : [];
@@ -2216,7 +2218,7 @@ function removeKnownDeletedEmail(id) {
     updateMailboxSelectionControls();
 }
 async function deleteEmail(id) {
-    if (relayPending.has(id)) return;
+    if (relayPending.has(id) || mailboxBatchBusy) return;
     if (!confirm(t('deleteConfirm'))) return;
 
     try {
@@ -2235,7 +2237,7 @@ async function deleteEmail(id) {
 }
 
 async function deleteAllEmails() {
-    if (relayPending.size > 0) return;
+    if (relayPending.size > 0 || mailboxBatchBusy) return;
     if (!confirm(t('deleteAllConfirm'))) return;
 
     try {
@@ -2264,6 +2266,7 @@ async function deleteAllEmails() {
 }
 
 async function markAllRead() {
+    if (mailboxBatchBusy) return;
     try {
         showLoading();
         const result = await API.markAllRead();
@@ -2679,7 +2682,7 @@ function renderEmailDeliveries(email) {
                 ${kind === 'relay' ? `<p>Attempts: ${escapeHtml(String(job.attempts))}; ${escapeHtml(job.errorCategory || '')}</p>
                 <p>${escapeHtml((job.confirmedRecipients || []).join(', '))}</p>
                 ${job.nextAttemptAt ? `<p>Next attempt: ${escapeHtml(job.nextAttemptAt)}</p>` : ''}` : `<ul>${(job.outcomes || []).map(outcome => `<li>${escapeHtml(outcome.target || 'Queue')}: ${escapeHtml(outcome.error_category || 'Succeeded')}; attempts: ${escapeHtml(String(outcome.attempts))}; HTTP: ${escapeHtml(String(outcome.status_code))}</li>`).join('')}</ul>`}
-                ${emailWorkflowRetryable(kind, job) ? `<button id="${escapeHtml(emailWorkflowActionID(kind, job.id))}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
+                ${emailWorkflowRetryable(kind, job) ? `<button id="${escapeHtml(emailWorkflowActionID(kind, job.id))}" type="button" class="btn btn-secondary" aria-disabled="${tools.busy || mailboxBatchBusy}" onclick="retryEmailWorkflow('${kind}', ${index})">${t('workflowRetry')}</button>` : ''}</li>`).join('')}</ul>` : `<p>${t('workflowEmpty')}</p>`}
             ${result.more_possible ? `<p>${t('workflowMore')}</p>` : ''}`;
     };
     return `<section id="emailDeliveriesPanel" class="email-tools"><button id="emailDeliveriesRefresh" type="button" class="btn btn-secondary" aria-disabled="${tools.busy}" onclick="refreshEmailDeliveries()">${t(tools.busy ? 'loading' : 'refresh')}</button>
@@ -2747,7 +2750,7 @@ async function retryEmailWorkflow(kind, index) {
     const tools = emailToolsFor(state.currentEmail);
     const field = kind === 'relay' ? 'jobs' : 'deliveries';
     const job = tools[kind]?.[field]?.[index];
-    if (tools.busy || kind === 'relay' && relayPending.has(tools.id) || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
+    if (mailboxBatchBusy || tools.busy || kind === 'relay' && relayPending.has(tools.id) || !job || !emailWorkflowRetryable(kind, job) || !confirm(t('workflowRetryConfirm'))) return;
     tools.busy = true; tools.notice = ''; renderEmailDetailKeepingTabFocus();
     if (kind === 'relay') {
         relayPending.add(tools.id);
@@ -2884,11 +2887,11 @@ function updateMailboxSelectionControls() {
     if (filtered) filtered.disabled = mailboxControlsBusy() || state.total === 0;
 }
 async function runMailboxBatch(action) {
-    if (!['read','delete'].includes(action) || mailboxControlsBusy()) return;
+    if (!['read','delete'].includes(action) || mailboxControlsBusy() || loadingCounts.has('global')) return;
     const ids = Array.from(selectedMailIDs);
     if (!ids.length || action === 'delete' && ids.some(id => relayPending.has(id))) return;
     if (action === 'delete' && !confirm(t('batchDeleteConfirm', { count: ids.length }))) return;
-    mailboxBatchBusy = true; updateMailboxSelectionControls(); renderEmailList();
+    mailboxBatchBusy = true; syncRelayMutationControls(); updateEmailRelayControls(); updateMailboxSelectionControls(); renderEmailList();
     try {
         const response = await fetch(`${API_BASE}/emails/${action === 'read' ? 'batch/read' : 'batch'}`, {
             method: action === 'read' ? 'PATCH' : 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids })
@@ -2916,7 +2919,7 @@ async function runMailboxBatch(action) {
         const completed = action === 'read' ? Math.max(0, (result.total ?? ids.length) - (result.failed || 0)) : result.success || 0;
         if (message) message.textContent = t('batchResult', {success:completed,failed:result.failed || 0});
     } catch (error) { alert(parseAPIError(error)); }
-    finally { mailboxBatchBusy = false; updateMailboxSelectionControls(); renderEmailList(); }
+    finally { mailboxBatchBusy = false; syncRelayMutationControls(); updateEmailRelayControls(); updateMailboxSelectionControls(); renderEmailList(); }
 }
 function mailboxExportURL(selected) {
     const params = new URLSearchParams();
