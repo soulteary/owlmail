@@ -109,7 +109,7 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	// A duplicate process that fails to bind must not disrupt a live owner's state.
 	if ms.runtimeReadiness {
 		if err := os.Remove(RuntimeReadinessPath(ms.mailDir, ms.host, ms.port)); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("clear previous runtime readiness: %w", err)
+			common.Error("Runtime readiness snapshot cleanup failed; stale state will expire: %v", err)
 		}
 	}
 	stopReadiness := ms.startMailStorageReadiness()

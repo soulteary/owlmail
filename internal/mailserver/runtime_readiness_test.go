@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net"
+	"net/smtp"
 	"os"
 	"testing"
 	"time"
@@ -142,5 +143,73 @@ func TestFailedDuplicateStartupPreservesOwnersRuntimeSnapshot(t *testing.T) {
 	}
 	if !bytes.Equal(before, after) {
 		t.Fatal("failed duplicate modified live owner's snapshot")
+	}
+}
+
+func TestRuntimeCleanupFailureDoesNotPreventSMTPLiveness(t *testing.T) {
+	directory := t.TempDir()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		t.Fatal(err)
+	}
+	server, err := NewMailServerWithOptions(port, "127.0.0.1", directory, ServerOptions{RuntimeReadiness: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	server.smtpReady.Store(true)
+	server.probeMailStorage()
+	if err := server.publishRuntimeReadiness(); err != nil {
+		t.Fatal(err)
+	}
+	server.smtpReady.Store(false)
+	if err := os.Chmod(directory, 0500); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Chmod(directory, 0700) }()
+	if file, err := os.CreateTemp(directory, "permission-check-"); err == nil {
+		_ = file.Close()
+		_ = os.Remove(file.Name())
+		t.Skip("filesystem privileges bypass directory permissions")
+	}
+	ready := make(chan struct{})
+	result := make(chan error, 1)
+	go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+	select {
+	case <-ready:
+	case err := <-result:
+		t.Fatalf("readiness cleanup prevented listener startup: %v", err)
+	case <-time.After(3 * time.Second):
+		t.Fatal("listener startup blocked")
+	}
+	conn, err := net.DialTimeout("tcp", listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	if err := conn.SetDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	client, err := smtp.NewClient(conn, "localhost")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Hello("localhost"); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Quit(); err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-result:
+	case <-time.After(3 * time.Second):
+		t.Fatal("listener did not stop")
 	}
 }
