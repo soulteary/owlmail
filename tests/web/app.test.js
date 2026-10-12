@@ -1586,3 +1586,11 @@ test('successful deletion removes its row even if preview refresh fails', async 
  assert.equal(h.run('state.emails.length'),0);
  assert.equal(h.run('state.total'),0);
 });
+
+test('global Delete shortcut cannot mutate the old email during detail loading', async () => {
+ const h=createHarness();
+ h.run("state.currentEmail={id:'old-mail'}; showLoading('emailDetail')");
+ await h.run("handleMailboxKeydown({key:'Delete',target:{tagName:'BODY'},preventDefault(){}})");
+ assert.equal(h.fetchRequests.length,0);
+ assert.equal(h.confirmations.length,0);
+});

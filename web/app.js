@@ -941,7 +941,7 @@ function handleMailboxKeydown(event) {
     }
     if (event.key === 'r') { event.preventDefault(); return loadEmails(); }
     if (event.key === 't') { event.preventDefault(); toggleTheme(); return; }
-    if (event.key === 'Delete' && state.currentEmail) {
+    if (event.key === 'Delete' && state.currentEmail && !loadingCounts.has('emailDetail')) {
         event.preventDefault();
         return deleteEmail(state.currentEmail.id);
     }
