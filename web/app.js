@@ -2056,6 +2056,20 @@ async function waitForRelayJob(statusUrl, { signal } = {}) {
 function stopRelayWaiting(id) {
     relayWaitControllers.get(id)?.abort('RELAY_WAIT_STOPPED');
 }
+function cacheRelayCompletion(id, completed) {
+    const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
+    if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
+    if (emailTools?.id !== id) return;
+    const tools = emailTools;
+    tools.notice = '';
+    const job = tools.relay?.jobs?.find(job => job.id === completed.id);
+    if (job) Object.assign(job, completed);
+    else tools.loaded = false;
+    if (state.currentEmail?.id === id && emailContentTab === 'deliveries') {
+        if (job) renderEmailDetailKeepingTabFocus();
+        else void refreshEmailDeliveries();
+    }
+}
 async function resumeRelayWaiting(id, timeoutMs = 60000) {
     const tracking = relayTracking.get(id);
     if (!tracking || relayWaitControllers.has(id)) return;
@@ -2067,20 +2081,8 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
     try {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
         if (relayTracking.get(id) !== tracking) return;
-        const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
-        if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
         tracking.onCompleted?.(completed);
-        if (emailTools?.id === id) {
-            const tools = emailTools;
-            tools.notice = '';
-            const job = tools.relay?.jobs?.find(job => job.id === completed.id);
-            if (job) Object.assign(job, completed);
-            else tools.loaded = false;
-            if (state.currentEmail?.id === id && emailContentTab === 'deliveries') {
-                if (job) renderEmailDetailKeepingTabFocus();
-                else void refreshEmailDeliveries();
-            }
-        }
+        cacheRelayCompletion(id, completed);
         relayTracking.delete(id);
         relayPending.delete(id);
         if (completed.status === 'failed') alert(t('relayError', { error: completed.errorCategory || 'delivery failed' }));
@@ -2721,6 +2723,7 @@ async function refreshEmailDeliveries() {
     const terminal = tracking?.jobID && tools.relay?.jobs?.find(job => job.id === tracking.jobID && ['succeeded', 'failed'].includes(job.status));
     if (terminal) {
         tracking.onCompleted?.(terminal);
+        cacheRelayCompletion(tools.id, terminal);
         relayTracking.delete(tools.id);
         relayPending.delete(tools.id);
         const waiter = relayWaitControllers.get(tools.id);
