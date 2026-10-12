@@ -107,6 +107,10 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	stopReadiness := ms.startMailStorageReadiness()
 	defer stopReadiness()
 	ms.smtpReady.Store(true)
+	if ms.runtimeReadiness {
+		stopRuntime := ms.startRuntimeReadiness()
+		defer stopRuntime()
+	}
 	if ready != nil {
 		ready()
 	}

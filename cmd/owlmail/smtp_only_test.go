@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -9,7 +10,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/config"
+	"github.com/soulteary/owlmail/internal/mailserver"
 )
 
 func TestSMTPOnlyConfiguration(t *testing.T) {
@@ -93,8 +96,15 @@ func TestSMTPOnlyServicesAndProbe(t *testing.T) {
 	if err := probeHealth(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if err := probeHealthEndpoint(cfg, true); err != nil {
-		t.Fatalf("SMTP readiness: %v", err)
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		if err := probeHealthEndpoint(cfg, true); err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("runtime readiness did not become ready")
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 	address := net.JoinHostPort(cfg.SMTPHost, fmt.Sprint(cfg.SMTPPort))
 	if err := smtp.SendMail(address, nil, "sender@example.test", []string{"reader@example.test"}, []byte("Subject: Headless capture\r\n\r\nBody\r\n")); err != nil {
@@ -155,11 +165,12 @@ func TestSMTPReadinessStorageAndDownstreamFailures(t *testing.T) {
 		t.Fatal("probe guessed a server-private temporary directory")
 	}
 	cfg.MailDir = t.TempDir()
+	writeHealthyRuntimeSnapshot(t, cfg)
 	if err := probeSMTPReadiness(cfg); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(cfg.MailDir)
-	if err != nil || len(entries) != 0 {
+	if err != nil || len(entries) != 1 {
 		t.Fatalf("probe left files: %v, %v", entries, err)
 	}
 	cfg.MailDir = filepath.Join(cfg.MailDir, "missing")
@@ -170,6 +181,7 @@ func TestSMTPReadinessStorageAndDownstreamFailures(t *testing.T) {
 		t.Fatal("probe created storage")
 	}
 	cfg.MailDir = t.TempDir()
+	writeHealthyRuntimeSnapshot(t, cfg)
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -197,5 +209,17 @@ func TestSMTPReadinessRequiresAbsoluteStorageAndIgnoresRuleFiles(t *testing.T) {
 	}
 	if _, err := setupOutgoingConfig(cfg); err == nil {
 		t.Fatal("server startup stopped validating its relay rules")
+	}
+}
+
+func writeHealthyRuntimeSnapshot(t *testing.T, cfg *config.Config) {
+	t.Helper()
+	status := mailserver.RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: cfg.SMTPHost, Port: cfg.SMTPPort, SMTP: true, UpdatedAt: time.Now(), Storage: attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}}
+	data, err := json.Marshal(status)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(mailserver.RuntimeReadinessPath(cfg.MailDir, cfg.SMTPHost, cfg.SMTPPort), data, 0600); err != nil {
+		t.Fatal(err)
 	}
 }

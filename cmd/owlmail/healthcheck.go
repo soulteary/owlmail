@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/smtp"
@@ -200,8 +202,8 @@ func probeSMTPReadiness(cfg *config.Config) error {
 	if !filepath.IsAbs(cfg.MailDir) {
 		return fmt.Errorf("SMTP readiness requires an absolute mail directory; relative paths depend on the server working directory")
 	}
-	if err := mailserver.CheckMailDirectory(cfg.MailDir); err != nil {
-		return fmt.Errorf("SMTP readiness: mail storage is not writable")
+	if err := probeRuntimeReadiness(cfg); err != nil {
+		return err
 	}
 	relay, err := setupOutgoingTransportConfig(cfg)
 	if err != nil {
@@ -215,4 +217,31 @@ func probeSMTPReadiness(cfg *config.Config) error {
 		}
 	}
 	return nil
+}
+
+// The buffered result channel allows a blocked filesystem call to finish after
+// the caller times out. Healthcheck is a one-shot process, not a recurring owner.
+func probeRuntimeReadiness(cfg *config.Config) error {
+	result := make(chan error, 1)
+	go func() {
+		file, err := os.Open(mailserver.RuntimeReadinessPath(cfg.MailDir, cfg.SMTPHost, cfg.SMTPPort))
+		if err != nil {
+			result <- fmt.Errorf("runtime readiness is unavailable")
+			return
+		}
+		defer func() { _ = file.Close() }()
+		var status mailserver.RuntimeReadiness
+		data, err := io.ReadAll(io.LimitReader(file, 64*1024+1))
+		if err != nil || len(data) > 64*1024 || json.Unmarshal(data, &status) != nil {
+			result <- fmt.Errorf("runtime readiness is invalid")
+			return
+		}
+		result <- status.Validate(cfg.SMTPHost, cfg.SMTPPort, time.Now())
+	}()
+	select {
+	case err := <-result:
+		return err
+	case <-time.After(2 * time.Second):
+		return fmt.Errorf("runtime readiness read timed out")
+	}
 }

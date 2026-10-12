@@ -45,16 +45,30 @@ def verify(image, name, flags, fixture, environment=(), expect_healthy=True, hea
             raise RuntimeError('Manual probe disagrees with expected health status')
         if name in ('owlmail-ci-health-smtp-only', 'owlmail-ci-health-smtp-env'):
             probe = ['docker', 'exec', container, '/app/owlmail', 'healthcheck', '--ready', '--container']
-            command(*probe)
+            for _ in range(10):
+                if subprocess.run(probe, capture_output=True, timeout=15).returncode == 0:
+                    break
+                time.sleep(1)
+            else:
+                raise RuntimeError('Runtime readiness never became ready')
             command('docker', 'exec', container, 'chmod', '500', '/app/mail')
             try:
-                failed = subprocess.run(probe, capture_output=True, text=True, timeout=15)
-                if failed.returncode != 1 or 'mail storage is not writable' not in failed.stderr:
+                for _ in range(10):
+                    failed = subprocess.run(probe, capture_output=True, text=True, timeout=15)
+                    if failed.returncode == 1:
+                        break
+                    time.sleep(1)
+                else:
                     raise RuntimeError('Read-only storage passed readiness: ' + failed.stdout + failed.stderr)
                 command('docker', 'exec', container, '/app/owlmail', 'healthcheck', '--container')
             finally:
                 command('docker', 'exec', container, 'chmod', '700', '/app/mail')
-            command(*probe)
+            for _ in range(40):
+                if subprocess.run(probe, capture_output=True, timeout=15).returncode == 0:
+                    break
+                time.sleep(1)
+            else:
+                raise RuntimeError('Runtime readiness did not recover')
             print('PASS:', name, 'readiness tracks storage; liveness remains healthy', flush=True)
         print('PASS:', name, wanted, flush=True)
     finally:

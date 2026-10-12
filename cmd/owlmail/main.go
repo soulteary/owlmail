@@ -903,6 +903,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		UseUUIDForID:       cfg.UseUUIDForEmailID,
 		MaxMessageBytes:    int64(maxMessageMB) << 20,
 		MaxDataConcurrency: cfg.SMTPMaxConcurrency,
+		RuntimeReadiness:   cfg.DisableWeb,
 		ReadTimeout:        readTimeout,
 		WriteTimeout:       writeTimeout,
 		MaxRecipients:      maxRecipients,

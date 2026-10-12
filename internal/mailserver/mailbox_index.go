@@ -94,6 +94,8 @@ func rejectManagedMailboxIndexPath(mailRoot, indexPath string) error {
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail quarantine directory")
 	case strings.EqualFold(firstComponent, webhookOutboxDirectoryName):
 		return fmt.Errorf("mailbox index path must not be inside the OwlMail webhook outbox directory")
+	case strings.HasPrefix(strings.ToLower(firstComponent), runtimeReadinessPrefix):
+		return fmt.Errorf("mailbox index path must not use the OwlMail runtime readiness namespace")
 	case strings.HasPrefix(strings.ToLower(firstComponent), strings.ToLower(storageTempPrefix)):
 		return fmt.Errorf("mailbox index path must not use the OwlMail transaction artifact namespace")
 	}

@@ -75,6 +75,7 @@ type ServerOptions struct {
 	// ReadOnly requires an existing mail directory and prevents constructor
 	// writes. It is used by observer processes such as the MCP stdio bridge.
 	ReadOnly           bool
+	RuntimeReadiness   bool
 	OutgoingConfig     *outgoing.OutgoingConfig
 	AuthConfig         *SMTPAuthConfig
 	AuthRequireTLS     bool
@@ -111,6 +112,7 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	runtimeReadiness        bool
 	smtpReady               atomic.Bool
 	smtpsReady              atomic.Bool
 	shuttingDown            atomic.Bool

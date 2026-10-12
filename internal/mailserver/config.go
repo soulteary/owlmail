@@ -55,6 +55,9 @@ func ResolveMailDirectory(mailDir string) string {
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.ReadOnly && options.RuntimeReadiness {
+		return nil, fmt.Errorf("read-only observers cannot publish runtime readiness")
+	}
 	if options.MaxDataConcurrency < 0 {
 		return nil, fmt.Errorf("SMTP DATA max concurrency must be zero or greater")
 	}
@@ -129,6 +132,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		receivedAtByID:          make(map[string]time.Time),
 		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
+		runtimeReadiness:        options.RuntimeReadiness,
 		port:                    port,
 		host:                    host,
 		maxMessageBytes:         maxMessageBytes,
@@ -152,6 +156,12 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
+	if options.RuntimeReadiness {
+		if err := os.Remove(RuntimeReadinessPath(mailDir, host, port)); err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("clear previous runtime readiness: %w", err)
+		}
+	}
+
 	ms.retainAllHeaders.Store(options.RetainAllHeaders)
 
 	// Setup outgoing mail if config provided
