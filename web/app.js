@@ -1358,6 +1358,7 @@ const API = {
 };
 
 // WebSocket Connection - 使用新的 API v1 WebSocket 端点
+let websocketHasConnected = false;
 function connectWebSocket() {
     try {
         // Use ws:// or wss:// based on current protocol
@@ -1367,6 +1368,9 @@ function connectWebSocket() {
         
         ws.onopen = () => {
             console.log('WebSocket connected');
+            if (websocketHasConnected || emailListActiveSequence === null) scheduleMailboxRefresh();
+            else mailboxRefreshAfterLoad = true;
+            websocketHasConnected = true;
         };
 
         ws.onmessage = (event) => {
@@ -1395,24 +1399,32 @@ function connectWebSocket() {
     }
 }
 
-function handleWebSocketMessage(data) {
-    if (data.type === 'new') {
-        // Add new email to the list
-        state.emails.unshift(data.email);
-        state.total++;
-        renderEmailList();
-        updateEmailCount();
-        notifyBrowserForEmail(data.email);
-    } else if (data.type === 'delete') {
-        // Remove deleted email from the list
-        state.emails = state.emails.filter(e => e.id !== data.id);
-        state.total--;
-        renderEmailList();
-        updateEmailCount();
-        if (state.currentEmail && state.currentEmail.id === data.id) {
-            clearEmailSelection('replace');
-        }
+let mailboxRefreshTimer = null;
+let mailboxRefreshGeneration = 0;
+const knownDeletedMailIDs = new Set();
+function scheduleMailboxRefresh() {
+    // Events invalidate the query result; only the server can correctly apply
+    // filtering, sorting, pagination and total counts to the current query.
+    if (emailListActiveSequence !== null) {
+        mailboxRefreshAfterLoad = true;
+        return;
     }
+    if (mailboxRefreshTimer !== null) return;
+    const generation = ++mailboxRefreshGeneration;
+    mailboxRefreshTimer = setTimeout(() => {
+        if (generation !== mailboxRefreshGeneration) return;
+        mailboxRefreshTimer = null;
+        void loadEmails({ background: true });
+    }, 100);
+}
+function handleWebSocketMessage(data) {
+    if (!data || (data.type !== 'new' && data.type !== 'delete')) return;
+    if (data.type === 'new' && data.email) { knownDeletedMailIDs.delete(data.email.id); notifyBrowserForEmail(data.email); }
+    if (data.type === 'delete') removeKnownDeletedEmail(data.id);
+    if (data.type === 'delete' && state.currentEmail && state.currentEmail.id === data.id) {
+        clearEmailSelection('replace');
+    }
+    scheduleMailboxRefresh();
 }
 
 // Update UI with current language
@@ -1885,25 +1897,55 @@ function renderAttachments(attachments, emailId) {
 }
 
 // Action Functions
-async function loadEmails() {
+let emailListRequestSequence = 0;
+let emailListActiveSequence = null;
+let mailboxRefreshAfterLoad = false;
+async function loadEmails({ background = false } = {}) {
+    if (!background && mailboxRefreshTimer !== null) {
+        clearTimeout(mailboxRefreshTimer);
+        mailboxRefreshTimer = null;
+        mailboxRefreshGeneration += 1;
+    }
+    const sequence = ++emailListRequestSequence;
+    emailListActiveSequence = sequence;
+    knownDeletedMailIDs.clear();
     try {
-        showLoading();
+        if (!background) showLoading();
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
             state.searchQuery
         );
-        state.emails = data.previews || [];
-        state.total = data.total || 0;
+        if (sequence !== emailListRequestSequence) return;
+        const previews = data.previews || [];
+        const remaining = previews.filter(email => !knownDeletedMailIDs.has(email.id));
+        state.total = Math.max(0, (data.total || 0) - (previews.length - remaining.length));
+        const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
+        if (state.currentPage > lastPage) {
+            state.currentPage = lastPage;
+            state.emails = [];
+            renderEmailList();
+            updateEmailCount();
+            updatePagination();
+            return await loadEmails({ background });
+        }
+        state.emails = remaining;
         renderEmailList();
         updateEmailCount();
         updatePagination();
     } catch (error) {
+        if (sequence !== emailListRequestSequence) return;
         console.error('Failed to load emails:', error);
-        const errorMsg = parseAPIError(error);
-        alert(t('loadEmailsError', { error: errorMsg }));
+        if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
-        hideLoading();
+        if (!background) hideLoading();
+        if (emailListActiveSequence === sequence) {
+            emailListActiveSequence = null;
+            if (mailboxRefreshAfterLoad) {
+                mailboxRefreshAfterLoad = false;
+                scheduleMailboxRefresh();
+            }
+        }
     }
 }
 
@@ -2051,6 +2093,23 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
     }
 }
 
+function removeKnownDeletedEmail(id) {
+    knownDeletedMailIDs.add(id);
+    const remaining = state.emails.filter(email => email.id !== id);
+    if (remaining.length === state.emails.length) return;
+    state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
+    state.emails = remaining;
+    const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
+    if (state.currentPage > lastPage) {
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
+        state.currentPage = lastPage;
+        state.emails = [];
+    }
+    renderEmailList();
+    updateEmailCount();
+    updatePagination();
+}
 async function deleteEmail(id) {
     if (relayPending.has(id)) return;
     if (!confirm(t('deleteConfirm'))) return;
@@ -2058,14 +2117,9 @@ async function deleteEmail(id) {
     try {
         showLoading();
         await API.deleteEmail(id);
-        // Remove from list
-        state.emails = state.emails.filter(e => e.id !== id);
-        state.total--;
-        if (state.currentEmail && state.currentEmail.id === id) {
-            clearEmailSelection('replace');
-        }
-        renderEmailList();
-        updateEmailCount();
+        removeKnownDeletedEmail(id);
+        if (state.currentEmail && state.currentEmail.id === id) clearEmailSelection('replace');
+        await loadEmails();
     } catch (error) {
         console.error('Failed to delete email:', error);
         const errorMsg = parseAPIError(error);
@@ -2082,11 +2136,17 @@ async function deleteAllEmails() {
     try {
         showLoading();
         await API.deleteAllEmails();
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
+        mailboxRefreshAfterLoad = false;
+        state.currentPage = 0;
         state.emails = [];
         state.total = 0;
         clearEmailSelection('replace');
         renderEmailList();
         updateEmailCount();
+        updatePagination();
+        scheduleMailboxRefresh();
     } catch (error) {
         console.error('Failed to delete all emails:', error);
         const errorMsg = parseAPIError(error);

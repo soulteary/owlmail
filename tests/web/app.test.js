@@ -277,7 +277,7 @@ test('browser routes remain root-relative by default', () => {
 test('mailbox lists use the preview endpoint and consume preview results', async () => {
     const harness = createHarness({
         fetchImpl: async () => jsonResponse({
-            total: 1,
+            total: 51,
             limit: 25,
             offset: 50,
             previews: [{
@@ -309,7 +309,7 @@ test('mailbox lists use the preview endpoint and consume preview results', async
     assert.equal(harness.run('state.emails[0].read'), false);
     assert.equal(harness.run('state.emails[0].time'), '2026-09-01T00:00:00Z');
     assert.equal(harness.run('state.emails[0].preview'), 'Compact body preview');
-    assert.equal(harness.run('state.total'), 1);
+    assert.equal(harness.run('state.total'), 51);
     assert.match(harness.emailList.innerHTML, /email-item unread/);
     assert.match(harness.emailList.innerHTML, /sender@example\.test/);
     assert.match(harness.emailList.innerHTML, /Compact body preview/);
@@ -1407,4 +1407,160 @@ test('inbox preserves an explicit session theme when storage is blocked', () => 
     assert.equal(harness.run('currentTheme'), 'light');
     media.change();
     assert.equal(harness.run('currentTheme'), 'light');
+});
+
+
+test('latest list query wins even when the old response arrives last', async () => {
+ const pending=[];
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>pending.push(resolve))});
+ const old=h.run('loadEmails()');
+ h.run("state.searchQuery='invoice'");
+ const fresh=h.run('loadEmails()');
+ pending[1](jsonResponse({previews:[{id:'new'}],total:1})); await fresh;
+ pending[0](jsonResponse({previews:[{id:'old'}],total:10})); await old;
+ assert.equal(h.run('state.emails[0].id'),'new');
+ assert.equal(h.run('state.total'),1);
+});
+test('realtime bursts refetch the active filtered page without inserting duplicate messages', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:'filtered'}],total:101})});
+ h.run("state.searchQuery='invoice'; state.currentPage=2;");
+ h.run("handleWebSocketMessage({type:'new',email:{id:'unrelated'}}); handleWebSocketMessage({type:'new',email:{id:'unrelated'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'filtered');
+ const url=new URL(h.fetchRequests[0].url);
+ assert.equal(url.searchParams.get('q'),'invoice');
+ assert.equal(url.searchParams.get('offset'),'100');
+});
+test('removing the last result on a page falls back to the last valid page', async () => {
+ const h=createHarness({fetchImpl:async url=>jsonResponse({previews:new URL(url).searchParams.get('offset')==='0'?[{id:'remaining'}]:[],total:1})});
+ h.run('state.currentPage=1');
+ await h.run('loadEmails()');
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.emails[0].id'),'remaining');
+ assert.equal(h.fetchRequests.length,2);
+});
+test('websocket reconnect invalidates and refreshes missed changes', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
+ h.run('connectWebSocket(); state.ws.onopen(); connectWebSocket(); state.ws.onopen()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
+});
+
+test('first socket open preserves the successful initial mailbox request', async () => {
+ let complete;
+ let calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('sync temporarily unavailable'))});
+ const initial=h.run('loadEmails()');
+ h.run('connectWebSocket(); state.ws.onopen()');
+ complete(jsonResponse({previews:[{id:'initial'}],total:1}));
+ await initial;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'initial');
+ assert.equal(h.fetchRequests.length,2);
+ assert.equal(h.alerts.length,0);
+});
+
+test('first socket open after the initial list settles synchronizes missed changes', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[{id:++calls===1?'snapshot':'fresh'}],total:1})});
+ await h.run('loadEmails()');
+ h.run('connectWebSocket(); state.ws.onopen()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.fetchRequests.length,2);
+});
+
+test('a newer foreground query cancels a delayed background refresh', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ h.run("scheduleMailboxRefresh(); state.searchQuery='new query'");
+ const foreground=h.run('loadEmails()');
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.fetchRequests.length,1);
+ complete(jsonResponse({previews:[{id:'new-query'}],total:1})); await foreground;
+ assert.equal(h.run('state.emails[0].id'),'new-query');
+});
+
+test('failed fallback loading clears rows from a deleted last page', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async()=>++calls===1?jsonResponse({previews:[],total:1}):Promise.reject(new Error('unavailable'))});
+ h.run("state.currentPage=1; state.emails=[{id:'deleted'}]");
+ await h.run('loadEmails({background:true})');
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.total'),1);
+});
+
+test('delete all resets the pagination controls with page state', async () => {
+ const h=createHarness({fetchImpl:async()=>jsonResponse({})});
+ h.run('state.currentPage=3; state.total=200; let paginationUpdates=0; updatePagination=()=>paginationUpdates++');
+ await h.run('deleteAllEmails()');
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('paginationUpdates'),1);
+});
+
+test('successful deletion removes its row even if preview refresh fails', async () => {
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({}):Promise.reject(new Error('offline'))});
+ h.run("state.emails=[{id:'deleted'}]; state.total=1");
+ await h.run("deleteEmail('deleted')");
+ assert.equal(h.run('state.emails.length'),0);
+ assert.equal(h.run('state.total'),0);
+});
+
+test('live events preserve a foreground response if the deferred synchronization fails', async () => {
+ let complete, calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('offline'))});
+ h.run("state.searchQuery='new query'");
+ const foreground=h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'delete',id:'deleted'})");
+ complete(jsonResponse({previews:[{id:'fresh'},{id:'deleted'}],total:2})); await foreground;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.run('state.total'),1);
+ assert.equal(h.fetchRequests.length,2);
+});
+
+test('an obsolete stalled request cannot block realtime synchronization', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(()=>{}):Promise.resolve(jsonResponse({previews:[{id:calls===2?'snapshot':'fresh'}],total:1}))});
+ h.run('loadEmails()'); await h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'fresh'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.fetchRequests.length,3);
+});
+test('deletion-triggered page changes discard responses from the old offset', async () => {
+ let complete, calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('offline'))});
+ h.run("state.currentPage=1; state.total=51; state.emails=[{id:'deleted'}]");
+ const old=h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'delete',id:'deleted'})");
+ complete(jsonResponse({previews:[{id:'wrong-page'}],total:51})); await old;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.currentPage'),0);
+ assert.equal(h.run('state.emails.length'),0);
+});
+
+test('delete all invalidates a stalled query without blocking later live events', async () => {
+ let calls=0;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?jsonResponse({}):++calls===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived'}],total:1})});
+ h.run('loadEmails({background:true})');
+ await h.run('deleteAllEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'arrived'}})");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'arrived');
+});
+
+test('delete all completion synchronizes mail arriving before its response', async () => {
+ let finishDelete, gets=0;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='DELETE'?new Promise(resolve=>{finishDelete=resolve;}):++gets===1?new Promise(()=>{}):jsonResponse({previews:[{id:'arrived-after-delete'}],total:1})});
+ h.run('loadEmails({background:true})');
+ const deletion=h.run('deleteAllEmails()');
+ h.run("handleWebSocketMessage({type:'new',email:{id:'arrived-after-delete'}})");
+ finishDelete(jsonResponse({})); await deletion;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'arrived-after-delete');
 });
