@@ -2137,6 +2137,8 @@ async function deleteAllEmails() {
         showLoading();
         await API.deleteAllEmails();
         emailListRequestSequence += 1;
+        emailListActiveSequence = null;
+        mailboxRefreshAfterLoad = false;
         state.currentPage = 0;
         state.emails = [];
         state.total = 0;
