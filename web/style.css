@@ -13,7 +13,7 @@ body {
 }
 
 /* Native modal dialog supplies focus containment and inert background content. */
-.command-palette { width: min(560px, calc(100vw - 32px)); max-height: 85vh; padding: 20px; border: 1px solid #bbc4cc; border-radius: 8px; color: #252a30; background: #fff; }
+.command-palette { margin: auto; width: min(560px, calc(100vw - 32px)); max-height: 85vh; padding: 20px; border: 1px solid #bbc4cc; border-radius: 8px; color: #252a30; background: #fff; }
 .command-palette::backdrop { background: rgba(0, 0, 0, .5); }
 .command-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .command-heading h2 { font-size: 20px; margin: 0; }
