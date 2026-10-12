@@ -1692,3 +1692,25 @@ test('confirmed batch deletions remain removed if the follow-up query fails', as
  assert.equal(h.run('state.total'),0);
  assert.equal(h.run('selectedMailIDs.size'),0);
 });
+
+test('global Delete shortcut cannot mutate the old email during detail loading', async () => {
+ const h=createHarness();
+ h.run("state.currentEmail={id:'old-mail'}; showLoading('emailDetail')");
+ await h.run("handleMailboxKeydown({key:'Delete',target:{tagName:'BODY'},preventDefault(){}})");
+ assert.equal(h.fetchRequests.length,0);
+ assert.equal(h.confirmations.length,0);
+});
+
+test('live events preserve a foreground response if the deferred synchronization fails', async () => {
+ let complete, calls=0;
+ const h=createHarness({fetchImpl:()=>++calls===1?new Promise(resolve=>{complete=resolve;}):Promise.reject(new Error('offline'))});
+ h.run("state.searchQuery='new query'");
+ const foreground=h.run('loadEmails()');
+ h.run("handleWebSocketMessage({type:'delete',id:'deleted'})");
+ complete(jsonResponse({previews:[{id:'fresh'},{id:'deleted'}],total:2})); await foreground;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails.length'),1);
+ assert.equal(h.run('state.emails[0].id'),'fresh');
+ assert.equal(h.run('state.total'),1);
+ assert.equal(h.fetchRequests.length,2);
+});

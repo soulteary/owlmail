@@ -949,7 +949,7 @@ function handleMailboxKeydown(event) {
     }
     if (event.key === 'r') { event.preventDefault(); return loadEmails(); }
     if (event.key === 't') { event.preventDefault(); toggleTheme(); return; }
-    if (event.key === 'Delete' && state.currentEmail) {
+    if (event.key === 'Delete' && state.currentEmail && !loadingCounts.has('emailDetail')) {
         event.preventDefault();
         return deleteEmail(state.currentEmail.id);
     }
@@ -1424,10 +1424,14 @@ function connectWebSocket() {
 
 let mailboxRefreshTimer = null;
 let mailboxRefreshGeneration = 0;
+const knownDeletedMailIDs = new Set();
 function scheduleMailboxRefresh() {
     // Events invalidate the query result; only the server can correctly apply
     // filtering, sorting, pagination and total counts to the current query.
-    emailListRequestSequence += 1;
+    if (emailListLoadsPending > 0) {
+        mailboxRefreshAfterLoad = true;
+        return;
+    }
     if (mailboxRefreshTimer !== null) return;
     const generation = ++mailboxRefreshGeneration;
     mailboxRefreshTimer = setTimeout(() => {
@@ -1438,7 +1442,7 @@ function scheduleMailboxRefresh() {
 }
 function handleWebSocketMessage(data) {
     if (!data || (data.type !== 'new' && data.type !== 'delete')) return;
-    if (data.type === 'new' && data.email) notifyBrowserForEmail(data.email);
+    if (data.type === 'new' && data.email) { knownDeletedMailIDs.delete(data.email.id); notifyBrowserForEmail(data.email); }
     if (data.type === 'delete') removeKnownDeletedEmail(data.id);
     if (data.type === 'delete' && state.currentEmail && state.currentEmail.id === data.id) {
         clearEmailSelection('replace');
@@ -1940,7 +1944,9 @@ async function loadEmails({ background = false } = {}) {
             mailboxFilters
         );
         if (sequence !== emailListRequestSequence) return;
-        state.total = data.total || 0;
+        const previews = data.previews || [];
+        const remaining = previews.filter(email => !knownDeletedMailIDs.has(email.id));
+        state.total = Math.max(0, (data.total || 0) - (previews.length - remaining.length));
         const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
         if (state.currentPage > lastPage) {
             state.currentPage = lastPage;
@@ -1950,7 +1956,7 @@ async function loadEmails({ background = false } = {}) {
             updatePagination();
             return await loadEmails({ background });
         }
-        state.emails = data.previews || [];
+        state.emails = remaining;
         const visible = new Set(state.emails.map(email => email.id));
         for (const id of selectedMailIDs) if (!visible.has(id)) selectedMailIDs.delete(id);
         updateMailboxSelectionControls();
@@ -2180,10 +2186,9 @@ async function loadEmailDetail(id, { historyMode = 'push' } = {}) {
 
 function removeKnownDeletedEmail(id) {
     const deleted = new Set(Array.isArray(id) ? id : [id]);
-    for (const value of deleted) selectedMailIDs.delete(value);
-    updateMailboxSelectionControls();
+    for (const value of deleted) { selectedMailIDs.delete(value); knownDeletedMailIDs.add(value); }
     const remaining = state.emails.filter(email => !deleted.has(email.id));
-    if (remaining.length === state.emails.length) return;
+    if (remaining.length === state.emails.length) { updateMailboxSelectionControls(); return; }
     state.total = Math.max(0, state.total - (state.emails.length - remaining.length));
     state.emails = remaining;
     const lastPage = Math.max(0, Math.ceil(state.total / state.pageSize) - 1);
@@ -2194,6 +2199,7 @@ function removeKnownDeletedEmail(id) {
     renderEmailList();
     updateEmailCount();
     updatePagination();
+    updateMailboxSelectionControls();
 }
 async function deleteEmail(id) {
     if (relayPending.has(id)) return;
