@@ -22,7 +22,7 @@ func TestAPIStartWithIPv6Listener(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
-	api := NewAPI(server, port, "::1")
+	api := NewAPI(server, port, "[::1%lo]")
 	ready := make(chan struct{})
 	finished := make(chan error, 1)
 	go func() { finished <- api.StartWithReady(func() { close(ready) }) }()

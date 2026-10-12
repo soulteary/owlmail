@@ -6,6 +6,7 @@ import (
 	"html"
 	"net"
 	"net/http"
+	"net/netip"
 	"strings"
 	"sync"
 	"time"
@@ -425,7 +426,7 @@ func (api *API) StartWithReady(ready func()) error {
 			return fmt.Errorf("invalid bracketed web host %q", host)
 		}
 		host = host[1 : len(host)-1]
-		if net.ParseIP(host) == nil || !strings.Contains(host, ":") {
+		if address, err := netip.ParseAddr(host); err != nil || !address.Is6() {
 			return fmt.Errorf("invalid IPv6 web host %q", api.host)
 		}
 	}
