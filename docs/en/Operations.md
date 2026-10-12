@@ -293,6 +293,25 @@ Probe options precede normal configuration flags. Docker can opt into this
 check with `--health-cmd='/app/owlmail healthcheck --ready --container'`;
 Kubernetes should use `/healthz` for liveness and `/readyz` for readiness.
 
+When outgoing relay is configured, both HTTP and SMTP-only readiness also
+include `relay_job_storage`. The API owns the durable relay records and publishes
+a cached status to the SMTP server. Its background check verifies the actual
+`.owlmail-meta/relay-jobs` subdirectory, including write, file sync, atomic rename,
+cleanup and directory sync, every 30 seconds. A stuck check changes the cache to
+checking; healthy results older than 45 seconds fail readiness. Checks and
+shutdown never wait for this background filesystem work.
+
+Readiness is pending until relay recovery is started, fails immediately after a
+job persistence failure, and recovers only after the owner retries the affected
+records successfully. A successful directory check cannot erase an unresolved
+job error. A failed initial recovery load stays unready until the service is
+restarted after repair. Probes do not reopen stores or acquire another owner.
+Status retention capacity fails readiness only when the next native relay job
+cannot be accepted; completed records whose minimum retention has elapsed are
+evictable and do not make the service unready. These dependency failures leave
+`/healthz` and SMTP liveness unchanged. Unconfigured outgoing relay omits this
+check, so an incoming-only deployment does not depend on unused relay storage.
+
 ### 3. Persistent Docker deployment
 
 ```bash

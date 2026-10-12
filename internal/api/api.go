@@ -54,6 +54,7 @@ type API struct {
 	webhookService          *webhook.Service
 	relayJobs               *relayJobStore
 	relayJobsPersistenceErr error
+	relayJobReadiness       *relayJobReadinessMonitor
 	relayRecoveryOnce       sync.Once
 	relaySourceMutex        sync.Mutex
 	relaySourceReleases     map[string]func()
@@ -117,6 +118,9 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 		relaySourceReleases:     make(map[string]func()),
 	}
 	api.wsUpgrader.CheckOrigin = api.webSocketOriginAllowed
+	api.relayJobReadiness = newRelayJobReadinessMonitor(api)
+	mailServer.SetRelayJobReadinessProvider(api.relayJobReadiness)
+	_ = mailServer.AddCloser(api.relayJobReadiness)
 	api.setupRoutes()
 	api.setupEventListeners()
 	if api.relayJobs.hasQueued() {
@@ -128,6 +132,7 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 // StartRelayRecovery starts queued durable work at most once.
 func (api *API) StartRelayRecovery() {
 	api.relayRecoveryOnce.Do(func() {
+		api.relayJobReadiness.Start()
 		if api.relayJobs.hasQueued() {
 			go api.recoverRelayJobs()
 		}
@@ -553,6 +558,16 @@ func (api *API) readiness(c fiber.Ctx) error {
 	}
 	if !storage.Ready() {
 		response.Status = "unready"
+	}
+	if relayJobs, enabled := api.mailServer.GetRelayJobHealth(); enabled {
+		check := readinessCheck{Status: string(relayJobs.State), ErrorCategory: relayJobs.ErrorCategory}
+		if !relayJobs.CheckedAt.IsZero() {
+			check.CheckedAt = relayJobs.CheckedAt.Format(time.RFC3339Nano)
+		}
+		response.Checks["relay_job_storage"] = check
+		if !relayJobs.Ready() {
+			response.Status = "unready"
+		}
 	}
 	status, enabled := api.mailServer.GetAttachmentHealth()
 	if !enabled {

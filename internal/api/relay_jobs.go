@@ -97,6 +97,7 @@ type relayJobStore struct {
 	syncDirectory      func(string) error
 	lastPersistenceErr error
 	persistenceErrors  map[string]error
+	readiness          *relayJobReadinessMonitor
 }
 
 func newRelayJobStore() *relayJobStore {
@@ -144,6 +145,7 @@ func (store *relayJobStore) createConfirmed(emailID, relayTo string, recipients 
 	}
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	defer store.refreshReadinessCapacityLocked()
 	store.pruneLocked(now)
 	for _, existing := range store.jobs {
 		if existing.EmailID == emailID && existing.CompletedAt == nil {
@@ -169,6 +171,7 @@ func (store *relayJobStore) createConfirmed(emailID, relayTo string, recipients 
 func (store *relayJobStore) complete(id string, relayErr error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	defer store.refreshReadinessCapacityLocked()
 	job, ok := store.jobs[id]
 	if !ok {
 		return
@@ -254,6 +257,7 @@ func (store *relayJobStore) restoreQueuedAfterShutdown(previous relayJob) error 
 func (store *relayJobStore) remove(id string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	defer store.refreshReadinessCapacityLocked()
 	if err := store.removePersistedLocked(id); err != nil {
 		return fmt.Errorf("%w: %v", errRelayJobPersistence, err)
 	}

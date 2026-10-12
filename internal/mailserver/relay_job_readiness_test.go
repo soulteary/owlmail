@@ -1,0 +1,48 @@
+package mailserver
+
+import (
+	"testing"
+	"time"
+
+	"github.com/soulteary/owlmail/internal/attachmentstore"
+	"github.com/soulteary/owlmail/internal/outgoing"
+)
+
+type relayJobTestHealth struct{ status attachmentstore.HealthStatus }
+
+func (provider *relayJobTestHealth) Snapshot() attachmentstore.HealthStatus { return provider.status }
+
+func TestRelayJobReadinessSnapshotUsesEnabledOwnersFreshCache(t *testing.T) {
+	server, err := NewMailServer(0, "127.0.0.1", t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = server.Close() }()
+	provider := &relayJobTestHealth{status: attachmentstore.HealthStatus{State: attachmentstore.HealthReady, CheckedAt: time.Now()}}
+	server.SetRelayJobReadinessProvider(provider)
+	if snapshot := server.runtimeSnapshot(); snapshot.RelayJobs != nil {
+		t.Fatal("disabled relay included durable dependency")
+	}
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "localhost", Port: 2525}); err != nil {
+		t.Fatal(err)
+	}
+	server.smtpReady.Store(true)
+	server.probeMailStorage()
+	if snapshot := server.runtimeSnapshot(); snapshot.RelayJobs == nil || snapshot.Validate(server.host, server.port, time.Now()) != nil {
+		t.Fatalf("ready owner not included: %+v", snapshot)
+	}
+	for _, age := range []time.Duration{time.Minute, -time.Minute} {
+		provider.status.CheckedAt = time.Now().Add(-age)
+		if status, enabled := server.GetRelayJobHealth(); !enabled || status.Ready() {
+			t.Fatalf("invalid cache age accepted: %+v, enabled=%t", status, enabled)
+		}
+		if err := server.runtimeSnapshot().Validate(server.host, server.port, time.Now()); err == nil {
+			t.Fatal("runtime snapshot concealed stale durable owner health")
+		}
+	}
+	provider.status.CheckedAt = time.Now()
+	_ = server.Close()
+	if status, _ := server.GetRelayJobHealth(); status.State != attachmentstore.HealthClosed {
+		t.Fatal("shutdown left owner ready")
+	}
+}

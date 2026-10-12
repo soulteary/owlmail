@@ -118,6 +118,7 @@ type MailServer struct {
 	shuttingDown            atomic.Bool
 	readinessMutex          sync.RWMutex
 	mailStorageHealth       attachmentstore.HealthStatus
+	relayJobHealth          attachmentstore.ReadinessProvider
 	webhookService          *webhook.Service
 	storeByID               map[string]*types.Email
 	storeOrder              []string

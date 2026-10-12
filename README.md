@@ -912,6 +912,17 @@ It checks the running server's cached mail-directory write/sync/cleanup health,
 remote attachment-store health when enabled, and configured relay worker and
 queue availability. A full queue or no live worker makes an enabled relay unready.
 This measures worker lifecycle and queue capacity, not worker progress or index integrity.
+Configured outgoing relay also checks the native durable job store through
+`relay_job_storage`. Its owner checks the relay metadata subdirectory's
+create/write/sync/rename/cleanup operations in the background every 30 seconds;
+HTTP and SMTP-only probes only read the cached result. Deferred recovery remains
+pending until started. Failed job writes keep readiness unready until the same
+owner durably repairs the affected records; a successful scratch-file check does
+not conceal them. A full status store is unready while pending jobs or the
+minimum retention window prevent accepting another job. Evictable completed
+records do not cause backpressure. No outgoing host means this dependency is
+disabled. Failure to load recovery records requires repairing the records and
+restarting the service; the health probe never replaces the running queue owner.
 Snapshot reads are limited to 64 KiB and a two-second wait; a blocked storage
 publisher cannot keep an old healthy snapshot valid indefinitely. The server's
 mail-storage probe runs every 30 seconds; cached checking, failed or stale results
