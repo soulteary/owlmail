@@ -891,6 +891,25 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — one self-hosted email test gateway for developers, CI, automation, and AI agents. 🦉
 
+### SMTP-only mode
+
+Use `owlmail -disable-web` or `OWLMAIL_DISABLE_WEB=true` to capture mail without
+a Web UI, REST, WebSocket, metrics or HTTP MCP listener. The flat YAML/JSON
+configuration key is `disable-web`. SMTP AUTH, STARTTLS/SMTPS, storage retention,
+Webhook dispatch and automatic relay remain active; existing durable relay jobs
+are recovered. Configured HTTP MCP, metrics or REST compatibility flags conflict
+with this mode and fail configuration validation. Web port and HTTPS certificate
+settings are inactive, and no temporary Web password is generated.
+
+The packaged container healthcheck automatically probes the configured SMTP host
+and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
+Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
+deployments. This verifies SMTP responsiveness, not storage writability or
+downstream delivery: `healthcheck --ready` fails explicitly in SMTP-only mode
+because the HTTP readiness endpoint is unavailable. Publish only the SMTP ports
+you need; the default still starts SMTP and Web together.
+
+
 ### Container health checks
 
 The image runs `owlmail healthcheck --container`. It reads the OwlMail PID 1
@@ -929,20 +948,15 @@ refresh the active server query in a short coalesced batch instead of inserting
 unfiltered messages into a page. Reconnection resynchronizes missed changes,
 and deleting the last result on a page returns to the last available page.
 
-### SMTP-only mode
+### Loading and relay status waiting
 
-Use `owlmail -disable-web` or `OWLMAIL_DISABLE_WEB=true` to capture mail without
-a Web UI, REST, WebSocket, metrics or HTTP MCP listener. The flat YAML/JSON
-configuration key is `disable-web`. SMTP AUTH, STARTTLS/SMTPS, storage retention,
-Webhook dispatch and automatic relay remain active; existing durable relay jobs
-are recovered. Configured HTTP MCP, metrics or REST compatibility flags conflict
-with this mode and fail configuration validation. Web port and HTTPS certificate
-settings are inactive, and no temporary Web password is generated.
+Inbox and detail requests show local busy state, so navigation stays available.
+Overlapping requests and mutations retain their loading indicator until all
+operations for that region finish.
 
-The packaged container healthcheck automatically probes the configured SMTP host
-and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
-Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
-deployments. This verifies SMTP responsiveness, not storage writability or
-downstream delivery: `healthcheck --ready` fails explicitly in SMTP-only mode
-because the HTTP readiness endpoint is unavailable. Publish only the SMTP ports
-you need; the default still starts SMTP and Web together.
+Accepted relay jobs are watched for up to 60 seconds, with a 10-second limit on
+each status request. Stop waiting pauses only the browser status check; it does
+not cancel delivery. Resume waiting continues watching the same job without
+resubmitting it. Delivery records remain available in the Deliveries tab. While
+an accepted job has an unknown final state, relay and deletion controls stay
+locked in the current session to prevent duplicate delivery or lost evidence.

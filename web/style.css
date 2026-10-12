@@ -929,3 +929,5 @@ body.dark-theme ::-webkit-scrollbar-thumb:hover {
 .email-content-tabs { flex-wrap: wrap; }
 
 body.dark-theme .email-tools input:not([type="checkbox"]) { color: #eee; background: #252525; border-color: #555; }
+
+.is-loading { opacity: 0.65; }
