@@ -2035,8 +2035,9 @@ async function resumeRelayWaiting(id, timeoutMs = 60000) {
         const completed = await waitForRelayJob(tracking.statusUrl, { signal: controller.signal });
         if (completed.id) completedRelayJobs.set(completed.id, { emailID: id, job: completed });
         tracking.onCompleted?.(completed);
-        if (!tracking.onCompleted && emailTools?.id === id) {
+        if (emailTools?.id === id) {
             const tools = emailTools;
+            tools.notice = '';
             const job = tools.relay?.jobs?.find(job => job.id === completed.id);
             if (job) Object.assign(job, completed);
             else tools.loaded = false;
@@ -2676,7 +2677,6 @@ async function retryEmailWorkflow(kind, index) {
                 if (cachedJob) Object.assign(cachedJob, completed);
                 else tools.loaded = false;
                 tools.notice = '';
-                if (emailTools === tools && state.currentEmail?.id === tools.id && emailContentTab === 'deliveries') renderEmailDetailKeepingTabFocus();
             } });
             await resumeRelayWaiting(tools.id);
             tools.notice = relayTracking.has(tools.id) ? t('relayPaused') : '';
