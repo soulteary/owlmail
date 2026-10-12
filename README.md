@@ -921,6 +921,13 @@ deletes it after confirmation. Shortcuts are inactive while editing text, using
 buttons or links, composing text, or holding modifier keys. Preview width buttons
 are available with Tab and Enter/Space.
 
+### Live inbox consistency
+
+Search and page changes keep only the newest list response. Live mail events
+refresh the active server query in a short coalesced batch instead of inserting
+unfiltered messages into a page. Reconnection resynchronizes missed changes,
+and deleting the last result on a page returns to the last available page.
+
 ### Commands and keyboard help
 
 Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
