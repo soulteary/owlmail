@@ -39,6 +39,17 @@ func TestReadinessRequiresSMTPAndStorageWhileLivenessStaysIndependent(t *testing
 	case <-time.After(3 * time.Second):
 		t.Fatal("startup timeout")
 	}
+	deadline := time.Now().Add(3 * time.Second)
+	for {
+		_, storage := server.GetServiceReadiness()
+		if storage.Ready() {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("storage readiness timeout")
+		}
+		time.Sleep(time.Millisecond)
+	}
 	check("/readyz", 200)
 	_ = server.Close()
 	check("/readyz", 503)

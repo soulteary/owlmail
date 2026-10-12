@@ -59,13 +59,13 @@ func checkMailDirectory(directory string) error {
 	return errors.Join(writeErr, syncErr, closeErr, removeErr)
 }
 
-// startMailStorageReadiness performs an initial check before SMTP readiness is
-// announced, then samples every 30 seconds. Its owner stops it on Serve exit.
+// startMailStorageReadiness probes in the background so slow storage cannot
+// prevent listeners and liveness from starting. Its owner stops it on Serve exit.
 func (ms *MailServer) startMailStorageReadiness() func() {
-	ms.probeMailStorage()
 	stop := make(chan struct{})
 	var once sync.Once
 	go func() {
+		ms.probeMailStorage()
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
 		for {
