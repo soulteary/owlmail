@@ -23,7 +23,9 @@ import (
 // containerServerArgs reads the actual PID 1 command rather than assuming that
 // environment defaults describe the listener (CLI flags and config files win).
 func containerServerArgs(data []byte) ([]string, error) {
-	argv := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
+	// procfs terminates argv with one NUL; earlier NULs can delimit empty
+	// arguments, including an explicit empty value for the final flag.
+	argv := strings.Split(strings.TrimSuffix(string(data), "\x00"), "\x00")
 	if len(argv) == 0 || filepath.Base(argv[0]) != "owlmail" {
 		return nil, fmt.Errorf("container healthcheck requires OwlMail as PID 1")
 	}
