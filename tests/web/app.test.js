@@ -1444,7 +1444,7 @@ test('removing the last result on a page falls back to the last valid page', asy
 });
 test('websocket reconnect invalidates and refreshes missed changes', async () => {
  const h=createHarness({fetchImpl:async()=>jsonResponse({previews:[],total:0})});
- h.run('connectWebSocket(); state.ws.onopen()');
+ h.run('connectWebSocket(); state.ws.onopen(); connectWebSocket(); state.ws.onopen()');
  await new Promise(resolve=>setTimeout(resolve,0));
  assert.equal(h.fetchRequests.length,1);
 });
@@ -1541,4 +1541,32 @@ test('arrival-order filter sends the explicit store sort to the API', async () =
  await h.run('applyMailboxFilters()');
  assert.equal(new URL(h.fetchRequests.at(-1).url).searchParams.get('sortBy'),'store');
  assert.match(appSource, /\['store','sortStore'\]/);
+});
+
+test('resumed retry completion clears paused notice and refreshes deliveries', async () => {
+ let completed=false;
+ const h=createHarness({fetchImpl:async(url,options)=>options?.method==='POST'?jsonResponse({data:{job:{id:'new-job',status:'queued'},statusUrl:'/api/v1/relay-jobs/new-job'}}):completed?jsonResponse({data:{id:'new-job',status:'succeeded'}}):new Promise(()=>{})});
+ h.run("state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; emailToolsFor(state.currentEmail).relay={jobs:[{id:'old-job',status:'failed'}]}");
+ const retry=h.run("retryEmailWorkflow('relay',0)");
+ await new Promise(resolve=>setTimeout(resolve,0));
+ h.run("stopRelayWaiting('mail-1')"); await retry;
+ assert.equal(h.run('emailTools.notice'),h.run("t('relayPaused')"));
+ completed=true;
+ h.run('let resumedPanelRenders=0; const renderBeforeResume=renderEmailDetailKeepingTabFocus; renderEmailDetailKeepingTabFocus=()=>{resumedPanelRenders++; renderBeforeResume();}');
+ await h.run("resumeRelayWaiting('mail-1')");
+ assert.equal(h.run('emailTools.notice'),'');
+ assert.equal(h.run('emailTools.relay.jobs[0].status'),'succeeded');
+ assert.equal(h.run('resumedPanelRenders'),1);
+});
+
+test('first socket open preserves the successful initial mailbox request', async () => {
+ let complete;
+ const h=createHarness({fetchImpl:()=>new Promise(resolve=>{complete=resolve;})});
+ const initial=h.run('loadEmails()');
+ h.run('connectWebSocket(); state.ws.onopen()');
+ complete(jsonResponse({previews:[{id:'initial'}],total:1}));
+ await initial;
+ await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(h.run('state.emails[0].id'),'initial');
+ assert.equal(h.fetchRequests.length,1);
 });
