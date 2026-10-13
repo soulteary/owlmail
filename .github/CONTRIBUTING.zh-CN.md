@@ -21,7 +21,7 @@
 
 1. **Fork 仓库**
    ```bash
-   git clone https://github.com/soulteary/owlmail.git
+   git clone https://github.com/YOUR_USERNAME/owlmail.git
    cd owlmail
    ```
 

@@ -21,7 +21,7 @@ If you find a bug or have a feature suggestion, please:
 
 1. **Fork the Repository**
    ```bash
-   git clone https://github.com/soulteary/owlmail.git
+   git clone https://github.com/YOUR_USERNAME/owlmail.git
    cd owlmail
    ```
 
