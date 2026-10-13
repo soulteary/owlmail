@@ -145,7 +145,8 @@ func isWildcardBindHost(host string) bool {
 
 // originMatchesRequest implements the browser same-origin check used by the Web
 // origin guard and the WebSocket handshake. Requests without an Origin header
-// are non-browser clients and remain allowed.
+// pass this check; non-browser clients typically omit it, but its absence does
+// not identify or authenticate the caller.
 //
 // Comparing against the request's own Host is what keeps the browser UI working
 // on a hostname OwlMail was never configured with, a reverse proxy's included.
@@ -267,9 +268,9 @@ func normalizeOrigin(value string) (string, bool) {
 // originAllowed reports whether a browser Origin appears in an endpoint's
 // allow list. Both the Web API guard and the MCP guard call it, so it decides
 // membership only and leaves the policy around that answer to each caller.
-// An absent Origin identifies a non-browser client such as curl, an SDK HTTP
-// client, or another server, and stays allowed; browsers always send the
-// header on cross-origin requests.
+// An absent Origin passes this check. Non-browser clients such as curl and SDK
+// HTTP clients typically omit it; any caller that supplies it is checked against
+// the allow list. This policy does not authenticate a caller.
 //
 // The "*" opt-out is deliberately not handled here. Recognizing it in more than
 // one place is what let it sit behind this parse gate, where an opaque browser

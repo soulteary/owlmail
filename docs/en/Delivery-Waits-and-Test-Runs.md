@@ -1,5 +1,8 @@
 # Delivery waits and test runs
 
+These routes and cursor-aware MCP selectors follow `main` and are not available
+in the original `v0.10.1` binary or image.
+
 A delivery cursor closes the race between triggering application mail and
 registering a waiter. Obtain it **before** triggering the application:
 
@@ -58,3 +61,7 @@ MCP `list_emails` and `search_emails` return a `cursor` and accept `run_id` and
 the existing new-delivery-only contract. Existing MCP session/process quotas
 still apply; cursor-based waits also share the mailbox wait quota. MCP stays
 read-only and exposes no cleanup tool.
+
+MCP `wait_for_email` accepts no `count` parameter and returns at most one summary
+in `email`, with `matched` and `timed_out`. The `count` threshold and plural
+`emails` response above belong to the REST endpoint.

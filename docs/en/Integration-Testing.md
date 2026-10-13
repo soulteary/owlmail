@@ -2,7 +2,7 @@
 
 OwlMail is a test boundary for applications that send email. Point the
 application's SMTP client at OwlMail, trigger the behavior under test, then
-assert the captured message through the native read-only HTTP API. Use a unique
+assert the captured message through native HTTP read operations. Use a unique
 recipient or subject for every test so parallel jobs cannot consume each
 other's mail.
 
@@ -14,7 +14,17 @@ docker run --rm -d --name owlmail-test \
   -p 127.0.0.1:1080:1080 \
   ghcr.io/soulteary/owlmail:0.10.1
 
-until curl --fail --silent http://127.0.0.1:1080/readyz >/dev/null; do sleep 1; done
+for attempt in $(seq 1 30); do
+  if curl --fail --silent --connect-timeout 2 --max-time 3 \
+    http://127.0.0.1:1080/readyz >/dev/null; then
+    break
+  fi
+  if [ "$attempt" -eq 30 ]; then
+    docker logs owlmail-test
+    exit 1
+  fi
+  sleep 1
+done
 ```
 
 Configure the system under test with SMTP host `127.0.0.1`, port `1025`, and
@@ -22,6 +32,12 @@ no TLS or authentication for this local profile. CI that requires a
 cryptographically fixed image should replace the tag with the manifest form
 `ghcr.io/soulteary/owlmail@sha256:<digest>` recorded during release
 verification.
+
+The original 0.10.1 release's readiness checks enabled S3 attachment storage;
+it does not verify local storage or outgoing SMTP. Confirm ingress with a real
+test message. Current main adds those readiness checks plus cursor-based waits,
+test-run selectors, and the `/check` assertion endpoint. Build main to use the
+flow below; it cannot run against the pinned stable image above.
 
 ## Deterministic test flow
 
@@ -47,6 +63,25 @@ The collection response contains `total`, `limit`, `offset`, and `emails`.
 An empty result is not a delivery failure until the test's own deadline has
 expired. Prefer bounded retry with a short interval over a fixed sleep.
 
+## Cursor-based flow on main
+
+1. Obtain `GET /api/v1/emails/cursor` **before** triggering application mail.
+2. Send mail with a unique `X-OwlMail-Run-ID` and exact SMTP envelope recipient.
+3. Call `POST /api/v1/emails/wait` with `after`, `run_id`, `recipient`, `count`,
+   and a bounded `timeout_seconds`. It includes retained matches delivered
+   after the cursor, even if they arrived before the wait began.
+4. Check `timed_out` and `emails`; a timeout is a normal HTTP 200 response.
+   `count` is an at-least threshold, not an exactly-once assertion.
+5. Use `POST /api/v1/emails/:id/check` or inspect the detached detail.
+6. Clean up with `DELETE /api/v1/test-runs/:runID/emails` after assertions;
+   inspect the `failed` array and `more_possible` before considering it done.
+
+Cursors expire on process restart. Test-run IDs are selectors, not tenant
+authorization. The [delivery wait contract](./Delivery-Waits-and-Test-Runs.md)
+defines count limits, quotas, pending Relay protection, and bounded cleanup.
+The [README example](../../README.md#wait-check-and-clean-up-in-ci) shows a
+complete main-branch test with Python's standard library.
+
 ## Isolation choices
 
 | Scope | Recommended isolation |
@@ -67,7 +102,7 @@ belonging to other tests. Reading a native v1 email does not mark it as read.
 | API is ready but no message appears | Application SMTP logs, envelope recipient, and query filters |
 | A test finds another test's message | Use a unique recipient and avoid subject-only matching |
 | HTML assertion differs | Assert sanitized HTML, or use `/source` when exact RFC 5322 bytes matter |
-| Intermittent timeout | Start waiting before triggering delivery and use a bounded deadline |
+| Intermittent timeout | On main, capture a cursor before triggering; for stable live MCP waits, register the wait concurrently before the trigger; bound every REST poll |
 
 Runnable dependency-free examples for JavaScript, Go, and Python are in
 [examples/testing](../../examples/testing/README.md). For exact routes and

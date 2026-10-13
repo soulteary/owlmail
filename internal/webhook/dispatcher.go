@@ -110,8 +110,9 @@ func (dispatcher *Dispatcher) releaseDeliverySlot() {
 	}
 }
 
-// Dispatch synchronously sends an email to every matching target. MailServer
-// invokes event listeners asynchronously, so this never blocks SMTP storage.
+// Dispatch waits for all matching HTTP targets. Normal server delivery uses
+// DispatchDelivery from queue workers; SMTP acceptance waits for the durable
+// local outbox handoff, not this network delivery. Direct callers block here.
 func (dispatcher *Dispatcher) Dispatch(ctx context.Context, email *types.Email) []Result {
 	return dispatcher.DispatchDelivery(ctx, email, "")
 }

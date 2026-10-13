@@ -4,6 +4,10 @@
 带版本号的 `/api/v1` 路由。无版本路由继续服务已有 OwlMail 客户端和常见的
 MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一致。
 
+**版本范围：**本页跟随 `main`。Cursor 等待、测试运行选择器、邮件断言、投递历史与
+手动重试不包含在原始 `v0.10.1` 发布中。使用该版本的二进制或镜像时，请参阅
+[0.10.1 标签下的 API 参考](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/zh-CN/API-Reference.md)。
+
 ## 基础地址与鉴权
 
 默认基础地址为 `http://localhost:1080`。除 HTML、纯文本、附件、EML 和 ZIP
@@ -40,7 +44,7 @@ Web 主机与 Web 端口上的回环名称，以及设置了 `-web-external-url`
 一律在进入任何处理器之前返回纯文本 `403`，无需鉴权的健康检查端点同样如此。
 
 不携带 `Origin` 的请求行为不变。`curl`、各语言 HTTP 库、CI 脚本与服务器之间的
-调用都不会发送该头，只有浏览器页面会发送。
+调用通常省略该头，但客户端也可以显式发送，此时同样接受来源校验。
 
 对显式列出的来源，响应中的 `Access-Control-Allow-Origin` 会精确回显该来源，并
 附带 `Access-Control-Allow-Credentials: true`，预检返回 `204`，因此被允许的浏览器
@@ -437,27 +441,32 @@ ID 视为不透明字符串。
 更完整的功能比较见
 [功能、API 与迁移指南](./Comparison-and-Migration.md)。
 
-## Cursor waits and test-run selectors
+## Cursor 等待与测试运行选择器
 
-- `GET /api/v1/emails/cursor` returns a process-scoped committed delivery cursor.
-- `POST /api/v1/emails/wait` replays retained mail after that cursor and waits
-  for a bounded number of matching deliveries.
-- `DELETE /api/v1/test-runs/:runID/emails` deletes a bounded snapshot belonging
-  to one test run, preserving pending relay sources.
+- `GET /api/v1/emails/cursor` 返回当前进程内已提交投递的 cursor。
+- `POST /api/v1/emails/wait` 回放该 cursor 之后仍保留的邮件，并有界等待匹配投递。
+- `DELETE /api/v1/test-runs/:runID/emails` 删除某次测试运行的有界快照，保留待处理的
+  Relay 源邮件。
 
-Native lists, previews, and exports accept exact `run_id` and `recipient` query
-selectors. Send `X-OwlMail-Run-ID` to group captured messages. These selectors
-are test organization, not authentication or tenant isolation. See the
-[delivery wait contract](../en/Delivery-Waits-and-Test-Runs.md) for cursor
-expiry, timeout results, quotas, and cleanup semantics.
+原生列表、预览与导出支持精确匹配的 `run_id` 和 `recipient` 查询选择器。发送邮件时
+用 `X-OwlMail-Run-ID` 分组。这些选择器只组织测试数据，不提供认证或租户隔离。
+Cursor 失效、超时结果、配额与清理语义见
+[投递等待契约（English）](../en/Delivery-Waits-and-Test-Runs.md)。
 
-## Deterministic email checks
+## 确定性邮件断言
 
-`POST /api/v1/emails/:id/check` inspects a detached email snapshot without marking it read or fetching URLs. The request accepts case-sensitive `subject_contains` and `text_contains` arrays, an exact `attachment_count`, and attachment expectations by original `filename` with optional `content_type`, `sha256`, and `max_bytes`. Duplicate filenames fail the expectation rather than selecting an arbitrary attachment.
+`POST /api/v1/emails/:id/check` 检查独立的邮件快照，不标记已读，也不请求 URL。
+请求支持区分大小写的 `subject_contains` 和 `text_contains` 数组、精确的
+`attachment_count`，以及按原始 `filename` 指定的附件期望；附件可附加
+`content_type`、`sha256` 和 `max_bytes` 条件。重名附件会使对应断言失败，而不会
+任意选择其中一个。
 
-`allowed_link_hosts` checks exact, case-insensitive HTTP(S) hostnames from plain text URLs, HTML anchors, and images. CID and relative references are reported but are not HTTP(S) host checks. This is a content assertion, not a security scanner. Inspection uses the stored, sanitized HTML.
+`allowed_link_hosts` 检查纯文本 URL、HTML 链接和图片中的 HTTP(S) 主机名，按完整
+主机名匹配且忽略大小写。CID 与相对引用会出现在报告中，但不参与 HTTP(S) 主机名
+检查。该功能是内容断言，不是安全扫描器；HTML 检查基于已保存的安全化内容。
 
-`extract` accepts unique names, RE2 patterns, and a `source` of `text` (default), `subject`, or `html`. The first capture group is returned when present; otherwise the entire match is returned. No match produces an empty array.
+`extract` 接受唯一名称、RE2 正则，以及 `text`（默认）、`subject` 或 `html` 类型的
+`source`。有捕获组时返回第一组，否则返回完整匹配；没有匹配时返回空数组。
 
 ```json
 {
@@ -468,15 +477,34 @@ expiry, timeout results, quotas, and cleanup semantics.
 }
 ```
 
-HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Assertion failures set `passed: false`; invalid requests return 400, oversized requests return 413, and missing mail returns 404. Requests are limited to 64 KiB, 100 combined selectors, and 2 MiB per inspected body. Links and matches per extraction are capped at 200 with explicit truncation flags. Extracted values also share a 2 MiB aggregate UTF-8 byte budget; exhausting it sets `extractions_truncated`. A truncated link list fails the allowed-host assertion. CI should also reject truncation when complete extraction is required.
+HTTP 200 响应包含 `passed`、逐项 `checks`、`links` 与 `extractions`。断言失败时
+`passed: false`；无效请求返回 400，过大请求返回 413，邮件不存在返回 404。
+请求体上限为 64 KiB，组合选择器总数上限为 100，每份被检查的正文上限为 2 MiB。
+链接数与每项提取的匹配数均最多 200，并带显式截断标志。提取值还共享 2 MiB 的
+UTF-8 字节预算，用尽时设置 `extractions_truncated`。链接列表被截断会使允许主机名
+断言失败；CI 若要求完整提取，也应把截断视为失败。
 
-## Delivery workflows
+## 投递工作流
 
-`GET /api/v1/relay-jobs` and `GET /api/v1/webhook-deliveries` accept `status`, exact `email_id`, and `limit` (1..1000, default 100). Responses report `more_possible` and `persistence_healthy`; webhook responses also report `enabled`. Relay jobs include queued, succeeded, and failed states. Webhook history contains terminal outcomes, target names, HTTP status, attempts, and sanitized error categories; URLs, credentials, payloads, and raw errors are excluded. Webhook history is bounded to at most 1000 records, 24 hours, and 2 MiB of encoded history (oldest records are pruned to fit) and persists under `.owlmail-meta/webhook-history` when a spool is configured. Mailbox cleanup preserves workflow metadata.
+`GET /api/v1/relay-jobs` 与 `GET /api/v1/webhook-deliveries` 接受 `status`、精确
+`email_id` 和 `limit`（1–1000，默认 100）。响应报告 `more_possible` 和
+`persistence_healthy`，Webhook 还报告 `enabled`。Relay 任务包含 queued、succeeded
+与 failed 状态。Webhook 历史保存最终结果、目标名、HTTP 状态、尝试次数与安全化的
+错误分类，不包含 URL、凭据、载荷或原始错误。其上限为 1000 条、24 小时与 2 MiB
+编码数据，超限时裁剪最旧记录；配置 spool 时保存到 `.owlmail-meta/webhook-history`。
+清理邮箱不会删除工作流元数据。
 
-`POST /api/v1/relay-jobs/:jobID/retry` starts a new durable job only from a failed record and retains the original confirmed recipients. The source email must still exist. Concurrent pending relays for that email are rejected.
+`POST /api/v1/relay-jobs/:jobID/retry` 只从失败记录创建新的持久任务，并保留原来已
+确认的收件人。源邮件必须仍存在；同一邮件有待处理 Relay 时拒绝并发重试。
 
-`POST /api/v1/webhook-deliveries/:jobID/retry` replays only failed named targets that are still configured, using the original delivery ID for receiver deduplication. Successful targets are excluded. A replay replaces that delivery's terminal summary with its latest outcomes. Current target credentials/templates apply. The source email must still exist. Replays are serialized per delivery within the process; queue-only errors recover through the existing queue. A failed enqueue can leave recoverable outbox work, so delivery remains at least once. Receivers must deduplicate delivery IDs.
+`POST /api/v1/webhook-deliveries/:jobID/retry` 只重放仍在配置中的失败目标，沿用
+原始 delivery ID，供接收方去重；成功目标不再发送。重放会以最新结果替换该投递的
+最终摘要，并使用当前凭据与模板。源邮件必须仍存在。进程内同一投递的重放串行执行；
+仅队列失败的任务通过现有队列恢复。入队失败仍可能留下可恢复的 outbox 工作，因此
+投递语义仍是至少一次，接收方必须按 delivery ID 去重。
 
-An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled or unavailable webhook queue/persistence service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee. Malformed history is quarantined and delivery startup continues; recovery health remains false until a clean restart. Deletion-side relay storage failures also report unhealthy persistence.
-
+重放被接受返回 202；记录或源邮件不存在返回 404；记录不符合重试条件或已有待处理
+重放返回 409；Webhook 队列或持久化服务关闭或不可用返回 503。历史持久化失败通过
+`persistence_healthy: false` 暴露，不改变 SMTP 接受结果。历史是诊断元数据，不是
+审计日志，也不保证恰好一次投递。损坏历史会被隔离，投递服务继续启动，恢复健康状态
+保持失败直到一次干净的重启；删除时的 Relay 存储失败也会报告持久化不健康。

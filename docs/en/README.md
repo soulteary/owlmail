@@ -28,6 +28,15 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 - **[Offline Configuration and Recovery Diagnostics](./Configuration-Doctor.md)**
   - Read-only startup checks and durable relay recovery inventory.
 
+- **[Delivery Waits and Test Runs](./Delivery-Waits-and-Test-Runs.md)**
+  - Capture a cursor before triggering mail, wait for exact run/recipient matches,
+    and clean up one test run. Requires the post-0.10.1 source tree.
+- **[Verification and Delivery Status](./Email-Verification-UI.md)**
+  - Verify captured content and inspect or retry failed deliveries in the mailbox.
+    Requires the post-0.10.1 source tree.
+- **[Browser and Container Regression Checks](./Browser-Regression-Testing.md)**
+  - Run the live browser suite and validate packaged healthcheck behavior.
+
 - **[Integration Testing](./Integration-Testing.md)**
   - Deterministic SMTP capture, REST assertions, parallel isolation, and failure diagnosis.
   - **Runnable examples**: [JavaScript, Go, Python, and Compose](../../examples/testing/README.md)

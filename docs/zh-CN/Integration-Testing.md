@@ -12,14 +12,22 @@ docker run --rm -d --name owlmail-test \
   -p 127.0.0.1:1080:1080 \
   ghcr.io/soulteary/owlmail:0.10.1
 
-until curl --fail --silent http://127.0.0.1:1080/readyz >/dev/null; do sleep 1; done
+attempt=0
+until curl --fail --silent --connect-timeout 1 --max-time 2 http://127.0.0.1:1080/readyz >/dev/null; do
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    docker logs owlmail-test
+    exit 1
+  fi
+  sleep 1
+done
 ```
 
 本地测试配置为 SMTP `127.0.0.1:1025`，不启用 TLS 与认证。要求密码学级固定镜像
 时，应把标签替换为发布验证阶段记录的
 `ghcr.io/soulteary/owlmail@sha256:<digest>`。
 
-## 确定性测试流程
+## 正式版：有界轮询流程
 
 1. 生成 `signup+<test-run-id>@example.test` 一类不会碰撞的收件人。
 2. 触发被测应用发信。
@@ -37,6 +45,12 @@ curl --fail --get http://127.0.0.1:1080/api/v1/emails \
 
 集合响应包含 `total`、`limit`、`offset` 与 `emails`。在测试自身截止时间之前，
 空结果不代表投递失败。应使用有界重试与短间隔，避免固定长时间 sleep。
+
+当前主分支还提供投递 cursor 与 `run_id` 流程：先记录 cursor，再触发应用，然后
+等待指定测试运行与精确信封收件人的邮件。这可以覆盖邮件先于 wait 到达的情况；
+不要在上面的原 `v0.10.1` 实例调用这些新增路由。可运行示例见
+[README 主分支测试流程](../../README.zh-CN.md#在-ci-中等待验证和清理)，
+完整限制见[投递等待与测试运行契约](../en/Delivery-Waits-and-Test-Runs.md)。
 
 ## 隔离选择
 
@@ -58,7 +72,7 @@ curl --fail --get http://127.0.0.1:1080/api/v1/emails \
 | API 就绪但没有邮件 | 应用 Mailer 日志、信封收件人和查询过滤器 |
 | 读到其他测试邮件 | 使用唯一收件人，不要只匹配主题 |
 | HTML 断言不同 | 断言安全化 HTML；精确 MIME 字节使用 `/source` |
-| 偶发超时 | 先开始等待再触发投递，并设置明确截止时间 |
+| 偶发超时 | 正式版使用唯一收件人与有界轮询；主分支先记录 cursor 再触发并等待。检查应用发信日志和测试截止时间 |
 
 JavaScript、Go、Python 的零依赖可运行示例见
 [examples/testing](../../examples/testing/README.zh-CN.md)。准确路由与响应见

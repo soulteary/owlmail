@@ -24,8 +24,9 @@ addresses to a test inbox.
 
 ## Attachment delivery
 
-Fetch `GET /api/v1/emails/:id` and assert `attachment_count`. Then request the
-known attachment path from the message metadata and validate content type,
+Fetch `GET /api/v1/emails/:id` and assert the length of its `attachments` array
+(treat a null array as empty). Then request the known attachment path from
+the message metadata and validate content type,
 size, and checksum. The MCP `list_attachments` tool intentionally provides
 metadata only; use the HTTP API when byte-level assertions are necessary.
 

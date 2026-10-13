@@ -40,8 +40,8 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 - **統合テスト対応** — `/api/v1`、OpenAPI 3.1、ネイティブ WebSocket、
   health/readiness、検索、フィルター、エクスポートを提供します。
 - **AI ネイティブで AI 非依存** — 既定で無効の MCP は、7 個の閉じた読み取り
-  専用 Tool、上限付き Resource、Prompt、イベント駆動 `wait_for_email` を提供し、
-  OwlMail 自体は LLM を必要としません。
+  専用 Tool、上限付き Resource、Prompt、HTTP のイベント駆動 `wait_for_email` を提供します。
+  stdio は約 500 ms ごとにディレクトリをスキャンします。OwlMail 自体は LLM を必要としません。
 - **永続的な自動化** — ローカル Webhook outbox、任意の Redis Streams、HMAC、
   安定した配信 ID、有限再試行、graceful drain。
 - **明示的な運用境界** — SMTP 容量制限、永続化、任意の S3 添付、SQLite
@@ -88,6 +88,8 @@ go build -o owlmail ./cmd/owlmail
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
 owlmail
 ```
+
+`go install` は `GOBIN` または `GOPATH/bin` に `owlmail` を配置します。このディレクトリを `PATH` に追加し、`./owlmail` ではなく `owlmail` を使ってください。`./owlmail` はローカルでビルドまたはダウンロードしたファイルを指します。
 
 ### Basic Usage
 
@@ -175,14 +177,7 @@ aarch64 (ARM64) またはその他のアーキテクチャの場合、Docker Bui
 ```bash
 # buildx を有効化（まだ有効でない場合）
 docker buildx create --use --name multiarch-builder
-
-# 複数のアーキテクチャ用にビルド
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t owlmail:latest \
-  --load .
-
-# またはビルドしてレジストリにプッシュ
+# マルチアーキテクチャのイメージをビルドしてレジストリへプッシュ
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t your-registry/owlmail:latest \
@@ -198,6 +193,8 @@ docker buildx build \
 **注意**：Dockerfile は、Docker Buildx によって自動的に設定される `TARGETOS` と `TARGETARCH` ビルド引数を使用して、マルチアーキテクチャビルドをサポートするようになりました。
 
 ## 📖 Configuration Options
+
+この表には現在の `main` のオプションが含まれます。上でインストールした `v0.10.1` に `-disable-web` はありません。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
 
 ### Command Line Arguments
 
@@ -318,7 +315,7 @@ export OWLMAIL_WEB_PORT=1080
 
 ### API Response Format
 
-OwlMail uses a standardized API response format:
+変更操作は通常、以下の形式です。一覧と詳細はリソースを直接返し、HTML、テキスト、EML、添付、ZIP は個別の形式です。[API リファレンス](./docs/en/API-Reference.md)を参照してください。
 
 **Success Response:**
 ```json

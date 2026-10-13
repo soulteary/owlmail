@@ -42,7 +42,8 @@ borné en lecture seule.
   sondes de santé, recherche, filtrage et export.
 - **AI-native sans dépendre de l’AI** — Le MCP désactivé par défaut expose sept
   outils fermés en lecture seule, des ressources bornées, des prompts et
-  `wait_for_email` événementiel ; OwlMail ne requiert aucun LLM.
+  `wait_for_email` événementiel via HTTP ; stdio parcourt le dossier environ
+  toutes les 500 ms. OwlMail ne requiert aucun LLM.
 - **Automatisation durable** — Outbox Webhook locale, Redis Streams optionnel,
   HMAC, identifiants stables, reprises bornées et arrêt progressif.
 - **Exploitation explicite** — Limites SMTP, persistance, pièces jointes S3
@@ -89,6 +90,8 @@ go build -o owlmail ./cmd/owlmail
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
 owlmail
 ```
+
+`go install` place `owlmail` dans `GOBIN` ou `GOPATH/bin`, qui doit être dans `PATH`. Utilisez alors `owlmail` au lieu de `./owlmail`. `./owlmail` désigne un fichier compilé ou téléchargé localement.
 
 ### Basic Usage
 
@@ -178,14 +181,7 @@ Pour aarch64 (ARM64) ou d'autres architectures, utilisez Docker Buildx :
 ```bash
 # Activer buildx (si ce n'est pas déjà fait)
 docker buildx create --use --name multiarch-builder
-
-# Construire pour plusieurs architectures
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t owlmail:latest \
-  --load .
-
-# Ou construire et pousser vers le registre
+# Créer une image multiarchitecture et la pousser vers le registre
 docker buildx build \
   --platform linux/amd64,linux/arm64 \
   -t your-registry/owlmail:latest \
@@ -201,6 +197,8 @@ docker buildx build \
 **Note** : Le Dockerfile prend maintenant en charge les builds multi-architecture en utilisant les arguments de build `TARGETOS` et `TARGETARCH`, qui sont automatiquement définis par Docker Buildx.
 
 ## 📖 Configuration Options
+
+Le tableau inclut des options du `main` actuel. `-disable-web` n'est pas dans le `v0.10.1` installé ci-dessus ; voir [le choix de version](./README.md#choose-a-version) et [la référence de configuration](./docs/en/Configuration-Reference.md).
 
 ### Command Line Arguments
 
@@ -322,7 +320,7 @@ export OWLMAIL_WEB_PORT=1080
 
 ### API Response Format
 
-OwlMail uses a standardized API response format:
+Les mutations utilisent généralement le format ci-dessous. Les listes et détails renvoient directement les ressources ; HTML, texte, EML, pièces jointes et ZIP ont des formats propres. Voir [la référence API](./docs/en/API-Reference.md).
 
 **Success Response:**
 ```json

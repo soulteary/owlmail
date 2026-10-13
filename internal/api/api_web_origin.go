@@ -96,10 +96,10 @@ func (api *API) webSocketOriginAllowed(request *http.Request) bool {
 // address it chose, and empty the mailbox. Binding to loopback does not help,
 // because the browser making the request runs on that same host.
 //
-// Requests without an Origin header are non-browser clients -- curl, an HTTP
-// library, a CI script, another server -- and stay allowed. That is what makes
-// the check safe to turn on by default: only browsers send the header, and a
-// browser is the only caller this policy is about.
+// Requests without an Origin header pass this guard; configured authentication
+// still applies. Non-browser clients such as curl and CI scripts typically omit
+// it, but can supply it. The header is a browser access policy input, not proof
+// of client identity.
 func (api *API) webOriginGuard() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// The MCP endpoint owns a strictly narrower policy of its own. Answering

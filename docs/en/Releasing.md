@@ -11,8 +11,8 @@ container images must be built from that same tag.
 - `CHANGELOG.md` records user-visible changes.
 - `docs/en/Release-X.Y.Z.md` is the curated English release body.
 - `docs/zh-CN/Release-X.Y.Z.md` is the corresponding Chinese release note.
-- `.github/workflows/release.yml` builds formal binaries, checksums, per-binary
-  SBOMs, provenance, signatures, and multi-architecture release images from
+- `.github/workflows/release.yml` builds formal binaries, license/notice bundles,
+  checksums, per-binary SBOMs, provenance, signatures, and multi-architecture release images from
   tags.
 - `.github/workflows/docker.yml` publishes moving `main`, `latest`, and commit
   snapshots for the default branch only.
@@ -45,6 +45,9 @@ tagging.
 ## Create the release tag
 
 Update local `main`, record the exact commit, then create one annotated tag:
+
+The commands use `v0.10.1` as a syntax example. That tag is already published;
+replace it with the next unpublished version after updating `VERSION` and notes.
 
 ```bash
 git switch main
@@ -102,6 +105,10 @@ current workflow contains:
 - `owlmail-darwin-arm64.spdx.json`
 - `owlmail-windows-amd64.exe`
 - `owlmail-windows-amd64.exe.spdx.json`
+- `owlmail-licenses.tar.gz`
+
+The license archive is produced by the current workflow; historical releases
+such as the original `v0.10.1` do not gain it retroactively.
 
 Download all files into an empty directory and verify them:
 
@@ -116,7 +123,31 @@ cosign verify-blob \
 ```
 
 The checksum manifest and GitHub provenance attestations cover all five
-executables and all five adjacent `*.spdx.json` SBOMs.
+executables, all five adjacent `*.spdx.json` SBOMs, and the license archive.
+
+### License and notice distribution
+
+Extract `owlmail-licenses.tar.gz` alongside downloaded binaries. Its
+`owlmail-licenses/` directory includes the unchanged project `LICENSE`, exact
+upstream license and notice files, a combined `THIRD_PARTY_NOTICES.txt`, and
+`manifest.json` recording target platforms, Go version, module versions, and
+SHA-256 hashes. Preserve those texts when redistributing the binary.
+
+The generator inspects runtime imports with CGO disabled for all five release
+platforms, including package-specific and Go-vendored terms. It fails if a
+required license is absent or empty. Regenerate in a new or empty directory:
+
+```bash
+go run ./scripts/license-bundle -output dist/licenses
+```
+
+Main-branch build snapshots include `dist/licenses/`. Images built from this
+source include the target-specific bundle at `/usr/share/licenses/owlmail/`.
+The bundle covers OwlMail and its Go dependencies; base-image operating-system
+packages retain their own terms. Upstream root notices are kept in full and
+may mention optional or test components as well.
+
+### Binary smoke test
 
 Smoke-test at least one binary:
 

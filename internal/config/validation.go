@@ -432,11 +432,13 @@ func ValidateDirWritable(path string) error {
 }
 
 // ValidateMailDir validates the mail directory configuration.
-// If mailDir is empty, no validation is performed (emails stored in memory).
-// If mailDir is specified, validates it's a valid, writable directory path.
+// If mailDir is empty, startup selects a process-specific temporary directory
+// for EML and attachments, with parsed mailbox state held in memory.
+// A specified path is checked for safe syntax; runtime storage probes verify
+// write access rather than this function.
 func ValidateMailDir(mailDir string) error {
 	if mailDir == "" {
-		// Empty mail directory means in-memory storage, which is valid
+		// The server resolves an empty value to its default temporary directory.
 		return nil
 	}
 

@@ -23,6 +23,17 @@
 - **[配置参考](./Configuration-Reference.md)**
   - 完整参数、默认值、环境变量别名与优先级。
 
+- **[投递等待与测试运行（English）](../en/Delivery-Waits-and-Test-Runs.md)**
+  - 触发邮件前获取 cursor，按测试运行与收件人精确等待，并只清理该次测试的数据。
+    需要 0.10.1 发布之后的源码。
+- **[邮件断言与投递状态（English）](../en/Email-Verification-UI.md)**
+  - 在邮箱中验证内容、查看失败投递并手动重试。需要 0.10.1 发布之后的源码。
+- **[可复现投递故障（English）](../en/Fault-Injection.md)**与
+  **[离线配置和恢复诊断（English）](../en/Configuration-Doctor.md)**
+  - 本地 HTTP/SMTP 故障接收器，以及只读的启动配置、持久 Relay 恢复检查。
+- **[浏览器与容器回归检查（English）](../en/Browser-Regression-Testing.md)**
+  - 运行真实浏览器测试并验证镜像中健康检查的行为。
+
 - **[集成测试](./Integration-Testing.md)**
   - 确定性 SMTP 捕获、REST 断言、并行隔离与故障定位。
   - **可运行示例**：[JavaScript、Go、Python 与 Compose](../../examples/testing/README.zh-CN.md)
@@ -44,7 +55,7 @@
   - 组件职责、数据流、单实例边界、信任模型与部署清单。
   - **其他语言**：[Architecture](../en/Architecture.md) | [Security Model](../en/Security-Model.md)
 
-- **[OwlMail 0.10.1 发布说明](./Release-0.10.1.md) · [0.10.0 release notes](./Release-0.10.0.md)**
+- **[OwlMail 0.10.1 发布说明](./Release-0.10.1.md) · [0.10.0 发布说明](./Release-0.10.0.md)**
   - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
   - **其他语言**：[English](../en/Release-0.10.1.md)
   - **上一版本**：[0.9.0](./Release-0.9.0.md)（[English](../en/Release-0.9.0.md)）

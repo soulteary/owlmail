@@ -20,7 +20,7 @@ AI 客户端可以使用 `registration_verification_email` MCP Prompt 完成只�
 
 ## 附件投递
 
-获取 `GET /api/v1/emails/:id` 并断言 `attachment_count`。再使用邮件元数据中的
+获取 `GET /api/v1/emails/:id` 并断言 `attachments` 数组的长度（`null` 视为空数组）。再使用邮件元数据中的
 附件路径读取已知附件，验证类型、大小与摘要。MCP `list_attachments` 有意只提供
 元数据；需要字节级断言时使用 HTTP API。
 

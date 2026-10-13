@@ -5,6 +5,14 @@ readiness, persistence, webhook capacity, shutdown behavior, and common failure
 modes. See the [API Reference](./API-Reference.md) and
 [Webhook Forwarding](./Webhook-Forwarding.md) for protocol details.
 
+The binary and API descriptions follow current main. Docker examples explicitly
+pin stable 0.10.1, whose original release does not contain `doctor`,
+`healthcheck`, `-disable-web`, cursor/test-run workflows, or the expanded local
+storage and outgoing readiness checks. In that release `/readyz` checks only
+enabled S3 attachment storage, and the image probe is fixed to HTTP port 1080
+at `/healthz`. Build current main before using the main-only commands below;
+see the [README version guide](../../README.md#choose-a-version).
+
 ## Layered configuration files
 
 Use `-config PATH` or `OWLMAIL_CONFIG_FILE` to load a flat YAML or JSON object.
@@ -288,7 +296,7 @@ by a normal OwlMail startup. This command intentionally supports only local to
 S3 migration; it does not download S3 objects back to local storage.
 
 
-### Choosing the healthcheck command
+### Choosing the healthcheck command (main)
 
 `/healthz` confirms that the HTTP process responds and remains independent of
 storage failures. The image keeps this liveness check to avoid restart loops.
@@ -338,8 +346,10 @@ docker run -d \
   ghcr.io/soulteary/owlmail:0.10.1
 ```
 
-This guide pins the `0.10.1` release image. The `main` and `latest` tags move with
-default-branch builds and should not be used for a repeatable deployment.
+The Docker examples pin the `0.10.1` release image. The main-only commands and
+expanded readiness policy above require a main build. The `main` and `latest`
+tags move with default-branch builds and should not be used for a repeatable
+deployment.
 
 The image configures OwlMail to listen on `0.0.0.0` inside the container, which
 is what lets the process accept connections from outside its network namespace.
@@ -442,18 +452,19 @@ page the developer happens to visit runs on the same machine, so
 what it is bound to; the only question is whether the browser hands the response
 to that page.
 
-A request that carries no `Origin` header is a non-browser client — `curl`, an
-HTTP library, a CI script, another server — and is allowed unchanged. A request
-that carries one is allowed when the origin matches the request's own, matches
+A request without an `Origin` header is allowed by this guard; authentication
+still applies. Non-browser clients such as `curl`, HTTP libraries, and CI
+scripts typically omit this header, but its absence does not identify or trust
+the caller. A request that carries one is allowed when the origin matches the request's own, matches
 one of the listener's origins (the configured Web host and the loopback names at
 the Web port, on the scheme this listener serves, plus `-web-external-url` when
 set), or is listed in `-web-allowed-origins`. Anything else is answered with
 `403` before any handler runs.
 
 The health, readiness and metrics endpoints are inside that boundary rather than
-exempt from it. Every caller that actually probes them — Docker's `HEALTHCHECK`,
-Kubernetes probes, `curl`, a monitoring agent — sends no `Origin` and is
-unaffected. What changes is the browser case: a page on an unrelated origin
+exempt from it. Standard Docker and Kubernetes probes, `curl`, and monitoring
+clients typically omit `Origin` and are unaffected by this guard. A custom
+probe that supplies it follows the same allow list. In the browser case, a page on an unrelated origin
 that fetched `/healthz` previously learned that OwlMail was listening on a
 loopback port, which is a fingerprinting oracle rather than a health check. A
 browser status page that must read them cross-origin names its origin in
@@ -512,9 +523,10 @@ Consequently it inherits all of these boundaries:
 
 One boundary is deliberately **not** inherited. Browser origin validation runs
 on `/mcp` whether or not Basic Auth is configured, because an unauthenticated
-MCP endpoint is exactly the one a browser can reach. A request without an
-`Origin` header is a non-browser client and is allowed; a request that carries
-one must name an OwlMail origin (the configured Web host and the loopback names
+MCP endpoint is exactly the one a browser can reach. The guard permits requests
+without an `Origin` header, which non-browser clients typically omit; Basic
+Auth still applies when configured. A request that carries one must name an
+OwlMail origin (the configured Web host and the loopback names
 at the Web port, on the scheme this listener itself serves, plus
 `-web-external-url` when set) or an origin listed in `-mcp-allowed-origins`, and
 is otherwise answered with `403`. When TLS terminates at a reverse proxy, the
@@ -548,16 +560,18 @@ The MCP service exposes exactly seven closed-world, read-only tools:
 
 | Tool | Result boundary |
 |---|---|
-| `list_emails` | Paginated compact summaries from the existing mailbox query API |
-| `search_emails` | The same summaries filtered across subject, text, and HTML |
+| `list_emails` | Paginated compact summaries; main accepts `run_id` / exact `recipient` and returns a delivery `cursor` |
+| `search_emails` | The same summaries filtered across subject, text, and HTML, with main's cursor and test-run selectors |
 | `get_email` | One detached mailbox snapshot; sanitized HTML is opt-in |
 | `get_email_source` | Raw RFC 5322 source as lossless base64; decoded bytes are limited to 1 MiB by default and 100 MiB maximum |
 | `list_attachments` | Names, content types, sizes, hashes, and storage metadata; never bytes |
 | `get_latest_email` | The newest one to 20 compact summaries, ordered by mailbox time |
-| `wait_for_email` | Waits for a new recipient/subject/text match through the delivery event stream; never polls |
+| `wait_for_email` | Without `after`, waits for new matching delivery; on main, `after` replays retained mail after a cursor and then waits |
 
 There are no MCP tools for deleting, marking read, relaying, forwarding,
-downloading attachments, changing configuration, or reloading the mailbox.
+changing configuration, or reloading the mailbox. There is no dedicated
+decoded-attachment download tool; raw MIME returned by `get_email_source`
+may contain attachment payloads.
 `list_emails` and `search_emails` reuse `QueryEmailPreviews`; `get_email` and
 `list_attachments` use the mailbox's deep-copy `GetEmail` boundary rather than
 maintaining a second index or returning internal pointers.
@@ -569,8 +583,17 @@ modern HTTP request has an independent quota scope. Client cancellation,
 modern response-stream closure, legacy session deletion or timeout, and
 process shutdown remove waiters immediately.
 The waiter registry is bounded and receives committed `new` events through one
-mailbox listener, so it neither performs high-frequency polling nor creates a
-background goroutine per waiter.
+mailbox listener. On main, capture the list/search cursor before triggering
+application mail and pass it as `after`, with exact envelope `recipient` and
+optional `run_id`. Do not combine `after` with substring `to`. This closes the
+trigger/wait race and shares the mailbox's 64-wait quota. Without `after`, only
+future deliveries match; search for mail that already exists. Neither HTTP
+wait path polls the mailbox. See [delivery waits and test runs](./Delivery-Waits-and-Test-Runs.md).
+
+The MCP result is one optional `email` summary with `matched`, `timed_out`, and
+`waited_milliseconds`; the tool accepts no `count`. REST delivery waits instead
+accept `count` and return `emails`. Check the appropriate response shape before
+asserting success.
 
 The same server provides `owlmail://inbox` and `owlmail://stats` resources plus
 the `owlmail://email/{id}` resource template. Inbox content is capped at 50
@@ -655,7 +678,10 @@ Example web HTTPS:
   -https-key ./certs/web-key.pem
 ```
 
-The image's built-in check runs `owlmail healthcheck --container`. The PID 1
+The current main image's built-in check runs `owlmail healthcheck --container`.
+The original 0.10.1 image instead runs a fixed HTTP 1080 `/healthz` probe; if
+that release uses HTTPS or another Web port, supply a matching Docker
+healthcheck command. The main PID 1
 server writes a private, credential-free startup record in `/tmp`, containing
 its effective listener, mode, mail directory, base pathname and public HTTPS
 certificate. The probe reads this immutable record and verifies the current
@@ -872,7 +898,7 @@ tags are intentionally moving.
 | Browser repeatedly asks for credentials | Confirm the effective username/password; a generated password changes on restart; clear stale browser credentials if needed |
 | SMTP returns `530 Authentication required` | Authenticate with the configured username/password, or remove both values to intentionally use NO AUTH mode |
 | OwlMail fails after setting one SMTP credential | Configure both `-smtp-user` and `-smtp-password`, or remove both; partial credentials never fall back to NO AUTH |
-| Container is unhealthy with HTTPS | Inspect healthcheck output, effective startup configuration, certificate validity/read permissions and the PID 1/exec-entrypoint requirement |
+| Container is unhealthy with HTTPS | Stable 0.10.1 needs a probe matching HTTPS instead of its fixed HTTP check; on main, inspect healthcheck output, startup configuration, certificate validity/read permissions and the PID 1/exec-entrypoint requirement |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |
 | SMTP works but direct SMTPS does not | Publish the `-smtps-port` port, check certificate paths and runtime permission to bind a privileged port |
@@ -885,6 +911,7 @@ Useful checks:
 
 ```bash
 docker logs --tail 200 owlmail
+# Current main image only; stable 0.10.1 has no healthcheck subcommand.
 docker exec owlmail /app/owlmail healthcheck --container
 curl --fail http://localhost:1080/healthz
 curl -u admin:secret http://localhost:1080/api/v1/version

@@ -6,6 +6,11 @@ routes. The unversioned routes remain available for existing OwlMail clients and
 for common MailDev-style workflows, but they are not a promise of exact MailDev
 protocol compatibility.
 
+**Version scope:** this page follows `main`. Cursor waits, test-run selectors,
+email checks, delivery history, and manual retries are not in the original
+`v0.10.1` release. For that binary or image, use the
+[tagged 0.10.1 API reference](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/en/API-Reference.md).
+
 ## Base URL and authentication
 
 The default base URL is `http://localhost:1080`. JSON is used unless an endpoint
@@ -48,8 +53,8 @@ answered with a plain-text `403` before any handler runs, including on the
 otherwise unauthenticated health endpoints.
 
 Requests without an `Origin` header are accepted unchanged. `curl`, HTTP
-libraries, CI scripts, and server-to-server callers never send one; only browser
-pages do.
+libraries, CI scripts, and server-to-server callers usually omit it, but a
+client can supply it explicitly and will then be subject to the same validation.
 
 A named origin is answered with `Access-Control-Allow-Origin` echoing that exact
 origin and `Access-Control-Allow-Credentials: true`, and its preflight is

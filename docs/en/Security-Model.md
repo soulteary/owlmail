@@ -29,8 +29,8 @@ credentials are configured, this check is the only thing protecting the response
 body, which holds password-reset links, verification codes, and tokens.
 
 Requests that carry no `Origin` header are unaffected: `curl`, HTTP libraries,
-CI scripts, and server-to-server callers never send one, and only a browser page
-does.
+CI scripts, and server-to-server callers usually omit it. Any client that
+explicitly sends it is subject to the same validation.
 
 ## Untrusted message content
 

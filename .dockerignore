@@ -7,7 +7,6 @@
 *.md
 docs/
 README*.md
-LICENSE
 SECURITY*.md
 
 # CI/CD
@@ -51,4 +50,3 @@ docker-compose*.yml
 .env
 .env.local
 *.local
-

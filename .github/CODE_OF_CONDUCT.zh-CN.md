@@ -40,5 +40,4 @@
 
 ## 归属
 
-本行为准则改编自 [Contributor Covenant](https://www.contributor-covenant.org)，版本 2.1，可在 https://www.contributor-covenant.org/version/2/1/code_of_conduct.html 获取
-
+本行为准则改编自 [Contributor Covenant](https://www.contributor-covenant.org)，版本 1.4，可在 https://www.contributor-covenant.org/version/1/4/code-of-conduct/ 获取

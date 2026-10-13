@@ -1,8 +1,10 @@
 # MCP reference
 
-OwlMail 0.10.1 exposes the same read-only MCP server through dual-era
-Streamable HTTP and through `owlmail mcp-stdio`. MCP is an inspection surface,
-not a mailbox administration API.
+This reference describes the current main branch. Stable 0.10.1 already exposes
+the seven read-only tools through dual-era Streamable HTTP and through
+`owlmail mcp-stdio`. The `cursor`, `after`, `run_id`, and exact `recipient`
+workflow below requires main and is absent from the original `v0.10.1` tag.
+MCP is an inspection surface, not a mailbox administration API.
 
 ## Transports
 
@@ -37,19 +39,34 @@ Shutdown waits up to `-mcp-shutdown-timeout` (default `5s`).
 
 | Tool | Inputs | Result and limits |
 |---|---|---|
-| `list_emails` | `from`, `to`, `date_from`, `date_to`, `read`, `sort_by`, `sort_order`, `offset`, `limit` | Compact page; `limit` defaults to 50 and is 1–1000 |
+| `list_emails` | `from`, `to`, `date_from`, `date_to`, `read`, `sort_by`, `sort_order`, `offset`, `limit`; on main, `run_id`, `recipient` | Compact page; `limit` defaults to 50 and is 1–1000; main also returns a delivery `cursor` |
 | `search_emails` | required `query`, plus list filters | Case-insensitive subject, plain-text, and HTML search |
 | `get_email` | required `id`, optional `include_html` | Detached detail; sanitized HTML is omitted by default |
 | `get_email_source` | required `id`, optional `max_bytes` | Lossless base64 RFC 5322 source; default 1 MiB, maximum 100 MiB decoded bytes |
 | `list_attachments` | required `id` | Filename, content type, content ID, size, SHA-256, and storage metadata; no bytes |
 | `get_latest_email` | optional `limit` | One to 20 newest compact summaries in mailbox order |
-| `wait_for_email` | optional `to`, `subject`, `text`, `timeout_seconds` | New delivery only; event-driven; default 30 seconds, maximum 120 seconds |
+| `wait_for_email` | optional `to`, `subject`, `text`, `timeout_seconds`; on main, `after`, `run_id`, `recipient` | Without `after`, new delivery only; with `after`, replays retained matches after the cursor before waiting; default 30 seconds, maximum 120 seconds |
 
 `sort_by` accepts `time`, `subject`, `from`, or `size`; `sort_order` accepts
 `asc` or `desc`. Date filters use `YYYY-MM-DD`. Every wait filter is limited to
 1024 bytes. A legacy or stdio session may hold four waits. Each modern HTTP
 request has an independent quota scope, while the process-wide limit remains
 64 waits.
+
+On main, capture a `cursor` from `list_emails` or `search_emails` before triggering
+application mail. Pass it as `after` to `wait_for_email` with the exact,
+case-sensitive SMTP envelope `recipient` and optional `run_id`. `after` cannot
+be combined with substring `to`. Cursors expire when the mailbox process
+restarts; cursor-based waits also share the mailbox's 64-wait quota. Omitting
+`after` retains the new-delivery-only behavior, so already captured messages
+must be searched instead. See [delivery waits and test runs](./Delivery-Waits-and-Test-Runs.md).
+
+`wait_for_email` returns one match: `matched`, `timed_out`,
+`waited_milliseconds`, and an optional singular `email` summary. Successful
+callers check `matched: true` and `timed_out: false`, then read `email.id`.
+The MCP tool has no `count` input. The REST `/api/v1/emails/wait` endpoint has
+a separate contract with `count` and an `emails` array; do not interchange
+those request or response shapes.
 
 `get_email_source.max_bytes` counts decoded bytes, so the returned base64 JSON
 is larger. The result includes `returned_bytes`, full `size`, and `truncated`.
@@ -88,7 +105,7 @@ or by re-binding an attacker-controlled hostname to the loopback address.
 
 | Request | Outcome |
 |---|---|
-| No `Origin` header | Allowed. Non-browser clients such as `curl`, MCP SDK HTTP clients, and server-to-server callers never send it |
+| No `Origin` header | This guard permits the request; Basic Auth still applies when configured. Non-browser clients such as `curl` and MCP SDK HTTP clients typically omit it |
 | `Origin` matching an OwlMail origin | Allowed. The configured Web host and the loopback names at the Web port, on the scheme this listener itself serves, plus `-web-external-url` when it is set |
 | `Origin` listed in `-mcp-allowed-origins` | Allowed. Comma-separated absolute `http` or `https` origins, added to the origins above rather than replacing them |
 | Any other `Origin` | `403` with a plain-text reason |
@@ -151,9 +168,11 @@ The stdio transport opens no listener and has no origin to validate.
 
 ## Explicitly unsupported
 
-MCP cannot delete mail, change read state, relay or forward a message, download
-attachment bytes, change configuration, or reload the mailbox. Use the native
-HTTP API only when a test explicitly needs one of those operations, and keep
+MCP cannot delete mail, change read state, relay or forward a message, change
+configuration, or reload the mailbox. It has no dedicated tool for downloading
+decoded attachment bytes. `get_email_source` can include attachment payloads in
+the bounded raw MIME source; this is not a content-isolation boundary. Use the
+native HTTP API when a test needs a decoded attachment or a mutation, and keep
 mutation credentials outside the agent when possible.
 
 For setup patterns see [AI agent testing](./AI-Agent-Testing.md). Operational

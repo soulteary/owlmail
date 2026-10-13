@@ -24,6 +24,9 @@ RUN go mod download
 # Copy source code
 COPY . .
 
+# Collect original license and notice texts from the exact linked dependencies.
+RUN go run ./scripts/license-bundle -output /build/licenses -platforms "${TARGETOS}/${TARGETARCH}"
+
 # Build application with target architecture and observable release metadata
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -a -installsuffix cgo \
     -ldflags "-s -w -extldflags=-static \
@@ -48,6 +51,7 @@ WORKDIR /app
 
 # Copy binary from builder stage
 COPY --from=builder /build/owlmail /app/owlmail
+COPY --from=builder /build/licenses /usr/share/licenses/owlmail
 
 # Create mail storage directory
 RUN mkdir -p /app/mail && \

@@ -5,7 +5,8 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 )
 
-// relayEmail handles POST /api/v1/emails/:id/actions/relay
+// relayEmail handles the historical POST /email/:id/relay route. Native v1
+// routes use relayEmailAsync and return a tracked asynchronous job instead.
 func (api *API) relayEmail(c fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -49,7 +50,7 @@ func (api *API) relayEmail(c fiber.Ctx) error {
 	return c.JSON(SuccessResponse(SuccessCodeEmailRelayed, "Email relayed successfully", fiber.Map{"relayTo": relayTo}))
 }
 
-// relayEmailWithParam handles POST /api/v1/emails/:id/actions/relay/:relayTo
+// relayEmailWithParam handles the historical POST /email/:id/relay/:relayTo route.
 func (api *API) relayEmailWithParam(c fiber.Ctx) error {
 	id := c.Params("id")
 	relayTo := c.Params("relayTo")

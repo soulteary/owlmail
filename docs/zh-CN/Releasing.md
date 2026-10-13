@@ -9,7 +9,7 @@
 - `CHANGELOG.md` 记录用户可感知的改动。
 - `docs/en/Release-X.Y.Z.md` 是 GitHub Release 使用的英文发布正文。
 - `docs/zh-CN/Release-X.Y.Z.md` 是对应的中文发布说明。
-- `.github/workflows/release.yml` 从标签构建正式二进制、校验和、逐二进制 SBOM、
+- `.github/workflows/release.yml` 从标签构建正式二进制、许可证与声明包、校验和、逐二进制 SBOM、
   来源证明、签名及多架构发布镜像。
 - `.github/workflows/docker.yml` 只为默认分支发布会移动的 `main`、`latest` 与提交
   快照。
@@ -39,6 +39,9 @@
 ## 创建发布标签
 
 更新本地 `main`，记录准确提交，然后创建一个附注标签：
+
+下方以 `v0.10.1` 演示命令语法；该标签已经发布，执行前应改成下一个尚未发布的
+版本，并同步 `VERSION` 与发布说明。
 
 ```bash
 git switch main
@@ -89,6 +92,9 @@ Attestation 与 Sigstore 无密钥签名，再正式发布。
 - `owlmail-darwin-arm64.spdx.json`
 - `owlmail-windows-amd64.exe`
 - `owlmail-windows-amd64.exe.spdx.json`
+- `owlmail-licenses.tar.gz`
+
+许可证归档由当前工作流生成；原始 `v0.10.1` 等历史版本不会自动补上该文件。
 
 将全部文件下载到空目录并校验：
 
@@ -103,7 +109,27 @@ cosign verify-blob \
 ```
 
 校验和清单与 GitHub provenance 同时覆盖 5 个可执行文件及其 5 个
-`*.spdx.json` SBOM。
+`*.spdx.json` SBOM，以及许可证归档。
+
+### 许可证与声明分发
+
+将 `owlmail-licenses.tar.gz` 解压到下载的二进制旁。`owlmail-licenses/` 包含原样的
+项目 `LICENSE`、准确依赖版本的原始许可证与声明、汇总的 `THIRD_PARTY_NOTICES.txt`，
+以及记录目标平台、Go 版本、模块版本与 SHA-256 的 `manifest.json`。
+再分发二进制时应一并保留这些文本。
+
+生成器以关闭 CGO 的方式检查五个发布平台的实际运行时导入，包含包内独立许可与
+Go 内置第三方条款；缺少必要许可或许可为空时会失败。使用新的或空目录重新生成：
+
+```bash
+go run ./scripts/license-bundle -output dist/licenses
+```
+
+主分支构建快照包含 `dist/licenses/`；从当前源码构建的镜像把对应平台的许可包保存
+到 `/usr/share/licenses/owlmail/`。该包覆盖 OwlMail 与 Go 依赖，基础镜像中的系统
+组件保留各自条款。上游根声明全文保留，因此可能也包含可选组件或测试组件的说明。
+
+### 二进制冒烟测试
 
 至少冒烟测试一个二进制：
 

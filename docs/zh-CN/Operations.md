@@ -4,6 +4,11 @@
 关闭行为和常见故障。协议细节见 [API 参考](./API-Reference.md)与
 [Webhook 消息转发](./Webhook-Forwarding.md)。
 
+本文同时描述当前 `main` 的运行能力与固定 `0.10.1` 的基础部署示例。原 `v0.10.1`
+不包含 `doctor`、`healthcheck`、SMTP-only、cursor/test-run 和后续本地/运行时依赖
+readiness 改进。使用这些能力时先按
+[README 版本说明](../../README.zh-CN.md#选择版本)构建主分支。
+
 ## 分层配置文件
 
 使用 `-config PATH` 或 `OWLMAIL_CONFIG_FILE` 加载扁平的 YAML 或 JSON 对象。
@@ -114,8 +119,13 @@ OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用
 ### Liveness、readiness 与 S3 启动策略
 
 `GET /healthz` 与 `GET /api/v1/health` 是进程 liveness 检查，不依赖 S3。
-因此对象存储暂时不可用时不会造成容器反复重启；镜像内置 Docker 健康检查也刻意
-使用 `/healthz`。
+因此对象存储暂时不可用时不会造成容器反复重启。启用 Web 的运行实例可通过
+`/healthz` 检查存活；当前主分支的容器探针读取启动配置快照，SMTP-only 模式则使用
+其专用探测路径，不要求 HTTP 监听器。
+
+本节的 SMTP、本地存储与运行时依赖 readiness，以及后文的配置感知容器探针描述
+当前 `main`；原 `v0.10.1` 发布镜像不包含这些后续改进。部署固定发布版时，请以
+该标签的说明为准，或按 [README 主分支体验](../../README.zh-CN.md#体验当前主分支)构建。
 
 `GET /readyz` 与 `GET /api/v1/ready` 是 readiness 检查。本地附件存储也要求 SMTP 监听器已绑定且邮件目录的写入、同步与清理探测成功。
 本地存储在 SMTP 启动前探测，之后每 30 秒更新一次缓存；HTTP 请求只读取缓存。
@@ -137,9 +147,13 @@ OWLMAIL_S3_HEALTH_CHECK_TIMEOUT=5s \
 运行期间 S3 故障只让 readiness 返回 `503`，liveness 仍为 `200`，后台探测成功后
 自动恢复。
 
-readiness 响应只包含组件状态、探测时间和 `pending`、`permission`、
+S3 readiness 检查只包含组件状态、探测时间和 `pending`、`permission`、
 `credentials`、`not_found`、`timeout`、`unavailable`、`unknown`、`closed` 之一；
 不会包含 SDK 原始错误、endpoint、access key、secret key 或 session token。
+
+主分支的整体 readiness 还包含 `smtp`、`mail_storage`，以及启用后的 `relay`、
+`outgoing_transport` 和 `relay_job_storage`；任一必需组件未就绪会返回 `503`。
+这些结果不能替代发送一封测试邮件或检查下游最终投递。
 
 Kubernetes 应分别配置重启判断和流量接入：
 
@@ -327,14 +341,12 @@ Service Worker scope 为 `/owlmail/`。
 ## Web UI 与 API 的浏览器来源策略
 
 无论是否配置 Basic Auth，OwlMail 都会在它提供的每个接口上校验浏览器 `Origin`。
-只在启用 Basic Auth 时才做这项校验，保护的恰恰是不需要保护的那一侧：认证默认
-关闭，而未认证的监听器才是没有任何其他东西保护响应正文的那一个。开发者随手打开
-的页面就运行在同一台机器上，因此无论绑定到哪个地址，
-`fetch("http://127.0.0.1:1080/api/v1/emails")` 都能连上监听端口；唯一的问题是
-浏览器会不会把响应交给那个页面。
+Web 认证默认关闭，回环绑定本身也不能识别请求来自哪个浏览器页面。来源守卫因此
+同时覆盖已认证和未认证部署，限制其他网站的页面读取测试邮箱。
 
-不携带 `Origin` 的请求属于非浏览器客户端——`curl`、各语言 HTTP 库、CI 脚本、
-其他服务器——行为完全不变。携带 `Origin` 的请求在以下情况下放行：与请求自身来源
+`curl`、各语言 HTTP 库、CI 脚本和服务器之间的请求通常不携带 `Origin`，这些调用
+行为不变。任何客户端都可省略该头，其缺失不证明调用方身份；配置了 Basic Auth 时
+仍需要凭据。携带 `Origin` 的请求在以下情况下放行：与请求自身来源
 一致、匹配监听器自身的来源（配置的 Web 主机与 Web 端口上的回环名称，按本监听器
 实际提供的 scheme，以及设置了 `-web-external-url` 时的该来源），或出现在
 `-web-allowed-origins` 中。其余一律在进入任何处理器之前返回 `403`。
@@ -422,10 +434,11 @@ MCP 服务严格只提供七个封闭域、只读工具：
 | `get_email_source` | 使用无损 base64 返回 RFC 5322 原始 source；原始字节默认最多 1 MiB，最大 100 MiB |
 | `list_attachments` | 名称、类型、大小、哈希和存储元数据；从不返回附件字节 |
 | `get_latest_email` | 按邮箱时间返回最新 1 至 20 封邮件的轻量摘要 |
-| `wait_for_email` | 通过投递事件流等待新的收件人、主题或文本匹配；不进行轮询 |
+| `wait_for_email` | HTTP 订阅投递事件；stdio 通过目录扫描发现新邮件。主分支另支持 cursor 重放，详见 [MCP 参考](./MCP-Reference.md) |
 
-不存在删除、标记已读、转发、中继、下载附件、修改配置或重新加载邮箱的 MCP
-工具。`list_emails` 与 `search_emails` 复用 `QueryEmailPreviews`；`get_email` 和
+不存在删除、标记已读、转发、中继、独立下载解码附件、修改配置或重新加载邮箱的 MCP
+工具。原始 MIME source 仍可能包含附件载荷；只读不代表不能通过 source 读取这些字节。
+`list_emails` 与 `search_emails` 复用 `QueryEmailPreviews`；`get_email` 和
 `list_attachments` 复用邮箱的深复制 `GetEmail` 边界，不维护第二套索引，也不
 返回内部可变指针。
 
@@ -433,8 +446,8 @@ MCP 服务严格只提供七个封闭域、只读工具：
 更短，则以后者为上限。旧版或 stdio session 最多同时等待 4 个调用，全进程最多
 64 个；每个现代 HTTP 请求使用独立配额范围。客户端取消、现代响应流关闭、旧版
 session 删除或超时以及进程关闭都会立即移除 waiter。waiter 表有界，
-并通过单个邮箱 listener 接收已提交的 `new` 事件，不会高频轮询，也不会为每个
-waiter 启动后台 goroutine。
+HTTP 模式通过邮箱 listener 接收已提交的 `new` 事件。stdio 的新邮件可见性依赖
+约 500 ms 一次的目录扫描。
 
 同一服务还提供 `owlmail://inbox`、`owlmail://stats` Resources 和
 `owlmail://email/{id}` Resource template。inbox 最多返回 50 条摘要；单封邮件
@@ -510,7 +523,9 @@ Web HTTPS 示例：
   -https-key ./certs/web-key.pem
 ```
 
-镜像内置检查执行 `owlmail healthcheck --container`。作为 PID 1 运行的 OwlMail
+当前主分支镜像的内置检查执行 `owlmail healthcheck --container`。原 `0.10.1` 镜像
+使用固定 HTTP 1080 `/healthz` 探针；该发布版改用 HTTPS 或其他 Web 端口时，需要
+覆盖为匹配的容器健康检查。主分支作为 PID 1 运行的 OwlMail
 在 `/tmp` 写入权限为 0600、没有凭据的启动记录，包含实际监听地址、端口、运行模式、
 邮件目录、基础路径和公开 HTTPS 证书。探针校验 PID 1 的进程启动时间并读取该记录；
 服务启动后修改或删除配置、证书文件，以及覆盖探针环境变量，都不会改变探测目标和证书信任。
@@ -669,6 +684,32 @@ MailDev 兼容路由都不会再创建与邮件大小相当的额外字节切片
 才归一化取值或失败。请把启动及运行告警视为需要处理的问题，并在修改配置后同时
 验证健康端点、SMTP 收件和附件下载。
 
+## 当前主分支的离线诊断与 SMTP-only
+
+使用与服务相同的参数、环境变量和配置文件运行离线预检：
+
+```bash
+./owlmail doctor -config ./owlmail.yaml
+```
+
+`doctor` 输出 JSON 报告；退出码 `0` 表示本地检查通过，`1` 表示解析或检查失败。
+它检查配置、证书文件、Webhook 模板和 Relay 恢复记录，不绑定监听器，不连接
+SMTP/Redis/S3，不修改存储或发送邮件，也不证明证书信任、网络可达性或存储写权限。
+完整边界见[配置诊断](../en/Configuration-Doctor.md)。
+
+仅需 SMTP 时，可关闭 HTTP 监听器并使用同配置的独立 readiness 探针：
+
+```bash
+./owlmail -disable-web -mail-directory /absolute/path/to/mail
+# 在另一个终端检查正在运行的实例
+./owlmail healthcheck --ready -disable-web -mail-directory /absolute/path/to/mail
+```
+
+SMTP-only 不提供 Web 界面、REST、HTTP MCP 或 HTTP 健康端点。移除与该模式冲突的
+Web 专用选项；独立 readiness 必须显式指定与服务相同的绝对邮件目录。
+容器探针从启动记录取得这些参数。readiness 会检查监听器、缓存的存储状态和启用的
+出站依赖；默认 liveness 只用于判断进程/监听器存活，不证明下游已经可用。
+
 ## 备份与升级流程
 
 1. 停止新 SMTP 流量。
@@ -688,7 +729,7 @@ MailDev 兼容路由都不会再创建与邮件大小相当的额外字节切片
 |---|---|
 | Web UI 无法访问 | 核对 `-web-ip`/`OWLMAIL_WEB_HOST`、端口发布和 `/healthz`；查看绑定或证书错误 |
 | 浏览器反复要求凭据 | 核对实际用户名/密码；自动密码重启后会变化；必要时清除浏览器缓存凭据 |
-| 设置 SMTP 凭据后入口仍然开放 | 当前入站 SMTP 鉴权未强制执行；使用接口绑定与网络控制隔离监听器 |
+| 设置 SMTP 凭据后仍能匿名投递 | 核对实际实例是否同时设置 `-smtp-user` 与 `-smtp-password`；两项均省略才是 NO AUTH，只设置一项会启动失败。配置双凭据后匿名事务应返回 `530 5.7.0`；需要保护凭据时启用 SMTP TLS 与 `-smtp-auth-require-tls` |
 | HTTPS 容器显示 unhealthy | 检查探测输出、实际启动配置、证书有效性及读取权限，以及 PID 1/exec 入口要求 |
 | 浏览器没有通知 | 在收件箱中开启，使用 HTTPS 或 localhost，并在浏览器网站设置中恢复权限 |
 | Webhook 投递慢 | 检查接收器延迟、超时和重试；提高并发前先修复接收器或减少重试 |

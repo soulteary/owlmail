@@ -96,7 +96,8 @@ func (api *API) mcpAllowsAnyOrigin() bool {
 // response headers, or the browser refuses to hand the response to the client.
 // It also keeps -web-allowed-origins from opening this endpoint by accident.
 //
-// Requests without an Origin header are non-browser clients and stay allowed.
+// Requests without an Origin header pass this guard; configured Basic Auth still
+// applies. Non-browser clients typically omit the header but may supply one.
 func (api *API) mcpOriginGuard() fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Every response from this path depends on the Origin header, the
@@ -104,8 +105,8 @@ func (api *API) mcpOriginGuard() fiber.Handler {
 		// outcome for another.
 		c.Response().Header.Add(fiber.HeaderVary, fiber.HeaderOrigin)
 
-		// Deriving the allow list is pointless for the common case: every
-		// non-browser client reaches this without an Origin header.
+		// The allow list is not consulted when Origin is absent, as is typical
+		// for non-browser clients. The remaining request middleware still runs.
 		origin := strings.TrimSpace(c.Get(fiber.HeaderOrigin))
 		if origin == "" {
 			return c.Next()

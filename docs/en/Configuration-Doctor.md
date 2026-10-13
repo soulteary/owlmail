@@ -1,5 +1,8 @@
 # Offline configuration and recovery diagnostics
 
+`doctor` is available in the current `main` source, after the original
+`v0.10.1` release. Build that source before following this guide.
+
 Run `owlmail doctor` with the same flags, environment variables, and optional `-config` YAML/JSON file used for normal startup. Resolution retains the standard priority: command line, compatibility environment, OwlMail environment, configuration file defaults, then built-in defaults.
 
 ```sh

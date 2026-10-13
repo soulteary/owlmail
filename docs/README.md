@@ -24,6 +24,10 @@ Select your preferred language:
 
 ### Available Documents
 
+- [Configuration Reference](./en/Configuration-Reference.md)
+- [Delivery Waits and Test Runs](./en/Delivery-Waits-and-Test-Runs.md)
+- [Verification and Delivery Status](./en/Email-Verification-UI.md)
+- [Browser and Container Regression Checks](./en/Browser-Regression-Testing.md)
 - [Reproducible Delivery Faults](./en/Fault-Injection.md) and [runnable receiver](../examples/faults)
 - [Offline Configuration and Recovery Diagnostics](./en/Configuration-Doctor.md)
 
@@ -52,12 +56,18 @@ Select your preferred language:
 
 ### 可用文档
 
+- [配置参考](./zh-CN/Configuration-Reference.md)
+- [投递等待与测试运行（English）](./en/Delivery-Waits-and-Test-Runs.md)
+- [邮件断言与投递状态（English）](./en/Email-Verification-UI.md)
+- [浏览器与容器回归检查（English）](./en/Browser-Regression-Testing.md)
+- [可复现投递故障（English）](./en/Fault-Injection.md)与[可运行接收器](../examples/faults)
+- [离线配置与恢复诊断（English）](./en/Configuration-Doctor.md)
 - [集成测试](./zh-CN/Integration-Testing.md)与 [CI 快速入门](./zh-CN/CI-Quickstart.md)
 - [AI Agent 测试](./zh-CN/AI-Agent-Testing.md)与 [MCP 参考](./zh-CN/MCP-Reference.md)
 - [测试配方](./zh-CN/Testing-Recipes.md)
 - [架构](./zh-CN/Architecture.md)与[安全模型](./zh-CN/Security-Model.md)
 - [JavaScript、Go、Python 与 Compose 可运行示例](../examples/testing/README.zh-CN.md)
-- [OwlMail 0.10.1 发布说明](./zh-CN/Release-0.10.1.md)
+- [OwlMail 0.10.1 发布说明](./zh-CN/Release-0.10.1.md) · [0.10.0 发布说明](./zh-CN/Release-0.10.0.md)
 - [OwlMail 0.9.0 发布说明](./zh-CN/Release-0.9.0.md)
 - [API 参考](./zh-CN/API-Reference.md)
 - [OpenAPI 3.1 合约（JSON）](../openapi/openapi.json) / [YAML](../openapi/openapi.yaml)

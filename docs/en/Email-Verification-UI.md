@@ -1,5 +1,8 @@
 # Verification and delivery status in the mailbox
 
+The Verify and Deliveries tabs follow `main` and are not included in the
+original `v0.10.1` binary or image.
+
 The existing HTML, plain text, headers, source, isolated preview, and preview width controls remain available. Two additional keyboard-accessible tabs help verify the selected message.
 
 **Verify** checks expected subject text and message text with case-sensitive substring assertions. An optional comma-separated list of exact hostnames validates HTTP(S) links. The code extraction checkbox finds six-digit sequences; review the extracted values alongside individual checks. Empty expectations perform link inspection only. Truncation is explicitly shown and should not be treated as complete verification. Checks use the stored sanitized message and do not fetch URLs or mark messages read.

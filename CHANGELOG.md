@@ -6,6 +6,35 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+Changes below follow `main` and are not part of the original `v0.10.1` tag.
+
+### Added
+
+- Process-scoped delivery cursors, bounded REST/MCP waits with replay, exact
+  test-run and envelope-recipient selectors, and run-scoped mailbox cleanup.
+- Read-only email checks for content, attachments, link hosts, and extraction,
+  with Verify and Deliveries tabs, persisted delivery history, and manual
+  retries for failed Relay and Webhook deliveries.
+- Offline `doctor` diagnostics, SMTP-only operation with `-disable-web`, and a
+  `healthcheck` command that follows the server's startup configuration.
+- Mailbox command palette and live browser/container regression checks.
+- License bundles for release binaries, main-branch snapshots, and containers,
+  preserving exact dependency notices and Go toolchain legal texts.
+
+### Changed
+
+- Runtime readiness now checks SMTP, mailbox storage, Relay persistence, and
+  configured outbound dependencies; recovery diagnostics expose durable work.
+- Reorganized the English and Chinese README around setup and testing workflows.
+
+### Fixed
+
+- Corrected documentation about released versus unreleased features, SMTP AUTH,
+  browser-origin boundaries, attachment responses, and HTTP/stdio wait behavior.
+- Corrected temporary-storage, webhook handoff, and historical Relay comments,
+  restored missing documentation links, and aligned Code of Conduct attribution
+  with the Contributor Covenant 1.4 text in use.
+
 ## [0.10.1] - 2026-10-11
 
 ### Changed

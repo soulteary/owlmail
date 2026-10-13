@@ -79,16 +79,21 @@ SMTP_SECURE=false</code></pre>
                         <div><h3>Debug</h3><p>Use <strong>View Source</strong> for raw headers and MIME structure, or download the original <code>.eml</code>.</p></div>
                         <div><h3>Manage</h3><p>Mark all messages read, delete one message, or clear the inbox. Deletion is permanent.</p></div>
                         <div><h3>Relay</h3><p>Configure an outgoing SMTP server before relaying captured messages to a real recipient.</p></div>
+                        <div><h3>Verify</h3><p>Set case-sensitive subject or plain-text expectations and exact allowed link hosts. Checks inspect stored content without fetching URLs; extracted six-digit values are candidates, not proof of a valid code.</p></div>
+                        <div><h3>Deliveries</h3><p>Refresh the selected message's Relay and Webhook history. Confirming a retry sends real outgoing requests; history is bounded and shows when more records exist.</p></div>
+                        <div><h3>Commands</h3><p>Press <kbd>Ctrl/Cmd + K</kbd> or <kbd>?</kbd> to search commands. Use <kbd>j/k</kbd> or <kbd>↑/↓</kbd> for mail navigation, <kbd>/</kbd> for search and <kbd>r</kbd> to refresh. Mailbox shortcuts pause while you edit text or focus controls.</p></div>
                     </div>
                 </section>
 
                 <section id="en-config" class="help-card">
                     <div class="section-heading"><span>03</span><h2>Essential configuration</h2></div>
-                    <p>CLI flags take precedence over <code>MAILDEV_*</code> variables, then <code>OWLMAIL_*</code> variables. Restart OwlMail after changing startup configuration.</p>
+                    <p>CLI flags take precedence over supported <code>MAILDEV_*</code> aliases, then <code>OWLMAIL_*</code> variables, a YAML/JSON configuration file and built-in defaults. Restart OwlMail after changing startup configuration.</p>
                     <div class="table-wrap">
                         <table>
                             <thead><tr><th>Purpose</th><th>Flag</th><th>Environment</th><th>Default</th></tr></thead>
                             <tbody>
+                                <tr><td>Configuration file</td><td><code>-config</code></td><td><code>OWLMAIL_CONFIG_FILE</code></td><td>Unset; flat YAML/JSON with CLI option names</td></tr>
+                                <tr><td>SMTP-only mode</td><td><code>-disable-web</code></td><td><code>OWLMAIL_DISABLE_WEB</code></td><td>Disabled; when enabled, no Web UI, REST or HTTP MCP listener</td></tr>
                                 <tr><td>SMTP listener</td><td><code>-smtp</code>, <code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>, <code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>, <code>localhost</code></td></tr>
                                 <tr><td>SMTP message limit</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
                                 <tr><td>SMTP read/write timeouts</td><td><code>-smtp-read-timeout</code>, <code>-smtp-write-timeout</code></td><td><code>OWLMAIL_SMTP_READ_TIMEOUT</code>, <code>OWLMAIL_SMTP_WRITE_TIMEOUT</code></td><td><code>10s</code> each</td></tr>
@@ -96,6 +101,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP DATA concurrency</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td><code>8</code> per process; <code>0</code> is unlimited</td></tr>
                                 <tr><td>Web listener</td><td><code>-web</code>, <code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>, <code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>, <code>localhost</code></td></tr>
                                 <tr><td>External Web origin</td><td><code>-web-external-url</code></td><td><code>OWLMAIL_WEB_EXTERNAL_URL</code></td><td>Unset; used for MCP email deep links</td></tr>
+                                <tr><td>Read-only MCP</td><td><code>-mcp-enabled</code></td><td><code>OWLMAIL_MCP_ENABLED</code></td><td>Disabled; shares the Web listener and authentication</td></tr>
                                 <tr><td>Persistent mail</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>Process-specific temporary directory</td></tr>
                                 <tr><td>Attachment storage</td><td><code>-s3-enabled</code> and S3 options</td><td><code>OWLMAIL_S3_ENABLED</code> and S3 variables</td><td>Local mail directory</td></tr>
                                 <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>, interval and timeout options</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> and health-check variables</td><td>Async checks every <code>30s</code>, <code>5s</code> timeout</td></tr>
@@ -118,9 +124,10 @@ SMTP_SECURE=false</code></pre>
                     <aside class="note"><strong>Outgoing relay security:</strong> use <code>-outgoing-tls-mode starttls</code> for mandatory STARTTLS or <code>smtps</code> for TLS from connection establishment. STARTTLS capability, handshake, certificate, or hostname failures stop delivery without a plaintext fallback. The MailDev-compatible <code>-outgoing-secure</code> alias means <code>smtps</code>. Credentials are never sent in <code>plain</code> mode. Certificate verification is on by default; <code>-outgoing-insecure-skip-verify</code> is an explicit unsafe opt-out.</aside>
                     <h3>Persistent Docker example</h3>
                     <pre><code>docker run -d --name owlmail \
-  -p 1025:1025 -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:latest</code></pre>
+  ghcr.io/soulteary/owlmail:0.10.1</code></pre>
+                    <p>This example uses stable <code>0.10.1</code>. The command palette, Verify/Deliveries, cursor waits and SMTP-only mode require the current main branch. <code>main</code> and <code>latest</code> are moving image tags; use a release or digest for a repeatable deployment.</p>
                 </section>
 
                 <section id="en-notifications-webhooks" class="help-card">
@@ -143,7 +150,7 @@ SMTP_SECURE=false</code></pre>
 }</code></pre>
                     <pre><code>./owlmail -webhook-config ./webhooks.json</code></pre>
                     <p>Omit both <code>-webhook-config</code> and <code>OWLMAIL_WEBHOOK_CONFIG</code> to keep forwarding disabled. Restart OwlMail after changing the file.</p>
-                    <p>At most eight email delivery jobs run concurrently by default. When the limit is full, stored-mail event processing waits instead of creating more webhook goroutines. Set <code>-webhook-max-concurrency 0</code> only for intentional unlimited concurrency.</p>
+                    <p>At most eight Webhook delivery jobs run concurrently by default; additional jobs queue before delivery. With a persistent mail directory, acceptance stages a local outbox handoff before workers send requests. Without Redis, jobs already handed to the in-memory queue are not guaranteed to survive restart. Set <code>-webhook-max-concurrency 0</code> only for intentional unlimited concurrency.</p>
                     <p><a href="https://github.com/soulteary/owlmail/tree/main/examples/webhooks" target="_blank" rel="noopener noreferrer">Open runnable filtering, custom JSON, multi-target, plain-text, and soulteary/webhook examples ↗</a></p>
                 </section>
 
@@ -159,7 +166,8 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/version</code><span>Build/version information</span></div>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/ws</code><span>Live WebSocket events</span></div>
                     </div>
-                    <p class="muted">MailDev-compatible endpoints under <code>/email</code>, <code>/config</code>, <code>/healthz</code>, and <code>/socket.io</code> remain available.</p>
+                    <p class="muted">Historical OwlMail routes under <code>/email</code>, <code>/config</code>, <code>/healthz</code>, and <code>/socket.io</code> remain available. <code>/socket.io</code> is native WebSocket, not the Socket.IO protocol. The separate MailDev REST facade under <code>/api</code> requires <code>-maildev-rest-compat</code>; use <code>/api/v1</code> for new clients.</p>
+                    <p>Current main also provides <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>, <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> and <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>. Obtain the cursor before triggering mail, then wait with an exact envelope recipient and check <code>timed_out</code>. These routes are not in the original <code>v0.10.1</code> release.</p>
                 </section>
 
                 <section id="en-security" class="help-card">
@@ -170,6 +178,7 @@ SMTP_SECURE=false</code></pre>
                         <li>Captured messages can contain credentials, reset links, and personal data. Protect the storage directory and backups.</li>
                         <li>Use development or test messages only. Review recipients carefully before enabling outgoing relay or auto-relay.</li>
                         <li>Webhook targets receive email content. Use trusted HTTPS endpoints, keep tokens in environment variables, and verify HMAC signatures.</li>
+                        <li>Browser Origin checks apply even without Basic Auth. Add trusted console origins with <code>-web-allowed-origins</code>; MCP has its own <code>-mcp-allowed-origins</code> policy. Requests without Origin remain allowed, so these checks do not replace authentication or network boundaries.</li>
                     </ul>
                 </section>
 
@@ -225,16 +234,21 @@ SMTP_SECURE=false</code></pre>
                         <div><h3>调试</h3><p>通过“查看源码”检查原始邮件头与 MIME 结构，或下载原始 <code>.eml</code>。</p></div>
                         <div><h3>管理</h3><p>可全部标记为已读、删除单封邮件或清空收件箱。删除后不可恢复。</p></div>
                         <div><h3>转发</h3><p>需要先配置外发 SMTP，才能把捕获的邮件转发给真实收件人。</p></div>
+                        <div><h3>Verify</h3><p>设置区分大小写的主题或纯文本条件，以及精确的允许链接域名。检查不访问 URL；提取的六位数字只是候选值，不证明验证码有效。</p></div>
+                        <div><h3>Deliveries</h3><p>刷新当前邮件的 Relay 与 Webhook 历史。确认重试会发送真实出站请求；历史数量有界，超出显示范围时会提示。</p></div>
+                        <div><h3>命令与快捷键</h3><p>按 <kbd>Ctrl/Cmd + K</kbd> 或 <kbd>?</kbd> 搜索命令；<kbd>j/k</kbd> 或 <kbd>↑/↓</kbd> 切换邮件，<kbd>/</kbd> 搜索，<kbd>r</kbd> 刷新。编辑文本或聚焦控件时暂停邮箱快捷键。</p></div>
                     </div>
                 </section>
 
                 <section id="zh-config" class="help-card">
                     <div class="section-heading"><span>03</span><h2>核心配置</h2></div>
-                    <p>优先级依次为命令行参数、<code>MAILDEV_*</code> 环境变量、<code>OWLMAIL_*</code> 环境变量。修改启动配置后需要重启 OwlMail。</p>
+                    <p>命令行参数优先于支持的 <code>MAILDEV_*</code> 别名，再依次优先于 <code>OWLMAIL_*</code> 环境变量、YAML/JSON 配置文件和内置默认值。修改启动配置后需要重启 OwlMail。</p>
                     <div class="table-wrap">
                         <table>
                             <thead><tr><th>用途</th><th>参数</th><th>环境变量</th><th>默认值</th></tr></thead>
                             <tbody>
+                                <tr><td>配置文件</td><td><code>-config</code></td><td><code>OWLMAIL_CONFIG_FILE</code></td><td>默认不设置；使用 CLI 参数名作为平面 YAML/JSON 键名</td></tr>
+                                <tr><td>仅运行 SMTP</td><td><code>-disable-web</code></td><td><code>OWLMAIL_DISABLE_WEB</code></td><td>默认关闭；开启后不提供 Web、REST 或 HTTP MCP 监听器</td></tr>
                                 <tr><td>SMTP 监听</td><td><code>-smtp</code>、<code>-ip</code></td><td><code>OWLMAIL_SMTP_PORT</code>、<code>OWLMAIL_SMTP_HOST</code></td><td><code>1025</code>、<code>localhost</code></td></tr>
                                 <tr><td>SMTP 邮件上限</td><td><code>-smtp-max-message-mb</code></td><td><code>OWLMAIL_SMTP_MAX_MESSAGE_MB</code></td><td><code>100</code> MiB</td></tr>
                                 <tr><td>SMTP 读写超时</td><td><code>-smtp-read-timeout</code>、<code>-smtp-write-timeout</code></td><td><code>OWLMAIL_SMTP_READ_TIMEOUT</code>、<code>OWLMAIL_SMTP_WRITE_TIMEOUT</code></td><td>均为 <code>10s</code></td></tr>
@@ -242,6 +256,7 @@ SMTP_SECURE=false</code></pre>
                                 <tr><td>SMTP DATA 并发</td><td><code>-smtp-max-concurrency</code></td><td><code>OWLMAIL_SMTP_MAX_CONCURRENCY</code></td><td>每进程 <code>8</code>；<code>0</code> 表示不限制</td></tr>
                                 <tr><td>Web 监听</td><td><code>-web</code>、<code>-web-ip</code></td><td><code>OWLMAIL_WEB_PORT</code>、<code>OWLMAIL_WEB_HOST</code></td><td><code>1080</code>、<code>localhost</code></td></tr>
                                 <tr><td>Web 外部 origin</td><td><code>-web-external-url</code></td><td><code>OWLMAIL_WEB_EXTERNAL_URL</code></td><td>默认不设置；用于 MCP 邮件深链接</td></tr>
+                                <tr><td>只读 MCP</td><td><code>-mcp-enabled</code></td><td><code>OWLMAIL_MCP_ENABLED</code></td><td>默认关闭；复用 Web 监听器与鉴权</td></tr>
                                 <tr><td>邮件持久化</td><td><code>-mail-directory</code></td><td><code>OWLMAIL_MAIL_DIR</code></td><td>当前进程专用临时目录</td></tr>
                                 <tr><td>附件存储</td><td><code>-s3-enabled</code> 及 S3 参数</td><td><code>OWLMAIL_S3_ENABLED</code> 及 S3 变量</td><td>本地邮件目录</td></tr>
                                 <tr><td>S3 readiness</td><td><code>-s3-startup-check</code>、间隔和超时参数</td><td><code>OWLMAIL_S3_STARTUP_CHECK</code> 及健康探测变量</td><td>默认异步每 <code>30s</code> 探测，超时 <code>5s</code></td></tr>
@@ -261,9 +276,10 @@ SMTP_SECURE=false</code></pre>
                     <aside class="note"><strong>SMTP 鉴权与容量：</strong>两项凭据都省略时使用 NO AUTH，允许不认证投递，也接受测试客户端提交的任意 PLAIN/LOGIN 凭据；同时设置两项后强制验证，只设置一项会启动失败。为兼容开发环境，默认允许在未启用 TLS 时使用 PLAIN/LOGIN。启用 SMTP TLS 并设置 <code>-smtp-auth-require-tls</code> 后，明文连接会拒绝 AUTH，STARTTLS 后及 SMTPS 仍可正常认证；NO AUTH 匿名投递不变，缺少 TLS 配置会启动失败。每个 SMTP/SMTPS 连接的读写超时默认均为 10 秒，可用 <code>-smtp-read-timeout</code> 与 <code>-smtp-write-timeout</code> 调整；单封邮件默认最大 100 MiB（可用 <code>-smtp-max-message-mb</code> 调整），默认最多 50 个收件人（可用 <code>-smtp-max-recipients</code> 调整）。普通 SMTP、STARTTLS 与 SMTPS 共用每进程 8 个活动 DATA 事务的默认上限；<code>0</code> 表示不限制，多副本各自执行上限。达到上限时客户端收到可重试的 <code>451 4.3.2 temporary resource limit reached; try again later</code>。</aside>
                     <h3>Docker 持久化示例</h3>
                     <pre><code>docker run -d --name owlmail \
-  -p 1025:1025 -p 1080:1080 \
+  -p 127.0.0.1:1025:1025 -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:latest</code></pre>
+  ghcr.io/soulteary/owlmail:0.10.1</code></pre>
+                    <p>此示例使用正式版 <code>0.10.1</code>。命令面板、Verify/Deliveries、cursor 等待和 SMTP-only 需要当前主分支。<code>main</code> 与 <code>latest</code> 是移动镜像标签；需要可重复部署时使用发布版或 digest。</p>
                 </section>
 
                 <section id="zh-notifications-webhooks" class="help-card">
@@ -286,7 +302,7 @@ SMTP_SECURE=false</code></pre>
 }</code></pre>
                     <pre><code>./owlmail -webhook-config ./webhooks.json</code></pre>
                     <p>同时省略 <code>-webhook-config</code> 和 <code>OWLMAIL_WEBHOOK_CONFIG</code> 时，转发保持关闭。修改文件后需要重启 OwlMail。</p>
-                    <p>默认最多同时处理 8 个邮件投递任务。达到上限时，已持久化邮件的事件处理会等待，而不会继续创建 Webhook goroutine。仅在明确需要无限并发时设置 <code>-webhook-max-concurrency 0</code>。</p>
+                    <p>默认最多同时运行 8 个 Webhook 投递任务，额外任务先排队。配置持久邮件目录后，接收过程先暂存本地 outbox 交接，再由 worker 发送请求。没有 Redis 时，已经进入内存队列的任务不保证跨重启恢复。只有确实需要无限并发时，才设置 <code>-webhook-max-concurrency 0</code>。</p>
                     <p><a href="https://github.com/soulteary/owlmail/tree/main/examples/webhooks" target="_blank" rel="noopener noreferrer">打开可运行的过滤、自定义 JSON、多目标、纯文本和 soulteary/webhook 联动示例 ↗</a></p>
                 </section>
 
@@ -302,7 +318,8 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/version</code><span>构建和版本信息</span></div>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/ws</code><span>实时 WebSocket 事件</span></div>
                     </div>
-                    <p class="muted"><code>/email</code>、<code>/config</code>、<code>/healthz</code> 和 <code>/socket.io</code> 下兼容 MailDev 的接口仍然可用。</p>
+                    <p class="muted">历史 OwlMail 路由 <code>/email</code>、<code>/config</code>、<code>/healthz</code> 和 <code>/socket.io</code> 仍然可用。<code>/socket.io</code> 是原生 WebSocket，不是 Socket.IO 协议。独立的 MailDev REST facade 位于 <code>/api</code>，需要 <code>-maildev-rest-compat</code>；新客户端使用 <code>/api/v1</code>。</p>
+                    <p>当前主分支另提供 <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>、<code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> 和 <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>。先取得 cursor，再触发发信；等待时使用精确信封收件人并检查 <code>timed_out</code>。这些路由不属于原 <code>v0.10.1</code>。</p>
                 </section>
 
                 <section id="zh-security" class="help-card">
@@ -313,6 +330,7 @@ SMTP_SECURE=false</code></pre>
                         <li>捕获的邮件可能包含凭据、重置链接和个人信息，请保护存储目录及备份。</li>
                         <li>只处理开发或测试邮件；开启外发转发或自动转发前，请仔细检查收件人。</li>
                         <li>Webhook 目标会收到邮件内容；应使用可信 HTTPS 端点、通过环境变量保存 Token，并校验 HMAC 签名。</li>
+                        <li>即使没有 Basic Auth，浏览器 Origin 也会被校验。用 <code>-web-allowed-origins</code> 添加可信控制台来源；MCP 使用独立的 <code>-mcp-allowed-origins</code>。不带 Origin 的请求仍会放行，因此这些校验不能替代鉴权或网络边界。</li>
                     </ul>
                 </section>
 

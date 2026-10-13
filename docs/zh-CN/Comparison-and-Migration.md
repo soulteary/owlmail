@@ -128,19 +128,20 @@ Mailpit v1.31.1 新增了 `--allowed-hosts`（同时支持 `MP_ALLOWED_HOSTS`）
 CHANGELOG 把这项改动归入 Security，并说明用于缓解针对 API 的 DNS 重绑定。
 `livez` 与 `readyz` 探针在注册时没有套用该中间件（`server/server.go:75-76`），
 因此该允许列表对它们不生效。`server/cors.go` 中的理由
-与 OwlMail 一致：CORS 的同源分支比较的是两个由客户端提供的头，除非把判断锚定在
+说明了来源检查的局限：CORS 的同源分支比较的是两个由客户端提供的头，除非把判断锚定在
 运维人员声明过的值上，否则重绑定自己控制的域名的攻击者可以同时满足比较的两侧。
 Mailpit 始终放行回环名称和裸 IP 字面量，因为二者都不可能由重绑定攻击产生。
 
-OwlMail 在更窄的面上处理同一类问题：只读 MCP HTTP 端点在每个请求上独立于 Web
-Basic Auth 校验浏览器 `Origin` 头，`-mcp-allowed-origins` 可追加浏览器来源。
-不带 `Origin` 头的请求仍然放行，因为非浏览器客户端从不发送该头。
+OwlMail 0.10.0 在 Web UI、REST API、兼容 Facade、健康探针与 WebSocket 升级请求上
+独立于 Web Basic Auth 校验浏览器 `Origin`。Web 策略允许请求自身来源、配置的监听
+来源与 `-web-allowed-origins`。只读 MCP HTTP 端点另有更严格的允许列表，以监听
+来源及 `-mcp-allowed-origins` 为依据。不带 `Origin` 的请求仍然放行；非浏览器
+客户端通常省略该头。
 
-两种控制不可互换。Mailpit 按 `Host` 约束经过中间件的路由——即除 `livez` 与
-`readyz` 探针之外的每条路由——但在运维人员设置之前不生效；OwlMail 按 `Origin`
-约束单个端点，且默认开启。把 Web UI 或 REST API 暴露
-到回环之外的 OwlMail 部署仍然需要前置网络边界，而 `--allowed-hosts` 能为 Mailpit
-提供其中一部分。
+两种控制的边界不同。Mailpit 可选的 `Host` 允许列表检查经过中间件的路由，排除
+`livez` 与 `readyz`。OwlMail 默认的浏览器来源检查覆盖所有 Web 接口，但其 Web
+同源分支接受由请求 `Host` 推导出的来源，因此不能提供相同的 Host 允许列表式
+DNS 重绑定防护。OwlMail 应部署在受控网络中，共享访问时配置认证。
 
 ## Agent 集成
 
@@ -148,10 +149,12 @@ OwlMail 0.10.0 提供默认关闭的 MCP：根路径部署使用 `/mcp`，配置
 后使用 `<base-pathname>/mcp`；本地客户端也可以运行
 `owlmail mcp-stdio -mail-directory DIR`。两个 transport 提供相同的七个封闭只读
 工具：列表、搜索、独立详情快照、受限 base64 原始源码、附件元数据、按接收顺序取得
-最新邮件，以及事件驱动且有界的投递等待。它们还提供有界的收件箱、统计与单邮件
+最新邮件，以及有界的投递等待。HTTP 等待使用事件订阅，独立的 stdio 读取器每
+500 ms 扫描已提交文件。它们还提供有界的收件箱、统计与单邮件
 资源，以及注册验证、密码重置和投递等待 Prompts。HTTP transport 与 Web API
 共用监听器和鉴权边界；生成的 Web 链接会保留外部地址与 base path。两个 transport
-都明确不提供删除、已读修改、Relay、配置修改或附件二进制。
+都明确不提供删除、已读修改、Relay、配置修改或专用的附件解码下载工具；原始 MIME
+源码仍可能在源码工具的大小限制内包含编码后的附件载荷。
 
 MailDev 3 的 MCP 范围更广，同时支持 HTTP 和 stdio。两者的工具名称和载荷不能
 直接互换，已有 MailDev MCP 客户端仍需显式兼容验证。

@@ -2,6 +2,9 @@
 
 The loopback-only receiver in `examples/faults` exercises Webhook and Relay failures without modifying OwlMail's SMTP acceptance or production configuration. It discards all payloads and does not relay messages.
 
+This guide follows `main`. The receiver and manual delivery retry workflow are
+not part of the original `v0.10.1` release; build the current source for this drill.
+
 ## Webhook retries, timeouts, and terminal failure
 
 ```sh
@@ -23,7 +26,7 @@ Configure outgoing SMTP to host `127.0.0.1`, port `12525`, with TLS and authenti
 1. Run temporary faults and assert attempts, queued retry state, then terminal success.
 2. Run permanent faults and assert a categorized terminal failure.
 3. Stop OwlMail with a queued durable job, restart with the same spool and configuration, and verify recovery without losing its source.
-4. When the explicit delivery workflow feature is installed (PR #163), replay a retained failed job after the fault ordinal has been exhausted; verify success and that successful webhook targets are not resent. This step requires that separate feature and is not available in the base receiver-only tree.
+4. Replay a retained failed job with the current [delivery workflow API](./API-Reference.md#delivery-workflows) after the fault ordinal has been exhausted; verify success and that successful webhook targets are not resent. The source email and target configuration must still exist.
 5. Treat remote acknowledgements as potentially ambiguous: receivers must deduplicate webhook delivery IDs and relay may deliver more than once.
 
 The receiver allows only literal loopback IP addresses, at most 1,000 initial failures, a 30-second delay, 2 MiB payloads, and 10,000 distinct keys. When key capacity is exhausted, restart it. Do not use it as a general SMTP server or authenticated webhook verifier. Shutdown cancels injected delays.

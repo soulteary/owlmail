@@ -150,24 +150,25 @@ check on each middleware-wrapped route, and its CHANGELOG files the change
 under Security as mitigating DNS rebinding against the API. The `livez` and
 `readyz` probes are registered without that middleware
 (`server/server.go:75-76`), so the allowlist does not run for them. The reasoning in `server/cors.go`
-matches OwlMail's own: the same-origin branch of a CORS check compares two
+explains the limitation of origin checks: the same-origin branch of a CORS check compares two
 client-supplied headers, so an attacker who rebinds a name they control
 satisfies both sides of the comparison unless the decision is anchored on a
 value the operator declared. Mailpit always admits loopback names and raw IP
 literals, because neither can be produced by a rebinding attacker.
 
-OwlMail addresses the same class of problem at a narrower surface: its
-read-only MCP HTTP endpoint validates the browser `Origin` header on every
-request, independently of Web Basic Auth, with `-mcp-allowed-origins` naming
-additional browser origins. Requests carrying no `Origin` header stay allowed,
-because non-browser clients never send one.
+OwlMail 0.10.0 validates browser `Origin` on the Web UI, REST API, compatibility
+facades, health probes, and WebSocket upgrades, independently of Web Basic Auth.
+The Web policy accepts the request's own origin, configured listener origins,
+and `-web-allowed-origins`. The read-only MCP HTTP endpoint has a separate,
+stricter allowlist anchored to listener origins and `-mcp-allowed-origins`.
+Requests carrying no `Origin` stay allowed; non-browser clients usually omit it.
 
-The two controls are not interchangeable. Mailpit gates its middleware-wrapped
-routes on `Host` — every route except the `livez` and `readyz` probes — and is
-off until an operator sets it; OwlMail gates one endpoint on `Origin` and is on
-by default. An OwlMail deployment that exposes the Web UI or
-REST API beyond loopback still needs a network boundary in front of it, which
-`--allowed-hosts` would partly supply for Mailpit.
+The two controls have different boundaries. Mailpit's optional `Host` allowlist
+checks its middleware-wrapped routes, excluding `livez` and `readyz`. OwlMail's
+default browser-origin checks cover all Web surfaces, but its Web same-origin
+branch accepts an origin derived from the request's `Host`; it therefore does
+not provide the same Host allowlist guarantee against DNS rebinding. Keep
+OwlMail on a controlled network and configure authentication for shared access.
 
 ## Agent integration
 
@@ -176,13 +177,16 @@ deployment and `<base-pathname>/mcp` when a base pathname is configured. Local
 clients can instead launch `owlmail mcp-stdio -mail-directory DIR`; both
 transports expose the same seven closed-world, read-only tools: list, search,
 detached detail, bounded base64 source, attachment metadata, latest-email
-lookup ordered by receipt, and an event-driven bounded delivery wait. They also
+lookup ordered by receipt, and a bounded delivery wait. HTTP waits use event
+subscriptions; the separate stdio reader scans committed files every 500 ms.
+They also
 expose bounded inbox, statistics, and email resources plus
 registration-verification, password-reset, and delivery prompts. The HTTP
 transport shares the Web listener and authentication boundary, and generated
 Web links honor the configured external origin and base path. Both transports
 deliberately exclude deletion, read-state mutation, relay, configuration
-changes, and attachment bytes.
+changes, and dedicated decoded-attachment downloads. Raw MIME source can still
+contain encoded attachment payloads within the source tool's limits.
 
 MailDev 3 exposes a broader MCP server and supports both HTTP and stdio
 workflows. Tool and payload names are not interchangeable with OwlMail. An

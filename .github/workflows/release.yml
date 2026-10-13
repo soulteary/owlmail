@@ -279,6 +279,11 @@ jobs:
           upload-artifact: false
           upload-release-assets: false
 
+      - name: Bundle release licenses and upstream notices
+        run: |
+          go run ./scripts/license-bundle -output "${RUNNER_TEMP}/owlmail-licenses"
+          tar -czf owlmail-licenses.tar.gz -C "${RUNNER_TEMP}" owlmail-licenses
+
       - name: Create checksums
         run: |
           sha256sum owlmail-* > checksums.txt
