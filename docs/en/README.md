@@ -20,6 +20,9 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 ### Main Documents
 
+- **[Configuration Reference](./Configuration-Reference.md)**
+  - Complete flags, defaults, environment aliases, and precedence.
+
 - **[Reproducible Delivery Faults](./Fault-Injection.md)**
   - Loopback HTTP/SMTP receivers and recovery drills: [runnable receiver](../../examples/faults).
 - **[Offline Configuration and Recovery Diagnostics](./Configuration-Doctor.md)**

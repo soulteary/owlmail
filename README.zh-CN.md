@@ -1,841 +1,349 @@
 # OwlMail
 
-> 🦉 面向开发者、CI 流水线、自动化系统与 AI Agent 的自托管 AI 原生邮件测试网关。
+在本地捕获应用邮件，检查内容、链接与附件，并在 CI 和 AI Agent 中验证发信流程。
 
-[![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/zh-CN/Comparison-and-Migration.md)
+[![Go Test Coverage](.github/coverage.svg)](.github/go-test-report.md) [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
-## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+[![Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-- [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
----
+将应用的 SMTP 指向 OwlMail，注册、密码重置和通知邮件就会进入测试邮箱。你可以在浏览器查看，同一封已提交邮件也可以通过 REST API、WebSocket 或只读 MCP 交给测试程序和编码 Agent。
 
-OwlMail 在应用邮件进入真实邮箱前将其捕获，并转换为确定、可检查的测试数据。
-开发者可以通过 Web UI 查看邮件，测试套件可以使用版本化 REST API 和 OpenAPI
-合约，自动化系统可以消费持久事件，AI Agent 则可以通过有明确边界的只读 MCP
-等待并检查邮件投递。
+OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker 镜像，支持 Linux amd64 和 arm64。运行二进制无需安装 Go、Node.js 或 Bun。
 
-只需捕获一次，即可通过适合不同工作流的接口验证同一封已完整提交的邮件：
+## 为什么使用 OwlMail
 
-| 使用者 | 接口 | 典型工作流 |
-|---|---|---|
-| 开发者 | Web UI、浏览器通知 | 检查 HTML、纯文本、Header、源码、链接与附件 |
-| 测试套件与 CI | REST API、OpenAPI 3.1、WebSocket | 验证注册、密码重置和通知邮件 |
-| 自动化系统 | 签名 Webhook、可选 Redis Streams | 将已提交邮件转换为可跨重启恢复的下游事件 |
-| AI 编码 Agent | 基于 Streamable HTTP 或 stdio 的只读 MCP | 搜索、获取和等待邮件，不开放破坏性操作 |
-| SMTP 运维方 | 手动与自动 Relay | 按明确的 TLS 与重试策略转发选定测试邮件 |
+- **看到邮件，也能验证结果。** 查看 HTML、文本、Header、源码和附件；主分支可在浏览器验证主题、正文和链接域名，也可通过 API 验证附件数量、文件名、类型、大小和 SHA-256。
+- **让异步邮件进入测试流程。** 当前主分支支持先记录投递游标，再触发业务、等待指定测试运行的邮件，最后只清理本次测试的数据。
+- **给 Agent 一个只读邮箱。** MCP 支持搜索、读取和有界等待；OwlMail 本身不依赖 LLM。
+- **发现问题后查得到投递过程。** 支持 Webhook 与手动、自动 Relay；当前主分支的界面可查看尝试次数、失败类别和投递记录。
+- **按需要增加部署能力。** 本地 EML 持久化、恢复与隔离；可选 SQLite 查询索引、S3 附件存储、Redis Streams 和 Prometheus 指标。
 
-![](.github/assets/owlmail-banner.jpg)
+## 选择版本
 
-## 📸 预览
+下面的 Docker 快速开始使用正式版 **0.10.1**，适合先体验邮件捕获、Web 界面、REST、MCP 和 Webhook。
 
-![OwlMail 预览](.github/assets/preview.png)
+**命令面板、Verify / Deliveries、cursor / run_id、doctor 和配置感知健康检查已在 `main` 实现，尚不包含在原 `v0.10.1` 发布标签中。** 要使用这些功能，请按[主分支体验](#体验当前主分支)构建。`main`、`latest` 是移动标签；固定 CI 环境使用明确的发布版本或镜像 digest。
 
-## 🎥 演示视频
+## 快速开始：收到第一封邮件
 
-![演示视频](.github/assets/realtime.gif)
-
-## ✨ 为什么选择 OwlMail
-
-- **确定性捕获** —— EML、元数据和附件先进入 staging，原子提交后才会对 API
-  与事件消费者可见。
-- **面向集成测试** —— 提供版本化 `/api/v1`、OpenAPI 3.1、原生 WebSocket、
-  健康与就绪检查、搜索、过滤及导出。
-- **AI 原生但不依赖 AI** —— 默认关闭的 MCP 提供七个封闭集合的只读工具、
-  有界 Resources、Prompts 和事件驱动的 `wait_for_email`；运行 OwlMail 不需要 LLM。
-- **持久化自动化** —— 本地 Webhook outbox、可选 Redis Streams、HMAC 签名、
-  稳定投递 ID、有限重试和优雅排空。
-- **明确的运维边界** —— SMTP 容量限制、持久化、可选 S3 附件、SQLite 索引、
-  Prometheus Metrics、JSON 日志与故障恢复。
-- **受控投递** —— 原生异步 Relay 任务仅在配置邮件目录时持久化（否则保存在
-  内存中），并使用不可变配置快照、流式 DATA、明确 TLS 模式与状态查询。
-- **清晰迁移路径** —— 默认关闭的 MailDev 与 MailCatcher REST facade 支持
-  部分现有工作流，但不宣称 Socket.IO 或完全等价兼容。
-
-- **本地工具** —— 使用内嵌的 `/webhooks` 编辑器生成 Webhook 规则，并通过
-  [sendmail 指南](./docs/zh-CN/Sendmail.md)接入传统程序。源码和浏览器测试使用 Bun；
-  部署后的二进制不需要 Go、Bun 或 Node.js 运行时。
-
-## OwlMail 0.10.1
-
-`v0.10.1` 是当前稳定维护版本，修复普通 SMTP listener 启停竞态，并升级 Go 1.27.2、soulteary kit 和第三方依赖。运行时 API 与存储格式兼容 0.10.0，保留该版本引入的安全保护。详见 [0.10.1 发布说明](./docs/zh-CN/Release-0.10.1.md) · [0.10.0 release notes](./docs/zh-CN/Release-0.10.0.md)。
-
-> [!IMPORTANT]
-> OwlMail 面向开发、测试、CI 与可信内部网络，不是公网生产 MTA、
-> exactly-once 消息队列或多租户邮件服务。
-
-## 🚀 快速开始
-
-### 安装
-
-#### 从源码编译
+### 1. 启动 OwlMail
 
 ```bash
-# 克隆仓库
-git clone --branch v0.10.1 --depth 1 https://github.com/soulteary/owlmail.git
-cd owlmail
-
-# 编译
-go build -o owlmail ./cmd/owlmail
-
-# 运行
-./owlmail
-```
-
-#### 使用 Go 安装
-
-```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
-owlmail
-```
-
-### 基本使用
-
-```bash
-# 使用默认配置启动（SMTP: 1025, Web: 1080）
-./owlmail
-
-# 自定义端口
-./owlmail -smtp 1025 -web 1080
-
-# 使用环境变量
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-./owlmail
-```
-
-打开 `http://localhost:1080` 访问收件箱。点击**帮助**可打开
-`http://localhost:1080/help`，点击 **Webhook 配置**可打开
-`http://localhost:1080/webhooks`。配置器只生成和下载 JSON，不会修改正在运行的
-服务；需要使用 `-webhook-config` 指定文件并重启 OwlMail 后才会生效。所有页面及
-静态资源均已嵌入可执行文件，安装后的二进制无需额外携带 `web` 目录。
-
-### Docker 使用
-
-**容器端口一律只发布到回环地址：写 `-p 127.0.0.1:1080:1080`，而不是
-`-p 1080:1080`。** 镜像设置了 `OWLMAIL_WEB_HOST=0.0.0.0` 与
-`OWLMAIL_SMTP_HOST=0.0.0.0`，这在容器内部是正确的——进程必须接受来自其网络命名
-空间之外的连接——但这也意味着能否访问 OwlMail 完全由 `-p` 决定。简写形式会在宿主
-机的每个网络接口上发布端口，而大多数人写下的那条宿主机防火墙规则拦不住它：发布出去
-的端口是经由转发到达的，所以 `ufw deny 1080` 这类 `INPUT` 链规则对它根本不生效。
-要过滤它，需要在 Docker 的 `DOCKER-USER` 链里加规则，或在 nftables、firewalld 中
-做等价配置。这样暴露出去的，是一个存有密码重置链接、验证码与令牌的邮箱，以及一个
-默认不认证即可投递的 SMTP 端口。下面所有示例都使用回环形式。
-
-#### 从 GitHub Container Registry 拉取镜像（推荐）
-
-使用 OwlMail 最简单的方式是从 GitHub Container Registry 拉取预构建的镜像：
-
-```bash
-# 拉取 0.10.1 发布镜像
-docker pull ghcr.io/soulteary/owlmail:0.10.1
-
-# 拉取某个准确提交的镜像（示例）
-docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
-
-# 运行容器
-docker run -d \
+docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  --name owlmail \
   ghcr.io/soulteary/owlmail:0.10.1
 ```
 
-**可用标签：**
-- `0.10.1` - 准确发布标签；`0.10` 与 `0` 会随对应版本系列的后续发布移动
-- `sha-<commit>` - 指定短提交 SHA 的镜像（例如 `sha-8d3445d`）
-- `main` - 随 `main` 分支最新构建移动的镜像
-- `latest` - 随默认分支移动的镜像，不是稳定版本选择器
+打开 [http://localhost:1080](http://localhost:1080)。邮件保存到 `owlmail-data` 卷，重建容器时继续挂载该卷即可保留数据。
 
-**多架构支持：**
-镜像支持 `linux/amd64` 和 `linux/arm64` 两种架构。Docker 会自动为您的平台拉取正确的镜像。
+端口只发布到本机。默认 SMTP 使用 NO AUTH；需要团队访问时，使用私有网络，并配置 Web 认证和 HTTPS。
 
-**查看所有可用镜像：** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+### 2. 配置应用 SMTP
 
-#### 从源码构建
+本机运行的应用使用：
 
-##### 基础构建（单架构）
-
-```bash
-# 为当前架构构建镜像
-docker build -t owlmail .
-
-# 运行容器
-docker run -d \
-  -p 127.0.0.1:1025:1025 \
-  -p 127.0.0.1:1080:1080 \
-  -v owlmail-data:/app/mail \
-  --name owlmail \
-  owlmail
+```text
+SMTP host: 127.0.0.1
+SMTP port: 1025
+TLS: off
+Authentication: none
 ```
 
-##### 多架构构建
+如果应用运行在同一 Compose 网络中，主机名改为 OwlMail 的服务名，例如 `owlmail`，端口仍是 **1025**；容器中的 `localhost` 指向该容器自己。
 
-对于 aarch64 (ARM64) 或其他架构，请使用 Docker Buildx：
-
-```bash
-# 启用 buildx（如果尚未启用）
-docker buildx create --use --name multiarch-builder
-
-# 为多个架构构建
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t owlmail:latest \
-  --load .
-
-# 或构建并推送到镜像仓库
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t your-registry/owlmail:latest \
-  --push .
-
-# 为特定架构构建（例如 aarch64/arm64）
-docker buildx build \
-  --platform linux/arm64 \
-  -t owlmail:latest \
-  --load .
-```
-
-**注意**：Dockerfile 现在支持使用 `TARGETOS` 和 `TARGETARCH` 构建参数进行多架构构建，这些参数由 Docker Buildx 自动设置。
-
-### 浏览器通知
-
-浏览器通知默认关闭。点击收件箱顶部的**通知已关闭**按钮后，浏览器才会请求
-权限并开启通知；设置保存在当前浏览器中，也可以随时通过同一按钮关闭。
-只有开启后通过 WebSocket 实时到达的新邮件会触发通知，加载已有邮件不会通知。
-
-Notifications API 需要 HTTPS，或 `http://localhost` 等受信任的本地来源。
-如果曾拒绝权限，需要先在浏览器的网站设置中允许 OwlMail 通知。通知只显示
-主题和发件人，不包含邮件正文；点击通知会聚焦 OwlMail 并打开对应邮件。
-
-## 📖 配置选项
-
-### 命令行参数
-
-| 参数 | 环境变量 | 默认值 | 说明 |
-|------|---------|--------|------|
-| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP 端口 |
-| `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP 主机 |
-| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 单封入站邮件上限，单位 MiB |
-| `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | 每进程跨 SMTP、STARTTLS 与 SMTPS 的并发 DATA 事务数；`0` 表示不限制；达到上限返回可重试的 `451 4.3.2` |
-| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP 命令与 DATA 读取超时 |
-| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 响应写入超时 |
-| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 单封邮件允许的最大收件人数 |
-| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | 仅运行 SMTP，不启动 HTTP 监听器 |
-| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
-| `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
-| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成邮件深链接时使用的浏览器可见 HTTP(S) origin；反向代理子路径仍通过 `-base-pathname` 配置 |
-| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外，Web 界面与 REST API 额外接受的浏览器来源；`*` 关闭来源校验 |
-| `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL 子路径前缀，例如 `/owlmail`；默认仍为根路径 |
-| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | 显式启用 MailDev `/api` REST 兼容 facade；仍不支持 Socket.IO |
-| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | 在跟随基础路径的 `/metrics` 端点暴露 Prometheus 指标；配置 Web Basic Auth 后同样受其保护 |
-| `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | 在 `/mcp` 启用只读 MCP Streamable HTTP 端点 |
-| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | 关闭空闲旧版 MCP 会话并限制 wait |
-| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 工作的期限 |
-| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外,`/mcp` 额外接受的浏览器来源;`*` 关闭来源校验 |
-| `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | 邮箱最大磁盘 MiB；`0` 表示不限 |
-| `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | 后台保留策略清理间隔 |
-| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 可选的 SQLite 邮箱查询索引路径；索引可重建，EML 文件仍是权威数据源 |
-| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 将解析后的附件存入 S3 兼容对象存储 |
-| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | 自定义 S3 兼容端点；留空使用 AWS S3 |
-| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 签名区域 |
-| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | 用于附件的已有存储桶 |
-| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | 附件对象键前缀 |
-| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | 可选静态访问密钥；留空使用 AWS 凭据链 |
-| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | 可选静态秘密密钥 |
-| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | 可选静态凭据会话令牌 |
-| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | 为兼容服务使用路径式存储桶寻址 |
-| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | 首次只读 S3 存储桶探测失败时终止启动 |
-| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | 后台刷新 S3 readiness 的间隔 |
-| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 5s | 单次 S3 readiness 探测超时 |
-| `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth 用户名 |
-| `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth 密码 |
-| `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | 启用 HTTPS |
-| `-https-cert` | `MAILDEV_HTTPS_CERT` / `OWLMAIL_HTTPS_CERT` | - | HTTPS 证书文件 |
-| `-https-key` | `MAILDEV_HTTPS_KEY` / `OWLMAIL_HTTPS_KEY` | - | HTTPS 私钥文件 |
-| `-outgoing-host` | `MAILDEV_OUTGOING_HOST` / `OWLMAIL_OUTGOING_HOST` | - | 出站 SMTP 主机 |
-| `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | 出站 SMTP 端口 |
-| `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | 出站 SMTP 用户名 |
-| `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | 出站 SMTP 密码 |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev 兼容的隐式 TLS/SMTPS 开关 |
-| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | 传输模式：未设置时为 `plain`，也可选择强制 `starttls` 或隐式 `smtps` |
-| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | 跳过证书和主机名验证（不安全，必须显式开启） |
-| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | TCP 连接和 SMTP 问候超时 |
-| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS/STARTTLS 握手超时 |
-| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH 超时 |
-| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT 超时 |
-| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA 写入和确认超时 |
-| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT 超时 |
-| `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | 启用自动中继 |
-| `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | 自动中继地址 |
-| `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | 自动中继规则文件 |
-| `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | Webhook 消息转发 JSON 配置文件 |
-| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Webhook 邮件并发投递数；`0` 表示不限制 |
-| `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | 用于持久、可跨重启投递的 Redis URL |
-| `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams 键前缀 |
-| `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Webhook 优雅排空截止时间 |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | 入站 SMTP 用户名；与密码同时配置后强制 AUTH |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | 入站 SMTP 密码；与用户名同时配置后强制 AUTH |
-| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | TLS 建立前拒绝 PLAIN/LOGIN；必须同时启用 SMTP TLS |
-| `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | 启用 SMTP TLS |
-| `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS 证书文件 |
-| `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS 私钥文件 |
-| `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | 启用 TLS 时隐式 TLS（SMTPS）监听端口；设为 `0` 则不启动 SMTPS 监听 |
-| `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
-| `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 启用可选的 MailCatcher REST 兼容接口 |
-| `-config` | `OWLMAIL_CONFIG_FILE` | - | 启动时读取 YAML 或 JSON 配置文件；命令行和环境变量优先 |
-| `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 日志输出格式：`console` 或 `json` |
-| `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | 使用 UUID 作为邮件 ID（默认使用 8 字符随机字符串） |
-
-若 TLS 在反向代理终止，请将 `OWLMAIL_WEB_EXTERNAL_SCHEME` 设置为 `https`。
-
-启用 HTTP Basic Auth 后，浏览器 API 与 WebSocket 请求仅允许来自 OwlMail
-自身源。命令行和服务端客户端不携带浏览器 `Origin` 请求头时仍可正常访问。
-
-只配置一项 Web 认证凭据时，OwlMail 也会安全补全，而不会静默关闭认证：
-
-| 已配置内容 | 最终凭据 |
-|---|---|
-| 用户名和密码均未配置 | 关闭认证 |
-| 只配置用户名 | 保留用户名，生成 32 字符密码，并在启动时向 stderr 输出一次 |
-| 只配置密码 | 使用默认用户名 `admin` 和已配置密码 |
-| 用户名和密码均已配置 | 原样使用 |
-
-自动生成的密码会在每次重启后变化。可从进程输出中读取（容器示例使用
-`docker logs owlmail`），需要稳定凭据时应同时配置用户名和密码；如果无法将
-自动生成的密码写入 stderr，OwlMail 会启动失败。Basic Auth 只应在 localhost
-或 HTTPS 上使用。
-
-### 浏览器来源校验
-
-无论是否配置 Basic Auth，OwlMail 都会校验每个请求的浏览器 `Origin`。Basic Auth
-默认关闭，而在没有凭据时，这项校验是保护响应正文的唯一手段：开发者随手打开的页面
-就运行在同一台机器上，绑定 loopback 并不能阻止它请求
-`http://127.0.0.1:1080/api/v1/emails`——是否把捕获到的邮件交给它，只由来源策略
-决定。
-
-不携带 `Origin` 的请求不受影响：`curl`、各语言 HTTP 库、CI 脚本与服务器之间的调用
-都不会发送该头。携带 `Origin` 的请求必须匹配 OwlMail 自身来源，或
-`-web-allowed-origins https://console.example`（逗号分隔）中列出的来源，否则返回
-`403`。被允许的来源会在 `Access-Control-Allow-Origin` 中被精确回显，允许携带凭据
-并正确回应预检，因此你有意放行的浏览器客户端可以正常工作。把该选项设为 `*` 可以
-恢复此前的通配 CORS 行为，供浏览器访问已由其他层控制的部署使用。详见
-[安全模型](./docs/zh-CN/Security-Model.md#浏览器来源策略)。
-
-### 只读 MCP
-
-MCP 默认关闭。使用 `-mcp-enabled` 或 `OWLMAIL_MCP_ENABLED=true` 启用官方
-Streamable HTTP 端点，然后连接 `http://localhost:1080/mcp`。若设置
-`-base-pathname /owlmail`，端点随之变为 `/owlmail/mcp`。MCP 与 Web 共用监听器、
-HTTPS 配置和 HTTP Basic Auth；因此 Web 已启用认证时，每个 MCP 请求也必须携带
-同一组 Basic Auth 凭据。该端点可并发服务现代无状态 `2026-07-28` 与旧版有状态
-客户端。
-
-无论是否配置 Basic Auth，该端点都会校验浏览器的 `Origin` 头。不带 `Origin` 的
-请求来自 `curl`、MCP SDK 的 HTTP 客户端或其他服务端等非浏览器客户端，行为不
-受影响。携带 `Origin` 的请求必须匹配 OwlMail 自身的浏览器可见来源——配置的 Web
-主机、Web 端口上的回环名称，以及设置了 `-web-external-url` 时的该来源——否则
-返回 `403`。这可以阻止开发者顺手访问的无关页面读取已捕获的邮件，包括把自己
-控制的域名重绑定到回环地址的页面。需要放行其他浏览器来源时使用
-`-mcp-allowed-origins https://inspector.example`（逗号分隔）；若浏览器访问已由
-其他层控制，可设为 `*` 关闭该校验。
-
-服务提供七个只读工具：在原有轻量查询、深复制详情、有界 source 和附件元数据
-能力上，增加 `get_latest_email` 与事件驱动的 `wait_for_email`。同时提供有界的
-`owlmail://inbox`、`owlmail://stats`、`owlmail://email/{id}` Resources，以及
-注册验证、密码重置和等待投递 Prompts。邮件结果包含 Web UI 深链接；反向代理
-部署可设置 `-web-external-url https://mail.example.com`（或
-`OWLMAIL_WEB_EXTERNAL_URL`），并使用 `-base-pathname` 单独配置子路径。任何工具
-都不会返回附件字节，只有显式调用 `get_email(include_html=true)` 才返回 HTML。
-完整安全及会话生命周期说明见[运维文档](./docs/zh-CN/Operations.md#供测试代理使用的只读-mcp)。
-
-### 环境变量兼容性
-
-OwlMail 支持上表列出的 MailDev 环境变量别名，并优先于对应的 `OWLMAIL_*`
-变量；未列出的 MailDev 选项不会自动生效。
+也可以先用 curl 发一封邮件：
 
 ```bash
-# 直接使用 MailDev 环境变量（推荐）
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-export MAILDEV_OUTGOING_HOST=smtp.gmail.com
-./owlmail
+curl --url smtp://127.0.0.1:1025 \
+  --mail-from sender@example.test \
+  --mail-rcpt developer@example.test \
+  --upload-file - <<'MAIL'
+From: sender@example.test
+To: developer@example.test
+Subject: Hello OwlMail
+Content-Type: text/plain; charset=utf-8
 
-# 或使用 OwlMail 环境变量
-export OWLMAIL_SMTP_PORT=1025
-export OWLMAIL_WEB_PORT=1080
-./owlmail
+Your test code is 123456.
+MAIL
 ```
 
-### S3 兼容附件存储
+### 3. 查看捕获结果
 
-S3 默认关闭，解析后的附件继续存放在 `-mail-directory` 下。开启 S3 后，只有解析
-后的附件进入对象存储；原始 `.eml`、元数据、事务标记及 Webhook outbox 仍保存在
-本地，因此生产环境仍需持久化邮件目录。
+浏览器中打开新邮件，检查正文和附件，或查询 API：
 
 ```bash
-export OWLMAIL_S3_ENABLED=true
-export OWLMAIL_S3_ENDPOINT=http://minio:9000
-export OWLMAIL_S3_REGION=us-east-1
-export OWLMAIL_S3_BUCKET=owlmail
-export OWLMAIL_S3_PREFIX=owlmail/attachments
-export OWLMAIL_S3_ACCESS_KEY=replace-me
-export OWLMAIL_S3_SECRET_KEY=replace-me
-export OWLMAIL_S3_USE_PATH_STYLE=true
-# 可选：首次 HeadBucket 失败时终止启动
-export OWLMAIL_S3_STARTUP_CHECK=true
-./owlmail -mail-directory ./owlmail-data
+curl --fail http://127.0.0.1:1080/api/v1/emails
 ```
 
-存储桶需要预先创建。留空 endpoint 时使用 AWS S3；不设置 OwlMail 静态密钥时，
-使用 AWS SDK 默认凭据链，可直接使用工作负载角色。附件对象键格式为
-`<prefix>/<email-id>/<generated-filename>`；删除邮件和执行保留策略时，会同步删除
-该邮件对应的对象前缀。只有附件上传完成后 SMTP 才会接受本次邮件事务。
-`OWLMAIL_MAIL_MAX_DISK_MB` 只统计本地文件，不包含 S3 对象占用。
+正式版也支持暗色主题和预览宽度控制。列表返回分页结果。读取原生 `/api/v1` 邮件详情不会自动标记为已读。完整接口见 [API 参考](docs/zh-CN/API-Reference.md)；服务提供 [OpenAPI JSON](http://localhost:1080/api/v1/openapi.json) / [YAML](http://localhost:1080/api/v1/openapi.yaml)，也可直接读取仓库中的 [YAML 合约](openapi/openapi.yaml)。
 
-OwlMail 优先使用只读 `HeadBucket` 探测 S3；若最小权限策略不允许 bucket 级探测，
-则回退到最多读取一个键、限定附件前缀的 `ListObjectsV2`。默认异步执行首次探测，以保持既有启动行为；
-在探测成功前，`GET /readyz` 与 `GET /api/v1/ready` 返回 `503`。设置
-`OWLMAIL_S3_STARTUP_CHECK=true` 后，仅首次探测失败会终止启动。运行期间 S3
-暂时不可用只会让 readiness 失败，不会使进程退出；后台探测恢复后 readiness
-自动恢复。readiness 请求只读取缓存，不会同步等待 S3。`/healthz` 和
-`/api/v1/health` 始终用于进程 liveness。
+## 体验当前主分支
 
-## 📡 API 文档
+使用 Docker 构建，不需要在宿主机安装 Go。以下示例使用另一组本机端口，可以与上面的正式版同时运行：
 
-### API 响应格式
+```bash
+git clone --branch main --depth 1 https://github.com/soulteary/owlmail.git
+cd owlmail
+docker build -t owlmail:local .
 
-OwlMail 使用标准化的 API 响应格式：
+docker run -d --name owlmail-main \
+  -p 127.0.0.1:1026:1025 \
+  -p 127.0.0.1:1081:1080 \
+  -v owlmail-main-data:/app/mail \
+  owlmail:local
+```
 
-**成功响应：**
+打开 [http://localhost:1081](http://localhost:1081)。此实例的应用 SMTP 端口是 **1026**。后续 Python 示例使用这组端口。
+
+### 在浏览器中检查邮件
+
+- 在 HTML、文本、Header 和源码之间切换，查看附件和内联图片。
+- 用七种预览宽度检查手机、平板和桌面布局；切换宽度保留预览滚动位置。
+- 使用暗色主题、搜索、结构化筛选、批量已读 / 删除和 ZIP 导出。
+- 按 `Ctrl/Cmd + K` 或 `?` 打开命令面板；`j/k` 或 `↑/↓` 导航，`/` 搜索，`r` 刷新。
+- 在 **Verify** 中设置主题、正文和链接域名条件；在 **Deliveries** 中手动刷新 Relay / Webhook 记录，查看结果或确认重试。
+
+主题与正文条件使用大小写敏感的子串匹配。链接检查只解析邮件内容中的 URL，不访问链接；六位数字提取是候选值，不代表验证码有效。新 Verify / Deliveries 控件目前可能使用英文回退。
+
+HTML 预览使用隔离 iframe，远程图片、字体和样式默认阻止，需要时可对当前邮件手动加载。
+
+### 在 CI 中等待、验证和清理
+
+下面使用 Python 3 标准库完成一个测试，不需要额外安装依赖。保存为 `email-check.py`，在上述主分支实例启动后运行 `python3 email-check.py`：
+
+```python
+import json
+import smtplib
+import uuid
+from email.message import EmailMessage
+from urllib.request import ProxyHandler, Request, build_opener
+
+API = "http://127.0.0.1:1081"
+HTTP = build_opener(ProxyHandler({}))
+RUN_ID = "readme-" + uuid.uuid4().hex
+RECIPIENT = "signup+" + RUN_ID + "@example.test"
+
+
+def api(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    request = Request(
+        API + path,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    with HTTP.open(request, timeout=35) as response:
+        return json.load(response)
+
+
+cursor = api("GET", "/api/v1/emails/cursor")["cursor"]
+
+message = EmailMessage()
+message["From"] = "sender@example.test"
+message["To"] = RECIPIENT
+message["Subject"] = "Verify your account"
+message["X-OwlMail-Run-ID"] = RUN_ID
+message.set_content("Your test code is 123456.")
+with smtplib.SMTP("127.0.0.1", 1026, timeout=10) as smtp:
+    smtp.send_message(message)
+
+result = api("POST", "/api/v1/emails/wait", {
+    "after": cursor,
+    "run_id": RUN_ID,
+    "recipient": RECIPIENT,
+    "count": 1,
+    "timeout_seconds": 10,
+})
+if result["timed_out"] or not result["emails"]:
+    raise RuntimeError("Expected email did not arrive")
+
+email_id = result["emails"][0]["id"]
+report = api("POST", "/api/v1/emails/" + email_id + "/check", {
+    "subject_contains": ["Verify your account"],
+    "text_contains": ["123456"],
+    "attachment_count": 0,
+})
+if not report["passed"]:
+    raise RuntimeError(json.dumps(report["checks"]))
+
+cleanup = api("DELETE", "/api/v1/test-runs/" + RUN_ID + "/emails")
+if cleanup["failed"] or cleanup["more_possible"]:
+    raise RuntimeError("Test-run cleanup is incomplete")
+print("PASS: received, checked, and cleaned up", RUN_ID)
+```
+
+接入真实应用时，将 `smtp.send_message` 替换为注册、密码重置等业务触发操作，并让应用邮件携带 `X-OwlMail-Run-ID`。保留“取得 cursor → 触发 → 等待”的顺序，可覆盖邮件在开始等待前已经到达的情况。
+
+示例在断言通过后清理，失败时保留邮件便于排查。`run_id` 用于测试分组，不是租户或鉴权隔离；cursor 只在当前进程有效。等待超时会返回 `timed_out: true`，调用方需要检查它，不能只看 HTTP 状态。等待的 `count` 表示至少收到指定数量。
+
+更多内容见 [等待与测试运行](docs/en/Delivery-Waits-and-Test-Runs.md)、[JavaScript / Go / Python 示例](examples/testing)和 [CI 快速入门](docs/zh-CN/CI-Quickstart.md)。
+
+## 让编码 Agent 检查邮件
+
+MCP 默认关闭。下面是独立的二进制部署示例。先按[二进制安装](#使用二进制)准备 `./owlmail`，并确认本机 1025 / 1080 未被其他实例占用。启动前设置一个非空的 `OWLMAIL_WEB_PASSWORD`，再启用 HTTP 接口：
+
+```bash
+./owlmail -mcp-enabled \
+  -web-user agent \
+  -web-password "$OWLMAIL_WEB_PASSWORD"
+```
+
+让支持 Streamable HTTP 的客户端连接 `http://127.0.0.1:1080/mcp`，并提供上述 Basic Auth 凭据。服务已在 Docker 中运行时，可以添加 `-e OWLMAIL_MCP_ENABLED=true` 及对应 Web 凭据后重建容器。
+
+也可以让本地客户端通过 stdio 读取已有邮箱目录：
+
 ```json
 {
-  "code": "EMAIL_DELETED",
-  "message": "Email deleted",
-  "data": { ... }
+  "mcpServers": {
+    "owlmail": {
+      "command": "/absolute/path/to/owlmail",
+      "args": ["mcp-stdio", "-mail-directory", "/absolute/path/to/mail"]
+    }
+  }
 }
 ```
 
-**错误响应：**
+MCP 的七个工具支持列表、搜索、详情、原始源码、附件元数据、最新邮件和等待投递。HTTP 模式直接读取运行实例；stdio 模式读取已提交 EML，并定期扫描目录。
+
+Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览器查看地址。MCP 不提供删除、Relay 或配置修改；原始 MIME 可能包含附件载荷，但没有独立的解码附件下载工具。主分支可用列表 / 搜索返回的 cursor 配合 `wait_for_email`，具体参数见 [MCP 参考](docs/zh-CN/MCP-Reference.md)和[测试运行契约](docs/en/Delivery-Waits-and-Test-Runs.md)。
+
+## 把邮件接入自动化或转发到真实邮箱
+
+### Webhook
+
+内置 `/webhooks` 页面可以生成、导入和下载配置。它不修改正在运行的服务；保存文件后，通过 `-webhook-config` 启动或重启 OwlMail。
+
+例如，将所有新邮件发送给本机接收器。先让接收器监听 `18080`，把下面 JSON 保存为 `webhooks.json`：
+
 ```json
 {
-  "code": "EMAIL_NOT_FOUND",
-  "error": "EMAIL_NOT_FOUND",
-  "message": "Email not found"
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
 }
 ```
 
-`code` 字段包含标准化的错误/成功代码，可用于国际化。`message` 字段提供英文文本以保持向后兼容。
-Basic Auth 与浏览器来源守卫错误发生在进入 API 处理器之前，因此会返回纯文本
-`401` 或 `403`。
+```bash
+./owlmail -mail-directory ./mail -webhook-config ./webhooks.json
+```
 
-### 邮件 ID 格式
+这是独立的本机二进制示例，需要先安装二进制，并确保默认监听端口未被其他实例占用。容器中的 `127.0.0.1` 指向 OwlMail 容器本身；容器部署请使用同一网络中的接收器服务名，并挂载配置文件。
 
-OwlMail 支持两种邮件 ID 格式，所有 API 端点都兼容这两种格式：
+支持收件人 / 主题过滤、自定义请求体、HMAC 签名和重试。需要跨重启恢复排队投递时，使用持久邮件目录、持久化的 Redis Streams，并让接收器按 `X-OwlMail-Delivery-ID` 去重。仅本地 outbox、没有 Redis 时，事件进入内存队列后不再保证跨重启恢复。
 
-- **8 字符随机字符串**：默认格式，例如 `aB3dEfGh`
-- **UUID 格式**：36 字符标准 UUID，例如 `550e8400-e29b-41d4-a716-446655440000`
+参见 [Webhook 指南](docs/zh-CN/Webhook-Forwarding.md)和[可运行 Compose 示例](examples/webhooks/soulteary-webhook)。
 
-在 API 请求中使用 `:id` 参数时，可以使用任意一种格式。例如：
-- `GET /email/aB3dEfGh` - 使用随机字符串 ID
-- `GET /email/550e8400-e29b-41d4-a716-446655440000` - 使用 UUID ID
+### SMTP Relay
 
-### 可选 MailDev REST facade
+配置出站 SMTP 后，可以手动转发选中的测试邮件，或按规则自动转发。出站传输支持 `plain`、强制 `starttls` 和 `smtps`，默认验证证书。
 
-现有 MailDev REST 客户端可显式启用其 `/api` 路由和载荷合约：
+原生 Relay API 返回异步任务；提交成功表示任务被接受，应继续查询状态。持久邮件目录可保存任务并恢复未完成投递。恢复可能重复发送，发送成功也不证明远端最终进入用户收件箱。
+
+需要先配置接收地址与 TLS 策略，参见 [Relay 与运维配置](docs/zh-CN/Operations.md)。
+
+## 安装和日常配置
+
+### 使用二进制
+
+从 [Releases](https://github.com/soulteary/owlmail/releases)下载适合平台的二进制，将文件重命名为 `owlmail`，Unix 平台执行 `chmod +x owlmail`。本文的 `./owlmail` 表示这个下载或本地构建的文件。
+
+也可以使用 Go 1.27.2+ 安装正式版：
 
 ```bash
-owlmail -maildev-rest-compat
-# 或：OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
+owlmail -mail-directory ./mail
 ```
 
-启用后提供 `/api/email`、`/api/email/summary`、`/api/email/delete`、详情、
-HTML、source、EML 下载、附件、relay、`/api/config`、`/api/healthz` 和
-`/api/reloadMailsFromDirectory`。facade 复用 Basic Auth、HTTPS 与 base path；
-health 与 MailDev 一样公开。只有 `GET /api/email/:id` 会将邮件标记已读。
-关闭选项时所有新增 `/api` 路由均不存在。这里**不实现 Socket.IO**，实时客户端
-仍需迁移到 OwlMail 原生 WebSocket 协议。详见
-[API 参考](./docs/zh-CN/API-Reference.md#可选-maildev-rest-facade)。
+通过 `go install` 安装后，将示例中的 `./owlmail` 改为 `owlmail`，并确保 Go 安装目录已加入 `PATH`。
 
-### MailDev 风格兼容路由
+本机默认监听 `localhost`；需要持久邮箱时显式指定 `-mail-directory`。
 
-OwlMail 保留无版本路由以覆盖常见 MailDev 风格工作流，但它们不是当前 MailDev
-API 的精确等价实现；差异见 [API 参考](./docs/zh-CN/API-Reference.md#maildev-迁移边界)。
-
-#### 邮件操作
-
-- `GET /email` - 获取所有邮件（支持分页和过滤）
-  - 查询参数：
-    - `limit` (默认: 50, 最大: 1000) - 返回邮件数量
-    - `offset` (默认: 0) - 跳过的邮件数量
-    - `q` - 全文搜索查询
-    - `from` - 按发件人邮箱地址过滤
-    - `to` - 按收件人邮箱地址过滤
-    - `dateFrom` - 按起始日期过滤（YYYY-MM-DD 格式）
-    - `dateTo` - 按结束日期过滤（YYYY-MM-DD 格式）
-    - `read` - 按已读状态过滤（true/false）
-    - `sortBy` - 排序字段（time、subject、from、size）
-    - `sortOrder` - 排序顺序（asc, desc，默认: desc）
-  - 示例：`GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
-- `GET /email/:id` - 获取单个邮件
-- `DELETE /email/:id` - 删除单个邮件
-- `DELETE /email/all` - 删除所有邮件
-- `PATCH /email/read-all` - 标记所有邮件为已读
-- `PATCH /email/:id/read` - 标记单个邮件为已读
-
-#### 邮件内容
-
-- `GET /email/:id/html` - 获取邮件 HTML 内容
-- `GET /email/:id/attachment/:filename` - 下载附件
-- `GET /email/:id/download` - 下载原始 .eml 文件
-- `GET /email/:id/source` - 获取邮件原始源码
-
-#### 邮件转发
-
-- `POST /email/:id/relay` - 转发邮件到配置的 SMTP 服务器
-- `POST /email/:id/relay/:relayTo` - 转发邮件到指定地址
-
-#### 配置和系统
-
-- `GET /config` - 获取配置信息
-- `GET /healthz` - 进程存活检查
-- `GET /readyz` - 缓存的依赖 readiness 检查
-- `GET /reloadMailsFromDirectory` - 重新加载邮件目录
-- `GET /socket.io` - WebSocket 连接（标准 WebSocket，非 Socket.IO）
-
-### OwlMail 增强 API
-
-#### 邮件统计和预览
-
-- `GET /email/stats` - 获取邮件统计信息
-- `GET /email/preview` - 获取邮件预览（轻量级）
-
-#### 批量操作
-
-- `POST /email/batch/delete` - 批量删除邮件
-- `POST /email/batch/read` - 批量标记已读
-
-#### 邮件导出
-
-- `GET /email/export` - 导出邮件为 ZIP 文件
-
-#### 配置管理
-
-- `GET /config/outgoing` - 获取出站配置
-- `PUT /config/outgoing` - 更新出站配置
-- `PATCH /config/outgoing` - 部分更新出站配置
-
-### 改进的 RESTful API (`/api/v1/*`)
-
-OwlMail 提供了更规范的 RESTful API 设计：
-
-- `GET /api/v1/emails` - 获取所有邮件（复数资源）
-  - 查询参数：与 `GET /email` 相同（limit, offset, q, from, to, dateFrom, dateTo, read, sortBy, sortOrder）
-  - 示例：`GET /api/v1/emails?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
-- `GET /api/v1/emails/:id` - 获取单个邮件
-- `DELETE /api/v1/emails/:id` - 删除单个邮件
-- `DELETE /api/v1/emails` - 删除所有邮件
-- `DELETE /api/v1/emails/batch` - 批量删除
-- `PATCH /api/v1/emails/read` - 标记所有邮件为已读
-- `PATCH /api/v1/emails/:id/read` - 标记单个邮件为已读
-- `PATCH /api/v1/emails/batch/read` - 批量标记已读
-- `GET /api/v1/emails/stats` - 邮件统计
-- `GET /api/v1/emails/preview` - 邮件预览
-- `GET /api/v1/emails/export` - 导出邮件
-- `POST /api/v1/emails/reload` - 重新加载邮件
-- `GET /api/v1/settings` - 获取所有设置
-- `GET /api/v1/settings/outgoing` - 获取出站配置
-- `PUT /api/v1/settings/outgoing` - 更新出站配置
-- `PATCH /api/v1/settings/outgoing` - 部分更新出站配置
-- `GET /api/v1/health` - 进程存活检查
-- `GET /api/v1/ready` - 缓存的依赖 readiness 检查
-- `GET /api/v1/version` - 版本信息
-- `GET /api/v1/ws` - WebSocket 连接
-- `GET /api/v1/openapi.json` - OpenAPI 3.1 合约（JSON）
-- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 合约（YAML）
-
-完整的子资源、鉴权、响应结构和 WebSocket 事件见
-[API 参考](./docs/zh-CN/API-Reference.md)或版本控制中的
-[OpenAPI 合约](./openapi/openapi.yaml)。服务端返回的合约会自动包含配置的
-base pathname。
-
-## 🔧 使用示例
-
-### 基本使用
+构建当前主分支：
 
 ```bash
-# 启动 OwlMail
-./owlmail -smtp 1025 -web 1080
-
-# 在应用中配置 SMTP
-SMTP_HOST=localhost
-SMTP_PORT=1025
+git clone --branch main --depth 1 https://github.com/soulteary/owlmail.git
+cd owlmail
+go build -o owlmail ./cmd/owlmail
+./owlmail -mail-directory ./mail
 ```
 
-### 配置邮件转发
+### 使用配置文件
+
+支持平面 YAML / JSON，键名使用 CLI 选项。把下面内容保存为 `owlmail.yaml`：
+
+```yaml
+smtp: 1025
+web: 1080
+mail-directory: ./mail
+mail-retention-days: 7
+smtp-max-concurrency: 8
+log-format: json
+```
 
 ```bash
-# 转发到 Gmail SMTP
-./owlmail \
-  -outgoing-host smtp.gmail.com \
-  -outgoing-port 587 \
-  -outgoing-user your-email@gmail.com \
-  -outgoing-pass your-password \
-  -outgoing-tls-mode starttls
+./owlmail -config ./owlmail.yaml
 ```
 
-`starttls` 模式在服务端未声明 STARTTLS、握手失败或证书/主机名验证失败时
-直接终止，不会降级到明文。隐式 TLS（通常为 465 端口）请使用 `smtps`，或使用
-兼容 MailDev 的旧参数 `-outgoing-secure`。`plain` 模式禁止出站 AUTH。
+该配置保存本地邮件，并按七天保留策略清理。设置 `mail-max-messages` 或 `mail-max-disk-mb` 可进一步控制容量。环境变量和命令行可以覆盖文件配置；全部参数、默认值和环境变量别名见[配置参考](docs/zh-CN/Configuration-Reference.md)，部署方式见[运维指南](docs/zh-CN/Operations.md)。
 
-### 自动中继模式
+### 诊断与健康检查（main）
 
 ```bash
-# 创建自动中继规则文件 (relay-rules.json)
-cat > relay-rules.json <<EOF
-[
-  { "allow": "*" },
-  { "deny": "*@test.com" },
-  { "allow": "ok@test.com" }
-]
-EOF
-
-# 启动自动中继
-./owlmail \
-  -outgoing-host smtp.gmail.com \
-  -outgoing-port 587 \
-  -outgoing-user your-email@gmail.com \
-  -outgoing-pass your-password \
-  -auto-relay \
-  -auto-relay-rules relay-rules.json
+./owlmail doctor -config ./owlmail.yaml
+./owlmail healthcheck -config ./owlmail.yaml
+./owlmail healthcheck --ready -config ./owlmail.yaml
 ```
 
-### Webhook 消息转发
+`doctor` 做离线配置和恢复记录检查，不连接下游，也不证明服务可用。`healthcheck` 检查正在运行的服务；`--ready` 检查缓存的运行时就绪状态。容器内置探针使用启动配置快照，不要求你把端口和 HTTPS 设置再写一遍。
 
-可在 `http://localhost:1080/webhooks` 使用内置配置器生成版本 1 配置，或导入并
-校验已有配置。编辑过程只在浏览器本地完成。下载 JSON 后，需要使用
-`-webhook-config` 指定文件并重启 OwlMail；仅下载文件不会自动启用规则。
+只需要 SMTP 时，可在主分支使用 `-disable-web`；它不会提供 Web、REST 或 HTTP MCP。SMTP-only 的独立 readiness 探针需要明确的绝对邮件目录，见[运维指南](docs/en/Operations.md)。
+
+## 从 MailDev 或 MailCatcher 迁移
+
+普通 SMTP 发信应用通常只需修改主机和端口。已有 REST 客户端可显式启用默认关闭的兼容层：
 
 ```bash
-# 终端 1：启动本地测试接收器
-go run ./examples/webhooks/receiver
-
-# 终端 2：使用默认 JSON 请求体转发所有新邮件
-./owlmail -webhook-config ./examples/webhooks/minimal.json
+./owlmail -maildev-rest-compat
+# 或
+./owlmail -mailcatcher-rest-compat
 ```
 
-Webhook 目标支持不区分大小写的通配规则、JSON 安全的自定义请求体模板、环境变量密钥、HMAC-SHA256 签名、超时和有限重试。[场景示例](./examples/webhooks/README.zh-CN.md)覆盖过滤、自定义 API、多目标、纯文本和可直接运行的 `soulteary/webhook` 联动；完整参考见 [Webhook 消息转发指南](./docs/zh-CN/Webhook-Forwarding.md)。
+兼容层覆盖文档列出的 HTTP 工作流，不包含 MailDev 的 Node 嵌入 API、Socket.IO 或 MCP 工具契约。新集成使用原生 `/api/v1` 与标准 WebSocket。
 
-### 使用 HTTPS
+详细差异见 [MailDev / MailCatcher / Mailpit 比较与迁移](docs/zh-CN/Comparison-and-Migration.md)。
 
-```bash
-./owlmail \
-  -https \
-  -https-cert /path/to/cert.pem \
-  -https-key /path/to/key.pem \
-  -web 1080
-```
+## 使用边界
 
-### 入站 SMTP 认证模式
+OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能包含验证码、重置链接和测试凭据；默认绑定本机，团队部署应设置固定认证、HTTPS 和网络访问范围。
 
-不配置 `-smtp-user` 和 `-smtp-password` 时，OwlMail 默认使用 **NO AUTH**
-模式：既允许客户端不认证直接投递，也会声明支持 PLAIN/LOGIN，并接受任意凭据，
-方便对接那些必须填写 SMTP 凭据、但本地开发和测试时不希望额外配置服务的应用。
+- 一个邮箱目录由一个可写 OwlMail 实例使用，不支持共享多写者邮箱或租户权限隔离。
+- S3 只保存解码附件；EML、元数据和投递状态仍需本地持久化。
+- Webhook 和恢复后的 Relay 可能重复，接收端需要幂等处理。
+- OwlMail 不提供生产 MTA、IMAP / POP3、垃圾邮件评分或真实邮件客户端兼容性认证。
 
-同时配置两项后启用真正的强制 SMTP AUTH。未认证事务会收到 `530 5.7.0`，错误
-凭据会收到 `535 5.7.8`。只配置其中一项时启动失败，不会静默回退到 NO AUTH。
+更多细节见[安全模型](docs/zh-CN/Security-Model.md)。
 
-若希望保留默认开发体验，同时避免凭据经过明文连接，可在启用 SMTP TLS 的同时
-设置 `-smtp-auth-require-tls`（或 `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`）。此时
-明文 SMTP 既不会声明也不会接受 PLAIN/LOGIN；STARTTLS 后及 SMTPS 连接仍可正常
-认证。NO AUTH 模式下的匿名投递不受影响。开启此选项但没有启用且可用的 SMTP TLS
-配置时，服务会直接启动失败。
+## 文档与反馈
 
-> [!WARNING]
-> NO AUTH 有意不提供访问控制；为兼容开发环境，PLAIN/LOGIN 也允许在未启用 TLS
-> 时使用。请只在本机或可信网络使用 NO AUTH，使用真实凭据前应启用 TLS。
+- [0.10.1 正式版发布说明](docs/zh-CN/Release-0.10.1.md) · [0.10.0 发布说明](docs/zh-CN/Release-0.10.0.md)
+- [集成测试](docs/zh-CN/Integration-Testing.md) · [Sendmail 兼容 CLI](docs/zh-CN/Sendmail.md)
+- [配置参考](docs/zh-CN/Configuration-Reference.md)
+- [API 与 OpenAPI](docs/zh-CN/API-Reference.md)
+- [Agent 接入](docs/zh-CN/AI-Agent-Testing.md)
+- [部署、持久化、TLS 和监控](docs/zh-CN/Operations.md)
+- [架构](docs/zh-CN/Architecture.md) · [变更记录](CHANGELOG.md)
+- [贡献指南](.github/CONTRIBUTING.zh-CN.md) · [Issues](https://github.com/soulteary/owlmail/issues)
 
-### 使用 TLS
+反馈问题时附上版本或提交、启动方式、脱敏配置、错误信息和最小复现。漏洞请通过[安全报告渠道](.github/SECURITY.md)提交。
 
-```bash
-./owlmail \
-  -tls \
-  -tls-cert /path/to/cert.pem \
-  -tls-key /path/to/key.pem \
-  -smtp 1025
-```
+## 许可证与致谢
 
-**注意**：启用 TLS 时，OwlMail 会在常规 SMTP 服务器之外额外提供 SMTPS（直接 TLS 连接，无需 STARTTLS）。其端口由 `-smtps-port` 或 `OWLMAIL_SMTPS_PORT` 指定，默认值为特权端口 465；非 root 进程无法绑定该端口，而官方容器镜像正是以非 root 用户运行。请将 `-smtps-port` 设为非特权端口，或设为 `0` 以不启动 SMTPS 监听、仅在 SMTP 端口使用 STARTTLS。SMTPS 绑定失败会直接中止启动，而不会留下一个无人监听的端口。
-
-### 使用 UUID 作为邮件 ID
-
-OwlMail 支持两种邮件 ID 格式：
-
-1. **默认格式**：8 字符随机字符串（例如：`aB3dEfGh`）
-2. **UUID 格式**：36 字符标准 UUID（例如：`550e8400-e29b-41d4-a716-446655440000`）
-
-使用 UUID 格式可以提供更好的唯一性和可追溯性，特别适合需要与外部系统集成的场景。
-
-```bash
-# 使用命令行参数启用 UUID
-./owlmail -use-uuid-for-email-id
-
-# 使用环境变量启用 UUID
-export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
-./owlmail
-
-# 结合其他配置使用
-./owlmail \
-  -use-uuid-for-email-id \
-  -smtp 1025 \
-  -web 1080
-```
-
-**注意事项**：
-- 默认使用 8 字符随机字符串，兼容 MailDev 的行为
-- 启用 UUID 后，所有新接收的邮件将使用 UUID 格式的 ID
-- API 同时支持两种格式的 ID，可以正常查询、删除和操作邮件
-- 已存在的邮件 ID 格式不会改变，只有新邮件会使用新的 ID 格式
-
-## 🔄 从 MailDev 迁移
-
-OwlMail 覆盖常见 MailDev 工作流，但当前 MailDev 客户端可能需要少量明确适配。
-请遵循[迁移指南](./docs/zh-CN/Comparison-and-Migration.md)。
-
-### 1. 环境变量兼容
-
-OwlMail 接受配置表中列出的 MailDev 环境变量；请逐项核对部署实际使用的变量：
-
-```bash
-# MailDev 配置
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-export MAILDEV_OUTGOING_HOST=smtp.gmail.com
-
-# 上述已列出的变量也可被 OwlMail 读取
-./owlmail
-```
-
-### 2. API 兼容
-
-现有 REST 客户端可显式启用默认关闭的 MailDev facade；新集成应使用 OwlMail
-版本化 API。该 facade 不提供 Socket.IO 兼容：
-
-```bash
-# 现有 MailDev REST 客户端
-OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
-curl http://localhost:1080/api/email
-
-# 新 OwlMail 集成
-curl http://localhost:1080/api/v1/emails
-```
-
-### 3. WebSocket 适配
-
-如果使用 WebSocket，需要从 Socket.IO 改为标准 WebSocket：
-
-```javascript
-// MailDev (Socket.IO)
-const socket = io('/socket.io');
-socket.on('newMail', (email) => { /* ... */ });
-
-// OwlMail (标准 WebSocket)
-const ws = new WebSocket('ws://localhost:1080/socket.io');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data.type === 'new') { /* ... */ }
-};
-```
-
-详细迁移指南请参考：[OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南](./docs/zh-CN/Comparison-and-Migration.md)
-
-## 🧪 测试
-
-```bash
-# 运行所有测试
-go test ./...
-
-# 运行测试并查看覆盖率
-go test -cover ./...
-
-# 运行特定包的测试
-go test ./internal/api/...
-go test ./internal/mailserver/...
-```
-
-## 📦 项目结构
-
-```
-OwlMail/
-├── cmd/
-│   └── owlmail/          # 主程序入口
-├── internal/
-│   ├── api/              # Web API 实现
-│   ├── common/           # 通用工具（日志、错误处理）
-│   ├── maildev/          # MailDev 兼容层
-│   ├── mailserver/       # SMTP 服务器实现
-│   ├── outgoing/         # 邮件转发实现
-│   ├── types/            # 类型定义
-│   └── webhook/          # Webhook 过滤、模板、签名与投递
-├── docs/                 # API、运维、Webhook 与迁移文档
-├── examples/             # 可运行的集成示例
-├── tests/                # 浏览器与文档契约测试
-├── web/                  # 嵌入式 Web 前端和本地帮助资源
-├── go.mod                # Go 模块定义
-└── README.md             # 本文档
-```
-
-## 🤝 贡献
-
-欢迎贡献！请遵循以下步骤：
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 开启 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情。
-
-## 🙏 致谢
-
-- [MailDev](https://github.com/maildev/maildev) - 原始项目灵感
-- [emersion/go-smtp](https://github.com/emersion/go-smtp) - SMTP 服务器库
-- [emersion/go-message](https://github.com/emersion/go-message) - 邮件解析库
-- [Fiber](https://github.com/gofiber/fiber) - Web 框架
-- [gorilla/websocket](https://github.com/gorilla/websocket) - WebSocket 库
-
-## 📚 相关文档
-
-- [OwlMail 0.10.1 发布说明](./docs/zh-CN/Release-0.10.1.md)
-- [集成测试](./docs/zh-CN/Integration-Testing.md)与 [CI 快速入门](./docs/zh-CN/CI-Quickstart.md)
-- [AI Agent 测试](./docs/zh-CN/AI-Agent-Testing.md)与 [MCP 参考](./docs/zh-CN/MCP-Reference.md)
-- [测试配方与可运行示例](./docs/zh-CN/Testing-Recipes.md)
-- [架构](./docs/zh-CN/Architecture.md)与[安全模型](./docs/zh-CN/Security-Model.md)
-- [OwlMail 0.9.0 发布说明](./docs/zh-CN/Release-0.9.0.md)
-- [变更日志](./CHANGELOG.md)
-- [OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南](./docs/zh-CN/Comparison-and-Migration.md)
-- [API 参考](./docs/zh-CN/API-Reference.md)
-- [运维与排障](./docs/zh-CN/Operations.md)
-- [Webhook 消息转发](./docs/zh-CN/Webhook-Forwarding.md)
-- [可运行 Webhook 场景](./examples/webhooks/README.zh-CN.md)
-- [发布流程（维护者）](./docs/zh-CN/Releasing.md)
-- [API 重构记录（历史资料）](./docs/zh-CN/internal/API_Refactoring_Record.md)
-
-## 🐛 问题反馈
-
-如果遇到问题或有建议，请在 [GitHub Issues](https://github.com/soulteary/owlmail/issues) 中提交。
-
-## ⭐ Star History
-
-如果这个项目对你有帮助，请给一个 Star ⭐！
-
----
-
-**OwlMail** —— 为开发者、CI、自动化系统与 AI Agent 提供统一的自托管邮件测试网关。🦉
+[MIT](LICENSE)。感谢 [MailDev](https://github.com/maildev/maildev) 的启发，以及 Go SMTP / MIME、Fiber 和 WebSocket 等上游项目。

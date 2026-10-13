@@ -20,6 +20,9 @@
 
 ### 主要文档
 
+- **[配置参考](./Configuration-Reference.md)**
+  - 完整参数、默认值、环境变量别名与优先级。
+
 - **[集成测试](./Integration-Testing.md)**
   - 确定性 SMTP 捕获、REST 断言、并行隔离与故障定位。
   - **可运行示例**：[JavaScript、Go、Python 与 Compose](../../examples/testing/README.zh-CN.md)

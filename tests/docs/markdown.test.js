@@ -17,6 +17,10 @@ const translatedReadmes = [
   "README.ja.md",
   "README.ko.md",
 ];
+const configurationReferences = new Map([
+  ["README.md", "docs/en/Configuration-Reference.md"],
+  ["README.zh-CN.md", "docs/zh-CN/Configuration-Reference.md"],
+]);
 const securityFiles = [
   "SECURITY.md",
   "SECURITY.zh-CN.md",
@@ -317,12 +321,20 @@ test("Markdown has balanced fences and valid local links", () => {
   assert.deepEqual(failures, []);
 });
 
-test("root README configuration tables match flags, defaults, and environment aliases", () => {
+test("README configuration references match flags, defaults, and environment aliases", () => {
   const contract = extractConfigContract();
   assert.ok(contract.flags.length > 0, "no configuration flags found");
 
   for (const readme of translatedReadmes) {
-    const markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    let markdown = fs.readFileSync(path.join(root, readme), "utf8");
+    const reference = configurationReferences.get(readme);
+    if (reference) {
+      assert.ok(markdown.includes(`](${reference})`), `${readme} does not link its configuration reference`);
+      const locale = path.dirname(reference);
+      const index = fs.readFileSync(path.join(root, locale, "README.md"), "utf8");
+      assert.ok(index.includes("Configuration-Reference.md"), `${locale} does not index its configuration reference`);
+      markdown = fs.readFileSync(path.join(root, reference), "utf8");
+    }
     const rows = configRows(markdown);
 
     for (const flag of contract.flags) {
@@ -630,7 +642,11 @@ test(`${currentVersion} release documentation and workflow stay connected`, () =
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
     assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${currentVersion}`), `${readme} does not pin the release image`);
-    assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${releaseBaselineImage}`), `${readme} does not use the reviewed source baseline image`);
+    if (configurationReferences.has(readme)) {
+      assert.ok(markdown.includes("Comparison-and-Migration.md"), `${readme} does not link the source-pinned comparison`);
+    } else {
+      assert.ok(markdown.includes(`ghcr.io/soulteary/owlmail:${releaseBaselineImage}`), `${readme} does not use the reviewed source baseline image`);
+    }
     assert.ok(markdown.includes(currentReleaseNote), `${readme} does not link the release notes`);
     assert.ok(markdown.includes("`/webhooks`"), `${readme} does not document the webhook configurator`);
     assert.ok(markdown.includes("Bun"), `${readme} does not distinguish the Bun build tool from runtime requirements`);
@@ -945,10 +961,14 @@ test(`${currentVersion} examples are pinned, private by default, persistent, and
   for (const readme of translatedReadmes) {
     const markdown = fs.readFileSync(path.join(root, readme), "utf8");
     const commands = shellCommands(markdown);
-    const clone = commands.find((command) => command.startsWith("git clone "));
-    assert.ok(clone, `${readme} has no source clone command`);
-    assert.match(clone, new RegExp(`(?:^|\\s)--branch\\s+v${currentVersionPattern}(?:\\s|$)`), `${readme} does not pin the source tag`);
-    assert.match(clone, /(?:^|\s)--depth\s+1(?:\s|$)/, `${readme} does not use a shallow release clone`);
+    const clones = commands.filter((command) => command.startsWith("git clone "));
+    assert.ok(clones.length > 0, `${readme} has no source clone command`);
+    for (const clone of clones) {
+      const branch = clone.match(/(?:^|\s)--branch\s+(\S+)/)?.[1];
+      assert.ok(branch === currentTag || (configurationReferences.has(readme) && branch === "main"),
+        `${readme} does not identify the source version`);
+      assert.match(clone, /(?:^|\s)--depth\s+1(?:\s|$)/, `${readme} does not use a shallow clone`);
+    }
 
     const installs = commands.filter((command) => command.startsWith("go install "));
     assert.deepEqual(
@@ -958,14 +978,23 @@ test(`${currentVersion} examples are pinned, private by default, persistent, and
     );
 
     const dockerRuns = commands.filter((command) => command.startsWith("docker run "));
-    assert.equal(dockerRuns.length, 2, `${readme} has an unexpected number of Docker run examples`);
+    assert.ok(dockerRuns.length > 0, `${readme} has no Docker run examples`);
+    assert.ok(dockerRuns.some((command) => command.endsWith(`ghcr.io/soulteary/owlmail:${currentVersion}`)),
+      `${readme} has no release-pinned Docker quick start`);
+    const ports = new Set();
+    const volumes = new Set();
     for (const [index, command] of dockerRuns.entries()) {
       assertPrivateDockerPorts(command, `${readme} docker run #${index + 1}`);
-      assert.match(
-        command,
-        /(?:^|\s)-v\s+owlmail-data:\/app\/mail(?:\s|$)/,
-        `${readme} docker run #${index + 1} omits mailbox persistence`,
-      );
+      const volume = command.match(/(?:^|\s)-v\s+([^\s:]+):\/app\/mail(?:\s|$)/)?.[1];
+      assert.ok(volume, `${readme} docker run #${index + 1} omits mailbox persistence`);
+      if (configurationReferences.has(readme)) {
+        assert.ok(!volumes.has(volume), `${readme} examples share a writable mailbox volume`);
+        volumes.add(volume);
+        for (const match of command.matchAll(/(?:^|\s)-p\s+127\.0\.0\.1:(\d+):\d+/g)) {
+          assert.ok(!ports.has(match[1]), `${readme} examples collide on host port ${match[1]}`);
+          ports.add(match[1]);
+        }
+      }
     }
   }
 

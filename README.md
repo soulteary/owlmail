@@ -1,1033 +1,349 @@
 # OwlMail
 
-> 🦉 A self-hosted, AI-native email testing gateway for developers, CI pipelines, automation, and coding agents.
+Capture application email locally, inspect its content and attachments, and verify delivery in CI and coding-agent workflows.
 
-[![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.2+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/en/Comparison-and-Migration.md)
+[![Go Test Coverage](.github/coverage.svg)](.github/go-test-report.md) [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md)
 
-## 🌍 Languages / 语言 / Sprachen / Langues / Lingue / 言語 / 언어
+[![Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
-- [English](README.md) | [简体中文](README.zh-CN.md) | [Deutsch](README.de.md) | [Français](README.fr.md) | [Italiano](README.it.md) | [日本語](README.ja.md) | [한국어](README.ko.md)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Deutsch](README.de.md) · [Français](README.fr.md) · [Italiano](README.it.md) · [日本語](README.ja.md) · [한국어](README.ko.md)
 
----
+Point your application's SMTP settings at OwlMail to capture signup, password-reset, and notification emails. Inspect them in the browser, or let tests and coding agents read the same committed messages through REST, WebSocket, or read-only MCP.
 
-OwlMail captures application email before it reaches a real inbox and turns it
-into deterministic, inspectable test data. Developers can review messages in
-the Web UI, test suites can use the versioned REST API and OpenAPI contract,
-automation systems can consume durable events, and AI agents can wait for and
-inspect delivery through a bounded, read-only MCP interface.
+OwlMail runs as a single Go executable with an embedded Web UI. Docker images support Linux amd64 and arm64. The executable needs no Go, Node.js, or Bun runtime.
 
-Capture once, then verify the same committed message through the interface that
-fits each workflow:
+## Why OwlMail
 
-| Consumer | Interface | Typical workflow |
-|---|---|---|
-| Developers | Web UI and browser notifications | Inspect HTML, text, headers, source, links, and attachments |
-| Test suites and CI | REST API, OpenAPI 3.1, and WebSocket | Verify registration, password-reset, and notification mail |
-| Automation | Signed Webhooks and optional Redis Streams | Convert committed email into restart-safe downstream events |
-| AI coding agents | Read-only MCP over Streamable HTTP or stdio | Search, retrieve, and wait for email without destructive access |
-| SMTP operators | Manual and automatic Relay | Forward selected test mail under explicit TLS and retry policies |
+- **Inspect mail and check expectations.** View HTML, text, headers, source, and attachments. On main, verify subject, body, and link hosts in the browser; use the API for attachment count, filename, type, size, and SHA-256 assertions.
+- **Bring asynchronous email into your tests.** On main, capture a delivery cursor, trigger your application, wait for a specific test run's messages, and clean up only that run.
+- **Give agents a read-only inbox.** MCP provides search, retrieval, and bounded delivery waits. OwlMail itself requires no LLM.
+- **Understand downstream delivery.** Use Webhooks or manual and automatic SMTP Relay. The main-branch UI shows delivery outcomes, attempts, and failure categories.
+- **Add operations features when you need them.** Local EML persistence, recovery, and quarantine; optional SQLite indexing, S3 attachment storage, Redis Streams, and Prometheus metrics.
 
-![](.github/assets/owlmail-banner.jpg)
+## Choose a version
 
-## 📸 Preview
+The Docker quick start below uses stable **0.10.1** for SMTP capture, the Web UI, REST, MCP, and Webhooks.
 
-![OwlMail Preview](.github/assets/preview.png)
+**The command palette, Verify / Deliveries, cursor / run_id workflows, doctor, and configuration-aware health checks are implemented on `main`, but are not included in the original `v0.10.1` release tag.** Build from source using [the main-branch instructions](#try-the-current-main-branch) to use them. `main` and `latest` are moving tags; pin a release or image digest for repeatable CI.
 
-## 🎥 Demo Video
+## Quick start: receive your first email
 
-![Demo Video](.github/assets/realtime.gif)
-
-## ✨ Why OwlMail
-
-- **Deterministic capture** — EML, metadata, and attachments are staged before
-  one atomic commit makes a message visible to APIs and event consumers.
-- **Integration-test ready** — Versioned `/api/v1` routes, OpenAPI 3.1, native
-  WebSocket events, health/readiness probes, search, filtering, and exports.
-- **AI-native, not AI-dependent** — The default-off MCP service exposes seven
-  closed-world read-only tools, bounded resources, prompts, and event-driven
-  `wait_for_email`; OwlMail itself does not require an LLM.
-- **Durable automation** — Local Webhook outbox, optional Redis Streams, HMAC
-  signatures, stable delivery IDs, retry limits, and graceful drain.
-- **Operationally explicit** — SMTP capacity limits, persistence, optional S3
-  attachments, SQLite indexing, Prometheus metrics, JSON logs, and recovery.
-- **Controlled delivery** — Native asynchronous Relay jobs persist when a mail
-  directory is configured (otherwise they are in memory), and use immutable
-  configuration snapshots, streaming DATA, explicit TLS modes, and status lookup.
-- **Migration paths** — Default-off MailDev and MailCatcher REST facades support
-  selected existing workflows without claiming Socket.IO or exact equivalence.
-
-- **Local tooling** — Build Webhook rules in the embedded `/webhooks` editor and
-  use the [sendmail guide](./docs/en/Sendmail.md) for legacy programs. Source and
-  browser tests use Bun; the deployed binary needs no Go, Bun, or Node.js runtime.
-
-## OwlMail 0.10.1
-
-`v0.10.1` is the current stable maintenance release. It fixes a plain SMTP listener startup/shutdown race and updates the Go toolchain to 1.27.2, soulteary kits, and third-party dependencies. Runtime APIs and storage formats remain compatible with 0.10.0. The security protections introduced in 0.10.0 remain enabled. See [the 0.10.1 release notes](./docs/en/Release-0.10.1.md) · [0.10.0 release notes](./docs/en/Release-0.10.0.md).
-
-> [!IMPORTANT]
-> OwlMail is built for development, testing, CI, and trusted internal networks.
-> It is not a public production MTA, an exactly-once queue, or a multi-tenant
-> mail service.
-
-## 🚀 Quick Start
-
-### Installation
-
-#### Build from Source
+### 1. Start OwlMail
 
 ```bash
-# Clone repository
-git clone --branch v0.10.1 --depth 1 https://github.com/soulteary/owlmail.git
-cd owlmail
-
-# Build
-go build -o owlmail ./cmd/owlmail
-
-# Run
-./owlmail
-```
-
-#### Install with Go
-
-```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
-owlmail
-```
-
-### Basic Usage
-
-```bash
-# Start with default configuration (SMTP: 1025, Web: 1080)
-./owlmail
-
-# Custom ports
-./owlmail -smtp 1025 -web 1080
-
-# Use environment variables
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-./owlmail
-```
-
-Open `http://localhost:1080` for the inbox. The **Help** button opens the local
-guide at `http://localhost:1080/help`, while **Webhooks** opens the local
-configurator at `http://localhost:1080/webhooks`. The configurator generates and
-downloads JSON; it does not change the running server. Select the file with
-`-webhook-config` and restart OwlMail to activate it. All pages and assets are
-embedded in the executable, so installed binaries do not need a separate `web`
-folder.
-
-### Docker Usage
-
-**Publish every container port on loopback: write `-p 127.0.0.1:1080:1080`, not
-`-p 1080:1080`.** The image sets `OWLMAIL_WEB_HOST=0.0.0.0` and
-`OWLMAIL_SMTP_HOST=0.0.0.0`, which is correct inside a container — the process
-has to accept connections that arrive from outside its network namespace — but
-it means the `-p` flag is the only thing deciding who can reach OwlMail. The
-short form publishes on every host interface, and the host-firewall rule most
-people have written does not contain it: a published port is reached by
-forwarding, so an `INPUT`-chain rule such as `ufw deny 1080` never applies to it.
-Filtering it takes a rule in Docker's `DOCKER-USER` chain or the equivalent in
-your nftables or firewalld configuration. That exposes a mailbox holding
-password-reset links, verification codes, and tokens, and an SMTP port that
-accepts mail without authentication by default. Every example below uses the
-loopback form.
-
-#### Pull from GitHub Container Registry (Recommended)
-
-The easiest way to use OwlMail is to pull the pre-built image from GitHub Container Registry:
-
-```bash
-# Pull release 0.10.1
-docker pull ghcr.io/soulteary/owlmail:0.10.1
-
-# Pull an image for one exact commit (example)
-docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
-
-# Run container
-docker run -d \
+docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  --name owlmail \
   ghcr.io/soulteary/owlmail:0.10.1
 ```
 
-**Available Tags:**
-- `0.10.1` - Exact release tag; `0.10` and `0` move with later releases in those series
-- `sha-<commit>` - Image for a specific short commit SHA (for example, `sha-8d3445d`)
-- `main` - Moving image from the latest `main` branch build
-- `latest` - Moving default-branch image; it is not a stable-release selector
+Open [http://localhost:1080](http://localhost:1080). Messages are stored in the `owlmail-data` volume; keep mounting it when you recreate the container.
 
-**Multi-Architecture Support:**
-The image supports both `linux/amd64` and `linux/arm64` architectures. Docker will automatically pull the correct image for your platform.
+The ports are published only on your machine. SMTP uses NO AUTH by default. For team access, use a private network and configure Web authentication and HTTPS.
 
-**View all available images:** [GitHub Packages](https://github.com/users/soulteary/packages/container/package/owlmail)
+### 2. Configure your application's SMTP
 
-#### Build from Source
+For an application running on your machine:
 
-##### Basic Build (Single Architecture)
-
-```bash
-# Build image for current architecture
-docker build -t owlmail .
-
-# Run container
-docker run -d \
-  -p 127.0.0.1:1025:1025 \
-  -p 127.0.0.1:1080:1080 \
-  -v owlmail-data:/app/mail \
-  --name owlmail \
-  owlmail
+```text
+SMTP host: 127.0.0.1
+SMTP port: 1025
+TLS: off
+Authentication: none
 ```
 
-##### Multi-Architecture Build
+For an application on the same Compose network, use the OwlMail service name, such as `owlmail`, and port **1025**. Inside a container, `localhost` refers to that container itself.
 
-For aarch64 (ARM64) or other architectures, use Docker Buildx:
-
-```bash
-# Enable buildx (if not already enabled)
-docker buildx create --use --name multiarch-builder
-
-# Build for multiple architectures
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t owlmail:latest \
-  --load .
-
-# Or build and push to registry
-docker buildx build \
-  --platform linux/amd64,linux/arm64 \
-  -t your-registry/owlmail:latest \
-  --push .
-
-# Build for specific architecture (e.g., aarch64/arm64)
-docker buildx build \
-  --platform linux/arm64 \
-  -t owlmail:latest \
-  --load .
-```
-
-**Note**: The Dockerfile now supports multi-architecture builds using `TARGETOS` and `TARGETARCH` build arguments, which are automatically set by Docker Buildx.
-
-### Browser Notifications
-
-Browser notifications are off by default. Click **Notifications off** in the
-inbox header to request permission and enable them. The preference is stored in
-that browser and can be switched off from the same button. Only messages arriving
-through the live WebSocket after notifications are enabled create a notification;
-loading existing messages does not.
-
-The Notifications API requires HTTPS or a trusted local origin such as
-`http://localhost`. If permission was denied, allow OwlMail in the browser's site
-settings before trying again. Notifications show the subject and sender but not
-the message body; clicking one focuses OwlMail and opens the message.
-
-## 📖 Configuration Options
-
-### Command Line Arguments
-
-| Argument | Environment Variable | Default | Description |
-|----------|---------------------|---------|-------------|
-| `-config` | `OWLMAIL_CONFIG_FILE` | - | Flat YAML or JSON file whose keys use CLI option names |
-| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
-| `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
-| `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximum inbound message size in MiB |
-| `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Concurrent DATA transactions per process across SMTP, STARTTLS, and SMTPS; `0` is unlimited; a full limit returns retryable `451 4.3.2` |
-| `-smtp-read-timeout` | `OWLMAIL_SMTP_READ_TIMEOUT` | 10s | SMTP command and DATA read timeout |
-| `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP response write timeout |
-| `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximum recipients accepted per message |
-| `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | Run SMTP without the HTTP listener (SMTP-only mode) |
-| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port |
-| `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
-| `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
-| `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | Extra browser origins accepted on the Web UI and REST API, in addition to OwlMail's own; `*` disables origin validation |
-| `-base-pathname` | `MAILDEV_BASE_PATHNAME` / `OWLMAIL_BASE_PATHNAME` | - | URL path prefix such as `/owlmail`; root remains the default |
-| `-maildev-rest-compat` | `OWLMAIL_MAILDEV_REST_COMPAT` | false | Enable the opt-in MailDev `/api` REST facade; Socket.IO remains unsupported |
-| `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | Enable the opt-in MailCatcher `/messages` REST facade |
-| `-metrics-enabled` | `OWLMAIL_METRICS_ENABLED` | false | Expose Prometheus metrics at the base-path-aware `/metrics` endpoint; protected by Web Basic Auth when configured |
-| `-mcp-enabled` | `OWLMAIL_MCP_ENABLED` | false | Enable the read-only MCP Streamable HTTP endpoint at `/mcp` |
-| `-mcp-session-timeout` | `OWLMAIL_MCP_SESSION_TIMEOUT` | 30m | Close idle legacy MCP sessions and cap waits |
-| `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Deadline for closing MCP work during shutdown |
-| `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | Extra browser origins accepted on `/mcp`, in addition to OwlMail's own; `*` disables origin validation |
-| `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
-| `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
-| `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | Optional path for a rebuildable SQLite mailbox query index; EML files remain authoritative |
-| `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | Store decoded attachments in S3-compatible object storage |
-| `-s3-endpoint` | `OWLMAIL_S3_ENDPOINT` | - | Custom S3-compatible endpoint; empty uses AWS S3 |
-| `-s3-region` | `OWLMAIL_S3_REGION` | us-east-1 | S3 signing region |
-| `-s3-bucket` | `OWLMAIL_S3_BUCKET` | - | Existing bucket for attachments |
-| `-s3-prefix` | `OWLMAIL_S3_PREFIX` | owlmail/attachments | Attachment object-key prefix |
-| `-s3-access-key` | `OWLMAIL_S3_ACCESS_KEY` | - | Optional static access key; otherwise use the AWS credential chain |
-| `-s3-secret-key` | `OWLMAIL_S3_SECRET_KEY` | - | Optional static secret key |
-| `-s3-session-token` | `OWLMAIL_S3_SESSION_TOKEN` | - | Optional static credential session token |
-| `-s3-use-path-style` | `OWLMAIL_S3_USE_PATH_STYLE` | false | Use path-style bucket addressing for compatible services |
-| `-s3-startup-check` | `OWLMAIL_S3_STARTUP_CHECK` | false | Fail startup if the initial read-only S3 bucket check fails |
-| `-s3-health-check-interval` | `OWLMAIL_S3_HEALTH_CHECK_INTERVAL` | 30s | Background S3 readiness refresh interval |
-| `-s3-health-check-timeout` | `OWLMAIL_S3_HEALTH_CHECK_TIMEOUT` | 5s | Deadline for each S3 readiness probe |
-| `-web-user` | `MAILDEV_WEB_USER` / `OWLMAIL_WEB_USER` | - | HTTP Basic Auth username |
-| `-web-password` | `MAILDEV_WEB_PASS` / `OWLMAIL_WEB_PASSWORD` | - | HTTP Basic Auth password |
-| `-https` | `MAILDEV_HTTPS` / `OWLMAIL_HTTPS_ENABLED` | false | Enable HTTPS |
-| `-https-cert` | `MAILDEV_HTTPS_CERT` / `OWLMAIL_HTTPS_CERT` | - | HTTPS certificate file |
-| `-https-key` | `MAILDEV_HTTPS_KEY` / `OWLMAIL_HTTPS_KEY` | - | HTTPS private key file |
-| `-outgoing-host` | `MAILDEV_OUTGOING_HOST` / `OWLMAIL_OUTGOING_HOST` | - | Outgoing SMTP host |
-| `-outgoing-port` | `MAILDEV_OUTGOING_PORT` / `OWLMAIL_OUTGOING_PORT` | 587 | Outgoing SMTP port |
-| `-outgoing-user` | `MAILDEV_OUTGOING_USER` / `OWLMAIL_OUTGOING_USER` | - | Outgoing SMTP username |
-| `-outgoing-pass` | `MAILDEV_OUTGOING_PASS` / `OWLMAIL_OUTGOING_PASSWORD` | - | Outgoing SMTP password |
-| `-outgoing-secure` | `MAILDEV_OUTGOING_SECURE` / `OWLMAIL_OUTGOING_SECURE` | false | MailDev-compatible alias for implicit TLS/SMTPS |
-| `-outgoing-tls-mode` | `OWLMAIL_OUTGOING_TLS_MODE` | - | Transport mode: unset is `plain`; or choose mandatory `starttls` or implicit `smtps` |
-| `-outgoing-insecure-skip-verify` | `OWLMAIL_OUTGOING_INSECURE_SKIP_VERIFY` | false | Disable certificate and hostname verification (unsafe, explicit opt-in) |
-| `-outgoing-connect-timeout` | `OWLMAIL_OUTGOING_CONNECT_TIMEOUT` | 10s | TCP connection and SMTP greeting deadline |
-| `-outgoing-tls-handshake-timeout` | `OWLMAIL_OUTGOING_TLS_HANDSHAKE_TIMEOUT` | 10s | TLS/STARTTLS handshake deadline |
-| `-outgoing-auth-timeout` | `OWLMAIL_OUTGOING_AUTH_TIMEOUT` | 10s | AUTH deadline |
-| `-outgoing-envelope-timeout` | `OWLMAIL_OUTGOING_ENVELOPE_TIMEOUT` | 10s | MAIL/RCPT deadline |
-| `-outgoing-data-timeout` | `OWLMAIL_OUTGOING_DATA_TIMEOUT` | 30s | DATA write and acknowledgement deadline |
-| `-outgoing-quit-timeout` | `OWLMAIL_OUTGOING_QUIT_TIMEOUT` | 5s | QUIT deadline |
-| `-auto-relay` | `MAILDEV_AUTO_RELAY` / `OWLMAIL_AUTO_RELAY` | false | Enable auto relay |
-| `-auto-relay-addr` | `MAILDEV_AUTO_RELAY_ADDR` / `OWLMAIL_AUTO_RELAY_ADDR` | - | Auto relay address |
-| `-auto-relay-rules` | `MAILDEV_AUTO_RELAY_RULES` / `OWLMAIL_AUTO_RELAY_RULES` | - | Auto relay rules file |
-| `-webhook-config` | `OWLMAIL_WEBHOOK_CONFIG` | - | JSON webhook forwarding configuration file |
-| `-webhook-max-concurrency` | `OWLMAIL_WEBHOOK_MAX_CONCURRENCY` | 8 | Concurrent email webhook deliveries; `0` disables the limit |
-| `-webhook-redis-url` | `OWLMAIL_WEBHOOK_REDIS_URL` | - | Redis URL for durable, restart-safe webhook delivery |
-| `-webhook-redis-prefix` | `OWLMAIL_WEBHOOK_REDIS_PREFIX` | owlmail:webhooks | Redis Streams key prefix |
-| `-webhook-shutdown-timeout` | `OWLMAIL_WEBHOOK_SHUTDOWN_TIMEOUT` | 15s | Graceful webhook drain deadline |
-| `-smtp-user` | `MAILDEV_INCOMING_USER` / `OWLMAIL_SMTP_USER` | - | Inbound SMTP username; configure together with the password to require AUTH |
-| `-smtp-password` | `MAILDEV_INCOMING_PASS` / `OWLMAIL_SMTP_PASSWORD` | - | Inbound SMTP password; configure together with the username to require AUTH |
-| `-smtp-auth-require-tls` | `OWLMAIL_SMTP_AUTH_REQUIRE_TLS` | false | Reject PLAIN/LOGIN before TLS; requires SMTP TLS to be enabled |
-| `-tls` | `MAILDEV_INCOMING_SECURE` / `OWLMAIL_TLS_ENABLED` | false | Enable SMTP TLS |
-| `-tls-cert` | `MAILDEV_INCOMING_CERT` / `OWLMAIL_TLS_CERT` | - | SMTP TLS certificate file |
-| `-tls-key` | `MAILDEV_INCOMING_KEY` / `OWLMAIL_TLS_KEY` | - | SMTP TLS private key file |
-| `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | Implicit TLS (SMTPS) listener port used when TLS is enabled; `0` starts no SMTPS listener |
-| `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
-| `-log-format` | `OWLMAIL_LOG_FORMAT` | console | Log output format: `console` or `json` |
-| `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
-
-When TLS terminates at a reverse proxy, set `OWLMAIL_WEB_EXTERNAL_SCHEME` to `https`.
-
-When HTTP Basic Auth is enabled, browser API and WebSocket requests are limited
-to OwlMail's own origin. Command-line and server-to-server clients that omit the
-browser `Origin` header continue to work normally.
-
-Web authentication also fails closed when only one credential is configured:
-
-| Configured values | Effective credentials |
-|---|---|
-| Neither value | Authentication disabled |
-| Username only | The username plus a cryptographically random 32-character temporary password, printed once to stderr at startup |
-| Password only | Username `admin` plus the configured password |
-| Both values | The configured username and password |
-
-A generated password changes on every restart. Read it from the process output
-(`docker logs owlmail` for the container example), or configure both values for
-stable credentials. Startup fails if the generated password cannot be written
-to stderr. Basic Auth credentials should only be used over localhost or HTTPS.
-
-### Browser Origin Validation
-
-OwlMail validates the browser `Origin` header on every request, whether or not
-Basic Auth is configured. Basic Auth is off by default, and without credentials
-this check is the only thing protecting the response body: a page the developer
-happens to visit runs on the same machine, so binding to loopback does not stop
-it from calling `http://127.0.0.1:1080/api/v1/emails` — only the origin policy
-decides whether the browser hands it the captured mail.
-
-Requests without an `Origin` header are unaffected: `curl`, HTTP libraries, CI
-scripts, and server-to-server callers never send one. A request that carries an
-`Origin` must name OwlMail's own origin or one listed in
-`-web-allowed-origins https://console.example` (comma-separated); anything else
-gets `403`. An allowed origin is echoed exactly in
-`Access-Control-Allow-Origin`, with credentials permitted and its preflight
-answered, so a browser client you allowed on purpose works. Setting the option
-to `*` restores the previous wildcard CORS behavior for deployments that control
-browser access elsewhere. See the
-[security model](./docs/en/Security-Model.md#browser-origin-policy).
-
-### Read-only MCP
-
-MCP is disabled by default. Enable the official Streamable HTTP endpoint with
-`-mcp-enabled` or `OWLMAIL_MCP_ENABLED=true`, then connect to
-`http://localhost:1080/mcp`. With `-base-pathname /owlmail`, the endpoint is
-`/owlmail/mcp`. It shares the Web listener, HTTPS settings, and HTTP Basic Auth;
-an authenticated Web deployment therefore requires the same Basic Auth
-credentials for every MCP request. The endpoint serves modern stateless
-`2026-07-28` and legacy stateful clients concurrently.
-
-The endpoint validates the browser `Origin` header on every request, whether
-or not Basic Auth is configured. Requests without an `Origin` header are
-non-browser clients such as `curl`, an MCP SDK HTTP client, or another server,
-and are unaffected. A request that carries an `Origin` must name one of
-OwlMail's own browser-visible origins — the configured Web host, the loopback
-names at the Web port, and `-web-external-url` when it is set — otherwise the
-endpoint answers `403`. This stops an unrelated page the developer happens to
-visit, including one that re-binds a hostname it controls to the loopback
-address, from reading captured mail. Add other browser origins with
-`-mcp-allowed-origins https://inspector.example` (comma-separated), or set it
-to `*` to turn the check off when browser access is controlled elsewhere.
-
-Local MCP clients may instead launch `owlmail mcp-stdio -mail-directory DIR`.
-This reuses the same read-only tools over stdio without opening a listener;
-protocol output stays on stdout and logs are sent to stderr.
-
-The server exposes seven read-only tools, adding `get_latest_email` and the
-event-driven `wait_for_email` testing workflow to the existing compact query,
-detached detail, bounded source, and attachment-metadata tools. It also exposes
-bounded `owlmail://inbox`, `owlmail://stats`, and `owlmail://email/{id}`
-resources plus registration verification, password reset, and delivery-wait
-prompts. Email results include Web UI deep links. For a reverse proxy, set
-`-web-external-url https://mail.example.com` (or
-`OWLMAIL_WEB_EXTERNAL_URL`) and configure its path separately with
-`-base-pathname`. No tool returns attachment bytes, and HTML remains opt-in only
-for `get_email`. See the
-[operations guide](./docs/en/Operations.md#read-only-mcp-for-test-agents) for
-the complete security and lifecycle contract.
-
-### Environment Variable Compatibility
-
-OwlMail supports the MailDev environment aliases shown in the table above,
-preferring them over the corresponding `OWLMAIL_*` variables. Options that are
-not listed are not supported automatically.
+You can also send a first message with curl:
 
 ```bash
-# Use MailDev environment variables directly (recommended)
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-export MAILDEV_OUTGOING_HOST=smtp.gmail.com
-./owlmail
+curl --url smtp://127.0.0.1:1025 \
+  --mail-from sender@example.test \
+  --mail-rcpt developer@example.test \
+  --upload-file - <<'MAIL'
+From: sender@example.test
+To: developer@example.test
+Subject: Hello OwlMail
+Content-Type: text/plain; charset=utf-8
 
-# Or use OwlMail environment variables
-export OWLMAIL_SMTP_PORT=1025
-export OWLMAIL_WEB_PORT=1080
-./owlmail
+Your test code is 123456.
+MAIL
 ```
 
-### S3-compatible attachment storage
+### 3. Inspect the captured message
 
-S3 storage is disabled by default. OwlMail otherwise keeps decoded attachments
-under `-mail-directory`. Enabling S3 moves only decoded attachments to object
-storage; raw `.eml` files, metadata, transaction markers, and webhook outbox
-data remain local and still require a persistent mail directory.
+Open the message in the browser, inspect its body and attachments, or query REST:
 
 ```bash
-export OWLMAIL_S3_ENABLED=true
-export OWLMAIL_S3_ENDPOINT=http://minio:9000
-export OWLMAIL_S3_REGION=us-east-1
-export OWLMAIL_S3_BUCKET=owlmail
-export OWLMAIL_S3_PREFIX=owlmail/attachments
-export OWLMAIL_S3_ACCESS_KEY=replace-me
-export OWLMAIL_S3_SECRET_KEY=replace-me
-export OWLMAIL_S3_USE_PATH_STYLE=true
-# Optional: fail startup if the first HeadBucket check fails.
-export OWLMAIL_S3_STARTUP_CHECK=true
-./owlmail -mail-directory ./owlmail-data
+curl --fail http://127.0.0.1:1080/api/v1/emails
 ```
 
-The bucket must already exist. Omit the endpoint to use AWS S3. Omit OwlMail's
-static key settings to use the AWS SDK credential chain, including workload
-roles. Attachment keys use
-`<prefix>/<email-id>/<generated-filename>`; email deletion and retention cleanup
-remove that email's object prefix. Failed remote deletion retains a durable
-per-message fence and all local recovery evidence, then retries on the next
-request or startup; pending deletions are not republished. Upload must finish
-before SMTP accepts the message transaction. `OWLMAIL_MAIL_MAX_DISK_MB` measures
-local files and does not include S3 object bytes.
+Stable also supports dark mode and preview width controls. Lists return paginated results. Reading a native `/api/v1` message does not mark it as read. See the [API reference](docs/en/API-Reference.md) and the running server's [OpenAPI JSON](http://localhost:1080/api/v1/openapi.json) / [YAML](http://localhost:1080/api/v1/openapi.yaml). The [checked-in YAML contract](openapi/openapi.yaml) is available without running a server.
 
-OwlMail prefers the read-only `HeadBucket` operation and falls back to a
-one-key, prefix-scoped `ListObjectsV2` check for least-privilege policies. By default the
-initial check runs asynchronously: startup remains compatible, while
-`GET /readyz` and `GET /api/v1/ready` return `503` until a check succeeds.
-Set `OWLMAIL_S3_STARTUP_CHECK=true` to make only the initial check fatal.
-Subsequent S3 outages never terminate the process; they make readiness fail
-until a background check recovers. Readiness requests return the cached result
-and never wait on S3. Liveness remains available at `/healthz` and
-`/api/v1/health`.
+## Try the current main branch
 
-## 📡 API Documentation
+Build with Docker; no host Go installation is needed. These commands use different host ports so the stable instance can remain running:
 
-### API Response Format
+```bash
+git clone --branch main --depth 1 https://github.com/soulteary/owlmail.git
+cd owlmail
+docker build -t owlmail:local .
 
-OwlMail uses a standardized API response format:
+docker run -d --name owlmail-main \
+  -p 127.0.0.1:1026:1025 \
+  -p 127.0.0.1:1081:1080 \
+  -v owlmail-main-data:/app/mail \
+  owlmail:local
+```
 
-**Success Response:**
+Open [http://localhost:1081](http://localhost:1081). This instance's host SMTP port is **1026**. The Python example below uses these ports.
+
+### Inspect and verify in the browser
+
+- Switch between HTML, text, headers, and source; inspect attachments and inline images.
+- Check phone, tablet, and desktop layouts at seven preview widths without resetting the preview's scroll position.
+- Use dark mode, search, structured filters, batch read/delete, and ZIP exports.
+- Open the command palette with `Ctrl/Cmd + K` or `?`; navigate with `j/k` or `↑/↓`, search with `/`, and refresh with `r`.
+- Set subject, body, and link-host expectations in **Verify**. Manually refresh **Deliveries** to inspect Relay / Webhook outcomes and confirm retries.
+
+Subject and body assertions are case-sensitive substring checks. Link checks inspect URLs in the stored message without fetching them. Six-digit extraction returns candidates, not proof of a valid verification code. New Verify / Deliveries controls may use English locale fallback.
+
+HTML previews use an isolated iframe. Remote images, fonts, and styles are blocked by default and can be loaded explicitly for the selected message.
+
+### Wait, check, and clean up in CI
+
+This example uses only the Python 3 standard library. Save it as `email-check.py` and run `python3 email-check.py` after starting the main-branch instance above:
+
+```python
+import json
+import smtplib
+import uuid
+from email.message import EmailMessage
+from urllib.request import ProxyHandler, Request, build_opener
+
+API = "http://127.0.0.1:1081"
+HTTP = build_opener(ProxyHandler({}))
+RUN_ID = "readme-" + uuid.uuid4().hex
+RECIPIENT = "signup+" + RUN_ID + "@example.test"
+
+
+def api(method, path, body=None):
+    data = None if body is None else json.dumps(body).encode()
+    request = Request(
+        API + path,
+        data=data,
+        method=method,
+        headers={"Content-Type": "application/json"},
+    )
+    with HTTP.open(request, timeout=35) as response:
+        return json.load(response)
+
+
+cursor = api("GET", "/api/v1/emails/cursor")["cursor"]
+
+message = EmailMessage()
+message["From"] = "sender@example.test"
+message["To"] = RECIPIENT
+message["Subject"] = "Verify your account"
+message["X-OwlMail-Run-ID"] = RUN_ID
+message.set_content("Your test code is 123456.")
+with smtplib.SMTP("127.0.0.1", 1026, timeout=10) as smtp:
+    smtp.send_message(message)
+
+result = api("POST", "/api/v1/emails/wait", {
+    "after": cursor,
+    "run_id": RUN_ID,
+    "recipient": RECIPIENT,
+    "count": 1,
+    "timeout_seconds": 10,
+})
+if result["timed_out"] or not result["emails"]:
+    raise RuntimeError("Expected email did not arrive")
+
+email_id = result["emails"][0]["id"]
+report = api("POST", "/api/v1/emails/" + email_id + "/check", {
+    "subject_contains": ["Verify your account"],
+    "text_contains": ["123456"],
+    "attachment_count": 0,
+})
+if not report["passed"]:
+    raise RuntimeError(json.dumps(report["checks"]))
+
+cleanup = api("DELETE", "/api/v1/test-runs/" + RUN_ID + "/emails")
+if cleanup["failed"] or cleanup["more_possible"]:
+    raise RuntimeError("Test-run cleanup is incomplete")
+print("PASS: received, checked, and cleaned up", RUN_ID)
+```
+
+For a real application test, replace `smtp.send_message` with the signup, password-reset, or other business action, and add `X-OwlMail-Run-ID` to its outgoing mail. Keep the cursor → trigger → wait order to include mail that arrives before the wait starts.
+
+The example cleans up after a passing assertion and leaves failed-test mail available for diagnosis. `run_id` groups tests; it is not tenant isolation or authorization. Cursors are scoped to the running process. A timeout returns `timed_out: true`, which your test must check independently of HTTP status. Wait `count` is an at-least threshold.
+
+See [delivery waits and test runs](docs/en/Delivery-Waits-and-Test-Runs.md), [JavaScript / Go / Python examples](examples/testing), and the [CI quick start](docs/en/CI-Quickstart.md).
+
+## Let a coding agent inspect mail
+
+MCP is disabled by default. This is a standalone binary deployment. First prepare `./owlmail` using [the binary instructions](#run-the-binary) and make sure host ports 1025 / 1080 are free. Set a nonempty `OWLMAIL_WEB_PASSWORD` before starting the HTTP endpoint:
+
+```bash
+./owlmail -mcp-enabled \
+  -web-user agent \
+  -web-password "$OWLMAIL_WEB_PASSWORD"
+```
+
+Connect a Streamable HTTP client to `http://127.0.0.1:1080/mcp` with those Basic Auth credentials. For Docker, recreate the container with `-e OWLMAIL_MCP_ENABLED=true` and the corresponding Web credentials.
+
+A local client can instead use stdio to read an existing mail directory:
+
 ```json
 {
-  "code": "EMAIL_DELETED",
-  "message": "Email deleted",
-  "data": { ... }
+  "mcpServers": {
+    "owlmail": {
+      "command": "/absolute/path/to/owlmail",
+      "args": ["mcp-stdio", "-mail-directory", "/absolute/path/to/mail"]
+    }
+  }
 }
 ```
 
-**Error Response:**
+The seven MCP tools list, search, retrieve details, read raw source, list attachment metadata, retrieve recent mail, and wait for delivery. HTTP reads the running mailbox directly; stdio reads committed EML files and periodically scans the directory.
+
+An agent can report whether signup mail arrived, extract a link from the message body, and return a browser URL as evidence. MCP exposes no deletion, Relay, or configuration tools. Raw MIME may contain attachment payloads, but there is no dedicated decoded-attachment download tool. On main, pass the cursor returned by list/search to `wait_for_email`; see the [MCP reference](docs/en/MCP-Reference.md) and [test-run contract](docs/en/Delivery-Waits-and-Test-Runs.md).
+
+## Send mail events to automation or relay to a real inbox
+
+### Webhooks
+
+The embedded `/webhooks` page generates, imports, and downloads configuration. It does not modify the running server. Save the file and start or restart OwlMail with `-webhook-config`.
+
+For a local receiver, have it listen on port `18080`, then save this as `webhooks.json`:
+
 ```json
 {
-  "code": "EMAIL_NOT_FOUND",
-  "error": "EMAIL_NOT_FOUND",
-  "message": "Email not found"
+  "version": 1,
+  "targets": [
+    {
+      "name": "local-receiver",
+      "url": "http://127.0.0.1:18080/owlmail"
+    }
+  ]
 }
 ```
 
-The `code` field contains standardized error/success codes that can be used for internationalization. The `message` field provides English text for backward compatibility.
-Basic Auth and browser origin guard failures are plain-text `401` or `403`
-responses because they occur before API handlers.
+```bash
+./owlmail -mail-directory ./mail -webhook-config ./webhooks.json
+```
 
-### Email ID Format
+This is a standalone host-binary example; install the binary and ensure its default listener ports are free first. Container `127.0.0.1` refers to the OwlMail container itself; use the receiver's service name on a shared network and mount the configuration file for container deployments.
 
-OwlMail supports two email ID formats, and all API endpoints are compatible with both:
+Webhooks support recipient/subject filters, custom bodies, HMAC signatures, and retries. For restart-safe queued delivery, use a persistent mail directory, persisted Redis Streams, and receiver deduplication by `X-OwlMail-Delivery-ID`. Without Redis, local outbox persistence covers handoff only; events accepted by the in-memory queue do not survive every restart boundary.
 
-- **8-character random string**: Default format, e.g., `aB3dEfGh`
-- **UUID format**: 36-character standard UUID, e.g., `550e8400-e29b-41d4-a716-446655440000`
+See the [Webhook guide](docs/en/Webhook-Forwarding.md) and [runnable Compose example](examples/webhooks/soulteary-webhook).
 
-When using the `:id` parameter in API requests, you can use either format. For example:
-- `GET /email/aB3dEfGh` - Using random string ID
-- `GET /email/550e8400-e29b-41d4-a716-446655440000` - Using UUID ID
+### SMTP Relay
 
-### Optional MailDev REST facade
+Configure an outgoing SMTP server to relay selected messages manually or forward automatically under filtering rules. Transport modes are `plain`, mandatory `starttls`, and `smtps`; certificate verification is enabled by default.
 
-Current MailDev REST clients can opt into its `/api` route and payload contract:
+The native Relay API accepts an asynchronous job. Follow its status to determine the outcome. A persistent mail directory retains jobs and recovers unfinished work. Recovery can duplicate a delivery, and a successful send does not prove final placement in the recipient's inbox.
+
+Configure recipients and TLS policy before enabling forwarding. See [Relay and operations settings](docs/en/Operations.md).
+
+## Installation and everyday configuration
+
+### Run the binary
+
+Download a platform binary from [Releases](https://github.com/soulteary/owlmail/releases), rename it to `owlmail`, and run `chmod +x owlmail` on Unix platforms. In this README, `./owlmail` means that downloaded or locally built file.
+
+Alternatively, install stable with Go 1.27.2+:
 
 ```bash
-owlmail -maildev-rest-compat
-# or: OWLMAIL_MAILDEV_REST_COMPAT=true owlmail
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.10.1
+owlmail -mail-directory ./mail
 ```
 
-This enables `/api/email`, `/api/email/summary`, `/api/email/delete`, detail,
-HTML, source, EML download, attachment, relay, `/api/config`, `/api/healthz`,
-and `/api/reloadMailsFromDirectory`. The facade uses the configured Basic Auth,
-HTTPS, and base pathname; its health route stays public like MailDev's. Only
-`GET /api/email/:id` marks the message read. Disabling the option removes every
-new `/api` route. Socket.IO is **not** implemented: live MailDev clients must
-still migrate to OwlMail's native WebSocket protocol. See the
-[API reference](./docs/en/API-Reference.md#optional-maildev-rest-facade).
+For `go install`, use `owlmail` instead of `./owlmail` in the examples and ensure the Go installation directory is on `PATH`.
 
-### MailDev-style Compatibility API
+The host binary listens on `localhost` by default. Specify `-mail-directory` for a persistent mailbox.
 
-OwlMail retains unversioned routes for common MailDev-style workflows. They are
-not exact current MailDev API equivalents; see the compatibility boundary in
-the [API reference](./docs/en/API-Reference.md#maildev-migration-boundary).
-
-#### Email Operations
-
-- `GET /email` - Get all emails (supports pagination and filtering)
-  - Query parameters:
-    - `limit` (default: 50, max: 1000) - Number of emails to return
-    - `offset` (default: 0) - Number of emails to skip
-    - `q` - Full-text search query
-    - `from` - Filter by sender email address
-    - `to` - Filter by recipient email address
-    - `dateFrom` - Filter by date from (YYYY-MM-DD format)
-    - `dateTo` - Filter by date to (YYYY-MM-DD format)
-    - `read` - Filter by read status (true/false)
-    - `sortBy` - Sort by field (time, subject, from, size)
-    - `sortOrder` - Sort order (asc, desc, default: desc)
-  - Example: `GET /email?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
-- `GET /email/:id` - Get single email
-- `DELETE /email/:id` - Delete single email
-- `DELETE /email/all` - Delete all emails
-- `PATCH /email/read-all` - Mark all emails as read
-- `PATCH /email/:id/read` - Mark single email as read
-
-#### Email Content
-
-- `GET /email/:id/html` - Get email HTML content
-- `GET /email/:id/attachment/:filename` - Download attachment
-- `GET /email/:id/download` - Download raw .eml file
-- `GET /email/:id/source` - Get email raw source
-
-#### Email Relay
-
-- `POST /email/:id/relay` - Relay email to configured SMTP server
-- `POST /email/:id/relay/:relayTo` - Relay email to specific address
-
-#### Configuration and System
-
-- `GET /config` - Get configuration information
-- `GET /healthz` - Process liveness check
-- `GET /readyz` - Cached dependency readiness check
-- `GET /reloadMailsFromDirectory` - Reload emails from directory
-- `GET /socket.io` - WebSocket connection (standard WebSocket, not Socket.IO)
-
-### OwlMail Enhanced API
-
-#### Email Statistics and Preview
-
-- `GET /email/stats` - Get email statistics
-- `GET /email/preview` - Get email preview (lightweight)
-
-#### Batch Operations
-
-- `POST /email/batch/delete` - Batch delete emails
-- `POST /email/batch/read` - Batch mark as read
-
-#### Email Export
-
-- `GET /email/export` - Export emails as ZIP file
-
-#### Configuration Management
-
-- `GET /config/outgoing` - Get outgoing configuration
-- `PUT /config/outgoing` - Update outgoing configuration
-- `PATCH /config/outgoing` - Partially update outgoing configuration
-
-### Improved RESTful API (`/api/v1/*`)
-
-OwlMail provides a more standardized RESTful API design:
-
-- `GET /api/v1/emails` - Get all emails (plural resource)
-  - Query parameters: Same as `GET /email` (limit, offset, q, from, to, dateFrom, dateTo, read, sortBy, sortOrder)
-  - Example: `GET /api/v1/emails?limit=20&offset=0&q=test&sortBy=time&sortOrder=desc`
-- `GET /api/v1/emails/:id` - Get single email
-- `DELETE /api/v1/emails/:id` - Delete single email
-- `DELETE /api/v1/emails` - Delete all emails
-- `DELETE /api/v1/emails/batch` - Batch delete
-- `PATCH /api/v1/emails/read` - Mark all emails as read
-- `PATCH /api/v1/emails/:id/read` - Mark single email as read
-- `PATCH /api/v1/emails/batch/read` - Batch mark as read
-- `GET /api/v1/emails/stats` - Email statistics
-- `GET /api/v1/emails/preview` - Email preview
-- `GET /api/v1/emails/export` - Export emails
-- `POST /api/v1/emails/reload` - Reload emails
-- `GET /api/v1/settings` - Get all settings
-- `GET /api/v1/settings/outgoing` - Get outgoing configuration
-- `PUT /api/v1/settings/outgoing` - Update outgoing configuration
-- `PATCH /api/v1/settings/outgoing` - Partially update outgoing configuration
-- `GET /api/v1/health` - Process liveness check
-- `GET /api/v1/ready` - Cached dependency readiness check
-- `GET /api/v1/version` - Version info
-- `GET /api/v1/ws` - WebSocket connection
-- `GET /api/v1/openapi.json` - OpenAPI 3.1 contract (JSON)
-- `GET /api/v1/openapi.yaml` - OpenAPI 3.1 contract (YAML)
-
-For the current contract, including sub-resources, authentication, response
-shapes, and WebSocket events, see the [API Reference](./docs/en/API-Reference.md)
-or the version-controlled [OpenAPI contract](./openapi/openapi.yaml). The served
-contract automatically includes the configured base pathname.
-
-## 🔧 Usage Examples
-
-### Basic Usage
+Build the current main branch:
 
 ```bash
-# Start OwlMail
-./owlmail -smtp 1025 -web 1080
-
-# Configure SMTP in your application
-SMTP_HOST=localhost
-SMTP_PORT=1025
+git clone --branch main --depth 1 https://github.com/soulteary/owlmail.git
+cd owlmail
+go build -o owlmail ./cmd/owlmail
+./owlmail -mail-directory ./mail
 ```
 
-### Configure Email Relay
+### Use a configuration file
+
+Flat YAML and JSON use CLI option names as keys. Save this as `owlmail.yaml`:
+
+```yaml
+smtp: 1025
+web: 1080
+mail-directory: ./mail
+mail-retention-days: 7
+smtp-max-concurrency: 8
+log-format: json
+```
 
 ```bash
-# Relay to Gmail SMTP
-./owlmail \
-  -outgoing-host smtp.gmail.com \
-  -outgoing-port 587 \
-  -outgoing-user your-email@gmail.com \
-  -outgoing-pass your-password \
-  -outgoing-tls-mode starttls
+./owlmail -config ./owlmail.yaml
 ```
 
-`starttls` fails if the server does not advertise STARTTLS or the TLS handshake
-or certificate/hostname verification fails. Use `smtps` (or the legacy
-MailDev-compatible `-outgoing-secure`) for implicit TLS, commonly on port 465.
-OwlMail refuses outgoing AUTH in `plain` mode.
+This stores mail locally and applies a seven-day retention policy. Add `mail-max-messages` or `mail-max-disk-mb` for capacity limits. Environment variables and CLI flags can override the file. See the [configuration reference](docs/en/Configuration-Reference.md) for every flag, default, and environment alias, and [operations](docs/en/Operations.md) for deployment profiles.
 
-### Auto Relay Mode
+### Diagnose and probe the service (main)
 
 ```bash
-# Create auto relay rules file (relay-rules.json)
-cat > relay-rules.json <<EOF
-[
-  { "allow": "*" },
-  { "deny": "*@test.com" },
-  { "allow": "ok@test.com" }
-]
-EOF
-
-# Start auto relay
-./owlmail \
-  -outgoing-host smtp.gmail.com \
-  -outgoing-port 587 \
-  -outgoing-user your-email@gmail.com \
-  -outgoing-pass your-password \
-  -auto-relay \
-  -auto-relay-rules relay-rules.json
+./owlmail doctor -config ./owlmail.yaml
+./owlmail healthcheck -config ./owlmail.yaml
+./owlmail healthcheck --ready -config ./owlmail.yaml
 ```
 
-### Webhook Forwarding
+`doctor` checks configuration and recovery records offline; it does not connect to downstream services or prove runtime availability. `healthcheck` probes the running service, and `--ready` checks cached runtime readiness. The container probe uses the startup configuration snapshot, so you do not need to repeat port and HTTPS settings in its command.
 
-Use the embedded configurator at `http://localhost:1080/webhooks` to build a new
-version 1 configuration or import and validate an existing one. Editing stays
-inside the browser. Download the resulting JSON, then select it with
-`-webhook-config` and restart OwlMail; downloading a file does not activate it.
+For SMTP-only operation on main, use `-disable-web`; it serves no Web UI, REST, or HTTP MCP. Standalone SMTP-only readiness requires an explicit absolute mail directory. See [operations](docs/en/Operations.md).
+
+## Migrate from MailDev or MailCatcher
+
+SMTP-only applications usually need a new host and port. Existing REST clients can opt into the default-off facades:
 
 ```bash
-# Terminal 1: local test receiver
-go run ./examples/webhooks/receiver
-
-# Terminal 2: forward every new email with the default JSON payload
-./owlmail -webhook-config ./examples/webhooks/minimal.json
+./owlmail -maildev-rest-compat
+# or
+./owlmail -mailcatcher-rest-compat
 ```
 
-Webhook targets support case-insensitive wildcard rules, custom JSON-safe body templates, environment-backed secrets, HMAC-SHA256 signatures, timeouts, and bounded retries. See the [scenario examples](./examples/webhooks/README.md) for filtering, custom APIs, multiple targets, plain text, and a runnable `soulteary/webhook` stack. The [Webhook forwarding guide](./docs/en/Webhook-Forwarding.md) is the complete reference.
+Facades cover the documented HTTP workflows, not MailDev's Node embedding API, Socket.IO, or MCP tool contract. Use native `/api/v1` and standard WebSocket for new integrations.
 
-### Using HTTPS
+See the [MailDev / MailCatcher / Mailpit comparison and migration guide](docs/en/Comparison-and-Migration.md).
 
-```bash
-./owlmail \
-  -https \
-  -https-cert /path/to/cert.pem \
-  -https-key /path/to/key.pem \
-  -web 1080
-```
+## Scope and deployment boundaries
 
-### Inbound SMTP Authentication Modes
+OwlMail is for development, CI, and trusted test networks. It stores full mail, which may contain verification codes, reset links, and test credentials. Host listeners default to loopback; team deployments need fixed credentials, HTTPS, and network access controls.
 
-With neither `-smtp-user` nor `-smtp-password` configured, OwlMail uses the
-default **NO AUTH** mode. It accepts unauthenticated delivery and also advertises
-PLAIN/LOGIN, accepting arbitrary credentials for applications that insist on
-SMTP authentication settings during local development.
+- One writable OwlMail instance owns a mail directory. Shared multi-writer mailboxes and tenant authorization are not supported.
+- S3 stores decoded attachments only. EML, metadata, and delivery state still require local persistence.
+- Webhooks and recovered Relay jobs may repeat; downstream receivers need idempotent handling.
+- OwlMail does not provide a production MTA, IMAP / POP3, spam scoring, or certification of rendering in real mail clients.
 
-Configure both values to require real SMTP AUTH. OwlMail rejects a transaction
-before authentication with `530 5.7.0` and rejects invalid credentials with
-`535 5.7.8`. Configuring only one value fails startup instead of silently
-falling back to NO AUTH.
+See the [security model](docs/en/Security-Model.md).
 
-Set `-smtp-auth-require-tls` (or `OWLMAIL_SMTP_AUTH_REQUIRE_TLS=true`) together
-with SMTP TLS to prevent credentials from crossing a cleartext connection.
-Plaintext SMTP then neither advertises nor accepts PLAIN/LOGIN, while AUTH works
-after STARTTLS and over SMTPS. Anonymous delivery remains available in NO AUTH
-mode. Enabling this option without an enabled, usable SMTP TLS configuration
-fails startup.
+## Documentation and feedback
 
-> [!WARNING]
-> NO AUTH deliberately provides no access-control boundary. PLAIN and LOGIN can
-> also run without TLS for development compatibility, so use localhost or a
-> trusted network, and enable TLS before using real credentials.
+- [Stable 0.10.1 release notes](docs/en/Release-0.10.1.md) · [0.10.0 release notes](docs/en/Release-0.10.0.md)
+- [Integration testing](docs/en/Integration-Testing.md) · [Sendmail-compatible CLI](docs/en/Sendmail.md)
+- [Configuration reference](docs/en/Configuration-Reference.md)
+- [API and OpenAPI](docs/en/API-Reference.md)
+- [Agent integration](docs/en/AI-Agent-Testing.md)
+- [Deployment, persistence, TLS, and metrics](docs/en/Operations.md)
+- [Architecture](docs/en/Architecture.md) · [Changelog](CHANGELOG.md)
+- [Contributing](.github/CONTRIBUTING.md) · [Issues](https://github.com/soulteary/owlmail/issues)
 
-### Using TLS
+Include your version or commit, startup method, redacted configuration, error output, and a minimal reproduction when reporting a problem. Use the [security reporting channel](.github/SECURITY.md) for vulnerabilities.
 
-```bash
-./owlmail \
-  -tls \
-  -tls-cert /path/to/cert.pem \
-  -tls-key /path/to/key.pem \
-  -smtp 1025
-```
+## License and acknowledgments
 
-**Note**: When TLS is enabled, OwlMail also starts an SMTPS server that uses a direct TLS connection (no STARTTLS required) in addition to the regular SMTP server. Its port comes from `-smtps-port` or `OWLMAIL_SMTPS_PORT` and defaults to the privileged port 465, which a process that does not run as root cannot bind; the published container image runs as a non-root user. Set `-smtps-port` to an unprivileged port, or to `0` to start no SMTPS listener and keep STARTTLS on the SMTP port. A failed SMTPS bind stops startup instead of leaving the port silently unserved.
-
-### Using UUID for Email IDs
-
-OwlMail supports two email ID formats:
-
-1. **Default format**: 8-character random string (e.g., `aB3dEfGh`)
-2. **UUID format**: 36-character standard UUID (e.g., `550e8400-e29b-41d4-a716-446655440000`)
-
-Using UUID format provides better uniqueness and traceability, especially useful for integration with external systems.
-
-```bash
-# Enable UUID using command line flag
-./owlmail -use-uuid-for-email-id
-
-# Enable UUID using environment variable
-export OWLMAIL_USE_UUID_FOR_EMAIL_ID=true
-./owlmail
-
-# Use with other configurations
-./owlmail \
-  -use-uuid-for-email-id \
-  -smtp 1025 \
-  -web 1080
-```
-
-**Notes**:
-- Default uses 8-character random string, compatible with MailDev behavior
-- When UUID is enabled, all newly received emails will use UUID format IDs
-- The API supports both ID formats, allowing normal query, delete, and operation of emails
-- Existing email ID formats will not change; only new emails will use the new ID format
-
-## 🔄 Migrating from MailDev
-
-OwlMail covers common MailDev workflows, but current MailDev clients may require
-small, explicit adaptations. Follow the
-[migration guide](./docs/en/Comparison-and-Migration.md).
-
-### 1. Environment Variable Compatibility
-
-OwlMail accepts the MailDev environment variables listed in the configuration
-table. Verify every variable used by your deployment:
-
-```bash
-# MailDev configuration
-export MAILDEV_SMTP_PORT=1025
-export MAILDEV_WEB_PORT=1080
-export MAILDEV_OUTGOING_HOST=smtp.gmail.com
-
-# These listed variables can also be read by OwlMail
-./owlmail
-```
-
-### 2. API Compatibility
-
-Existing REST clients can explicitly enable the default-off MailDev facade;
-new integrations should use OwlMail's versioned API. The facade does not add
-Socket.IO compatibility:
-
-```bash
-# Existing MailDev REST client
-OWLMAIL_MAILDEV_REST_COMPAT=true ./owlmail
-curl http://localhost:1080/api/email
-
-# New OwlMail integration
-curl http://localhost:1080/api/v1/emails
-```
-
-### 3. WebSocket Adaptation
-
-If using WebSocket, you need to change from Socket.IO to standard WebSocket:
-
-```javascript
-// MailDev (Socket.IO)
-const socket = io('/socket.io');
-socket.on('newMail', (email) => { /* ... */ });
-
-// OwlMail (Standard WebSocket)
-const ws = new WebSocket('ws://localhost:1080/socket.io');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  if (data.type === 'new') { /* ... */ }
-};
-```
-
-For detailed migration guide, see: [OwlMail × MailDev × MailCatcher × Mailpit: Feature, API, and Migration Guide](./docs/en/Comparison-and-Migration.md)
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run tests for specific packages
-go test ./internal/api/...
-go test ./internal/mailserver/...
-```
-
-## 📦 Project Structure
-
-```
-OwlMail/
-├── cmd/
-│   └── owlmail/          # Main program entry
-├── internal/
-│   ├── api/              # Web API implementation
-│   ├── common/           # Common utilities (logging, error handling)
-│   ├── maildev/          # MailDev compatibility layer
-│   ├── mailserver/       # SMTP server implementation
-│   ├── outgoing/         # Email relay implementation
-│   ├── types/            # Type definitions
-│   └── webhook/          # Webhook filtering, templates, signing, and delivery
-├── docs/                 # API, operations, webhook, and migration documentation
-├── examples/             # Runnable integration examples
-├── tests/                # Browser and documentation contract tests
-├── web/                  # Embedded web frontend and local help assets
-├── go.mod                # Go module definition
-└── README.md             # This document
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [MailDev](https://github.com/maildev/maildev) - Original project inspiration
-- [emersion/go-smtp](https://github.com/emersion/go-smtp) - SMTP server library
-- [emersion/go-message](https://github.com/emersion/go-message) - Email parsing library
-- [Fiber](https://github.com/gofiber/fiber) - Web framework
-- [gorilla/websocket](https://github.com/gorilla/websocket) - WebSocket library
-
-## 📚 Related Documentation
-
-- [OwlMail 0.10.1 Release Notes](./docs/en/Release-0.10.1.md)
-- [Integration Testing](./docs/en/Integration-Testing.md) and [CI Quickstart](./docs/en/CI-Quickstart.md)
-- [AI Agent Testing](./docs/en/AI-Agent-Testing.md) and [MCP Reference](./docs/en/MCP-Reference.md)
-- [Testing Recipes and Runnable Examples](./docs/en/Testing-Recipes.md)
-- [Architecture](./docs/en/Architecture.md) and [Security Model](./docs/en/Security-Model.md)
-- [OwlMail 0.9.0 Release Notes](./docs/en/Release-0.9.0.md)
-- [Changelog](./CHANGELOG.md)
-- [OwlMail × MailDev × MailCatcher × Mailpit: Feature, API, and Migration Guide](./docs/en/Comparison-and-Migration.md)
-- [API Reference](./docs/en/API-Reference.md)
-- [Operations and Troubleshooting](./docs/en/Operations.md)
-- [Webhook Forwarding](./docs/en/Webhook-Forwarding.md)
-- [Runnable Webhook Scenarios](./examples/webhooks/README.md)
-- [Release Process (maintainers)](./docs/en/Releasing.md)
-- [API Refactoring Record (historical)](./docs/en/internal/API_Refactoring_Record.md)
-
-## 🐛 Issue Reporting
-
-If you encounter any issues or have suggestions, please submit them in [GitHub Issues](https://github.com/soulteary/owlmail/issues).
-
-## ⭐ Star History
-
-If this project helps you, please give it a Star ⭐!
-
----
-
-**OwlMail** — one self-hosted email test gateway for developers, CI, automation, and AI agents. 🦉
-
-### SMTP-only mode
-
-Use `owlmail -disable-web` or `OWLMAIL_DISABLE_WEB=true` to capture mail without
-a Web UI, REST, WebSocket, metrics or HTTP MCP listener. The flat YAML/JSON
-configuration key is `disable-web`. SMTP AUTH, STARTTLS/SMTPS, storage retention,
-Webhook dispatch and automatic relay remain active; existing durable relay jobs
-are recovered. Configured HTTP MCP, metrics or REST compatibility flags conflict
-with this mode and fail configuration validation. Web port and HTTPS certificate
-settings are inactive, and no temporary Web password is generated.
-
-The packaged container healthcheck automatically probes the configured SMTP host
-and port with greeting, EHLO/HELO and QUIT, without sending mail or authenticating.
-Use `owlmail healthcheck -disable-web` with matching SMTP settings for native
-deployments. For readiness, use `owlmail healthcheck --ready -disable-web` (or
-`healthcheck --ready --container` in the container). SMTP-only servers publish
-an atomic, owner-readable runtime snapshot in the mail directory every second.
-Readiness requires a matching listener and a snapshot no older than five seconds.
-It checks the running server's cached mail-directory write/sync/cleanup health,
-remote attachment-store health when enabled, and configured relay worker and
-queue availability. A full queue or no live worker makes an enabled relay unready.
-This measures worker lifecycle and queue capacity, not worker progress or index integrity.
-Configured outgoing relay also checks the native durable job store through
-`relay_job_storage`. Its owner checks the relay metadata subdirectory's
-create/write/sync/rename/cleanup operations in the background every 30 seconds;
-HTTP and SMTP-only probes only read the cached result. Application startup keeps
-configured relay pending before its queue owner registers or recovery starts.
-Failed job writes keep readiness unready until the same
-owner durably repairs the affected records; a successful scratch-file check does
-not conceal them. A full status store is unready while pending jobs or the
-minimum retention window prevent accepting another job. Evictable completed
-records do not cause backpressure. No outgoing host means this dependency is
-disabled. Failure to load recovery records requires repairing the records and
-restarting the service; the health probe never replaces the running queue owner.
-Snapshot reads are limited to 64 KiB and a two-second wait; a blocked storage
-publisher cannot keep an old healthy snapshot valid indefinitely. The server's
-mail-storage probe runs every 30 seconds; cached checking, failed or stale results
-are unready. Permission or filesystem failures that prevent snapshot publication
-are detected when its five-second freshness window expires.
-
-HTTP and SMTP-only readiness use the same cached dependency policy. When an
-outgoing SMTP host is configured, the running server verifies its greeting,
-EHLO/HELO, configured TLS mode, authentication and QUIT in the background every
-30 seconds, with a five-second total timeout. Both modes remain unready until
-that probe succeeds and reject transport or local-storage results older than
-45 seconds. Changing the live outgoing configuration invalidates its cached
-result and schedules another probe. Healthcheck commands do not reload outgoing
-credentials or relay rules and HTTP requests do not contact downstream SMTP.
-No MAIL, RCPT or DATA commands are sent. This does not guarantee recipient
-acceptance or final delivery.
-SMTP-only readiness requires an explicit absolute `-mail-directory` or
-`OWLMAIL_MAIL_DIR` (the container sets `/app/mail` by default); the process-specific
-temporary directory cannot be inferred by a separate native probe. Run native
-probes with the server configuration and filesystem namespace, using a user that
-can read the server's 0600 snapshot. Snapshot files are operational metadata and
-must not be edited; older binaries that do not publish runtime state cannot satisfy
-this readiness check. Liveness remains independent of storage and downstream availability. Publish only the SMTP ports
-you need; the default still starts SMTP and Web together.
-
-
-### Container health checks
-
-The image runs `owlmail healthcheck --container`. The OwlMail PID 1 server
-publishes a private, credential-free startup record in `/tmp`. The probe uses
-that record for the effective listener, mode, mail directory, base pathname and
-HTTP/HTTPS scheme, without reloading configuration files or environment values.
-Changing or removing a configuration file after startup does not change the
-probe target. The record includes the public HTTPS certificate loaded at startup
-and is bound to the current PID 1 process start time; missing or stale records fail.
-Container deployments with a read-only root filesystem must provide writable `/tmp`.
-Wildcard bind addresses use loopback. HTTPS verifies the configured certificate
-(including self-signed certificates); redirects and non-200 responses fail. The
-request has a two-second timeout and does not need web authentication.
-
-For native deployments, run `owlmail healthcheck` with the same configuration
-flags/environment as the server. Container mode requires the server as PID 1:
-use an `exec` entrypoint, or override the Docker health command for an init
-wrapper. Offline commands such as `doctor`, `sendmail`, and `mcp-stdio` do not
-provide the web listener and fail the container check instead of probing an
-unrelated default port. Reverse-proxy external URLs do not change the local probe.
-
-### Commands and keyboard help
-
-Open **Commands and shortcuts** in the header, press `?`, or use `Ctrl+K` /
-`Cmd+K` outside a text field. Search localized command names, use Up/Down to
-choose an available command, and press Enter to run it. Tab stays within the
-modal; Escape or Close returns focus to its opener. Existing mailbox shortcuts
-are shown beside their commands and are suspended while the modal is open.
-Commands that need a selected message or HTML preview are disabled when those
-are absent. Deletion retains the normal confirmation and relay protection.
-
-
-### Mail preview controls
-
-The interface follows the system color scheme until a theme is chosen with the
-header toggle (or `t`). Theme and preview width preferences are saved when browser
-storage is available; blocked storage does not prevent using the mailbox. Mail
-HTML retains its own colors on a white preview canvas in either interface theme.
-The sandboxed preview scrolls vertically for long messages; fixed width presets
-scroll horizontally without reloading the message or allowing message scripts.
-
-Mailbox shortcuts: `j`/`k` or Up/Down select messages, `/` focuses search, `r`
-refreshes, `t` switches theme, Escape closes the selected message, and Delete
-deletes it after confirmation. Shortcuts are inactive while editing text, using
-buttons or links, composing text, or holding modifier keys. Preview width buttons
-are available with Tab and Enter/Space.
-
-### Live inbox consistency
-
-Search and page changes keep only the newest list response. Live mail events
-refresh the active server query in a short coalesced batch instead of inserting
-unfiltered messages into a page. Reconnection resynchronizes missed changes,
-and deleting the last result on a page returns to the last available page.
-
-### Loading and relay status waiting
-
-Inbox and detail requests show local busy state, so navigation stays available.
-Overlapping requests and mutations retain their loading indicator until all
-operations for that region finish.
-
-Accepted relay jobs are watched for up to 60 seconds, with a 10-second limit on
-each status request. Stop waiting pauses only the browser status check; it does
-not cancel delivery. Resume waiting continues watching the same job without
-resubmitting it. Delivery records remain available in the Deliveries tab. While
-an accepted job has an unknown final state, relay and deletion controls stay
-locked in the current session to prevent duplicate delivery or lost evidence.
-
-### Inbox filters and batch tools
-
-Expand Filters to query by sender, recipient, date range, read state and sort
-order. Filters combine with text search and reset pagination when applied.
-Select this page selects only visible messages; selection is pruned when the
-page or filter results change. Batch read/delete sends explicit IDs, confirms
-deletion, and preserves failed visible IDs for retry. Pending relay sources
-cannot be batch-deleted. Results show success and failure counts.
-
-Export selected downloads those IDs as a ZIP of `.eml` files. Export filtered
-results exports the active search/filter query across pages, subject to the
-existing server limits of 1,000 messages and 256 MiB of source data. Export does
-not include the browser's sort order. Empty selections never trigger a full
-mailbox export. All controls have labels and translations in supported locales.
+[MIT](LICENSE). Inspired by [MailDev](https://github.com/maildev/maildev), and built on upstream Go SMTP / MIME, Fiber, and WebSocket projects.
