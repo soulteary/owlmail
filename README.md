@@ -12,6 +12,16 @@ Point your application's SMTP settings at OwlMail to capture signup, password-re
 
 OwlMail runs as a single Go executable with an embedded Web UI. Docker images support Linux amd64 and arm64. The executable needs no Go, Node.js, or Bun runtime.
 
+![OwlMail](.github/assets/owlmail-banner.jpg)
+
+## 📸 Preview
+
+![OwlMail Preview](.github/assets/preview.png)
+
+## 🎥 Demo Video
+
+![Demo Video](.github/assets/realtime.gif)
+
 ## Why OwlMail
 
 - **Inspect mail and check expectations.** View HTML, text, headers, source, and attachments. On main, verify subject, body, and link hosts in the browser; use the API for attachment count, filename, type, size, and SHA-256 assertions.

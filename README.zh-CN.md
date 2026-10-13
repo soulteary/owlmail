@@ -12,6 +12,16 @@
 
 OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker 镜像，支持 Linux amd64 和 arm64。运行二进制无需安装 Go、Node.js 或 Bun。
 
+![OwlMail](.github/assets/owlmail-banner.jpg)
+
+## 📸 预览
+
+![OwlMail 预览](.github/assets/preview.png)
+
+## 🎥 演示视频
+
+![演示视频](.github/assets/realtime.gif)
+
 ## 为什么使用 OwlMail
 
 - **看到邮件，也能验证结果。** 查看 HTML、文本、Header、源码和附件；主分支可在浏览器验证主题、正文和链接域名，也可通过 API 验证附件数量、文件名、类型、大小和 SHA-256。
