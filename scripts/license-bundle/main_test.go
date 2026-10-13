@@ -75,6 +75,20 @@ func TestCollectFailsWithoutDependencyLicense(t *testing.T) {
 	}
 }
 
+func TestCollectAcceptsBritishLicenseFilename(t *testing.T) {
+	root, goRoot, moduleRoot, packages := licenseFixture(t)
+	name := strings.ToLower(britishLicenseName) + ".txt"
+	text := "Upstream copyright and complete permission notice\n"
+	writeFixture(t, moduleRoot, name, text)
+	files, modules, err := collect(root, goRoot, packages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(modules) != 1 || string(files["modules/"+modules[0]+"/"+name]) != text {
+		t.Fatal("the upstream filename or legal text was changed or omitted")
+	}
+}
+
 func TestCollectFailsWithoutToolchainPatentGrant(t *testing.T) {
 	root, goRoot, moduleRoot, packages := licenseFixture(t)
 	writeFixture(t, moduleRoot, "LICENSE", "A complete license\n")

@@ -19,6 +19,8 @@ import (
 
 const releasePlatforms = "linux/amd64,linux/arm64,darwin/amd64,darwin/arm64,windows/amd64"
 
+const britishLicenseName = "LICENCE" //nolint:misspell // Preserve the upstream British filename spelling when collecting legal texts.
+
 type module struct {
 	Path, Version, Dir string
 	Main               bool
@@ -283,7 +285,7 @@ func collect(root, goRoot string, packages []pkg) (map[string][]byte, []string, 
 
 func isLicense(name string) bool {
 	upper := strings.ToUpper(name)
-	return hasLegalPrefix(upper, "LICENSE") || hasLegalPrefix(upper, "LICENCE") || hasLegalPrefix(upper, "COPYING")
+	return hasLegalPrefix(upper, "LICENSE") || hasLegalPrefix(upper, britishLicenseName) || hasLegalPrefix(upper, "COPYING")
 }
 
 func isLegalText(name string) bool {
@@ -293,7 +295,7 @@ func isLegalText(name string) bool {
 	case ".go", ".c", ".h", ".js", ".py", ".sh", ".yml", ".yaml":
 		return false
 	}
-	for _, prefix := range []string{"LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT", "AUTHORS", "PATENTS"} {
+	for _, prefix := range []string{"LICENSE", britishLicenseName, "COPYING", "NOTICE", "COPYRIGHT", "AUTHORS", "PATENTS"} {
 		if hasLegalPrefix(upper, prefix) {
 			return true
 		}
