@@ -19,7 +19,7 @@ require (
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/soulteary/cli-kit v1.9.1
 	github.com/soulteary/health-kit/v4 v4.0.1
-	github.com/soulteary/logger-kit/v3 v3.0.1
+	github.com/soulteary/logger-kit/v3 v3.0.2
 	github.com/soulteary/version-kit/v4 v4.0.1
 	go.yaml.in/yaml/v3 v3.0.5
 	golang.org/x/net v0.61.0
