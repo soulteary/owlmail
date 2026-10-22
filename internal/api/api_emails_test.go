@@ -2835,7 +2835,8 @@ func TestApplyEmailSorting(t *testing.T) {
 }
 
 func TestApplyEmailFilters(t *testing.T) {
-	now := time.Now()
+	// Date filters use UTC calendar days; keep the fixture independent of the host timezone.
+	now := time.Date(2026, time.October, 22, 12, 0, 0, 0, time.UTC)
 	emails := []*types.Email{
 		{
 			ID:            "1",

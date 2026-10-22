@@ -1,6 +1,6 @@
 # Offline configuration and recovery diagnostics
 
-`doctor` is included in OwlMail **0.11.1**. It was not present in the original `v0.10.1` release.
+`doctor` is included in OwlMail **0.11.2**. It was not present in the original `v0.10.1` release.
 
 Run `owlmail doctor` with the same flags, environment variables, and optional `-config` YAML/JSON file used for normal startup. Resolution retains the standard priority: command line, compatibility environment, OwlMail environment, configuration file defaults, then built-in defaults.
 

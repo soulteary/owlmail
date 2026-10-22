@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.27.2-alpine3.24 AS builder
+FROM golang:1.27.3-alpine3.24 AS builder
 
 # Build arguments for multi-arch support
 ARG TARGETOS=linux
