@@ -6,6 +6,15 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-10-22
+
+### Changed
+
+- Require Go 1.27.3 and align build images and CI toolchains.
+- Update compatible Go dependencies and published Kit versions; refresh module checksums.
+- Preserve the project toolchain after quality report generation.
+
+
 ## [0.11.1] - 2026-10-13
 
 Completes the 0.11 feature release after the 0.11.0 publication was interrupted.

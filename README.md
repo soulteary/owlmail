@@ -248,7 +248,7 @@ Configure recipients and TLS policy before enabling forwarding. See [Relay and o
 
 Download a platform binary from [Releases](https://github.com/soulteary/owlmail/releases), rename it to `owlmail`, and run `chmod +x owlmail` on Unix platforms. In this README, `./owlmail` means that downloaded or locally built file.
 
-Alternatively, install stable with Go 1.27.2+:
+Alternatively, install stable with Go 1.27.3+:
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.1
