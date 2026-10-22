@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit: Feature, API, and Migration Guide
 
-Current stable release: 0.11.1. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.11.1 release notes](Release-0.11.1.md) for features added after that baseline.
+Current stable release: 0.11.2. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.11.2 release notes](Release-0.11.2.md) for features added after that baseline.
 
 > A source-based comparison for choosing a development mail server. It describes
 > verified behavior, not drop-in compatibility.
@@ -16,7 +16,7 @@ source review on 2026-09-12 and is pinned to its own commit below.
 - MailDev: release candidate maildev@3.0.0-rc.3; main at
   9d4141f42b0acedfa544a306f96a5373ded8c8a3. The latest stable 2.x release is
   2.2.1 and differs materially from the 3.x codebase.
-- MailCatcher: latest GitHub release v0.10.0; main declares 0.11.1 at
+- MailCatcher: latest GitHub release v0.10.0; main declares 0.11.2 at
   43e488e2a5692532c131a87d5bd16a973ee8db56.
 - Mailpit: reviewed at 0bbbb233db56b185035ec3d1730228506dbb8f04; its `go.mod`
   declares Go 1.26.0. The tag `v1.31.1` (94445c801111689305625395d3543c07c50c7af8)
@@ -61,7 +61,7 @@ Mailpit's routes and makes no compatibility claim about them.
 
 ## Feature comparison
 
-| Capability | OwlMail 0.10.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.1 | Mailpit main (post-v1.31.1) |
+| Capability | OwlMail 0.10.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.2 | Mailpit main (post-v1.31.1) |
 |---|---|---|---|---|
 | Runtime | Go single binary with embedded Web assets | Node.js 20+, TypeScript monorepo and React UI | Ruby 3.3+, EventMachine/Sinatra | Go single binary with embedded Vue 3 and Bootstrap 5 assets |
 | Primary strength | AI-assisted testing, recoverable storage, automation, and explicit resource limits | Interactive email inspection and integration breadth | Minimal Ruby/sendmail workflow | Breadth of built-in message inspection and checking in one binary |
@@ -289,3 +289,5 @@ Mailpit necessarily implement the same behavior.
 - Mailpit flags and defaults: https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/cmd/root.go and https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/config/config.go
 - Mailpit HTTP routes: https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/server.go
 - Mailpit Host allowlist: https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/cors.go
+
+The 0.11.2 maintenance release retains the 0.11.1 application contract reviewed here.

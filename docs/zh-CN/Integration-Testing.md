@@ -10,7 +10,7 @@ OwlMail，触发业务行为，再通过原生只读 HTTP API 断言捕获结果
 docker run --rm -d --name owlmail-test \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
-  ghcr.io/soulteary/owlmail:0.11.1
+  ghcr.io/soulteary/owlmail:0.11.2
 
 attempt=0
 until curl --fail --silent --connect-timeout 1 --max-time 2 http://127.0.0.1:1080/readyz >/dev/null; do
@@ -46,7 +46,7 @@ curl --fail --get http://127.0.0.1:1080/api/v1/emails \
 集合响应包含 `total`、`limit`、`offset` 与 `emails`。在测试自身截止时间之前，
 空结果不代表投递失败。应使用有界重试与短间隔，避免固定长时间 sleep。
 
-OwlMail **0.11.1** 推荐使用投递 cursor 与 `run_id`：先记录 cursor，再触发应用，然后等待指定测试运行与精确信封收件人的邮件。这覆盖邮件先于 wait 到达的情况，可以直接用于上面的正式版实例。可运行示例见
+OwlMail **0.11.2** 推荐使用投递 cursor 与 `run_id`：先记录 cursor，再触发应用，然后等待指定测试运行与精确信封收件人的邮件。这覆盖邮件先于 wait 到达的情况，可以直接用于上面的正式版实例。可运行示例见
 [README 测试流程](../../README.zh-CN.md#在-ci-中等待验证和清理)，完整限制见
 [投递等待与测试运行契约](../en/Delivery-Waits-and-Test-Runs.md)。
 

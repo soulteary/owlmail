@@ -5,7 +5,7 @@ The agent can wait for delivery, inspect a message, and extract a verification
 code or link without receiving tools that delete, mark, relay, forward, reload,
 or reconfigure the mailbox.
 
-All seven tools, both transports and the cursor-based workflow below are available in OwlMail **0.11.1**. The original `v0.10.1` supports only live delivery waits and searching captured messages.
+All seven tools, both transports and the cursor-based workflow below are available in OwlMail **0.11.2**. The original `v0.10.1` supports only live delivery waits and searching captured messages.
 
 ## Choose a transport
 
@@ -76,7 +76,7 @@ wait and do not automatically supply a cursor. That is also the original 0.10.1
 flow. A strictly serial 0.10.1 client should trigger first, then use
 `search_emails` for the unique recipient rather than wait for mail that may
 already have arrived. `get_latest_email` can inspect up to 20 recent messages,
-but the caller must verify the recipient before selecting one. In 0.11.1, the
+but the caller must verify the recipient before selecting one. In 0.11.2, the
 cursor flow above supports serial triggers. Empty filters are broad; prefer a
 unique recipient to prevent selecting unrelated mail.
 

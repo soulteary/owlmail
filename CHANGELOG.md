@@ -611,3 +611,5 @@ Earlier release notes remain available on the
 [0.6.0]: https://github.com/soulteary/owlmail/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/soulteary/owlmail/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/soulteary/owlmail/releases/tag/v0.4.0
+
+[0.11.2]: https://github.com/soulteary/owlmail/compare/v0.11.1...v0.11.2

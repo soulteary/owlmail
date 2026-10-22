@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南
 
-当前稳定版为 0.11.1。下方源码比较仍以 0.10.0 为基线，固定的提交引用保持不变。基线之后的新功能见 [0.11.1 发布说明](Release-0.11.1.md)。
+当前稳定版为 0.11.2。下方源码比较仍以 0.10.0 为基线，固定的提交引用保持不变。基线之后的新功能见 [0.11.2 发布说明](Release-0.11.2.md)。
 
 > 面向开发邮件服务器选型的源码级比较。本文记录已验证行为，不承诺无缝兼容。
 
@@ -14,7 +14,7 @@
 - MailDev：候选版 maildev@3.0.0-rc.3；main 为
   9d4141f42b0acedfa544a306f96a5373ded8c8a3。最新稳定 2.x 为 2.2.1，
   与 3.x 主线架构存在明显差异。
-- MailCatcher：GitHub 最新 Release 为 v0.10.0；main 已声明 0.11.1，
+- MailCatcher：GitHub 最新 Release 为 v0.10.0；main 已声明 0.11.2，
   审查提交为 43e488e2a5692532c131a87d5bd16a973ee8db56。
 - Mailpit：审查提交为 0bbbb233db56b185035ec3d1730228506dbb8f04，`go.mod` 声明
   Go 1.26.0。tag `v1.31.1`（94445c801111689305625395d3543c07c50c7af8）是该提交的
@@ -50,7 +50,7 @@ facade 只覆盖有限的 messages API，不模拟 MailCatcher 的实时协议�
 
 ## 功能对比
 
-| 能力 | OwlMail 0.10.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.1 | Mailpit main（v1.31.1 之后）|
+| 能力 | OwlMail 0.10.0 | MailDev 3.0.0-rc.3 | MailCatcher main 0.11.2 | Mailpit main（v1.31.1 之后）|
 |---|---|---|---|---|
 | 运行时 | Go 单二进制，内嵌 Web 资源 | Node.js 20+、TypeScript monorepo、React | Ruby 3.3+、EventMachine/Sinatra | Go 单二进制，内嵌 Vue 3 与 Bootstrap 5 资源 |
 | 核心优势 | AI 辅助测试、可恢复存储、自动化和明确资源限制 | 交互式邮件检查与集成广度 | 极简 Ruby/sendmail 工作流 | 单个二进制内的邮件检查与校验功能广度 |
@@ -237,3 +237,5 @@ POP3 访问在 OwlMail 中没有落点。
 - Mailpit 参数与默认值：[cmd/root.go](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/cmd/root.go) 与 [config/config.go](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/config/config.go)
 - [Mailpit HTTP 路由](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/server.go)
 - [Mailpit Host 允许列表](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/cors.go)
+
+The 0.11.2 maintenance release retains the 0.11.1 application contract reviewed here.

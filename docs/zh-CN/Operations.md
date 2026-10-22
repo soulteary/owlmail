@@ -4,8 +4,8 @@
 关闭行为和常见故障。协议细节见 [API 参考](./API-Reference.md)与
 [Webhook 消息转发](./Webhook-Forwarding.md)。
 
-本文描述 OwlMail **0.11.1**，部署示例固定使用该发布版。`doctor`、`healthcheck`、SMTP-only、cursor/test-run 和扩展 readiness 均已包含。旧版升级信息见
-[0.11.1 发布说明](./Release-0.11.1.md)。
+本文描述 OwlMail **0.11.2**，部署示例固定使用该发布版。`doctor`、`healthcheck`、SMTP-only、cursor/test-run 和扩展 readiness 均已包含。旧版升级信息见
+[0.11.2 发布说明](./Release-0.11.2.md)。
 
 ## 分层配置文件
 
@@ -118,10 +118,10 @@ OwlMail 接收附件前，存储桶必须已经存在。endpoint 留空时使用
 
 `GET /healthz` 与 `GET /api/v1/health` 是进程 liveness 检查，不依赖 S3。
 因此对象存储暂时不可用时不会造成容器反复重启。启用 Web 的运行实例可通过
-`/healthz` 检查存活；0.11.1 的容器探针读取启动配置快照，SMTP-only 模式则使用
+`/healthz` 检查存活；0.11.2 的容器探针读取启动配置快照，SMTP-only 模式则使用
 其专用探测路径，不要求 HTTP 监听器。
 
-本节的 SMTP、本地存储、运行时依赖 readiness 与配置感知容器探针均适用于 **0.11.1**。原 `v0.10.1` 不包含这些后续改进。
+本节的 SMTP、本地存储、运行时依赖 readiness 与配置感知容器探针均适用于 **0.11.2**。原 `v0.10.1` 不包含这些后续改进。
 
 `GET /readyz` 与 `GET /api/v1/ready` 是 readiness 检查。本地附件存储也要求 SMTP 监听器已绑定且邮件目录的写入、同步与清理探测成功。
 本地存储在 SMTP 启动前探测，之后每 30 秒更新一次缓存；HTTP 请求只读取缓存。
@@ -147,7 +147,7 @@ S3 readiness 检查只包含组件状态、探测时间和 `pending`、`permissi
 `credentials`、`not_found`、`timeout`、`unavailable`、`unknown`、`closed` 之一；
 不会包含 SDK 原始错误、endpoint、access key、secret key 或 session token。
 
-0.11.1 的整体 readiness 还包含 `smtp`、`mail_storage`，以及启用后的 `relay`、
+0.11.2 的整体 readiness 还包含 `smtp`、`mail_storage`，以及启用后的 `relay`、
 `outgoing_transport` 和 `relay_job_storage`；任一必需组件未就绪会返回 `503`。
 这些结果不能替代发送一封测试邮件或检查下游最终投递。
 
@@ -244,10 +244,10 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.1
+  ghcr.io/soulteary/owlmail:0.11.2
 ```
 
-本文固定使用 `0.11.1` 发布镜像。`main` 与 `latest` 会随默认分支构建移动，不应用于
+本文固定使用 `0.11.2` 发布镜像。`main` 与 `latest` 会随默认分支构建移动，不应用于
 可复现部署。
 
 镜像内部默认绑定 `0.0.0.0`，这正是进程能接受来自其网络命名空间之外连接的原因。
@@ -269,7 +269,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.1
+  ghcr.io/soulteary/owlmail:0.11.2
 ```
 
 自动化场景应同时配置用户名和密码。只配置用户名时，每次启动会生成新密码并只在
@@ -296,7 +296,7 @@ WebSocket 的来源校验使用浏览器可见协议。应显式配置该值，�
 ```yaml
 services:
   owlmail:
-    image: ghcr.io/soulteary/owlmail:0.11.1
+    image: ghcr.io/soulteary/owlmail:0.11.2
     environment:
       OWLMAIL_BASE_PATHNAME: /owlmail
       OWLMAIL_WEB_EXTERNAL_SCHEME: https
@@ -519,9 +519,9 @@ Web HTTPS 示例：
   -https-key ./certs/web-key.pem
 ```
 
-0.11.1 镜像的内置检查执行 `owlmail healthcheck --container`。原 `0.10.1` 镜像
+0.11.2 镜像的内置检查执行 `owlmail healthcheck --container`。原 `0.10.1` 镜像
 使用固定 HTTP 1080 `/healthz` 探针；该发布版改用 HTTPS 或其他 Web 端口时，需要
-覆盖为匹配的容器健康检查。0.11.1 作为 PID 1 运行的 OwlMail
+覆盖为匹配的容器健康检查。0.11.2 作为 PID 1 运行的 OwlMail
 在 `/tmp` 写入权限为 0600、没有凭据的启动记录，包含实际监听地址、端口、运行模式、
 邮件目录、基础路径和公开 HTTPS 证书。探针校验 PID 1 的进程启动时间并读取该记录；
 服务启动后修改或删除配置、证书文件，以及覆盖探针环境变量，都不会改变探测目标和证书信任。
@@ -546,7 +546,7 @@ docker run -d \
   -e OWLMAIL_SMTPS_PORT=2465 \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:0.11.1
+  ghcr.io/soulteary/owlmail:0.11.2
 ```
 
 镜像以非 root 用户运行，默认的 465 属于特权端口，除非运行时授予 bind-service

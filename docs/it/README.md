@@ -40,7 +40,7 @@ lingua in directory separate.
 
 ### Release
 
-- **[Note di rilascio 0.11.1](../en/Release-0.11.1.md) · [0.10.1 release notes](../en/Release-0.10.1.md)** (English, [中文](../zh-CN/Release-0.11.1.md))
+- **[Note di rilascio 0.11.2](../en/Release-0.11.2.md) · [0.10.1 release notes](../en/Release-0.10.1.md)** (English, [中文](../zh-CN/Release-0.11.2.md))
 - **[Note di rilascio 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
 - **[Processo di rilascio](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
@@ -65,3 +65,5 @@ stesso nome di file nella rispettiva directory. Aggiorna anche
 [guida ai contributi](../../.github/CONTRIBUTING.it.md).
 
 Per maggiori informazioni, consulta il [README principale](../../README.it.md).
+
+Previous release: [OwlMail 0.11.1](../en/Release-0.11.1.md).

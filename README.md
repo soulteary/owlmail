@@ -30,9 +30,9 @@ OwlMail runs as a single Go executable with an embedded Web UI. Docker images su
 
 ## Choose a version
 
-The Docker quick start below uses stable **0.11.1** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
+The Docker quick start below uses stable **0.11.2** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
 
-All workflows below are available in **0.11.1**. Pin a release or image digest for repeatable CI; `main` and `latest` are moving development tags. See [0.11.1 release notes](docs/en/Release-0.11.1.md) and [the previous 0.10.1 release](docs/en/Release-0.10.1.md).
+All workflows below are available in **0.11.2**. Pin a release or image digest for repeatable CI; `main` and `latest` are moving development tags. See [0.11.2 release notes](docs/en/Release-0.11.2.md) and [the previous 0.10.1 release](docs/en/Release-0.10.1.md).
 
 ## Quick start: receive your first email
 
@@ -43,7 +43,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.1
+  ghcr.io/soulteary/owlmail:0.11.2
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -251,7 +251,7 @@ Download a platform binary from [Releases](https://github.com/soulteary/owlmail/
 Alternatively, install stable with Go 1.27.3+:
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.1
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.2
 owlmail -mail-directory ./mail
 ```
 
@@ -326,7 +326,7 @@ See the [security model](docs/en/Security-Model.md).
 
 ## Documentation and feedback
 
-- [0.11.1 release notes](docs/en/Release-0.11.1.md) · [Previous 0.10.1 release notes](docs/en/Release-0.10.1.md)
+- [0.11.2 release notes](docs/en/Release-0.11.2.md) · [Previous 0.10.1 release notes](docs/en/Release-0.10.1.md)
 - [Integration testing](docs/en/Integration-Testing.md) · [Sendmail-compatible CLI](docs/en/Sendmail.md)
 - [Configuration reference](docs/en/Configuration-Reference.md)
 - [API and OpenAPI](docs/en/API-Reference.md)
@@ -340,3 +340,5 @@ Include your version or commit, startup method, redacted configuration, error ou
 ## License and acknowledgments
 
 [MIT](LICENSE). Inspired by [MailDev](https://github.com/maildev/maildev), and built on upstream Go SMTP / MIME, Fiber, and WebSocket projects.
+
+Previous release: [OwlMail 0.11.1](docs/en/Release-0.11.1.md).
