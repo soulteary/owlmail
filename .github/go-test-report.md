@@ -8,7 +8,7 @@
 | Passed | 911 |
 | Failed | 0 |
 | Skipped | 3 |
-| Coverage | 80.56% |
+| Coverage | 80.57% |
 | Threshold | 0.00% |
 
 ### Packages
@@ -25,7 +25,7 @@
 | internal/config | pass | 53 | 0 | 90.00% |
 | internal/emailcheck | pass | 7 | 0 | 88.72% |
 | internal/maildev | pass | 10 | 0 | 78.46% |
-| internal/mailserver | pass | 272 | 0 | 82.69% |
+| internal/mailserver | pass | 272 | 0 | 82.72% |
 | internal/mcpserver | pass | 16 | 0 | 84.48% |
 | internal/outgoing | pass | 74 | 0 | 83.82% |
 | internal/sendmail | pass | 11 | 0 | 80.49% |

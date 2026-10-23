@@ -7,9 +7,9 @@
     "skipped": 3
   },
   "coverage": {
-    "covered_statements": 8469,
+    "covered_statements": 8470,
     "total_statements": 10513,
-    "percentage": 80.56,
+    "percentage": 80.57,
     "threshold": 0
   },
   "packages": [
@@ -88,7 +88,7 @@
       "status": "pass",
       "tests": 272,
       "failed": 0,
-      "coverage": 82.69
+      "coverage": 82.72
     },
     {
       "name": "internal/mcpserver",
