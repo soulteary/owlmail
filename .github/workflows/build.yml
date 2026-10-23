@@ -1,75 +1,52 @@
-name: Build
+name: Verify published OwlMail v0.11.4 image
 
 on:
-  push:
-    branches: [ main ]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/goreportcard.svg'
-  pull_request:
-    branches: [ main ]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/goreportcard.svg'
   workflow_dispatch:
 
-concurrency:
-  group: build-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+permissions:
+  contents: read
+  packages: read
 
-env:
-  GO111MODULE: on
+concurrency:
+  group: verify-published-owlmail-0.11.4-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-
+  verify:
+    name: Published image ${{ matrix.arch }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    env:
+      RELEASE_INDEX_DIGEST: sha256:739d1b873bb2bcf8e1131fa6357016eb254006fa2ab5049115ab8d0d3e3878f1
+      EXPECTED_ARCH: ${{ matrix.arch }}
     steps:
-      - name: Checkout code
+      - name: Checkout isolated verifier
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version-file: go.mod
-          cache-dependency-path: go.sum
-
-      - name: Verify dependencies
-        run: |
-          go mod download
-          go mod verify
-
-      - name: Build pull request platform
-        if: github.event_name == 'pull_request'
-        env:
-          CGO_ENABLED: 0
-        run: |
-          mkdir -p dist
-          go build -v -o dist/owlmail ./cmd/owlmail
-
-      - name: Cross-compile main branch
-        if: github.event_name != 'pull_request'
-        env:
-          CGO_ENABLED: 0
-        run: |
-          mkdir -p dist
-          GOOS=linux GOARCH=amd64 go build -o dist/owlmail-linux-amd64 ./cmd/owlmail
-          GOOS=linux GOARCH=arm64 go build -o dist/owlmail-linux-arm64 ./cmd/owlmail
-          GOOS=darwin GOARCH=amd64 go build -o dist/owlmail-darwin-amd64 ./cmd/owlmail
-          GOOS=darwin GOARCH=arm64 go build -o dist/owlmail-darwin-arm64 ./cmd/owlmail
-          GOOS=windows GOARCH=amd64 go build -o dist/owlmail-windows-amd64.exe ./cmd/owlmail
-
-      - name: Bundle snapshot licenses and upstream notices
-        if: github.event_name != 'pull_request'
-        run: go run ./scripts/license-bundle -output dist/licenses
-
-      - name: Upload main branch snapshots
-        if: github.event_name != 'pull_request'
+          persist-credentials: false
+          path: verifier
+      - name: Checkout exact released smoke tests
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: 42de31580c48850c940dfe589ea23b6010dba321
+          persist-credentials: false
+          path: source
+      - name: Verify public parent and child, then exercise released image
+        working-directory: source
+        run: python3 ../verifier/.github/scripts/verify-published-image.py
+      - name: Retain verification evidence
+        if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: owlmail-${{ github.sha }}
-          path: dist/
-          retention-days: 7
+          name: owlmail-v0.11.4-public-image-${{ matrix.arch }}
+          path: source/verification-evidence/
+          if-no-files-found: error
+          retention-days: 14
