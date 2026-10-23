@@ -1,6 +1,6 @@
 # MCP reference
 
-This reference describes OwlMail **0.11.2**: seven read-only tools over dual-era Streamable HTTP and `owlmail mcp-stdio`, including cursor-aware delivery waits and test-run selectors. MCP is an inspection surface, not a mailbox administration API.
+This reference describes OwlMail **0.11.3**: seven read-only tools over dual-era Streamable HTTP and `owlmail mcp-stdio`, including cursor-aware delivery waits and test-run selectors. MCP is an inspection surface, not a mailbox administration API.
 
 ## Transports
 

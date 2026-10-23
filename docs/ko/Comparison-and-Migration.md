@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit: 기능, API 및 마이그레이션 가이드
 
-Current stable release: 0.11.2. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged.
+Current stable release: 0.11.3. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged.
 
 > **소스 코드 수준의 심층 비교 + 사용자 및 개발자를 위한 마이그레이션 가이드**
 

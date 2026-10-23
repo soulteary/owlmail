@@ -6,6 +6,14 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.11.3] - 2026-10-23
+
+### Changed
+
+- Publish the merged kin-openapi dependency update from 0.149.0 to 0.151.0.
+- Update the CodeQL Action to 4.39.0; retain Go 1.27.3.
+- Align current-version documentation, examples, and OpenAPI metadata with this patch release.
+
 ## [0.11.2] - 2026-10-22
 
 ### Changed
@@ -600,7 +608,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.11.3...HEAD
+[0.11.3]: https://github.com/soulteary/owlmail/compare/v0.11.2...v0.11.3
 [0.11.1]: https://github.com/soulteary/owlmail/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/soulteary/owlmail/compare/v0.10.1...v0.11.0
 [0.10.1]: https://github.com/soulteary/owlmail/compare/v0.10.0...v0.10.1
