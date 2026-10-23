@@ -7,3 +7,11 @@ coverage.html
 /tests/browser/node_modules/
 /tests/browser/playwright-report/
 /tests/browser/test-results/
+
+# Cross-platform binaries and snapshot output must not dirty later Go builds.
+/owlmail-linux-amd64
+/owlmail-linux-arm64
+/owlmail-darwin-amd64
+/owlmail-darwin-arm64
+/owlmail-windows-amd64.exe
+/dist/

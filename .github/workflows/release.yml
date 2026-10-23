@@ -189,6 +189,12 @@ jobs:
           # Windows
           GOOS=windows GOARCH=amd64 go build -a -installsuffix cgo -ldflags "${LDFLAGS}" -o owlmail-windows-amd64.exe ./cmd/owlmail
 
+      - name: Verify clean binary VCS metadata
+        run: |
+          python3 scripts/verify-binary-vcs.py \
+            owlmail-linux-amd64 owlmail-linux-arm64 \
+            owlmail-darwin-amd64 owlmail-darwin-arm64 owlmail-windows-amd64.exe
+
       - name: Verify embedded release metadata
         shell: bash
         env:
