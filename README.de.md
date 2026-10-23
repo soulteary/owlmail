@@ -147,7 +147,7 @@ docker run -d \
 - `0.11.4` - Exaktes Release-Tag; `0.11` und `0` werden mit späteren Releases der Reihe aktualisiert
 - `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-8d3445d`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
-- `latest` - Veränderliches Standard-Branch-Image, kein stabiles Release-Tag
+- `latest` - Veränderlicher Alias des neuesten stabilen Releases; nicht vom `main`-Build aktualisiert
 
 **Multi-Architektur-Unterstützung:**
 Das Image unterstützt sowohl `linux/amd64` als auch `linux/arm64` Architekturen. Docker lädt automatisch das richtige Image für Ihre Plattform herunter.

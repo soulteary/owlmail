@@ -341,7 +341,7 @@ docker run -d \
   ghcr.io/soulteary/owlmail:0.11.4
 ```
 
-The Docker examples pin the `0.11.4` release image. All commands and readiness checks in this guide are included in that release. The `main` and `latest` tags move with development builds; pin a release or digest for repeatable deployment.
+The Docker examples pin the `0.11.4` release image. All commands and readiness checks in this guide are included in that release. The `main` tag follows development builds, while `latest` follows the newest stable release; pin a release or digest for repeatable deployment.
 
 The image configures OwlMail to listen on `0.0.0.0` inside the container, which
 is what lets the process accept connections from outside its network namespace.

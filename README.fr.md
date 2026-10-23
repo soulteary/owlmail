@@ -150,7 +150,7 @@ docker run -d \
 - `0.11.4` - Tag de version exact ; `0.11` et `0` évoluent avec les versions ultérieures de ces séries
 - `sha-<commit>` - Image d'un SHA court précis (par exemple `sha-8d3445d`)
 - `main` - Image mobile issue du dernier build de `main`
-- `latest` - Image mobile de la branche par défaut, pas un sélecteur de version stable
+- `latest` - Alias mobile de la dernière version stable, jamais modifié par les builds `main`
 
 **Support multi-architecture :**
 L'image prend en charge les architectures `linux/amd64` et `linux/arm64`. Docker récupérera automatiquement la bonne image pour votre plateforme.

@@ -32,7 +32,7 @@ OwlMail runs as a single Go executable with an embedded Web UI. Docker images su
 
 The Docker quick start below uses stable **0.11.4** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
 
-All workflows below are available in **0.11.4**. Pin a release or image digest for repeatable CI; `main` and `latest` are moving development tags. See [0.11.4 release notes](docs/en/Release-0.11.4.md) and [the previous 0.11.3 release](docs/en/Release-0.11.3.md).
+All workflows below are available in **0.11.4**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.11.4 release notes](docs/en/Release-0.11.4.md) and [the previous 0.11.3 release](docs/en/Release-0.11.3.md).
 
 ## Quick start: receive your first email
 
