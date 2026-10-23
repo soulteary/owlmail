@@ -181,6 +181,13 @@ jobs:
             type=raw,value=main
             type=sha,prefix=sha-
 
+      - name: Verify development image tags
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_REFERENCE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/verify-development-image-tags.py
+
       - name: Prepare build metadata
         id: build-meta
         shell: bash
