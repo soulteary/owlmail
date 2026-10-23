@@ -1,6 +1,6 @@
 # MCP 参考
 
-OwlMail 0.11.2 通过兼容两个协议时代的 Streamable HTTP 与 `owlmail mcp-stdio`
+OwlMail 0.11.3 通过兼容两个协议时代的 Streamable HTTP 与 `owlmail mcp-stdio`
 提供同一套只读 MCP。MCP 是检查接口，不是邮箱管理 API。
 
 ## Transport
@@ -57,7 +57,7 @@ cursor 流程按“列表/搜索取得 cursor → 触发应用 → 使用 `after
 cursor 仅当前进程有效。MCP 等待一封邮件，返回 `matched`、`timed_out` 和匹配时的
 单个 `email` 摘要；它不接受 REST wait 的 `count`，也不返回复数 `emails`。
 客户端必须检查这些结果字段，不能只检查工具调用成功。
-这些 cursor 参数从 0.11.2 起可用；完整限制见
+这些 cursor 参数从 0.11.3 起可用；完整限制见
 [投递等待与测试运行契约](../en/Delivery-Waits-and-Test-Runs.md)。
 
 ## 资源

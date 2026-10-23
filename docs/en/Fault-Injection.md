@@ -2,7 +2,7 @@
 
 The loopback-only receiver in `examples/faults` exercises Webhook and Relay failures without modifying OwlMail's SMTP acceptance or production configuration. It discards all payloads and does not relay messages.
 
-This drill uses OwlMail **0.11.2** and its manual delivery retry workflow. Run the receiver from a `v0.11.2` source checkout; it is a test fixture, not a command bundled in the installed OwlMail binary.
+This drill uses OwlMail **0.11.3** and its manual delivery retry workflow. Run the receiver from a `v0.11.3` source checkout; it is a test fixture, not a command bundled in the installed OwlMail binary.
 
 ## Webhook retries, timeouts, and terminal failure
 

@@ -2,7 +2,7 @@
 
 [English](./Configuration-Reference.md) · [简体中文](../zh-CN/Configuration-Reference.md)
 
-This reference lists OwlMail **0.11.2** flags, environment aliases, and built-in defaults, including `-disable-web` SMTP-only mode. See the
+This reference lists OwlMail **0.11.3** flags, environment aliases, and built-in defaults, including `-disable-web` SMTP-only mode. See the
 [README quick start](../../README.md#quick-start-receive-your-first-email) to install that release.
 
 ## Configuration precedence

@@ -126,8 +126,8 @@ SMTP_SECURE=false</code></pre>
                     <pre><code>docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.2</code></pre>
-                    <p>This example uses stable <code>0.11.2</code>, including the command palette, Verify/Deliveries, cursor waits and SMTP-only mode. <code>main</code> and <code>latest</code> are moving image tags; use a release or digest for a repeatable deployment.</p>
+  ghcr.io/soulteary/owlmail:0.11.3</code></pre>
+                    <p>This example uses stable <code>0.11.3</code>, including the command palette, Verify/Deliveries, cursor waits and SMTP-only mode. <code>main</code> and <code>latest</code> are moving image tags; use a release or digest for a repeatable deployment.</p>
                 </section>
 
                 <section id="en-notifications-webhooks" class="help-card">
@@ -167,7 +167,7 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/ws</code><span>Live WebSocket events</span></div>
                     </div>
                     <p class="muted">Historical OwlMail routes under <code>/email</code>, <code>/config</code>, <code>/healthz</code>, and <code>/socket.io</code> remain available. <code>/socket.io</code> is native WebSocket, not the Socket.IO protocol. The separate MailDev REST facade under <code>/api</code> requires <code>-maildev-rest-compat</code>; use <code>/api/v1</code> for new clients.</p>
-                    <p>OwlMail 0.11.2 provides <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>, <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> and <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>. Obtain the cursor before triggering mail, then wait with an exact envelope recipient and check <code>timed_out</code>. These routes are included in this release.</p>
+                    <p>OwlMail 0.11.3 provides <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>, <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> and <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>. Obtain the cursor before triggering mail, then wait with an exact envelope recipient and check <code>timed_out</code>. These routes are included in this release.</p>
                 </section>
 
                 <section id="en-security" class="help-card">
@@ -278,8 +278,8 @@ SMTP_SECURE=false</code></pre>
                     <pre><code>docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.2</code></pre>
-                    <p>此示例使用正式版 <code>0.11.2</code>，已经包含命令面板、Verify/Deliveries、cursor 等待和 SMTP-only。<code>main</code> 与 <code>latest</code> 是移动镜像标签；需要可重复部署时使用发布版或 digest。</p>
+  ghcr.io/soulteary/owlmail:0.11.3</code></pre>
+                    <p>此示例使用正式版 <code>0.11.3</code>，已经包含命令面板、Verify/Deliveries、cursor 等待和 SMTP-only。<code>main</code> 与 <code>latest</code> 是移动镜像标签；需要可重复部署时使用发布版或 digest。</p>
                 </section>
 
                 <section id="zh-notifications-webhooks" class="help-card">
@@ -319,7 +319,7 @@ SMTP_SECURE=false</code></pre>
                         <div><code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/ws</code><span>实时 WebSocket 事件</span></div>
                     </div>
                     <p class="muted">历史 OwlMail 路由 <code>/email</code>、<code>/config</code>、<code>/healthz</code> 和 <code>/socket.io</code> 仍然可用。<code>/socket.io</code> 是原生 WebSocket，不是 Socket.IO 协议。独立的 MailDev REST facade 位于 <code>/api</code>，需要 <code>-maildev-rest-compat</code>；新客户端使用 <code>/api/v1</code>。</p>
-                    <p>OwlMail 0.11.2 提供 <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>、<code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> 和 <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>。先取得 cursor，再触发发信；等待时使用精确信封收件人并检查 <code>timed_out</code>。此发布版已经包含这些路由。</p>
+                    <p>OwlMail 0.11.3 提供 <code>GET {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/cursor</code>、<code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/wait</code> 和 <code>POST {{OWLMAIL_BASE_PATHNAME}}/api/v1/emails/:id/check</code>。先取得 cursor，再触发发信；等待时使用精确信封收件人并检查 <code>timed_out</code>。此发布版已经包含这些路由。</p>
                 </section>
 
                 <section id="zh-security" class="help-card">

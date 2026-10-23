@@ -57,9 +57,9 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
   [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente
   e browser usano Bun; il binario distribuito non richiede runtime.
 
-## OwlMail 0.11.2
+## OwlMail 0.11.3
 
-`v0.11.2` è la versione stabile corrente. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.11.2](./docs/en/Release-0.11.2.md) · [Versione precedente 0.10.1](./docs/en/Release-0.10.1.md).
+`v0.11.3` è la versione stabile corrente. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.11.3](./docs/en/Release-0.11.3.md) · [Versione precedente 0.11.2](./docs/en/Release-0.11.2.md).
 
 > [!IMPORTANT]
 > OwlMail è destinato a sviluppo, test, CI e reti interne affidabili; non è un
@@ -73,7 +73,7 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
 
 ```bash
 # Clona il repository
-git clone --branch v0.11.2 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.11.3 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Compila
@@ -86,7 +86,7 @@ go build -o owlmail ./cmd/owlmail
 #### Installa con Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.2
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.3
 owlmail
 ```
 
@@ -129,8 +129,8 @@ usano la forma loopback.
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
 
 ```bash
-# Scarica la release 0.11.2
-docker pull ghcr.io/soulteary/owlmail:0.11.2
+# Scarica la release 0.11.3
+docker pull ghcr.io/soulteary/owlmail:0.11.3
 
 # Scarica l'immagine di un commit esatto (esempio)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -141,11 +141,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.11.2
+  ghcr.io/soulteary/owlmail:0.11.3
 ```
 
 **Tag disponibili:**
-- `0.11.2` - Tag di release esatto; `0.11` e `0` avanzano con le release successive della serie
+- `0.11.3` - Tag di release esatto; `0.11` e `0` avanzano con le release successive della serie
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-8d3445d`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Immagine mobile del branch predefinito, non un selettore di release stabile
@@ -196,7 +196,7 @@ docker buildx build \
 
 ## 📖 Opzioni di Configurazione
 
-La tabella descrive OwlMail 0.11.2, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
+La tabella descrive OwlMail 0.11.3, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
 
 ### Argomenti da Riga di Comando
 
@@ -692,7 +692,7 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 
 ## 📚 Documentazione Correlata
 
-- [Note di rilascio OwlMail 0.11.2](./docs/en/Release-0.11.2.md) ([中文](./docs/zh-CN/Release-0.11.2.md))
+- [Note di rilascio OwlMail 0.11.3](./docs/en/Release-0.11.3.md) ([中文](./docs/zh-CN/Release-0.11.3.md))
 - [Integrazione, CI e agenti AI](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Riferimento MCP](./docs/en/MCP-Reference.md), [architettura](./docs/en/Architecture.md) e [modello di sicurezza](./docs/en/Security-Model.md)
 - [Esempi di test eseguibili](./examples/testing/README.md)
@@ -717,4 +717,4 @@ Se questo progetto ti aiuta, per favore dagli una Star ⭐!
 
 **OwlMail** — un gateway email self-hosted per sviluppo, CI, automazione e agenti AI. 🦉
 
-Previous release: [OwlMail 0.11.1](docs/en/Release-0.11.1.md).
+Previous release: [OwlMail 0.11.2](docs/en/Release-0.11.2.md).
