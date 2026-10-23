@@ -6,6 +6,14 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.11.4] - 2026-10-23
+
+### Fixed
+
+- Ignore known generated build outputs when determining checkout cleanliness, and verify every release and snapshot binary records the expected Git revision with `vcs.modified=false`.
+- Restrict default-branch image publication to development tags; only formal releases update `latest` and stable SemVer aliases.
+- Preserve existing published version tags and assets; issue corrected artifacts as a new patch release.
+
 ## [0.11.3] - 2026-10-23
 
 ### Changed
@@ -608,7 +616,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.11.3...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.11.4...HEAD
+[0.11.4]: https://github.com/soulteary/owlmail/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/soulteary/owlmail/compare/v0.11.2...v0.11.3
 [0.11.1]: https://github.com/soulteary/owlmail/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/soulteary/owlmail/compare/v0.10.1...v0.11.0

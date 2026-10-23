@@ -52,7 +52,7 @@ Webhook 或保留策略清理。
 
 这种顺序也覆盖邮件在 wait 开始前已经到达的情况。cursor 只在当前进程有效，
 MCP 每次只等待一封邮件，不接受 REST wait 的 `count`；`run_id` 不提供租户或鉴权隔离。
-这些 cursor 参数从 0.11.3 起可用，
+这些 cursor 参数从 0.11.4 起可用，
 详见[投递等待与测试运行契约](../en/Delivery-Waits-and-Test-Runs.md)。
 
 ## 省略 cursor 的实时等待流程

@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit: Feature, API, and Migration Guide
 
-Current stable release: 0.11.3. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.11.3 release notes](Release-0.11.3.md) for features added after that baseline.
+Current stable release: 0.11.4. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.11.4 release notes](Release-0.11.4.md) for features added after that baseline.
 
 > A source-based comparison for choosing a development mail server. It describes
 > verified behavior, not drop-in compatibility.
@@ -290,4 +290,4 @@ Mailpit necessarily implement the same behavior.
 - Mailpit HTTP routes: https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/server.go
 - Mailpit Host allowlist: https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/cors.go
 
-The 0.11.3 maintenance release retains the 0.11.1 application contract reviewed here.
+The 0.11.4 maintenance release retains the 0.11.1 application contract reviewed here.

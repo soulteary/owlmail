@@ -4,7 +4,7 @@
 带版本号的 `/api/v1` 路由。无版本路由继续服务已有 OwlMail 客户端和常见的
 MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一致。
 
-**版本范围：**本页描述 OwlMail **0.11.3**，包含 Cursor 等待、测试运行选择器、邮件断言、投递历史与手动重试。原 `v0.10.1` 不包含这些新增能力；旧版用户参阅
+**版本范围：**本页描述 OwlMail **0.11.4**，包含 Cursor 等待、测试运行选择器、邮件断言、投递历史与手动重试。原 `v0.10.1` 不包含这些新增能力；旧版用户参阅
 [0.10.1 标签下的 API 参考](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/zh-CN/API-Reference.md)。
 
 ## 基础地址与鉴权
@@ -236,10 +236,10 @@ WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 
 
 ```json
 {
-  "version": "0.11.3",
+  "version": "0.11.4",
   "commit": "<完整 Git 提交 SHA>",
   "build_date": "<UTC RFC 3339 时间>",
-  "branch": "v0.11.3",
+  "branch": "v0.11.4",
   "go_version": "go1.27.3",
   "platform": "linux/amd64",
   "compiler": "gc"

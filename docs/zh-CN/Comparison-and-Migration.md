@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit：功能、API 与迁移指南
 
-当前稳定版为 0.11.3。下方源码比较仍以 0.10.0 为基线，固定的提交引用保持不变。基线之后的新功能见 [0.11.3 发布说明](Release-0.11.3.md)。
+当前稳定版为 0.11.4。下方源码比较仍以 0.10.0 为基线，固定的提交引用保持不变。基线之后的新功能见 [0.11.4 发布说明](Release-0.11.4.md)。
 
 > 面向开发邮件服务器选型的源码级比较。本文记录已验证行为，不承诺无缝兼容。
 
@@ -238,4 +238,4 @@ POP3 访问在 OwlMail 中没有落点。
 - [Mailpit HTTP 路由](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/server.go)
 - [Mailpit Host 允许列表](https://github.com/axllent/mailpit/blob/0bbbb233db56b185035ec3d1730228506dbb8f04/server/cors.go)
 
-The 0.11.3 maintenance release retains the 0.11.1 application contract reviewed here.
+The 0.11.4 maintenance release retains the 0.11.1 application contract reviewed here.
