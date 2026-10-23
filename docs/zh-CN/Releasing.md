@@ -11,8 +11,9 @@
 - `docs/zh-CN/Release-X.Y.Z.md` 是对应的中文发布说明。
 - `.github/workflows/release.yml` 从标签构建正式二进制、许可证与声明包、校验和、逐二进制 SBOM、
   来源证明、签名及多架构发布镜像。
-- `.github/workflows/docker.yml` 只为默认分支发布会移动的 `main`、`latest` 与提交
-  快照。
+- `.github/workflows/docker.yml` 只从 `refs/heads/main` 发布开发用 `main` 与
+  `sha-*` 快照，手动运行也受同一限制。它不更新 `latest` 或 SemVer 别名；这些标签
+  由正式发布工作流管理。
 
 发布工作流会把英文策划版说明放在 GitHub 自动生成的变更列表之前。手动运行时，
 如果版本标签或对应发布说明文件不存在，工作流会失败。
@@ -144,9 +145,10 @@ curl --fail http://localhost:11080/api/v1/version
 
 ## 验证容器发布
 
-对于 `v0.11.4`，检查 `0.11.4`、`0.11`、`0` 标签和两个目标架构。`main`、`latest`
-与 `sha-*` 都是默认分支别名，不能用于证明发布可复现性。记录正式发布的清单 digest，
-并在可重复部署中使用该 digest。
+对于 `v0.11.4`，检查 `0.11.4`、`0.11`、`0`、`latest` 标签和两个目标架构。会移动的
+正式发布别名必须与最新稳定版本指向同一清单。`main` 与 `sha-*` 是开发快照，可以
+指向更新且尚未发布的提交。后续 main 分支构建不得更改正式发布别名。记录正式发布的
+清单 digest，并在可重复部署中使用该 digest。
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.4

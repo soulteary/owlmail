@@ -14,8 +14,9 @@ container images must be built from that same tag.
 - `.github/workflows/release.yml` builds formal binaries, license/notice bundles,
   checksums, per-binary SBOMs, provenance, signatures, and multi-architecture release images from
   tags.
-- `.github/workflows/docker.yml` publishes moving `main`, `latest`, and commit
-  snapshots for the default branch only.
+- `.github/workflows/docker.yml` publishes development `main` and `sha-*`
+  snapshots only from `refs/heads/main`, including manual runs. It never updates
+  `latest` or SemVer aliases; the formal release workflow owns those tags.
 
 The release workflow prepends the curated English note to GitHub's generated
 change list. It refuses manual runs for a missing tag or missing release-note
@@ -163,10 +164,12 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-For `v0.11.4`, verify the `0.11.4`, `0.11`, and `0` tags and both target
-architectures. `main`, `latest`, and `sha-*` are default-branch aliases and must
-not be used to prove release reproducibility. Record the manifest digest from
-the published release and use that digest for repeatable deployment.
+For `v0.11.4`, verify the `0.11.4`, `0.11`, `0`, and `latest` tags and both target
+architectures. The moving release aliases must resolve to the same manifest as
+the newest stable version. `main` and `sha-*` are development snapshots and may
+point to newer, unreleased commits. A subsequent main-branch build must leave
+release aliases unchanged. Record the manifest digest from the published
+release and use that digest for repeatable deployment.
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.4
