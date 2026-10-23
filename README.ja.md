@@ -56,9 +56,9 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
   プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと
   ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。
 
-## OwlMail 0.11.3
+## OwlMail 0.11.4
 
-`v0.11.3` は現在の安定版です。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.11.3 リリースノート](./docs/en/Release-0.11.3.md) · [前のバージョン 0.11.2](./docs/en/Release-0.11.2.md)。
+`v0.11.4` は現在の安定版です。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.11.4 リリースノート](./docs/en/Release-0.11.4.md) · [前のバージョン 0.11.3](./docs/en/Release-0.11.3.md)。
 
 > [!IMPORTANT]
 > OwlMail は開発、テスト、CI、信頼できる内部ネットワーク向けです。公開本番
@@ -72,7 +72,7 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 
 ```bash
 # Clone repository
-git clone --branch v0.11.3 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.11.4 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -85,7 +85,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.3
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.4
 owlmail
 ```
 
@@ -127,8 +127,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# リリース 0.11.3 を取得
-docker pull ghcr.io/soulteary/owlmail:0.11.3
+# リリース 0.11.4 を取得
+docker pull ghcr.io/soulteary/owlmail:0.11.4
 
 # 特定コミットのイメージを取得（例）
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -139,14 +139,14 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
 **利用可能なタグ：**
-- `0.11.3` - 正確なリリースタグ。`0.11` と `0` は同じ系列の後続リリースで更新
+- `0.11.4` - 正確なリリースタグ。`0.11` と `0` は同じ系列の後続リリースで更新
 - `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-8d3445d`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
-- `latest` - デフォルトブランチに追随する可変イメージで、安定版の指定には使用不可
+- `latest` - 最新の安定版に追随する可変エイリアス。`main` のビルドでは更新されません
 
 **マルチアーキテクチャサポート：**
 イメージは `linux/amd64` と `linux/arm64` の両方のアーキテクチャをサポートしています。Docker は自動的にプラットフォームに適したイメージを取得します。
@@ -194,7 +194,7 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-この表は `-disable-web` を含む OwlMail 0.11.3 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
+この表は `-disable-web` を含む OwlMail 0.11.4 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
 
 ### Command Line Arguments
 
@@ -689,7 +689,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.11.3 リリースノート](./docs/en/Release-0.11.3.md) ([中文](./docs/zh-CN/Release-0.11.3.md))
+- [OwlMail 0.11.4 リリースノート](./docs/en/Release-0.11.4.md) ([中文](./docs/zh-CN/Release-0.11.4.md))
 - [統合テスト、CI、AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP リファレンス](./docs/en/MCP-Reference.md)、[アーキテクチャ](./docs/en/Architecture.md)、[セキュリティモデル](./docs/en/Security-Model.md)
 - [実行可能なテスト例](./examples/testing/README.md)
@@ -714,4 +714,4 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — 開発、CI、自動化、AI Agent のためのセルフホスト型メールテストゲートウェイ。🦉
 
-Previous release: [OwlMail 0.11.2](docs/en/Release-0.11.2.md).
+Previous release: [OwlMail 0.11.3](docs/en/Release-0.11.3.md).

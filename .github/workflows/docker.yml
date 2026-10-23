@@ -32,7 +32,7 @@ jobs:
     # Every other pull request check builds with the toolchain in go.mod, so a
     # change that only touches the Dockerfile used to merge without anything
     # having built it. This job runs the packaged image before it can reach the
-    # moving `latest` tag that the publish job below pushes from `main`.
+    # development `main` tag that the publish job below pushes from `main`.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -149,7 +149,8 @@ jobs:
 
   build-and-push:
     name: Build and Push Docker Image
-    if: github.event_name != 'pull_request'
+    # Manual runs at tags or feature branches must not publish development aliases.
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -174,10 +175,18 @@ jobs:
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          # Stable aliases belong exclusively to the formal release workflow.
+          flavor: latest=false
           tags: |
-            type=ref,event=branch
+            type=raw,value=main
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Verify development image tags
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          IMAGE_REFERENCE: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          COMMIT_SHA: ${{ github.sha }}
+        run: python3 .github/scripts/verify-development-image-tags.py
 
       - name: Prepare build metadata
         id: build-meta

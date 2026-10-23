@@ -5,8 +5,8 @@ readiness, persistence, webhook capacity, shutdown behavior, and common failure
 modes. See the [API Reference](./API-Reference.md) and
 [Webhook Forwarding](./Webhook-Forwarding.md) for protocol details.
 
-This guide describes OwlMail **0.11.3** and pins that release in Docker examples. It includes `doctor`, configuration-aware `healthcheck`, SMTP-only, cursor/test-run workflows, and expanded storage and outgoing readiness. See the
-[0.11.3 release notes](./Release-0.11.3.md) when upgrading from 0.10.1.
+This guide describes OwlMail **0.11.4** and pins that release in Docker examples. It includes `doctor`, configuration-aware `healthcheck`, SMTP-only, cursor/test-run workflows, and expanded storage and outgoing readiness. See the
+[0.11.4 release notes](./Release-0.11.4.md) when upgrading from 0.10.1.
 
 ## Layered configuration files
 
@@ -338,10 +338,10 @@ docker run -d \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
-The Docker examples pin the `0.11.3` release image. All commands and readiness checks in this guide are included in that release. The `main` and `latest` tags move with development builds; pin a release or digest for repeatable deployment.
+The Docker examples pin the `0.11.4` release image. All commands and readiness checks in this guide are included in that release. The `main` tag follows development builds, while `latest` follows the newest stable release; pin a release or digest for repeatable deployment.
 
 The image configures OwlMail to listen on `0.0.0.0` inside the container, which
 is what lets the process accept connections from outside its network namespace.
@@ -364,7 +364,7 @@ docker run -d \
   -e OWLMAIL_WEB_USER=admin \
   -e OWLMAIL_WEB_PASSWORD='replace-with-a-secret' \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
 Configure both values for stable automation. A username alone causes OwlMail to
@@ -392,7 +392,7 @@ OwlMail and the proxy, and preserve WebSocket upgrade headers:
 ```yaml
 services:
   owlmail:
-    image: ghcr.io/soulteary/owlmail:0.11.3
+    image: ghcr.io/soulteary/owlmail:0.11.4
     environment:
       OWLMAIL_BASE_PATHNAME: /owlmail
       OWLMAIL_WEB_EXTERNAL_SCHEME: https
@@ -670,10 +670,10 @@ Example web HTTPS:
   -https-key ./certs/web-key.pem
 ```
 
-The 0.11.3 image's built-in check runs `owlmail healthcheck --container`.
+The 0.11.4 image's built-in check runs `owlmail healthcheck --container`.
 The original 0.10.1 image instead runs a fixed HTTP 1080 `/healthz` probe; if
 that release uses HTTPS or another Web port, supply a matching Docker
-healthcheck command. The 0.11.3 PID 1
+healthcheck command. The 0.11.4 PID 1
 server writes a private, credential-free startup record in `/tmp`, containing
 its effective listener, mode, mail directory, base pathname and public HTTPS
 certificate. The probe reads this immutable record and verifies the current
@@ -704,7 +704,7 @@ docker run -d \
   -e OWLMAIL_SMTPS_PORT=2465 \
   -e OWLMAIL_TLS_CERT=/certs/smtp-cert.pem \
   -e OWLMAIL_TLS_KEY=/certs/smtp-key.pem \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
 The image runs as a non-root user, so the default port 465 is privileged and
@@ -890,7 +890,7 @@ tags are intentionally moving.
 | Browser repeatedly asks for credentials | Confirm the effective username/password; a generated password changes on restart; clear stale browser credentials if needed |
 | SMTP returns `530 Authentication required` | Authenticate with the configured username/password, or remove both values to intentionally use NO AUTH mode |
 | OwlMail fails after setting one SMTP credential | Configure both `-smtp-user` and `-smtp-password`, or remove both; partial credentials never fall back to NO AUTH |
-| Container is unhealthy with HTTPS | For 0.11.3, inspect healthcheck output, startup configuration, certificate validity/read permissions and the PID 1/exec-entrypoint requirement |
+| Container is unhealthy with HTTPS | For 0.11.4, inspect healthcheck output, startup configuration, certificate validity/read permissions and the PID 1/exec-entrypoint requirement |
 | Browser notification does not appear | Enable it from the inbox, use HTTPS or localhost, and restore site permission in browser settings |
 | Webhook delivery is slow | Check receiver latency, timeout and retry settings; lower retries or fix the receiver before raising concurrency |
 | SMTP works but direct SMTPS does not | Publish the `-smtps-port` port, check certificate paths and runtime permission to bind a privileged port |
@@ -903,7 +903,7 @@ Useful checks:
 
 ```bash
 docker logs --tail 200 owlmail
-# OwlMail 0.11.3 includes this configuration-aware probe.
+# OwlMail 0.11.4 includes this configuration-aware probe.
 docker exec owlmail /app/owlmail healthcheck --container
 curl --fail http://localhost:1080/healthz
 curl -u admin:secret http://localhost:1080/api/v1/version

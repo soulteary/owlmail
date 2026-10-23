@@ -1,7 +1,7 @@
 # Release process
 
 This guide is for OwlMail maintainers. A release is identified by a signed or
-annotated semantic-version tag such as `v0.11.3`. GitHub release binaries and
+annotated semantic-version tag such as `v0.11.4`. GitHub release binaries and
 container images must be built from that same tag.
 
 ## Sources of truth
@@ -14,8 +14,9 @@ container images must be built from that same tag.
 - `.github/workflows/release.yml` builds formal binaries, license/notice bundles,
   checksums, per-binary SBOMs, provenance, signatures, and multi-architecture release images from
   tags.
-- `.github/workflows/docker.yml` publishes moving `main`, `latest`, and commit
-  snapshots for the default branch only.
+- `.github/workflows/docker.yml` publishes development `main` and `sha-*`
+  snapshots only from `refs/heads/main`, including manual runs. It never updates
+  `latest` or SemVer aliases; the formal release workflow owns those tags.
 
 The release workflow prepends the curated English note to GitHub's generated
 change list. It refuses manual runs for a missing tag or missing release-note
@@ -35,7 +36,7 @@ file.
 - [ ] A multi-architecture Docker build succeeds.
 - [ ] The complete mail directory has been backed up for any upgrade smoke test using persistent data.
 
-For 0.11.3, also confirm that browser `Origin` validation is exercised against
+For 0.11.4, also confirm that browser `Origin` validation is exercised against
 the Web, API, WebSocket, and MCP surfaces including the documented `*` opt-out,
 that a configuration whose SMTPS listener cannot bind fails to start instead of
 starting without it, that the fuzz seed corpora replay clean, and that every
@@ -46,7 +47,7 @@ tagging.
 
 Update local `main`, record the exact commit, then create one annotated tag:
 
-The commands use `v0.11.3` as a syntax example. Confirm that the chosen version
+The commands use `v0.11.4` as a syntax example. Confirm that the chosen version
 has not already been published and that `VERSION` and both release notes match
 before running them.
 
@@ -55,8 +56,8 @@ git switch main
 git pull --ff-only
 git status --short
 git rev-parse HEAD
-git tag -a v0.11.3 -m "OwlMail v0.11.3"
-git push origin v0.11.3
+git tag -a v0.11.4 -m "OwlMail v0.11.4"
+git push origin v0.11.4
 ```
 
 Do not move or reuse a published release tag. If a release needs a correction,
@@ -66,7 +67,7 @@ The tag push starts the release workflow. A manual run is only a retry mechanism
 and must execute at the same tag ref so its OIDC identity is tag-bound:
 
 ```bash
-gh workflow run release.yml --ref v0.11.3 -f version=v0.11.3
+gh workflow run release.yml --ref v0.11.4 -f version=v0.11.4
 ```
 
 The workflow rejects a manual run whose ref and requested version differ, then
@@ -163,21 +164,23 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-For `v0.11.3`, verify the `0.11.3`, `0.11`, and `0` tags and both target
-architectures. `main`, `latest`, and `sha-*` are default-branch aliases and must
-not be used to prove release reproducibility. Record the manifest digest from
-the published release and use that digest for repeatable deployment.
+For `v0.11.4`, verify the `0.11.4`, `0.11`, `0`, and `latest` tags and both target
+architectures. The moving release aliases must resolve to the same manifest as
+the newest stable version. `main` and `sha-*` are development snapshots and may
+point to newer, unreleased commits. A subsequent main-branch build must leave
+release aliases unchanged. Record the manifest digest from the published
+release and use that digest for repeatable deployment.
 
 ```bash
-docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.3
+docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.4
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 docker run --rm \
   -p 127.0.0.1:11025:1025 \
   -p 127.0.0.1:11080:1080 \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
 Confirm the manifest lists `linux/amd64` and `linux/arm64`, then repeat the
@@ -187,13 +190,13 @@ attestation, and explicit OCI source, revision, version, and MIT license labels.
 
 ## Post-release checklist
 
-- [ ] GitHub marks `v0.11.3` as the latest non-prerelease release.
+- [ ] GitHub marks `v0.11.4` as the latest non-prerelease release.
 - [ ] The curated note appears before the generated pull-request list.
 - [ ] Every binary, SBOM, checksum, signature bundle, and GitHub attestation is
   downloadable or discoverable and verified.
 - [ ] Container version and moving tags resolve to the expected manifest.
 - [ ] The published multi-architecture manifest digest is recorded for exact deployments.
 - [ ] The release image's Cosign signature and OCI attestations verify.
-- [ ] Go installation with `@v0.11.3` succeeds on the documented Go version.
+- [ ] Go installation with `@v0.11.4` succeeds on the documented Go version.
 - [ ] README and release-note installation commands resolve.
 - [ ] Any release failure or known limitation is added to the release body and changelog.

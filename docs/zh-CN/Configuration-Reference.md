@@ -2,7 +2,7 @@
 
 [English](../en/Configuration-Reference.md) · [简体中文](./Configuration-Reference.md)
 
-本页列出 OwlMail **0.11.3** 的参数、环境变量别名和内置默认值，包括 `-disable-web` SMTP-only 模式。安装方式见
+本页列出 OwlMail **0.11.4** 的参数、环境变量别名和内置默认值，包括 `-disable-web` SMTP-only 模式。安装方式见
 [README 快速开始](../../README.zh-CN.md#快速开始收到第一封邮件)。
 
 ## 配置优先级

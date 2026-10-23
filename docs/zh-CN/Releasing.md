@@ -1,7 +1,7 @@
 # 发布流程
 
 本文面向 OwlMail 维护者。每个发布版本由签名或附注的语义化版本标签标识，例如
-`v0.11.3`。GitHub Release 二进制与容器镜像必须从同一个标签构建。
+`v0.11.4`。GitHub Release 二进制与容器镜像必须从同一个标签构建。
 
 ## 事实来源
 
@@ -11,8 +11,9 @@
 - `docs/zh-CN/Release-X.Y.Z.md` 是对应的中文发布说明。
 - `.github/workflows/release.yml` 从标签构建正式二进制、许可证与声明包、校验和、逐二进制 SBOM、
   来源证明、签名及多架构发布镜像。
-- `.github/workflows/docker.yml` 只为默认分支发布会移动的 `main`、`latest` 与提交
-  快照。
+- `.github/workflows/docker.yml` 只从 `refs/heads/main` 发布开发用 `main` 与
+  `sha-*` 快照，手动运行也受同一限制。它不更新 `latest` 或 SemVer 别名；这些标签
+  由正式发布工作流管理。
 
 发布工作流会把英文策划版说明放在 GitHub 自动生成的变更列表之前。手动运行时，
 如果版本标签或对应发布说明文件不存在，工作流会失败。
@@ -31,7 +32,7 @@
 - [ ] 多架构 Docker 构建成功。
 - [ ] 使用持久数据进行升级冒烟测试前，已备份完整邮件目录。
 
-对于 0.11.3，还需要确认浏览器 `Origin` 校验在 Web、API、WebSocket 与 MCP 各界面
+对于 0.11.4，还需要确认浏览器 `Origin` 校验在 Web、API、WebSocket 与 MCP 各界面
 上都经过验证（包括文档化的 `*` 关闭开关），SMTPS 监听无法绑定的配置会直接启动失败
 而不是静默继续，模糊测试种子语料可干净重放，并且所有当前版本示例均由 `VERSION`
 派生或已在打标签前完成更新。
@@ -40,7 +41,7 @@
 
 更新本地 `main`，记录准确提交，然后创建一个附注标签：
 
-下方以 `v0.11.3` 演示命令语法；执行前应确认所选版本尚未发布，且 `VERSION`
+下方以 `v0.11.4` 演示命令语法；执行前应确认所选版本尚未发布，且 `VERSION`
 与中英文发布说明一致。
 
 ```bash
@@ -48,8 +49,8 @@ git switch main
 git pull --ff-only
 git status --short
 git rev-parse HEAD
-git tag -a v0.11.3 -m "OwlMail v0.11.3"
-git push origin v0.11.3
+git tag -a v0.11.4 -m "OwlMail v0.11.4"
+git push origin v0.11.4
 ```
 
 不要移动或复用已经发布的标签。如需修正，应创建新的补丁版本。
@@ -58,7 +59,7 @@ git push origin v0.11.3
 上执行，使 OIDC 身份与标签绑定：
 
 ```bash
-gh workflow run release.yml --ref v0.11.3 -f version=v0.11.3
+gh workflow run release.yml --ref v0.11.4 -f version=v0.11.4
 ```
 
 工作流会拒绝引用和请求版本不一致的手动运行，然后检出该标签再构建。发布文件
@@ -144,20 +145,21 @@ curl --fail http://localhost:11080/api/v1/version
 
 ## 验证容器发布
 
-对于 `v0.11.3`，检查 `0.11.3`、`0.11`、`0` 标签和两个目标架构。`main`、`latest`
-与 `sha-*` 都是默认分支别名，不能用于证明发布可复现性。记录正式发布的清单 digest，
-并在可重复部署中使用该 digest。
+对于 `v0.11.4`，检查 `0.11.4`、`0.11`、`0`、`latest` 标签和两个目标架构。会移动的
+正式发布别名必须与最新稳定版本指向同一清单。`main` 与 `sha-*` 是开发快照，可以
+指向更新且尚未发布的提交。后续 main 分支构建不得更改正式发布别名。记录正式发布的
+清单 digest，并在可重复部署中使用该 digest。
 
 ```bash
-docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.3
+docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.11.4
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 docker run --rm \
   -p 127.0.0.1:11025:1025 \
   -p 127.0.0.1:11080:1080 \
-  ghcr.io/soulteary/owlmail:0.11.3
+  ghcr.io/soulteary/owlmail:0.11.4
 ```
 
 确认清单包含 `linux/amd64` 与 `linux/arm64`，再对容器重复健康、版本和 SMTP
@@ -166,13 +168,13 @@ provenance、Cosign 签名，以及明确的 OCI 来源、修订、版本和 MIT
 
 ## 发布后检查
 
-- [ ] GitHub 将 `v0.11.3` 标记为最新非预发布版本。
+- [ ] GitHub 将 `v0.11.4` 标记为最新非预发布版本。
 - [ ] 策划版说明显示在自动生成的 PR 列表之前。
 - [ ] 所有二进制、SBOM、校验和、签名包与 GitHub Attestation 均可下载或发现，
   并通过校验。
 - [ ] 容器版本标签和移动标签指向预期清单。
 - [ ] 已记录正式多架构清单的 digest，供精确部署使用。
 - [ ] 发布镜像的 Cosign 签名与 OCI Attestation 通过验证。
-- [ ] 使用文档要求的 Go 版本执行 `@v0.11.3` 安装成功。
+- [ ] 使用文档要求的 Go 版本执行 `@v0.11.4` 安装成功。
 - [ ] README 与发布说明中的安装命令均可解析。
 - [ ] 所有发布失败或已知限制均已补充到发布正文与变更日志。

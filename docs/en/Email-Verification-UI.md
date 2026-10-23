@@ -1,6 +1,6 @@
 # Verification and delivery status in the mailbox
 
-The Verify and Deliveries tabs are included in OwlMail **0.11.3**. They were not present in the original `v0.10.1` binary or image.
+The Verify and Deliveries tabs are included in OwlMail **0.11.4**. They were not present in the original `v0.10.1` binary or image.
 
 The existing HTML, plain text, headers, source, isolated preview, and preview width controls remain available. Two additional keyboard-accessible tabs help verify the selected message.
 

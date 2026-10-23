@@ -25,9 +25,9 @@
 
 - **[投递等待与测试运行（English）](../en/Delivery-Waits-and-Test-Runs.md)**
   - 触发邮件前获取 cursor，按测试运行与收件人精确等待，并只清理该次测试的数据。
-    0.11.3 已包含这些能力。
+    0.11.4 已包含这些能力。
 - **[邮件断言与投递状态（English）](../en/Email-Verification-UI.md)**
-  - 在邮箱中验证内容、查看失败投递并手动重试。0.11.3 已包含这些能力。
+  - 在邮箱中验证内容、查看失败投递并手动重试。0.11.4 已包含这些能力。
 - **[可复现投递故障（English）](../en/Fault-Injection.md)**与
   **[离线配置和恢复诊断（English）](../en/Configuration-Doctor.md)**
   - 本地 HTTP/SMTP 故障接收器，以及只读的启动配置、持久 Relay 恢复检查。
@@ -55,10 +55,10 @@
   - 组件职责、数据流、单实例边界、信任模型与部署清单。
   - **其他语言**：[Architecture](../en/Architecture.md) | [Security Model](../en/Security-Model.md)
 
-- **[OwlMail 0.11.3 发布说明](./Release-0.11.3.md) · [0.11.2 发布说明](./Release-0.11.2.md)**
+- **[OwlMail 0.11.4 发布说明](./Release-0.11.4.md) · [0.11.3 发布说明](./Release-0.11.3.md)**
   - 版本亮点、升级敏感行为、安装命令、发布文件、已知限制和详细参考链接。
-  - **其他语言**：[English](../en/Release-0.11.3.md)
-  - **上一版本**：[0.11.2](./Release-0.11.2.md)（[English](../en/Release-0.11.2.md)）
+  - **其他语言**：[English](../en/Release-0.11.4.md)
+  - **上一版本**：[0.11.3](./Release-0.11.3.md)（[English](../en/Release-0.11.3.md)）
 
 - **[API 参考](./API-Reference.md)**
   - 完整路由清单、请求与响应约定、鉴权、原生 WebSocket 事件、curl 示例，以及
@@ -128,4 +128,4 @@
 
 有关 OwlMail 的更多信息，请访问[主 README](../../README.zh-CN.md)。
 
-Previous release: [OwlMail 0.11.2](../en/Release-0.11.2.md).
+Previous release: [OwlMail 0.11.3](../en/Release-0.11.3.md).
