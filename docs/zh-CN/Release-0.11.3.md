@@ -22,12 +22,12 @@ docker run --rm \
 
 ## 发布产物
 
-- `checksums.txt` and `checksums.txt.sigstore.json`
-- `owlmail-linux-amd64` and `owlmail-linux-amd64.spdx.json`
-- `owlmail-linux-arm64` and `owlmail-linux-arm64.spdx.json`
-- `owlmail-darwin-amd64` and `owlmail-darwin-amd64.spdx.json`
-- `owlmail-darwin-arm64` and `owlmail-darwin-arm64.spdx.json`
-- `owlmail-windows-amd64.exe` and `owlmail-windows-amd64.exe.spdx.json`
+- `checksums.txt` 和 `checksums.txt.sigstore.json`
+- `owlmail-linux-amd64` 和 `owlmail-linux-amd64.spdx.json`
+- `owlmail-linux-arm64` 和 `owlmail-linux-arm64.spdx.json`
+- `owlmail-darwin-amd64` 和 `owlmail-darwin-amd64.spdx.json`
+- `owlmail-darwin-arm64` 和 `owlmail-darwin-arm64.spdx.json`
+- `owlmail-windows-amd64.exe` 和 `owlmail-windows-amd64.exe.spdx.json`
 - `owlmail-licenses.tar.gz`
 
 Linux amd64 下载、校验和启动示例：
