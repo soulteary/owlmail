@@ -31,7 +31,11 @@ import (
 type API struct {
 	mailServer              *mailserver.MailServer
 	app                     *fiber.App
-	port                    int
+	port                    int // requested port; immutable after construction
+	boundAddress            mailserver.ListenerAddress
+	boundAddressMutex       sync.RWMutex
+	boundListener           net.Listener
+	listenerClosed          bool
 	host                    string
 	wsUpgrader              websocket.Upgrader
 	wsClients               map[*websocket.Conn]*sync.Mutex
@@ -477,6 +481,10 @@ func (api *API) StartWithCertificateReady(ready func([][]byte) error) error {
 		return err
 	}
 	defer func() { _ = listener.Close() }()
+	if err := api.publishBoundListener(listener); err != nil {
+		return err
+	}
+	defer api.clearBoundAddress()
 	if ready != nil {
 		if err := ready(certificates); err != nil {
 			return err

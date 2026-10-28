@@ -14,6 +14,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/soulteary/owlmail/internal/mailhtml"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -64,6 +65,7 @@ type Email struct {
 	SizeHuman     string                 `json:"sizeHuman"`
 	From          []Address              `json:"from"`
 	To            []Address              `json:"to"`
+	ReplyTo       []Address              `json:"replyTo,omitempty"`
 	CC            []Address              `json:"cc,omitempty"`
 	BCC           []Address              `json:"bcc,omitempty"`
 	CalculatedBCC []Address              `json:"calculatedBcc"`
@@ -127,6 +129,7 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		SizeHuman:     formatBytes(email.Size),
 		From:          addresses(email.From),
 		To:            addresses(email.To),
+		ReplyTo:       addressesOrNil(email.ReplyTo),
 		CC:            addressesOrNil(email.CC),
 		BCC:           addressesOrNil(email.BCC),
 		CalculatedBCC: addresses(email.CalculatedBCC),
@@ -253,18 +256,18 @@ func FilterAndPage(emails []Email, filters map[string]string, skip int, limit *i
 }
 
 // EmbedAttachmentURLs replaces MailDev-style CID references with facade URLs.
-func EmbedAttachmentURLs(html, basePath, emailID string, attachments []Attachment) string {
+func EmbedAttachmentURLs(input, basePath, emailID string, attachments []Attachment) string {
+	references := make([]mailhtml.AttachmentReference, 0, len(attachments))
 	for _, attachment := range attachments {
-		if attachment.ContentID == "" {
+		if attachment.GeneratedFileName == "" {
 			continue
 		}
-		pattern := regexp.MustCompile(`src=("|')cid:` + regexp.QuoteMeta(attachment.ContentID) + `("|')`)
-		target := basePath + "/api/email/" + url.PathEscape(emailID) + "/attachment/" + url.PathEscape(attachment.GeneratedFileName)
-		html = pattern.ReplaceAllStringFunc(html, func(string) string {
-			return `src="` + target + `"`
+		references = append(references, mailhtml.AttachmentReference{
+			ContentID: attachment.ContentID,
+			URL:       basePath + "/api/email/" + url.PathEscape(emailID) + "/attachment/" + url.PathEscape(attachment.GeneratedFileName),
 		})
 	}
-	return html
+	return mailhtml.RewriteAttachmentReferences(input, references)
 }
 
 func ParseNonNegativeInt(value string) (int, bool) {

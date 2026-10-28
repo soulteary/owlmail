@@ -518,6 +518,10 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 
 	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
 	apiServer.SetWebhookService(server.WebhookService())
+	if err := server.AddCloser(apiServer); err != nil {
+		_ = apiServer.Close()
+		return nil, err
+	}
 	// Constructing the API loads durable relay jobs and acquires source leases.
 	// Apply the storage policy only afterwards so its initial cleanup cannot
 	// delete source EMLs that queued jobs still need after a restart.
@@ -531,6 +535,16 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if cfg.DisableWeb {
 		// The delivery pipeline owns durable relay jobs and source leases.
 		// Keep it active in SMTP-only mode without binding an HTTP listener.
+		boundConfig := *cfg
+		boundConfig.SMTPPort = server.GetPort()
+		if err := publishListenInfo(&boundConfig, server, nil); err != nil {
+			return nil, err
+		}
+		if os.Getpid() == 1 {
+			if err := publishContainerProbeConfig(&boundConfig, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat"); err != nil {
+				return nil, err
+			}
+		}
 		apiServer.StartRelayRecovery()
 		common.Log("SMTP-only mode: Web, REST, WebSocket and HTTP MCP listener disabled")
 		return apiServer, nil
@@ -557,6 +571,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 	webBrowserOrigins = apiServer.WebAllowedOrigins()
 	var mcpBrowserOrigins []string
+	var httpMCPService *mcpserver.Service
 	if cfg.MCPEnabled {
 		sessionTimeout, err := time.ParseDuration(cfg.MCPSessionTimeout)
 		if err != nil || sessionTimeout <= 0 {
@@ -589,6 +604,7 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		// guard compares against, which is what an operator needs to see when
 		// a request is refused. The configured spelling may be percent-encoded
 		// or use a different but equivalent notation.
+		httpMCPService = mcpService
 		mcpBrowserOrigins = apiServer.MCPAllowedOrigins()
 		if err := apiServer.SetMCPHandler(mcpService); err != nil {
 			_ = mcpService.Close()
@@ -639,8 +655,24 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	}
 
 	if err := apiServer.StartWithCertificateReady(func(certificates [][]byte) error {
+		boundConfig := *cfg
+		boundConfig.SMTPPort = server.GetPort()
+		boundConfig.WebPort = apiServer.GetPort()
+		if httpMCPService != nil {
+			webBaseURL, err := mcpWebBaseURL(&boundConfig)
+			if err != nil {
+				return err
+			}
+			if err := httpMCPService.SetWebBaseURL(webBaseURL); err != nil {
+				return err
+			}
+		}
+		if err := publishListenInfo(&boundConfig, server, apiServer); err != nil {
+			return err
+		}
+		common.Log("OwlMail Web API listening on %s://%s", protocol, net.JoinHostPort(cfg.WebHost, strconv.Itoa(boundConfig.WebPort)))
 		if os.Getpid() == 1 {
-			if err := publishContainerProbeConfig(cfg, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat", certificates...); err != nil {
+			if err := publishContainerProbeConfig(&boundConfig, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat", certificates...); err != nil {
 				return fmt.Errorf("publish container probe configuration: %w", err)
 			}
 		}
@@ -728,6 +760,19 @@ func mcpWebBaseURL(cfg *config.Config) (string, error) {
 		return externalURL + basePathname, nil
 	}
 
+	if cfg.WebPort == 0 {
+		// HTTP startup fills this after bind. A stdio observer may resolve a
+		// live owner's discovery file; otherwise omit browser links entirely.
+		if cfg.ListenInfoFile == "" {
+			return "", nil
+		}
+		resolved, err := resolveProbeListenerPorts(cfg)
+		if err != nil {
+			return "", nil
+		}
+		copy := *resolved
+		return mcpWebBaseURL(&copy)
+	}
 	scheme := cfg.WebExternalScheme
 	if scheme == "" {
 		scheme = "http"
@@ -904,6 +949,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
+		AllowEphemeralPort:       true,
 		OutgoingConfig:           outgoingConfig,
 		AuthConfig:               authConfig,
 		AuthRequireTLS:           cfg.SMTPAuthRequireTLS,
@@ -974,6 +1020,14 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		return fmt.Errorf("config is nil")
 	}
 
+	cleanupListenInfo, err := prepareListenInfo(cfg.ListenInfoFile)
+	if err != nil {
+		return err
+	}
+	defer cleanupListenInfo()
+	if err := server.AddCloser(closeFunc(cleanupListenInfo)); err != nil {
+		return err
+	}
 	// Handle graceful shutdown
 	setupGracefulShutdown(server)
 
@@ -1009,20 +1063,35 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 
 	// Start the API only after inbound SMTP has bound successfully. Relay
 	// recovery is then triggered by startAPIServer after the API also binds.
+	apiResult := make(chan error, 1)
 	go func() {
-		if _, err := startAPIServer(server, cfg); err != nil {
-			if fatalErr := common.Fatal("Failed to start API server: %v", err); fatalErr != nil {
-				// In test environments, this will return an error instead of exiting
-				return
-			}
-		}
+		_, err := startAPIServer(server, cfg)
+		apiResult <- err
 	}()
-
-	if err := <-smtpResult; err != nil {
-		return describeServerStartError(err)
+	var apiWait <-chan error = apiResult
+	for {
+		select {
+		case err := <-apiWait:
+			if err != nil {
+				_ = server.Close()
+				<-smtpResult
+				return err
+			}
+			// SMTP-only setup returns immediately; SMTP owns the remaining lifetime.
+			apiWait = nil
+		case err := <-smtpResult:
+			_ = server.Close()
+			// Join the API owner even if SMTP stops during API initialization.
+			// No startup callbacks may outlive the combined server lifetime.
+			if apiWait != nil {
+				<-apiWait
+			}
+			if err != nil {
+				return describeServerStartError(err)
+			}
+			return nil
+		}
 	}
-
-	return nil
 }
 
 // describeServerStartError turns a start failure into something an operator can
@@ -1151,7 +1220,7 @@ func validateMCPStdioConfig(cfg *config.Config) error {
 		if cfg.WebExternalScheme != "" && cfg.WebExternalScheme != "http" && cfg.WebExternalScheme != "https" {
 			return fmt.Errorf("web external scheme must be http or https")
 		}
-		if err := config.ValidatePort(cfg.WebPort, "Web port"); err != nil {
+		if err := config.ValidateListenerPort(cfg.WebPort, "Web port"); err != nil {
 			return err
 		}
 	}
@@ -1243,13 +1312,6 @@ func main() {
 	}
 
 	// Start servers
-	if os.Getpid() == 1 && cfg.DisableWeb {
-		if err := publishContainerProbeConfig(cfg, server.GetMailDir(), containerProbeConfigPath, "/proc/1/stat"); err != nil {
-			_ = server.Close()
-			_, _ = fmt.Fprintf(os.Stderr, "Failed to publish container probe configuration: %v\n", err)
-			os.Exit(1)
-		}
-	}
 	if err := startServers(server, cfg); err != nil {
 		if fatalErr := common.Fatal("Failed to start servers: %v", err); fatalErr != nil {
 			// In test environments, this will return an error instead of exiting

@@ -19,12 +19,16 @@ import (
 var ErrSMTPSBind = errors.New("SMTPS listener bind failed")
 
 // AddCloser registers a component whose lifecycle is owned by the mail server.
+// Its Close method must not synchronously call the owning mail server's Close.
 func (ms *MailServer) AddCloser(closer io.Closer) error {
 	if closer == nil {
 		return fmt.Errorf("closer cannot be nil")
 	}
 	ms.closersMutex.Lock()
 	defer ms.closersMutex.Unlock()
+	if ms.shuttingDown.Load() {
+		return fmt.Errorf("mail server is shutting down")
+	}
 	ms.closers = append(ms.closers, closer)
 	return nil
 }
@@ -50,7 +54,10 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	// before Serve registers this listener, so a Close that lands in that
 	// window has to be able to close it instead. The handoff gives it exactly
 	// one owner, so this defer and Close cannot both close it.
-	ms.setSMTPListener(listener)
+	if !ms.setSMTPListener(listener) {
+		_ = listener.Close()
+		return fmt.Errorf("mail server is shutting down")
+	}
 	defer func() {
 		if bound := ms.takeSMTPListener(); bound != nil {
 			_ = bound.Close()
@@ -69,7 +76,10 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 			return fmt.Errorf("%w on %s: %w", ErrSMTPSBind, ms.smtpsServer.Addr, smtpsErr)
 		}
 		tlsListener := tls.NewListener(smtpsListener, ms.smtpsServer.TLSConfig)
-		ms.setSMTPSListener(tlsListener)
+		if !ms.setSMTPSListener(tlsListener) {
+			_ = tlsListener.Close()
+			return fmt.Errorf("mail server is shutting down")
+		}
 		ms.smtpsReady.Store(true)
 		defer ms.smtpsReady.Store(false)
 		defer func() {
@@ -86,7 +96,9 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 		}()
 	}
 
-	common.Log("owlmail SMTP Server running at %s:%d", ms.host, ms.port)
+	ms.publishBoundAddress(listener.Addr())
+	defer ms.clearBoundAddress()
+	common.Log("owlmail SMTP Server running at %s", listener.Addr())
 	if ms.authRequired() {
 		common.Log("SMTP AUTH required (PLAIN/LOGIN)")
 	} else {
@@ -108,7 +120,7 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	// Only the listener owner may invalidate the previous runtime snapshot.
 	// A duplicate process that fails to bind must not disrupt a live owner's state.
 	if ms.runtimeReadiness {
-		if err := os.Remove(RuntimeReadinessPath(ms.mailDir, ms.host, ms.port)); err != nil && !os.IsNotExist(err) {
+		if err := os.Remove(RuntimeReadinessPath(ms.mailDir, ms.host, ms.GetPort())); err != nil && !os.IsNotExist(err) {
 			common.Error("Runtime readiness snapshot cleanup failed; stale state will expire: %v", err)
 		}
 	}
@@ -127,8 +139,14 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 	return ms.smtpServer.Serve(listener)
 }
 
-// Close stops the SMTP server
+// Close stops the SMTP server and waits for all owned resources to close.
+// Concurrent callers share one shutdown, including its final error.
 func (ms *MailServer) Close() error {
+	ms.closeOnce.Do(func() { ms.closeErr = ms.closeOwnedResources() })
+	return ms.closeErr
+}
+
+func (ms *MailServer) closeOwnedResources() error {
 	ms.shuttingDown.Store(true)
 	ms.smtpReady.Store(false)
 	ms.smtpsReady.Store(false)
@@ -186,6 +204,7 @@ func (ms *MailServer) Close() error {
 
 	ms.closersMutex.Lock()
 	closers := append([]io.Closer(nil), ms.closers...)
+	ms.closers = nil
 	ms.closersMutex.Unlock()
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {
@@ -211,10 +230,14 @@ func (ms *MailServer) Close() error {
 }
 
 // setSMTPListener records the bound plain-SMTP listener for shutdown.
-func (ms *MailServer) setSMTPListener(listener net.Listener) {
+func (ms *MailServer) setSMTPListener(listener net.Listener) bool {
 	ms.smtpListenerMutex.Lock()
 	defer ms.smtpListenerMutex.Unlock()
+	if ms.shuttingDown.Load() {
+		return false
+	}
 	ms.smtpListener = listener
+	return true
 }
 
 // takeSMTPListener hands the bound plain-SMTP listener to the first caller
@@ -228,10 +251,14 @@ func (ms *MailServer) takeSMTPListener() net.Listener {
 }
 
 // setSMTPSListener records the bound implicit-TLS listener for shutdown.
-func (ms *MailServer) setSMTPSListener(listener net.Listener) {
+func (ms *MailServer) setSMTPSListener(listener net.Listener) bool {
 	ms.smtpsListenerMutex.Lock()
 	defer ms.smtpsListenerMutex.Unlock()
+	if ms.shuttingDown.Load() {
+		return false
+	}
 	ms.smtpsListener = listener
+	return true
 }
 
 // takeSMTPSListener hands the bound implicit-TLS listener to the first caller

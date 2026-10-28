@@ -7,13 +7,16 @@ test.beforeAll(async ({ request, baseURL }) => {
     expect(cleared.ok()).toBe(true);
     execFileSync('python3', ['-c', `
 import smtplib
+import base64
 from email.message import EmailMessage
 m = EmailMessage()
 m['From'] = 'sender@example.test'
 m['To'] = 'reader@example.test'
 m['Subject'] = 'Browser regression fixture'
+m['Reply-To'] = 'Support <replies@example.test>, Backup <backup@example.test>'
 m.set_content('Plain-text fallback')
-m.add_alternative('<html><body><h1>Long email</h1><img src="https://tracking.invalid/pixel">' + ''.join('<p>Row %d</p>' % i for i in range(100)) + '<script>document.body.dataset.executed="yes"</script></body></html>', subtype='html')
+m.add_alternative('<html><body><h1>Long email</h1><img alt="Inline logo" src="cid:logo&commat;example.test"><a href="cid:logo@example.test">Download logo</a><img src="https://tracking.invalid/pixel">' + ''.join('<p>Row %d</p>' % i for i in range(100)) + '<script>document.body.dataset.executed="yes"</script></body></html>', subtype='html')
+m.get_payload()[-1].add_related(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='), maintype='image', subtype='png', cid='<logo@example.test>', filename='logo.png')
 with smtplib.SMTP('127.0.0.1', 21025) as s:
     s.send_message(m)
 `]);
@@ -30,6 +33,13 @@ test('sandboxed long HTML preview supports scrolling, widths and persisted prefe
     await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');
     await expect.poll(() => iframe.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThanOrEqual(400);
     const preview = page.frameLocator('.email-detail-html iframe');
+    await expect(page.getByTestId('email-reply-to')).toContainText('replies@example.test');
+    await expect(page.getByTestId('email-reply-to')).toContainText('backup@example.test');
+    const inlineLogo = preview.locator('img[alt="Inline logo"]');
+    await expect(inlineLogo).toHaveAttribute('src', /^http:\/\/127\.0\.0\.1:21080\/preview\/api\/v1\/emails\/[^/]+\/attachments\//);
+    await expect.poll(() => inlineLogo.evaluate(node => node.complete && node.naturalWidth)).toBe(1);
+    const attachmentLink = preview.getByText('Download logo');
+    await expect(attachmentLink).toHaveAttribute('href', await inlineLogo.getAttribute('src'));
     await expect(preview.locator('body')).not.toHaveAttribute('data-executed', 'yes');
     await expect.poll(() => preview.locator('html').evaluate(node => node.scrollHeight)).toBeGreaterThan(1000);
     await preview.locator('body').evaluate(() => window.scrollTo(0, 300));

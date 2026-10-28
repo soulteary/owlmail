@@ -16,6 +16,7 @@ func cloneEmail(email *types.Email) *types.Email {
 	cloned := *email
 	cloned.From = cloneAddresses(email.From)
 	cloned.To = cloneAddresses(email.To)
+	cloned.ReplyTo = cloneAddresses(email.ReplyTo)
 	cloned.CC = cloneAddresses(email.CC)
 	cloned.BCC = cloneAddresses(email.BCC)
 	cloned.CalculatedBCC = cloneAddresses(email.CalculatedBCC)

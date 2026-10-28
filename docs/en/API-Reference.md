@@ -553,3 +553,14 @@ HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Ass
 `POST /api/v1/webhook-deliveries/:jobID/retry` replays only failed named targets that are still configured, using the original delivery ID for receiver deduplication. Successful targets are excluded. A replay replaces that delivery's terminal summary with its latest outcomes. Current target credentials/templates apply. The source email must still exist. Replays are serialized per delivery within the process; queue-only errors recover through the existing queue. A failed enqueue can leave recoverable outbox work, so delivery remains at least once. Receivers must deduplicate delivery IDs.
 
 An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled or unavailable webhook queue/persistence service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee. Malformed history is quarantined and delivery startup continues; recovery health remains false until a clean restart. Deletion-side relay storage failures also report unhealthy persistence.
+
+## Structured reply destinations (development)
+
+The development tree adds optional `replyTo` to full native email responses and
+MailDev compatibility email responses. It is an ordered array using each API's
+existing address shape, parsed from one valid `Reply-To` header. It is omitted
+when the header is absent, malformed, or repeated. Original header values remain
+available in `headers`, and restoring EML files reconstructs the same field.
+`replyTo` identifies reply destinations; MailDev's `inReplyTo` is the separate
+`In-Reply-To` message identifier. Summary responses and search behavior are
+unchanged. The inbox detail view displays reply destinations as escaped text.

@@ -259,7 +259,8 @@ func ResolveLogLevel(fs *flag.FlagSet, flagName, defaultValue string) string {
 
 // Config holds all application configuration
 type Config struct {
-	ConfigFile string
+	ConfigFile     string
+	ListenInfoFile string
 	// SMTP server configuration
 	SMTPPort            int
 	SMTPHost            string
@@ -368,6 +369,7 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		ConfigFile:                  "",
+		ListenInfoFile:              "",
 		SMTPPort:                    1025,
 		SMTPHost:                    "localhost",
 		SMTPMaxMessageMB:            DefaultSMTPMaxMessageMB,
@@ -449,6 +451,7 @@ func DefaultConfig() *Config {
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
 	ConfigFile                  *string
+	ListenInfoFile              *string
 	SMTPPort                    *int
 	SMTPHost                    *string
 	SMTPMaxMessageMB            *int
@@ -538,13 +541,14 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 	}
 	return &FlagRefs{
 		ConfigFile:                  fs.String("config", cfg.ConfigFile, "YAML or JSON configuration file"),
-		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails"),
+		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails (0 = OS-selected)"),
 		SMTPHost:                    fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
 		SMTPMaxMessageMB:            fs.Int("smtp-max-message-mb", cfg.SMTPMaxMessageMB, "Maximum inbound message size in MiB"),
 		SMTPMaxConcurrency:          fs.Int("smtp-max-concurrency", cfg.SMTPMaxConcurrency, "Maximum concurrent SMTP DATA transactions per process (0 = unlimited)"),
 		SMTPReadTimeout:             fs.String("smtp-read-timeout", cfg.SMTPReadTimeout, "SMTP command and DATA read timeout"),
 		SMTPWriteTimeout:            fs.String("smtp-write-timeout", cfg.SMTPWriteTimeout, "SMTP response write timeout"),
 		SMTPMaxRecipients:           fs.Int("smtp-max-recipients", cfg.SMTPMaxRecipients, "Maximum recipients accepted per message"),
+		ListenInfoFile:              fs.String("listen-info-file", cfg.ListenInfoFile, "Atomically write actual listener addresses to this private JSON file"),
 		MailDir:                     fs.String("mail-directory", cfg.MailDir, "Directory for persisting mails"),
 		MailRetentionDays:           fs.Int("mail-retention-days", cfg.MailRetentionDays, "Delete mail older than this many days (0 = unlimited)"),
 		MailMaxMessages:             fs.Int("mail-max-messages", cfg.MailMaxMessages, "Maximum stored message count (0 = unlimited)"),
@@ -552,7 +556,7 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		MailCleanupInterval:         fs.String("mail-cleanup-interval", cfg.MailCleanupInterval, "Storage cleanup interval"),
 		MailIndexPath:               fs.String("mail-index-path", cfg.MailIndexPath, "Optional SQLite mailbox index path"),
 		DisableWeb:                  fs.Bool("disable-web", cfg.DisableWeb, "Run SMTP without the Web, REST, WebSocket or HTTP MCP listener"),
-		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port"),
+		WebPort:                     fs.Int("web", cfg.WebPort, "Web API port (0 = OS-selected)"),
 		WebHost:                     fs.String("web-ip", cfg.WebHost, "IP address to bind Web API to"),
 		WebUser:                     fs.String("web-user", cfg.WebUser, "HTTP Basic Auth username"),
 		WebPassword:                 secretStringFlag(fs, "web-password", cfg.WebPassword, "HTTP Basic Auth password"),
@@ -639,6 +643,7 @@ func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 		SMTPReadTimeout:     resolveSMTPTimeoutWithFlag(fs, "smtp-read-timeout", "OWLMAIL_SMTP_READ_TIMEOUT", *refs.SMTPReadTimeout),
 		SMTPWriteTimeout:    resolveSMTPTimeoutWithFlag(fs, "smtp-write-timeout", "OWLMAIL_SMTP_WRITE_TIMEOUT", *refs.SMTPWriteTimeout),
 		SMTPMaxRecipients:   resolveSMTPMaxRecipientsWithFlag(fs, *refs.SMTPMaxRecipients),
+		ListenInfoFile:      resolveStringWithFlag(fs, "listen-info-file", "OWLMAIL_LISTEN_INFO_FILE", *refs.ListenInfoFile),
 		MailDir:             resolveStringWithFlag(fs, "mail-directory", "OWLMAIL_MAIL_DIR", *refs.MailDir),
 		MailRetentionDays:   resolveIntWithFlag(fs, "mail-retention-days", "OWLMAIL_MAIL_RETENTION_DAYS", *refs.MailRetentionDays),
 		MailMaxMessages:     resolveIntWithFlag(fs, "mail-max-messages", "OWLMAIL_MAIL_MAX_MESSAGES", *refs.MailMaxMessages),

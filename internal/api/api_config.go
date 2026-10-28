@@ -16,7 +16,7 @@ func (api *API) getConfig(c fiber.Ctx) error {
 		},
 		"web": fiber.Map{
 			"host":         api.host,
-			"port":         api.port,
+			"port":         api.GetPort(),
 			"basePathname": api.basePathname,
 		},
 		"mailDir": api.mailServer.GetMailDir(),

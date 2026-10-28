@@ -25,6 +25,7 @@ const i18n = {
         viewSource: '查看源码',
         delete: '删除',
         from: '发件人:',
+        replyTo: '回复地址:',
         to: '收件人:',
         cc: '抄送:',
         time: '时间:',
@@ -118,6 +119,7 @@ const i18n = {
         viewSource: 'View Source',
         delete: 'Delete',
         from: 'From:',
+        replyTo: 'Reply-To:',
         to: 'To:',
         cc: 'CC:',
         time: 'Time:',
@@ -1754,6 +1756,7 @@ function renderEmailDetail() {
                     <span class="email-detail-meta-label">${t('cc')}</span>
                     <span>${escapeHtml(cc)}</span>
                 ` : ''}
+                ${renderReplyToMetadata(email)}
                 ${email.run_id ? `<span class="email-detail-meta-label">${t('emailRunID')}</span><code>${escapeHtml(email.run_id)}</code>` : ''}
                 <span class="email-detail-meta-label">${t('time')}</span>
                 <span>${time}</span>
@@ -1762,6 +1765,13 @@ function renderEmailDetail() {
         ${renderEmailContentTabs(email)}
         ${attachments}
     `;
+}
+
+function renderReplyToMetadata(email) {
+    if (!Array.isArray(email.replyTo) || email.replyTo.length === 0) return '';
+    const addresses = email.replyTo.filter(Boolean).map(formatAddress).join(', ');
+    if (!addresses) return '';
+    return `<span class="email-detail-meta-label">${t('replyTo')}</span><span data-testid="email-reply-to">${escapeHtml(addresses)}</span>`;
 }
 
 function renderEmailContentTabs(email) {
@@ -1907,14 +1917,53 @@ function hasRemoteEmailResources(html) {
 }
 
 function resolveCIDReferences(html, emailId, attachments) {
-    const cidURLs = new Map();
+    const normalize = (value) => String(value).trim().replace(/^</, '').replace(/>$/, '').trim();
+    const exact = new Map();
+    const folded = new Map();
+    const add = (index, key, value) => {
+        if (!index.has(key)) index.set(key, new Set());
+        index.get(key).add(value);
+    };
     attachments.forEach((attachment) => {
         if (!attachment || !attachment.contentId || !attachment.generatedFileName) return;
-        const cid = String(attachment.contentId).replace(/^<|>$/g, '').toLowerCase();
-        cidURLs.set(cid, `${API_BASE}/emails/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachment.generatedFileName)}`);
+        const id = normalize(attachment.contentId);
+        if (!id) return;
+        const target = `${API_BASE}/emails/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(attachment.generatedFileName)}`;
+        add(exact, id, target);
+        add(folded, id.toLowerCase(), target);
     });
-
-    return html.replace(/cid:([^"'\s)>]+)/gi, (reference, cid) => cidURLs.get(cid.toLowerCase()) || reference);
+    const decodeAttribute = (value) => {
+        if (!value.includes('&')) return value;
+        // Parse one controlled, inert anchor rather than the supplied email.
+        // Escape literal quotes while retaining the original HTML entities.
+        const document = new DOMParser().parseFromString(`<a href="${value.replace(/"/g, '&#34;')}"></a>`, 'text/html');
+        return document.querySelector('a').getAttribute('href');
+    };
+    const lookup = (value) => {
+        value = decodeAttribute(value).trim();
+        if (!/^cid:/i.test(value)) return null;
+        let id;
+        try { id = normalize(decodeURIComponent(value.slice(4))); } catch { return null; }
+        const matches = exact.has(id) ? exact.get(id) : folded.get(id.toLowerCase());
+        return matches && matches.size === 1 ? matches.values().next().value : null;
+    };
+    // Scan complete tags, respecting quoted '>' characters. Raw-text elements
+    // and comments are consumed as a whole so their contents are never URLs.
+    const tags = /<!--[\s\S]*?(?:-->|$)|<(script|style|textarea|title|xmp|iframe|noembed|noframes)\b(?:"[^"]*"|'[^']*'|[^'">])*>[\s\S]*?(?:<\/\1\s*>|$)|<plaintext\b[\s\S]*$|<[a-z](?:"[^"]*"|'[^']*'|[^'">])*>/gi;
+    const rewriteTag = (tag) => tag.replace(/(\s)([^\s"'<>\/=]+)(\s*=\s*)("[^"]*"|'[^']*'|[^\s"'=<>`]+)/g, (attribute, space, name, equals, encoded) => {
+        if (!/^(src|href)$/i.test(name)) return attribute;
+        const quoted = encoded[0] === '"' || encoded[0] === "'";
+        const target = lookup(quoted ? encoded.slice(1, -1) : encoded);
+        return target === null ? attribute : `${space}${name}${equals}"${target.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`;
+    });
+    return html.replace(tags, (tag, rawText) => {
+        if (tag.startsWith('<!--')) return tag;
+        if (rawText || /^<plaintext\b/i.test(tag)) {
+            const opening = tag.match(/^<(?:"[^"]*"|'[^']*'|[^'">])*>/);
+            return opening ? rewriteTag(opening[0]) + tag.slice(opening[0].length) : tag;
+        }
+        return rewriteTag(tag);
+    });
 }
 
 function previewContentSecurityPolicy(allowRemote) {

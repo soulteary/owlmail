@@ -421,6 +421,8 @@ func normalizeWebBaseURL(value string) (string, error) {
 }
 
 func (service *Service) webURL(emailID string) string {
+	service.mu.Lock()
+	defer service.mu.Unlock()
 	if service.webBaseURL == "" || emailID == "" {
 		return ""
 	}

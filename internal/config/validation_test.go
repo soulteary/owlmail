@@ -134,7 +134,7 @@ func TestValidateConfig(t *testing.T) {
 
 	t.Run("invalid SMTP port", func(t *testing.T) {
 		cfg := DefaultConfig()
-		cfg.SMTPPort = 0
+		cfg.SMTPPort = -1
 		err := ValidateConfig(cfg)
 		if err == nil {
 			t.Error("ValidateConfig with invalid SMTP port should return error")

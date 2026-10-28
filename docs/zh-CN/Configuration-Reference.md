@@ -15,7 +15,7 @@ YAML / JSON 配置文件和内置默认值。文件键名使用去掉开头 `-` 
 
 | 参数 | 环境变量 | 默认值 | 说明 |
 |------|---------|--------|------|
-| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP 端口 |
+| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP 端口；开发分支支持 `0` 自动分配端口 |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP 主机 |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | 单封入站邮件上限，单位 MiB |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | 每进程跨 SMTP、STARTTLS 与 SMTPS 的并发 DATA 事务数；`0` 表示不限制；达到上限返回可重试的 `451 4.3.2` |
@@ -23,7 +23,7 @@ YAML / JSON 配置文件和内置默认值。文件键名使用去掉开头 `-` 
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP 响应写入超时 |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | 单封邮件允许的最大收件人数 |
 | `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | 仅运行 SMTP，不启动 HTTP 监听器 |
-| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口 |
+| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API 端口；开发分支支持 `0` 自动分配端口 |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API 主机 |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | 生成邮件深链接时使用的浏览器可见 HTTP(S) origin；反向代理子路径仍通过 `-base-pathname` 配置 |
 | `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外，Web 界面与 REST API 额外接受的浏览器来源；`*` 关闭来源校验 |
@@ -88,6 +88,7 @@ YAML / JSON 配置文件和内置默认值。文件键名使用去掉开头 `-` 
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 启用可选的 MailCatcher REST 兼容接口 |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 启动时读取 YAML 或 JSON 配置文件；命令行和环境变量优先 |
+| `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | 将实际监听地址原子写入私有 JSON 文件；每个实例使用独立路径（开发分支） |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 日志输出格式：`console` 或 `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | 使用 UUID 作为邮件 ID（默认使用 8 字符随机字符串） |
 

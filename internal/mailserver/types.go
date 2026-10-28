@@ -72,6 +72,9 @@ type TLSConfig struct {
 // instead of selecting a default, so a caller that wants the historical
 // listener has to name DefaultSMTPSPort and accept its privileged bind.
 type ServerOptions struct {
+	// AllowEphemeralPort makes an explicit SMTP port zero bind an OS-selected
+	// port. Legacy constructors and zero-valued options keep the default port.
+	AllowEphemeralPort bool
 	// ReadOnly requires an existing mail directory and prevents constructor
 	// writes. It is used by observer processes such as the MCP stdio bridge.
 	ReadOnly         bool
@@ -119,6 +122,8 @@ type MailServer struct {
 	smtpReady               atomic.Bool
 	smtpsReady              atomic.Bool
 	shuttingDown            atomic.Bool
+	closeOnce               sync.Once
+	closeErr                error
 	readinessMutex          sync.RWMutex
 	mailStorageHealth       attachmentstore.HealthStatus
 	relayJobHealth          attachmentstore.ReadinessProvider
@@ -142,7 +147,9 @@ type MailServer struct {
 	storageTransactionMutex sync.RWMutex
 	protectedEmailSources   map[string]int
 	mailDir                 string
-	port                    int
+	port                    int // requested port; immutable after construction
+	boundAddress            ListenerAddress
+	boundAddressMutex       sync.RWMutex
 	host                    string
 	maxMessageBytes         int64
 	maxDataConcurrency      int
@@ -228,6 +235,9 @@ func (ms *MailServer) GetHost() string {
 
 // GetPort returns the SMTP server port
 func (ms *MailServer) GetPort() int {
+	if address, ok := ms.BoundAddress(); ok {
+		return address.Port
+	}
 	return ms.port
 }
 

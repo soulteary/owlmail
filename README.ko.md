@@ -197,6 +197,8 @@ docker buildx build \
 
 ### Command Line Arguments
 
+Development branch: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests-development-branch) for discovery and probes.
+
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port |
@@ -272,6 +274,7 @@ docker buildx build \
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 선택적 MailCatcher REST 호환 API 활성화 |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 시작 시 YAML 또는 JSON 파일 로드; CLI와 환경 변수가 우선 |
+| `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Development branch: atomically publish actual listener addresses to private JSON; unique path per instance |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 로그 출력 형식: `console` 또는 `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Use UUID for email IDs (default: 8-character random string) |
 

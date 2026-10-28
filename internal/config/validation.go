@@ -43,11 +43,11 @@ func ValidateConfig(cfg *Config) error {
 	}
 
 	// Validate ports
-	if err := ValidatePort(cfg.SMTPPort, "SMTP port"); err != nil {
+	if err := ValidateListenerPort(cfg.SMTPPort, "SMTP port"); err != nil {
 		return err
 	}
 	if !cfg.DisableWeb {
-		if err := ValidatePort(cfg.WebPort, "Web port"); err != nil {
+		if err := ValidateListenerPort(cfg.WebPort, "Web port"); err != nil {
 			return err
 		}
 	}
@@ -479,4 +479,13 @@ func ParseLogLevel(levelStr string) string {
 		return "normal"
 	}
 	return levelStr
+}
+
+// ValidateListenerPort permits zero for OS-selected SMTP and HTTP listener ports.
+// Outgoing ports and SMTPS retain their separate contracts.
+func ValidateListenerPort(port int, name string) error {
+	if port == 0 {
+		return nil
+	}
+	return ValidatePort(port, name)
 }
