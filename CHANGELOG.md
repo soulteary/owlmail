@@ -6,6 +6,10 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Update health-kit/v4 from 4.0.2 to 4.0.4 and compatible shared HTTP dependencies; retain Go 1.27.3 and SQLite/libc 1.61.0/1.79.0.
+
 ## [0.11.4] - 2026-10-23
 
 ### Fixed
