@@ -10,6 +10,7 @@ Nous fournissons actuellement des mises à jour de sécurité pour les versions 
 
 | Version | Prise en charge |
 |---------|-----------------|
+| 0.12.x | ✅ Oui |
 | 0.11.x | ✅ Oui |
 | 0.10.x | ✅ Oui |
 | 0.9.x | ✅ Oui |

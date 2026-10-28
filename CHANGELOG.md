@@ -6,6 +6,8 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-10-29
+
 ### Added
 
 - Expose structured Reply-To destinations in native email details, the MailDev REST facade, read-only MCP details, and the inbox without changing In-Reply-To semantics.
@@ -630,7 +632,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.11.4...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/soulteary/owlmail/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/soulteary/owlmail/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/soulteary/owlmail/compare/v0.11.2...v0.11.3
 [0.11.1]: https://github.com/soulteary/owlmail/compare/v0.11.0...v0.11.1

@@ -37,7 +37,7 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 
 ### リリース
 
-- **[0.11.4 リリースノート](../en/Release-0.11.4.md) · [0.11.3 release notes](../en/Release-0.11.3.md)** (English、[中文](../zh-CN/Release-0.11.4.md))
+- **[0.12.0 リリースノート](../en/Release-0.12.0.md) · [0.11.4 release notes](../en/Release-0.11.4.md)** (English、[中文](../zh-CN/Release-0.12.0.md))
 - **[0.9.0 リリースノート](../en/Release-0.9.0.md)** (English、[中文](../zh-CN/Release-0.9.0.md))
 - **[リリース手順](../en/Releasing.md)** (English、[中文](../zh-CN/Releasing.md))
 
@@ -61,4 +61,4 @@ OwlMail のドキュメントへようこそ。文書は言語別のディレク
 
 詳細は[メイン README](../../README.ja.md)をご覧ください。
 
-Previous release: [OwlMail 0.11.3](../en/Release-0.11.3.md).
+Previous release: [OwlMail 0.11.4](../en/Release-0.11.4.md).

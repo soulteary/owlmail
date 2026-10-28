@@ -10,6 +10,7 @@ Wir bieten derzeit Sicherheitsupdates für die folgenden Versionen:
 
 | Version | Unterstützt |
 |---------|-------------|
+| 0.12.x | ✅ Ja |
 | 0.11.x | ✅ Ja |
 | 0.10.x | ✅ Ja |
 | 0.9.x | ✅ Ja |

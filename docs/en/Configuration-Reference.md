@@ -2,7 +2,7 @@
 
 [English](./Configuration-Reference.md) · [简体中文](../zh-CN/Configuration-Reference.md)
 
-This reference lists OwlMail **0.11.4** flags, environment aliases, and built-in defaults, including `-disable-web` SMTP-only mode. See the
+This reference lists OwlMail **0.12.0** flags, environment aliases, and built-in defaults, including `-disable-web` SMTP-only mode. See the
 [README quick start](../../README.md#quick-start-receive-your-first-email) to install that release.
 
 ## Configuration precedence
@@ -17,8 +17,8 @@ Keys in a config file use flag names without the leading `-`. See
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | Flat YAML or JSON file whose keys use CLI option names |
-| `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Atomically publish actual listener addresses as private JSON; unique path per instance (development branch) |
-| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port; development branch accepts `0` for an OS-selected port |
+| `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Atomically publish actual listener addresses as private JSON; unique path per instance |
+| `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | SMTP port; accepts `0` for an OS-selected port |
 | `-ip` | `MAILDEV_IP` / `OWLMAIL_SMTP_HOST` | localhost | SMTP host |
 | `-smtp-max-message-mb` | `OWLMAIL_SMTP_MAX_MESSAGE_MB` | 100 | Maximum inbound message size in MiB |
 | `-smtp-max-concurrency` | `OWLMAIL_SMTP_MAX_CONCURRENCY` | 8 | Concurrent DATA transactions per process across SMTP, STARTTLS, and SMTPS; `0` is unlimited; a full limit returns retryable `451 4.3.2` |
@@ -26,7 +26,7 @@ Keys in a config file use flag names without the leading `-`. See
 | `-smtp-write-timeout` | `OWLMAIL_SMTP_WRITE_TIMEOUT` | 10s | SMTP response write timeout |
 | `-smtp-max-recipients` | `OWLMAIL_SMTP_MAX_RECIPIENTS` | 50 | Maximum recipients accepted per message |
 | `-disable-web` | `OWLMAIL_DISABLE_WEB` | false | Run SMTP without the HTTP listener (SMTP-only mode) |
-| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port; development branch accepts `0` for an OS-selected port |
+| `-web` | `MAILDEV_WEB_PORT` / `OWLMAIL_WEB_PORT` | 1080 | Web API port; accepts `0` for an OS-selected port |
 | `-web-ip` | `MAILDEV_WEB_IP` / `OWLMAIL_WEB_HOST` | localhost | Web API host |
 | `-web-external-url` | `OWLMAIL_WEB_EXTERNAL_URL` | - | Browser-visible HTTP(S) origin used in generated email deep links; configure reverse-proxy paths separately with `-base-pathname` |
 | `-web-allowed-origins` | `OWLMAIL_WEB_ALLOWED_ORIGINS` | - | Extra browser origins accepted on the Web UI and REST API, in addition to OwlMail's own; `*` disables origin validation |

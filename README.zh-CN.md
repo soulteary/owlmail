@@ -30,9 +30,12 @@ OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker �
 
 ## 选择版本
 
-下面的 Docker 快速开始使用正式版 **0.11.4**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
+下面的 Docker 快速开始使用正式版 **0.12.0**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
 
-下文的完整工作流均已包含在 **0.11.4**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.11.4 发布说明](docs/zh-CN/Release-0.11.4.md)和[上一版 0.11.3](docs/zh-CN/Release-0.11.3.md)。
+下文的完整工作流均已包含在 **0.12.0**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.12.0 发布说明](docs/zh-CN/Release-0.12.0.md)和[上一版 0.11.4](docs/zh-CN/Release-0.11.4.md)。
+
+
+0.12.0 新增结构化 Reply-To，修复 CID 与嵌套 MIME 附件，并支持并行测试使用 SMTP/HTTP 随机端口；配置方式见[随机端口与地址发现](docs/en/Operations.md#os-selected-ports-for-parallel-tests)。
 
 ## 快速开始：收到第一封邮件
 
@@ -43,7 +46,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.11.4
+  ghcr.io/soulteary/owlmail:0.12.0
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -251,7 +254,7 @@ Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览�
 也可以使用 Go 1.27.3+ 安装正式版：
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.4
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.12.0
 owlmail -mail-directory ./mail
 ```
 
@@ -326,7 +329,7 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 ## 文档与反馈
 
-- [0.11.4 发布说明](docs/zh-CN/Release-0.11.4.md) · [上一版 0.11.3 发布说明](docs/zh-CN/Release-0.11.3.md)
+- [0.12.0 发布说明](docs/zh-CN/Release-0.12.0.md) · [上一版 0.11.4 发布说明](docs/zh-CN/Release-0.11.4.md)
 - [集成测试](docs/zh-CN/Integration-Testing.md) · [Sendmail 兼容 CLI](docs/zh-CN/Sendmail.md)
 - [配置参考](docs/zh-CN/Configuration-Reference.md)
 - [API 与 OpenAPI](docs/zh-CN/API-Reference.md)
@@ -341,4 +344,4 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 [MIT](LICENSE)。感谢 [MailDev](https://github.com/maildev/maildev) 的启发，以及 Go SMTP / MIME、Fiber 和 WebSocket 等上游项目。
 
-Previous release: [OwlMail 0.11.3](docs/en/Release-0.11.3.md).
+Previous release: [OwlMail 0.11.4](docs/en/Release-0.11.4.md).

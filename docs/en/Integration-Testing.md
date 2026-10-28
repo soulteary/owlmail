@@ -12,7 +12,7 @@ other's mail.
 docker run --rm -d --name owlmail-test \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
-  ghcr.io/soulteary/owlmail:0.11.4
+  ghcr.io/soulteary/owlmail:0.12.0
 
 for attempt in $(seq 1 30); do
   if curl --fail --silent --connect-timeout 2 --max-time 3 \
@@ -33,7 +33,7 @@ cryptographically fixed image should replace the tag with the manifest form
 `ghcr.io/soulteary/owlmail@sha256:<digest>` recorded during release
 verification.
 
-OwlMail **0.11.4** includes local storage and outgoing readiness, cursor-based waits, test-run selectors, and `/check` assertions. All flows below run against the pinned stable instance above. Confirm ingress with a real test message.
+OwlMail **0.12.0** includes local storage and outgoing readiness, cursor-based waits, test-run selectors, and `/check` assertions. All flows below run against the pinned stable instance above. Confirm ingress with a real test message.
 
 ## Bounded polling flow
 

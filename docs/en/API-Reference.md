@@ -6,7 +6,7 @@ routes. The unversioned routes remain available for existing OwlMail clients and
 for common MailDev-style workflows, but they are not a promise of exact MailDev
 protocol compatibility.
 
-**Version scope:** this page describes OwlMail **0.11.4**, including cursor waits, test-run selectors, email checks, delivery history, and manual retries. These additions are absent from the original `v0.10.1`; users of that release should use the
+**Version scope:** this page describes OwlMail **0.12.0**, including cursor waits, test-run selectors, email checks, delivery history, and manual retries. These additions are absent from the original `v0.10.1`; users of that release should use the
 [tagged 0.10.1 API reference](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/en/API-Reference.md).
 
 ## Base URL and authentication
@@ -292,10 +292,10 @@ A release build returns version provenance similar to:
 
 ```json
 {
-  "version": "0.11.4",
+  "version": "0.12.0",
   "commit": "<full Git commit SHA>",
   "build_date": "<UTC RFC 3339 timestamp>",
-  "branch": "v0.11.4",
+  "branch": "v0.12.0",
   "go_version": "go1.27.3",
   "platform": "linux/amd64",
   "compiler": "gc"
@@ -554,9 +554,9 @@ HTTP 200 contains `passed`, individual `checks`, `links`, and `extractions`. Ass
 
 An accepted replay returns 202, a missing record/source returns 404, an ineligible or pending replay returns 409, and a disabled or unavailable webhook queue/persistence service returns 503. History persistence failure is visible through `persistence_healthy: false`; it does not change SMTP acceptance. History is diagnostic metadata, not an audit log or an exactly-once guarantee. Malformed history is quarantined and delivery startup continues; recovery health remains false until a clean restart. Deletion-side relay storage failures also report unhealthy persistence.
 
-## Structured reply destinations (development)
+## Structured reply destinations
 
-The development tree adds optional `replyTo` to full native email responses and
+OwlMail 0.12.0 adds optional `replyTo` to full native email responses and
 MailDev compatibility email responses. It is an ordered array using each API's
 existing address shape, parsed from one valid `Reply-To` header. It is omitted
 when the header is absent, malformed, or repeated. Original header values remain

@@ -1,6 +1,6 @@
 # MCP reference
 
-This reference describes OwlMail **0.11.4**: seven read-only tools over dual-era Streamable HTTP and `owlmail mcp-stdio`, including cursor-aware delivery waits and test-run selectors. MCP is an inspection surface, not a mailbox administration API.
+This reference describes OwlMail **0.12.0**: seven read-only tools over dual-era Streamable HTTP and `owlmail mcp-stdio`, including cursor-aware delivery waits and test-run selectors. MCP is an inspection surface, not a mailbox administration API.
 
 ## Transports
 
@@ -64,7 +64,7 @@ The MCP tool has no `count` input. The REST `/api/v1/emails/wait` endpoint has
 a separate contract with `count` and an `emails` array; do not interchange
 those request or response shapes.
 
-In the development tree, `get_email` also returns optional `email.reply_to`,
+Since 0.12.0, `get_email` also returns optional `email.reply_to`,
 an ordered list of reply destinations with `name` and `address` fields. It is
 omitted when `Reply-To` is absent, malformed, or repeated. This is distinct from
 `In-Reply-To` message threading identifiers and does not change search matching.

@@ -10,6 +10,7 @@ We currently provide security updates for the following versions:
 
 | Version | Supported          |
 | ------- | ------------------ |
+| 0.12.x | ✅ Yes |
 | 0.11.x | ✅ Yes |
 | 0.10.x | ✅ Yes |
 | 0.9.x | ✅ Yes |

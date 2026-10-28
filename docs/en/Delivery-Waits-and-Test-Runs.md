@@ -1,6 +1,6 @@
 # Delivery waits and test runs
 
-These routes and cursor-aware MCP selectors are included in OwlMail **0.11.4**. They are absent from the original `v0.10.1` binary or image.
+These routes and cursor-aware MCP selectors are included in OwlMail **0.12.0**. They are absent from the original `v0.10.1` binary or image.
 
 A delivery cursor closes the race between triggering application mail and
 registering a waiter. Obtain it **before** triggering the application:

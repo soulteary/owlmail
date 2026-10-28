@@ -57,9 +57,9 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
   [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente
   e browser usano Bun; il binario distribuito non richiede runtime.
 
-## OwlMail 0.11.4
+## OwlMail 0.12.0
 
-`v0.11.4` è la versione stabile corrente. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.11.4](./docs/en/Release-0.11.4.md) · [Versione precedente 0.11.3](./docs/en/Release-0.11.3.md).
+`v0.12.0` è la versione stabile corrente. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.12.0](./docs/en/Release-0.12.0.md) · [Versione precedente 0.11.4](./docs/en/Release-0.11.4.md).
 
 > [!IMPORTANT]
 > OwlMail è destinato a sviluppo, test, CI e reti interne affidabili; non è un
@@ -73,7 +73,7 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
 
 ```bash
 # Clona il repository
-git clone --branch v0.11.4 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.12.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Compila
@@ -86,7 +86,7 @@ go build -o owlmail ./cmd/owlmail
 #### Installa con Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.11.4
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.12.0
 owlmail
 ```
 
@@ -129,8 +129,8 @@ usano la forma loopback.
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
 
 ```bash
-# Scarica la release 0.11.4
-docker pull ghcr.io/soulteary/owlmail:0.11.4
+# Scarica la release 0.12.0
+docker pull ghcr.io/soulteary/owlmail:0.12.0
 
 # Scarica l'immagine di un commit esatto (esempio)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -141,11 +141,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.11.4
+  ghcr.io/soulteary/owlmail:0.12.0
 ```
 
 **Tag disponibili:**
-- `0.11.4` - Tag di release esatto; `0.11` e `0` avanzano con le release successive della serie
+- `0.12.0` - Tag di release esatto; `0.12` e `0` avanzano con le release successive della serie
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-8d3445d`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Alias mobile dell’ultima release stabile, non aggiornato dalle build `main`
@@ -196,11 +196,11 @@ docker buildx build \
 
 ## 📖 Opzioni di Configurazione
 
-La tabella descrive OwlMail 0.11.4, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
+La tabella descrive OwlMail 0.12.0, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
 
 ### Argomenti da Riga di Comando
 
-Development branch: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests-development-branch) for discovery and probes.
+OwlMail 0.12.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argomento | Variabile d'Ambiente | Predefinito | Descrizione |
 |-----------|---------------------|-------------|-------------|
@@ -695,7 +695,7 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 
 ## 📚 Documentazione Correlata
 
-- [Note di rilascio OwlMail 0.11.4](./docs/en/Release-0.11.4.md) ([中文](./docs/zh-CN/Release-0.11.4.md))
+- [Note di rilascio OwlMail 0.12.0](./docs/en/Release-0.12.0.md) ([中文](./docs/zh-CN/Release-0.12.0.md))
 - [Integrazione, CI e agenti AI](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Riferimento MCP](./docs/en/MCP-Reference.md), [architettura](./docs/en/Architecture.md) e [modello di sicurezza](./docs/en/Security-Model.md)
 - [Esempi di test eseguibili](./examples/testing/README.md)
@@ -720,4 +720,4 @@ Se questo progetto ti aiuta, per favore dagli una Star ⭐!
 
 **OwlMail** — un gateway email self-hosted per sviluppo, CI, automazione e agenti AI. 🦉
 
-Previous release: [OwlMail 0.11.3](docs/en/Release-0.11.3.md).
+Previous release: [OwlMail 0.11.4](docs/en/Release-0.11.4.md).

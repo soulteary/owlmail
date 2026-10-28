@@ -4,15 +4,15 @@
 带版本号的 `/api/v1` 路由。无版本路由继续服务已有 OwlMail 客户端和常见的
 MailDev 风格工作流，但不代表与 MailDev 协议的逐项、逐字节一致。
 
-**版本范围：**本页描述 OwlMail **0.11.4**，包含 Cursor 等待、测试运行选择器、邮件断言、投递历史与手动重试。原 `v0.10.1` 不包含这些新增能力；旧版用户参阅
+**版本范围：**本页描述 OwlMail **0.12.0**，包含 Cursor 等待、测试运行选择器、邮件断言、投递历史与手动重试。原 `v0.10.1` 不包含这些新增能力；旧版用户参阅
 [0.10.1 标签下的 API 参考](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/zh-CN/API-Reference.md)。
 
-**开发分支新增能力（尚未发布）：**邮件详情新增可选 `replyTo` 地址列表，保留原生
+**0.12.0 新增能力：**邮件详情新增可选 `replyTo` 地址列表，保留原生
 `Name` / `Address` 地址格式；MailDev 兼容接口使用 `name` / `address`。仅单个有效
 `Reply-To` 邮件头产生该字段；缺省、格式错误或重复头不产生结构化值，原始 Headers
 仍保留。`In-Reply-To` 继续表示被回复邮件的 Message-ID。此字段不加入列表摘要或搜索。
 CID 附件引用支持 `src` 和 `href`，兼容部署子路径、编码引用与嵌套 MIME；未知或歧义
-引用保持原值，旧附件文件名不改写。以上行为不代表已发布的 0.11.4 已包含这些改动。
+引用保持原值，旧附件文件名不改写。这些行为自 0.12.0 起提供。
 
 ## 基础地址与鉴权
 
@@ -243,10 +243,10 @@ WebSocket upgrade header 或握手 key 格式错误时，会在建立 WebSocket 
 
 ```json
 {
-  "version": "0.11.4",
+  "version": "0.12.0",
   "commit": "<完整 Git 提交 SHA>",
   "build_date": "<UTC RFC 3339 时间>",
-  "branch": "v0.11.4",
+  "branch": "v0.12.0",
   "go_version": "go1.27.3",
   "platform": "linux/amd64",
   "compiler": "gc"
