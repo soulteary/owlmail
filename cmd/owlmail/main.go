@@ -516,15 +516,10 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		return nil, fmt.Errorf("config is nil")
 	}
 
-	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
-	apiServer.SetWebhookService(server.WebhookService())
-	if err := server.AddCloser(apiServer); err != nil {
-		_ = apiServer.Close()
-		return nil, err
+	if err := server.InitializeRelayService(); err != nil {
+		return nil, fmt.Errorf("initialize durable relay: %w", err)
 	}
-	// Constructing the API loads durable relay jobs and acquires source leases.
-	// Apply the storage policy only afterwards so its initial cleanup cannot
-	// delete source EMLs that queued jobs still need after a restart.
+	// Durable jobs and automatic handoffs protect their sources before retention.
 	storagePolicy, err := setupStoragePolicy(cfg)
 	if err != nil {
 		return nil, err
@@ -545,9 +540,17 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 				return nil, err
 			}
 		}
-		apiServer.StartRelayRecovery()
+		if err := server.StartRelayRecovery(); err != nil {
+			return nil, err
+		}
 		common.Log("SMTP-only mode: Web, REST, WebSocket and HTTP MCP listener disabled")
-		return apiServer, nil
+		return nil, nil
+	}
+	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	apiServer.SetWebhookService(server.WebhookService())
+	if err := server.AddCloser(apiServer); err != nil {
+		_ = apiServer.Close()
+		return nil, err
 	}
 	apiServer.SetMailDevRESTCompat(cfg.MailDevRESTCompat)
 	apiServer.SetMailCatcherRESTCompat(cfg.MailCatcherRESTCompat)
@@ -950,6 +953,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
 		AllowEphemeralPort:       true,
+		DeferRelayRecovery:       true,
 		OutgoingConfig:           outgoingConfig,
 		AuthConfig:               authConfig,
 		AuthRequireTLS:           cfg.SMTPAuthRequireTLS,
@@ -982,6 +986,10 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		common.Log("S3 attachment storage enabled for bucket %s with prefix %s (startup check: %t)", cfg.S3Bucket, cfg.S3Prefix, cfg.S3StartupCheck)
 	}
 
+	if err := server.InitializeRelayService(); err != nil {
+		_ = server.Close()
+		return nil, fmt.Errorf("initialize durable relay: %w", err)
+	}
 	// Register event handlers
 	registerEventHandlers(server)
 	webhookService, err := setupWebhookService(cfg, webhookDispatcher, server.GetMailDir())

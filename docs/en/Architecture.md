@@ -21,7 +21,8 @@ flowchart TD
 | `internal/config` | Defaults, layered YAML/JSON, environment aliases, flags, and validation helpers |
 | `internal/mailserver` | SMTP sessions, MIME parsing, transactional storage, queries, retention, and optional SQLite index |
 | `internal/attachmentstore` | Local and optional S3-compatible attachment storage and readiness |
-| `internal/api` | Web UI, native and compatibility HTTP routes, WebSocket, metrics, and relay jobs |
+| `internal/api` | Web UI, native and compatibility HTTP routes, WebSocket, and metrics |
+| `internal/relay` | Shared durable Relay tasks, retries, history, source leases, and recovery |
 | `internal/mcpserver` | Bounded read-only MCP tools, resources, prompts, dual-era HTTP routing, and stdio transport |
 | `internal/webhook` | Filtered delivery, local outbox, optional Redis Streams, retry, and drain |
 | `internal/outgoing` | Streaming outbound SMTP transport and TLS policy |
@@ -47,9 +48,10 @@ database.
 - The Web UI, REST API, WebSocket, and MCP read the same mailbox boundary.
 - Webhook acceptance is first recorded in the local outbox. Redis Streams can
   provide restart-safe queued delivery after handoff.
-- Native v1 Relay accepts persistent asynchronous jobs when a mail directory
-  is configured. Historical and compatibility routes do not acquire that job
-  contract.
+- Native, automatic, historical, and MailDev Relay entry points share one
+  mailbox-owned durable task service. Recovery also runs without HTTP. Automatic
+  handoff uses durable held tasks; successful summary repairs never resend SMTP.
+  See [Relay delivery and recovery](./Relay-Recovery.md).
 - MCP subscribes to committed `new` events for bounded waits; it never polls in
   HTTP mode and never owns a second mailbox index.
 

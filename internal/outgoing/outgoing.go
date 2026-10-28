@@ -184,12 +184,19 @@ func (om *OutgoingMail) relayEmail(task *RelayTask) error {
 	}
 
 	// Get sender address
-	sender := task.Email.Envelope.From
-	if sender == "" && len(task.Email.From) > 0 {
-		sender = task.Email.From[0].Address
+	sender := ""
+	if task.Email.Envelope != nil {
+		sender = task.Email.Envelope.From
 	}
-	if sender == "" {
-		sender = "noreply@localhost"
+	// A captured empty reverse-path is meaningful SMTP state. Only legacy EML
+	// reconstruction may infer a sender from the visible From header.
+	if task.Email.Envelope == nil || !task.Email.Envelope.SMTPTransaction {
+		if sender == "" && len(task.Email.From) > 0 {
+			sender = task.Email.From[0].Address
+		}
+		if sender == "" {
+			sender = "noreply@localhost"
+		}
 	}
 
 	// Prepare SMTP auth

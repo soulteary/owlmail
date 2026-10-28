@@ -12,6 +12,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/maildev"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/version-kit/v4"
 )
 
@@ -155,8 +156,8 @@ func (api *API) mailDevDeleteEmail(c fiber.Ctx) error {
 	if _, err := api.mailServer.GetEmail(id); err != nil {
 		return mailDevError(c, http.StatusNotFound, "Email was not found")
 	}
-	err := api.relayJobs.protectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
-	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	err := api.relayService.ProtectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
+	if errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
 	}
 	if err != nil {
@@ -179,7 +180,7 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 	}
 	seen := make(map[string]struct{}, len(request.IDs))
 	response := maildev.BulkDeleteResponse{Deleted: []string{}, NotFound: []string{}}
-	err := api.relayJobs.protectSourceDeletion(request.IDs, func() error {
+	err := api.relayService.ProtectSourceDeletion(request.IDs, func() error {
 		for _, id := range request.IDs {
 			if _, exists := seen[id]; exists {
 				continue
@@ -196,7 +197,7 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 		}
 		return nil
 	})
-	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	if errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "Email has a pending relay job")
 	}
 	if err != nil {
@@ -206,8 +207,8 @@ func (api *API) mailDevDeleteEmails(c fiber.Ctx) error {
 }
 
 func (api *API) mailDevDeleteAllEmails(c fiber.Ctx) error {
-	err := api.relayJobs.protectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
-	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	err := api.relayService.ProtectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
+	if errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return mailDevError(c, http.StatusConflict, "An email has a pending relay job")
 	}
 	if err != nil {
@@ -305,17 +306,18 @@ func (api *API) mailDevRelayEmail(c fiber.Ctx) error {
 	if outgoing := api.mailServer.GetOutgoingConfig(); outgoing == nil || outgoing.Host == "" {
 		return mailDevError(c, http.StatusInternalServerError, "Outgoing mail not configured")
 	}
-	email, releaseSource, err := api.mailServer.AcquireEmailSource(id)
-	if err != nil {
-		return mailDevError(c, http.StatusInternalServerError, "Email was not found")
-	}
-	defer releaseSource()
 	if relayTo != "" && !mailDevRelayAddress.MatchString(relayTo) {
 		return mailDevError(c, http.StatusBadRequest, fmt.Sprintf("Incorrect email address provided: %s", relayTo))
 	}
+	job, err := api.relayService.Submit(relay.Request{EmailID: id, RelayTo: relayTo, Origin: "maildev"})
+	if err != nil {
+		return mailDevError(c, http.StatusInternalServerError, err.Error())
+	}
+	c.Set(fiber.HeaderLocation, api.route("/api/v1/relay-jobs/"+job.ID))
+	c.Set("X-OwlMail-Relay-Job-ID", job.ID)
 	ctx, cancel := context.WithTimeout(c.RequestCtx(), mailDevRelayTimeout)
 	defer cancel()
-	if err := api.mailServer.RelayMailAndWait(ctx, email, relayTo); err != nil {
+	if _, err := api.relayService.Wait(ctx, job.ID); err != nil {
 		return mailDevError(c, http.StatusInternalServerError, err.Error())
 	}
 	return c.JSON(true)

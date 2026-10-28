@@ -56,6 +56,10 @@ func TestOutgoingReadinessUsesLiveConfigurationAndCachesSafeStatus(t *testing.T)
 		t.Fatal(err)
 	}
 	defer func() { _ = server.Close() }()
+	if err := server.StartRelayRecovery(); err != nil {
+		t.Fatal(err)
+	}
+	server.RelayService().CheckPersistence()
 	server.smtpReady.Store(true)
 	server.probeMailStorage()
 	if err := server.GetRuntimeReadiness().ValidateService(time.Now()); err == nil {

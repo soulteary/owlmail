@@ -7,9 +7,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/types"
 	"github.com/soulteary/owlmail/internal/webhook"
 )
@@ -17,11 +20,9 @@ import (
 func TestWorkflowListsAndReplayAdmission(t *testing.T) {
 	api, s, _ := setupTestAPI(t)
 	defer func() { _ = s.Close() }()
-	job, err := api.relayJobs.create("gone", "recipient@example.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	api.relayJobs.complete(job.ID, errors.New("failure"))
+	now := time.Now().UTC()
+	job := relay.Job{ID: strings.Repeat("a", 32), EmailID: "gone", RelayTo: "recipient@example.test", Status: relay.Failed, CreatedAt: now, UpdatedAt: now, CompletedAt: &now}
+	installWorkflowRelay(t, api, relay.Options{}, job)
 	resp, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs?status=failed", nil))
 	if err != nil {
 		t.Fatal(err)
@@ -49,43 +50,41 @@ func TestWorkflowListsAndReplayAdmission(t *testing.T) {
 }
 
 func TestRelayPrunePersistenceFailureIsVisible(t *testing.T) {
-	api, s, _ := setupTestAPI(t)
-	defer func() { _ = s.Close() }()
-	job, err := api.relayJobs.create("source", "recipient@example.test")
-	if err != nil {
-		t.Fatal(err)
+	api, server, _ := setupTestAPI(t)
+	defer func() { _ = server.Close() }()
+	past := time.Now().Add(-48 * time.Hour).UTC()
+	var clock atomic.Int64
+	clock.Store(past.UnixNano())
+	var failSync atomic.Bool
+	job := relay.Job{ID: strings.Repeat("b", 32), EmailID: "source", Status: relay.Succeeded, CreatedAt: past, UpdatedAt: past, CompletedAt: &past}
+	installWorkflowRelay(t, api, relay.Options{
+		Now: func() time.Time { return time.Unix(0, clock.Load()) },
+		SyncDirectory: func(string) error {
+			if failSync.Load() {
+				return errors.New("injected deletion sync error")
+			}
+			return nil
+		},
+	}, job)
+	failSync.Store(true)
+	clock.Store(time.Now().UnixNano())
+	check := func(wantHealthy bool) {
+		t.Helper()
+		response, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs", nil))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer func() { _ = response.Body.Close() }()
+		var result struct {
+			Healthy bool `json:"persistence_healthy"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&result); err != nil || result.Healthy != wantHealthy {
+			t.Fatalf("health=%+v want=%v err=%v", result, wantHealthy, err)
+		}
 	}
-	api.relayJobs.complete(job.ID, nil)
-	api.relayJobs.mu.Lock()
-	old := api.relayJobs.jobs[job.ID]
-	expired := time.Now().Add(-48 * time.Hour)
-	old.CompletedAt = &expired
-	api.relayJobs.jobs[job.ID] = old
-	api.relayJobs.syncDirectory = func(string) error { return errors.New("injected deletion sync error") }
-	api.relayJobs.mu.Unlock()
-	resp, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs", nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	var result struct {
-		Healthy bool `json:"persistence_healthy"`
-	}
-	if err = json.NewDecoder(resp.Body).Decode(&result); err != nil || result.Healthy {
-		t.Fatal(result, err)
-	}
-	api.relayJobs.mu.Lock()
-	api.relayJobs.syncDirectory = syncRelayJobDirectory
-	api.relayJobs.mu.Unlock()
-	recovered, err := api.app.Test(httptest.NewRequest("GET", "/api/v1/relay-jobs", nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = recovered.Body.Close() }()
-	if err = json.NewDecoder(recovered.Body).Decode(&result); err != nil || !result.Healthy {
-		t.Fatal("successful deletion retry did not restore health", result, err)
-	}
-
+	check(false)
+	failSync.Store(false)
+	check(true)
 }
 
 func TestWebhookReplayInfrastructureFailureReturnsUnavailable(t *testing.T) {
@@ -142,11 +141,9 @@ func TestRelayReplayUnavailableTargetReturnsConflict(t *testing.T) {
 	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
 		t.Fatal(err)
 	}
-	job, err := api.relayJobs.create(email.ID, "recipient@example.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	api.relayJobs.complete(job.ID, errors.New("prior failure"))
+	now := time.Now().UTC()
+	job := relay.Job{ID: strings.Repeat("c", 32), EmailID: email.ID, RelayTo: "recipient@example.test", Status: relay.Failed, CreatedAt: now, UpdatedAt: now, CompletedAt: &now}
+	installWorkflowRelay(t, api, relay.Options{}, job)
 	response, err := api.app.Test(httptest.NewRequest("POST", "/api/v1/relay-jobs/"+job.ID+"/retry", nil))
 	if err != nil {
 		t.Fatal(err)

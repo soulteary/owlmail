@@ -134,3 +134,57 @@ test('palette is localized, fits mobile screens and keeps delete confirmation', 
     await expect.poll(() => page.locator('#commandPalette').evaluate(node => node.getBoundingClientRect().width)).toBeLessThanOrEqual(375);
     await page.keyboard.press('Escape');
 });
+
+test('relay receipt detail and successful refresh preserve the sandboxed preview', async ({ page }) => {
+    let receipt = null;
+    let detailRequests = 0;
+    let repairDetailRequests = 0;
+    await page.route('**/api/v1/emails/**', async route => {
+        const url = new URL(route.request().url());
+        // Only decorate the singular native detail response; list, preview,
+        // attachment and action routes must continue to use real server data.
+        if (route.request().method() !== 'GET' || !/\/api\/v1\/emails\/[^/]+$/.test(url.pathname)) {
+            await route.continue();
+            return;
+        }
+        const response = await route.fetch();
+        const email = await response.json();
+        if (!email || typeof email.id !== 'string') {
+            await route.fulfill({ response });
+            return;
+        }
+        detailRequests++;
+        const repaired = receipt && ++repairDetailRequests >= 3;
+        const projected = !receipt || repairDetailRequests === 1 ? email
+            : { ...email, ...(repaired ? receipt : { relayedAt: '2026-10-28T01:02:03Z', relayedTo: ['old@example.test'] }) };
+        await route.fulfill({ response, json: projected });
+    });
+    await page.goto('./');
+    await expect(page.locator('.email-item')).toHaveCount(1);
+    await page.locator('.email-item').filter({ hasText: 'Browser regression fixture' }).click();
+    await expect(page.getByTestId('email-relay-receipt')).toHaveCount(0);
+    const iframe = page.locator('.email-detail-html iframe');
+    const preview = page.frameLocator('.email-detail-html iframe');
+    await expect(iframe).toHaveAttribute('sandbox', '');
+    await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');
+    await expect.poll(() => preview.locator('html').evaluate(node => node.scrollHeight)).toBeGreaterThan(1000);
+    await iframe.evaluate(node => { node.dataset.receiptIdentity = 'original-preview'; });
+    await preview.locator('body').evaluate(() => {
+        document.body.dataset.receiptIdentity = 'original-document';
+        window.scrollTo(0, 300);
+    });
+    const scrollBefore = await preview.locator('body').evaluate(() => window.scrollY);
+    receipt = { relayedAt: '2026-10-29T01:02:03Z', relayedTo: ['actual@example.test', 'blind@example.test'] };
+    // This is the same completion hook used after a successful Relay status poll.
+    await page.evaluate(() => cacheRelayCompletion(state.currentEmail.id, { status: 'succeeded', receiptPending: false, completedAt: '2026-10-29T01:02:03Z' }));
+    const summary = page.getByTestId('email-relay-receipt');
+    await expect(summary).toContainText('actual@example.test, blind@example.test');
+    await expect(summary.locator('time')).toHaveAttribute('datetime', '2026-10-29T01:02:03.000Z');
+    await expect(summary.locator('time')).not.toHaveText('');
+    expect(detailRequests).toBe(4);
+    await expect(iframe).toHaveAttribute('data-receipt-identity', 'original-preview');
+    await expect(iframe).toHaveAttribute('sandbox', '');
+    await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');
+    await expect(preview.locator('body')).toHaveAttribute('data-receipt-identity', 'original-document');
+    expect(await preview.locator('body').evaluate(() => window.scrollY)).toBe(scrollBefore);
+});

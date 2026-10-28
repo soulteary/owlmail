@@ -126,7 +126,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 		}
 		email.Read = item.read
 		if item.metadata != nil && item.metadata.Envelope != nil {
-			envelope = cloneEnvelope(item.metadata.Envelope)
+			envelope = restoreMetadataEnvelope(*item.metadata)
 		}
 		email.Envelope = envelope
 		email.Source = path
@@ -144,6 +144,7 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			continue
 		}
 		if item.metadata != nil {
+			restoreRelayReceipt(email, *item.metadata)
 			if err := restoreAttachmentMetadata(email, *item.metadata); err != nil {
 				refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
 				continue
@@ -207,12 +208,13 @@ func (ms *MailServer) RefreshReadOnlyMailbox() error {
 			}
 			updated := cloneEmail(email)
 			if item.metadata != nil {
+				restoreRelayReceipt(updated, *item.metadata)
 				if err := restoreAttachmentMetadata(updated, *item.metadata); err != nil {
 					refreshErrors = append(refreshErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, err))
 					continue
 				}
 				if item.metadata.Envelope != nil {
-					updated.Envelope = cloneEnvelope(item.metadata.Envelope)
+					updated.Envelope = restoreMetadataEnvelope(*item.metadata)
 					updated.CalculatedBCC = calculateBCC(append([]string(nil), updated.Envelope.To...), addressListToStrings(updated.To), addressListToStrings(updated.CC))
 				}
 			}

@@ -225,8 +225,15 @@ returns `503` with `Retry-After: 1`. Explicit `relayTo` values are limited to
 new relay requests return `503` rather than silently accepting volatile jobs.
 Recovery is at least once: a crash after downstream acceptance but before the
 terminal status commit can cause one duplicate attempt.
-Historical `/email` aliases keep their existing response behavior; the opt-in
-MailDev facade continues to wait for its relay attempt.
+Historical `/email` aliases keep their immediate response after durable task
+acceptance; the opt-in MailDev facade waits for completion. Both use the same
+durable task service and retain their response formats.
+Automatic forwarding also uses this owner, including SMTP-only recovery.
+Successful jobs mean downstream SMTP DATA acceptance, not inbox delivery.
+Per-email `relayedAt` and `relayedTo` preserve the last success after history
+expires. Optional job `origin`, `key`, `handoffPending`, and `receiptPending`
+identify entry-point and repair state. See [Relay delivery and recovery](./Relay-Recovery.md)
+for automatic handoff, persistence requirements, and metadata repair semantics.
 
 ### Settings and system
 

@@ -6,6 +6,16 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Share one durable Relay task owner across native API, automatic forwarding, historical routes, and MailDev compatibility calls, with frozen envelope recipients, retry status, source protection, and recovery in SMTP-only mode.
+- Persist automatic forwarding through prepared intent, held task, and submitted acknowledgement so interrupted handoffs resume safely after restart.
+
+### Added
+
+- Preserve the last downstream SMTP DATA acceptance time and actual recipients in per-message metadata, native/MailDev/MCP details, and the inbox, independently of bounded Relay history.
+- Repair successful-task summaries without resending SMTP, expose handoff and receipt repair state, and retain readiness failures until durable recovery succeeds.
+
 ## [0.12.0] - 2026-10-29
 
 ### Added

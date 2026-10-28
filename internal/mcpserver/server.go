@@ -385,23 +385,25 @@ type envelope struct {
 }
 
 type emailDetail struct {
-	ID              string    `json:"id"`
-	Time            time.Time `json:"time"`
-	Read            bool      `json:"read"`
-	Subject         string    `json:"subject"`
-	From            []address `json:"from"`
-	To              []address `json:"to"`
-	ReplyTo         []address `json:"reply_to,omitempty"`
-	CC              []address `json:"cc"`
-	BCC             []address `json:"bcc"`
-	CalculatedBCC   []address `json:"calculated_bcc"`
-	Text            string    `json:"text,omitempty"`
-	HTML            string    `json:"html,omitempty"`
-	Envelope        *envelope `json:"envelope,omitempty"`
-	Size            int64     `json:"size"`
-	SizeHuman       string    `json:"size_human"`
-	AttachmentCount int       `json:"attachment_count"`
-	WebURL          string    `json:"web_url,omitempty"`
+	ID              string     `json:"id"`
+	Time            time.Time  `json:"time"`
+	Read            bool       `json:"read"`
+	Subject         string     `json:"subject"`
+	From            []address  `json:"from"`
+	To              []address  `json:"to"`
+	ReplyTo         []address  `json:"reply_to,omitempty"`
+	RelayedAt       *time.Time `json:"relayed_at,omitempty"`
+	RelayedTo       []string   `json:"relayed_to,omitempty"`
+	CC              []address  `json:"cc"`
+	BCC             []address  `json:"bcc"`
+	CalculatedBCC   []address  `json:"calculated_bcc"`
+	Text            string     `json:"text,omitempty"`
+	HTML            string     `json:"html,omitempty"`
+	Envelope        *envelope  `json:"envelope,omitempty"`
+	Size            int64      `json:"size"`
+	SizeHuman       string     `json:"size_human"`
+	AttachmentCount int        `json:"attachment_count"`
+	WebURL          string     `json:"web_url,omitempty"`
 }
 
 type getEmailOutput struct {
@@ -620,6 +622,11 @@ func makeEmailDetail(email *types.Email, includeHTML bool) emailDetail {
 		BCC: addresses(email.BCC), CalculatedBCC: addresses(email.CalculatedBCC),
 		Text: email.Text, Size: email.Size, SizeHuman: email.SizeHuman,
 		AttachmentCount: len(email.Attachments),
+		RelayedTo:       stringsCopy(email.RelayedTo),
+	}
+	if email.RelayedAt != nil {
+		acceptedAt := *email.RelayedAt
+		detail.RelayedAt = &acceptedAt
 	}
 	if includeHTML {
 		detail.HTML = email.HTML

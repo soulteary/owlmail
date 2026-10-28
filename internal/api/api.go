@@ -20,6 +20,7 @@ import (
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/types"
 	"github.com/soulteary/owlmail/internal/webhook"
 	webassets "github.com/soulteary/owlmail/web"
@@ -29,39 +30,34 @@ import (
 
 // API represents the REST API server
 type API struct {
-	mailServer              *mailserver.MailServer
-	app                     *fiber.App
-	port                    int // requested port; immutable after construction
-	boundAddress            mailserver.ListenerAddress
-	boundAddressMutex       sync.RWMutex
-	boundListener           net.Listener
-	listenerClosed          bool
-	host                    string
-	wsUpgrader              websocket.Upgrader
-	wsClients               map[*websocket.Conn]*sync.Mutex
-	wsClientsLock           sync.RWMutex
-	authUser                string
-	authPassword            string
-	authVerifier            *common.CredentialVerifier
-	httpsEnabled            bool
-	httpsCertFile           string
-	httpsKeyFile            string
-	externalScheme          string
-	basePathname            string
-	mailDevRESTCompat       bool
-	mailCatcherRESTCompat   bool
-	metricsEnabled          bool
-	metrics                 *prometheusMetrics
-	mcpHandler              http.Handler
-	mcpAllowedOrigins       []string
-	webAllowedOrigins       []string
-	webhookService          *webhook.Service
-	relayJobs               *relayJobStore
-	relayJobsPersistenceErr error
-	relayJobReadiness       *relayJobReadinessMonitor
-	relayRecoveryOnce       sync.Once
-	relaySourceMutex        sync.Mutex
-	relaySourceReleases     map[string]func()
+	mailServer            *mailserver.MailServer
+	app                   *fiber.App
+	port                  int // requested port; immutable after construction
+	boundAddress          mailserver.ListenerAddress
+	boundAddressMutex     sync.RWMutex
+	boundListener         net.Listener
+	listenerClosed        bool
+	host                  string
+	wsUpgrader            websocket.Upgrader
+	wsClients             map[*websocket.Conn]*sync.Mutex
+	wsClientsLock         sync.RWMutex
+	authUser              string
+	authPassword          string
+	authVerifier          *common.CredentialVerifier
+	httpsEnabled          bool
+	httpsCertFile         string
+	httpsKeyFile          string
+	externalScheme        string
+	basePathname          string
+	mailDevRESTCompat     bool
+	mailCatcherRESTCompat bool
+	metricsEnabled        bool
+	metrics               *prometheusMetrics
+	mcpHandler            http.Handler
+	mcpAllowedOrigins     []string
+	webAllowedOrigins     []string
+	webhookService        *webhook.Service
+	relayService          *relay.Service
 }
 
 // NewAPI creates a new API server instance
@@ -98,49 +94,32 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 			authVerifier = verifier
 		}
 	}
-	relayJobs, err := newPersistentRelayJobStore(mailServer.GetMailDir())
-	persistenceErr := err
-	if err != nil {
-		common.Error("Load persisted relay jobs: %v; relay status will be process-local", err)
-		relayJobs = newRelayJobStore()
-	}
 	api := &API{
-		mailServer:              mailServer,
-		port:                    port,
-		host:                    host,
-		wsClients:               make(map[*websocket.Conn]*sync.Mutex),
-		metrics:                 newPrometheusMetrics(),
-		authUser:                user,
-		authPassword:            password,
-		authVerifier:            authVerifier,
-		httpsEnabled:            httpsEnabled,
-		httpsCertFile:           certFile,
-		httpsKeyFile:            keyFile,
-		wsUpgrader:              websocket.Upgrader{},
-		relayJobs:               relayJobs,
-		relayJobsPersistenceErr: persistenceErr,
-		relaySourceReleases:     make(map[string]func()),
+		mailServer:    mailServer,
+		port:          port,
+		host:          host,
+		wsClients:     make(map[*websocket.Conn]*sync.Mutex),
+		metrics:       newPrometheusMetrics(),
+		authUser:      user,
+		authPassword:  password,
+		authVerifier:  authVerifier,
+		httpsEnabled:  httpsEnabled,
+		httpsCertFile: certFile,
+		httpsKeyFile:  keyFile,
+		wsUpgrader:    websocket.Upgrader{},
+		relayService:  mailServer.RelayService(),
 	}
 	api.wsUpgrader.CheckOrigin = api.webSocketOriginAllowed
-	api.relayJobReadiness = newRelayJobReadinessMonitor(api)
-	mailServer.SetRelayJobReadinessProvider(api.relayJobReadiness)
-	_ = mailServer.AddCloser(api.relayJobReadiness)
 	api.setupRoutes()
 	api.setupEventListeners()
-	if api.relayJobs.hasQueued() {
-		api.protectQueuedRelaySources()
-	}
 	return api
 }
 
 // StartRelayRecovery starts queued durable work at most once.
 func (api *API) StartRelayRecovery() {
-	api.relayRecoveryOnce.Do(func() {
-		api.relayJobReadiness.Start()
-		if api.relayJobs.hasQueued() {
-			go api.recoverRelayJobs()
-		}
-	})
+	if err := api.mailServer.StartRelayRecovery(); err != nil {
+		common.Error("Start relay recovery: %v", err)
+	}
 }
 
 func (api *API) requestScheme() string {

@@ -104,6 +104,34 @@ func validateRelaySemantics(t *testing.T, document map[string]any) {
 			t.Errorf("POST %s does not document HTTP 202", path)
 		}
 	}
+
+	schemas := document["components"].(map[string]any)["schemas"].(map[string]any)
+	job := schemas["RelayJob"].(map[string]any)
+	properties := job["properties"].(map[string]any)
+	for _, name := range []string{"origin", "key", "receiptPending", "handoffPending"} {
+		if _, ok := properties[name]; !ok {
+			t.Errorf("RelayJob missing optional recovery field %s", name)
+		}
+		for _, required := range job["required"].([]any) {
+			if required == name {
+				t.Errorf("recovery field %s must remain optional", name)
+			}
+		}
+	}
+	for _, endpoint := range []struct{ path, method, status, schema string }{
+		{"/emails/{id}/actions/relay", "post", "202", "RelayAcceptedResponse"},
+		{"/emails/{id}/actions/relay/{relayTo}", "post", "202", "RelayAcceptedResponse"},
+		{"/relay-jobs/{jobID}", "get", "200", "RelayStatusResponse"},
+		{"/relay-jobs", "get", "200", "RelayJobList"},
+		{"/relay-jobs/{jobID}/retry", "post", "202", "RelayAcceptedResponse"},
+	} {
+		operation := paths[endpoint.path].(map[string]any)[endpoint.method].(map[string]any)
+		response := operation["responses"].(map[string]any)[endpoint.status].(map[string]any)
+		schema := response["content"].(map[string]any)["application/json"].(map[string]any)["schema"].(map[string]any)
+		if schema["$ref"] != "#/components/schemas/"+endpoint.schema {
+			t.Errorf("%s response does not reference %s", endpoint.path, endpoint.schema)
+		}
+	}
 	status := paths["/relay-jobs/{jobID}"].(map[string]any)["get"].(map[string]any)
 	if status["operationId"] != "getRelayJob" {
 		t.Errorf("relay status operation = %#v", status["operationId"])

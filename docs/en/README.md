@@ -136,3 +136,5 @@ When adding new documentation:
 For more information about OwlMail, please visit the [main README](../../README.md).
 
 Previous release: [OwlMail 0.11.4](Release-0.11.4.md).
+
+- [Relay delivery and recovery](./Relay-Recovery.md): shared task state, automatic handoff, compatibility, and persistent storage.

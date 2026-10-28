@@ -15,6 +15,7 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/mailserver"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/types"
 )
 
@@ -122,8 +123,8 @@ func (api *API) getEmailSource(c fiber.Ctx) error {
 // deleteEmail handles DELETE /api/v1/emails/:id
 func (api *API) deleteEmail(c fiber.Ctx) error {
 	id := c.Params("id")
-	err := api.relayJobs.protectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
-	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	err := api.relayService.ProtectSourceDeletion([]string{id}, func() error { return api.mailServer.DeleteEmail(id) })
+	if errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "Email has a pending relay job"))
 	}
 	if err != nil {
@@ -134,8 +135,8 @@ func (api *API) deleteEmail(c fiber.Ctx) error {
 
 // deleteAllEmails handles DELETE /api/v1/emails
 func (api *API) deleteAllEmails(c fiber.Ctx) error {
-	err := api.relayJobs.protectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
-	if errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	err := api.relayService.ProtectSourceDeletion(nil, api.mailServer.DeleteAllEmail)
+	if errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "An email has a pending relay job"))
 	}
 	if err != nil {
@@ -280,7 +281,7 @@ func (api *API) batchDeleteEmails(c fiber.Ctx) error {
 	successCount := 0
 	failedCount := 0
 	failedIDs := make([]string, 0)
-	if err := api.relayJobs.protectSourceDeletion(request.IDs, func() error {
+	if err := api.relayService.ProtectSourceDeletion(request.IDs, func() error {
 		for _, id := range request.IDs {
 			if err := api.mailServer.DeleteEmail(id); err != nil {
 				failedCount++
@@ -290,7 +291,7 @@ func (api *API) batchDeleteEmails(c fiber.Ctx) error {
 			}
 		}
 		return nil
-	}); errors.Is(err, errRelaySourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
+	}); errors.Is(err, relay.ErrSourceInUse) || errors.Is(err, mailserver.ErrEmailSourceInUse) {
 		return c.Status(fiber.StatusConflict).JSON(ErrorResponse(ErrorCodeRelayFailed, "An email has a pending relay job"))
 	}
 

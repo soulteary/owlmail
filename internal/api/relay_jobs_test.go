@@ -14,60 +14,9 @@ import (
 	"github.com/gofiber/fiber/v3"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/types"
 )
-
-func TestRelayJobStoreTracksSafeTerminalStatus(t *testing.T) {
-	store := newRelayJobStore()
-	store.newID = func() (string, error) { return "job-1", nil }
-	job, err := store.create("mail-1", "relay@example.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if job.Status != relayJobQueued {
-		t.Fatalf("new job status = %q", job.Status)
-	}
-	store.complete(job.ID, errors.New("dial tcp 127.0.0.1:25: connection refused; password=secret"))
-	got, ok := store.get(job.ID)
-	if !ok || got.Status != relayJobFailed || got.ErrorCategory != "connection" || got.CompletedAt == nil {
-		t.Fatalf("completed job = %#v, %t", got, ok)
-	}
-	encoded, _ := json.Marshal(got)
-	if strings.Contains(string(encoded), "password") || strings.Contains(string(encoded), "127.0.0.1") {
-		t.Fatalf("relay status leaked raw error details: %s", encoded)
-	}
-}
-
-func TestRelayJobStoreRejectsOversizedRecipient(t *testing.T) {
-	store := newRelayJobStore()
-	if _, err := store.create("mail-1", strings.Repeat("x", defaultRelayRecipientMaxBytes+1)); !errors.Is(err, errRelayRecipientTooLong) {
-		t.Fatalf("oversized recipient error = %v, want %v", err, errRelayRecipientTooLong)
-	}
-	if len(store.jobs) != 0 || len(store.order) != 0 {
-		t.Fatalf("oversized recipient was retained: jobs=%d order=%d", len(store.jobs), len(store.order))
-	}
-}
-
-func TestRelayJobStoreRejectsDuplicatePendingEmail(t *testing.T) {
-	store := newRelayJobStore()
-	ids := []string{"first-job", "duplicate-job", "after-completion"}
-	store.newID = func() (string, error) {
-		id := ids[0]
-		ids = ids[1:]
-		return id, nil
-	}
-	first, err := store.create("mail-1", "first@example.test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.create("mail-1", "second@example.test"); !errors.Is(err, errRelayAlreadyPending) {
-		t.Fatalf("duplicate create error = %v, want errRelayAlreadyPending", err)
-	}
-	store.complete(first.ID, nil)
-	if _, err := store.create("mail-1", "second@example.test"); err != nil {
-		t.Fatalf("create after completion: %v", err)
-	}
-}
 
 func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
@@ -82,7 +31,7 @@ func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	payload, err := json.Marshal(map[string]string{"relayTo": strings.Repeat("x", defaultRelayRecipientMaxBytes+1)})
+	payload, err := json.Marshal(map[string]string{"relayTo": strings.Repeat("x", 1024+1)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,8 +45,8 @@ func TestNativeRelayRejectsOversizedRecipientBeforeRetaining(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("oversized recipient status = %d, want %d", resp.StatusCode, http.StatusBadRequest)
 	}
-	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
-		t.Fatalf("oversized recipient created a relay job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 0 {
+		t.Fatalf("oversized recipient created relay jobs: %d", len(jobs))
 	}
 }
 
@@ -121,8 +70,8 @@ func TestNativeRelayRejectsInvalidRequestBody(t *testing.T) {
 			if resp.StatusCode != http.StatusBadRequest || !strings.Contains(string(body), ErrorCodeInvalidRequest) {
 				t.Fatalf("invalid relay body status = %d, body = %s", resp.StatusCode, body)
 			}
-			if len(api.relayJobs.jobs) != 0 {
-				t.Fatalf("invalid relay body created %d job(s)", len(api.relayJobs.jobs))
+			if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 0 {
+				t.Fatalf("invalid relay body created %d job(s)", len(jobs))
 			}
 		})
 	}
@@ -243,8 +192,8 @@ func TestRelayPreflightBindsConfirmedRecipientsToEnqueueSnapshot(t *testing.T) {
 	if relayResponse.StatusCode != http.StatusBadRequest || !strings.Contains(string(relayBody), "configuration changed") {
 		t.Fatalf("changed-config relay status = %d, body = %s", relayResponse.StatusCode, relayBody)
 	}
-	if len(api.relayJobs.jobs) != 0 {
-		t.Fatalf("changed-config relay retained %d job(s)", len(api.relayJobs.jobs))
+	if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 0 {
+		t.Fatalf("changed-config relay retained %d job(s)", len(jobs))
 	}
 }
 
@@ -266,75 +215,6 @@ func TestRelayJobNotFound(t *testing.T) {
 	}
 }
 
-func TestRelayJobStoreRejectsCapacityWithoutEvictingActiveJob(t *testing.T) {
-	store := newRelayJobStore()
-	store.limit = 1
-	store.minimumRetention = 0
-	ids := []string{"job-active", "job-rejected", "job-replacement"}
-	store.newID = func() (string, error) {
-		id := ids[0]
-		ids = ids[1:]
-		return id, nil
-	}
-
-	active, err := store.create("mail-active", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := store.create("mail-rejected", ""); !errors.Is(err, errRelayJobCapacity) {
-		t.Fatalf("create at active capacity error = %v, want %v", err, errRelayJobCapacity)
-	}
-	if got, ok := store.get(active.ID); !ok || got.Status != relayJobQueued {
-		t.Fatalf("active job was evicted: %#v, %t", got, ok)
-	}
-
-	store.complete(active.ID, nil)
-	replacement, err := store.create("mail-replacement", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, ok := store.get(active.ID); ok {
-		t.Fatal("completed job was not evicted to make room")
-	}
-	if got, ok := store.get(replacement.ID); !ok || got.EmailID != "mail-replacement" {
-		t.Fatalf("replacement job = %#v, %t", got, ok)
-	}
-}
-
-func TestRelayJobStoreKeepsFreshlyCompletedJobQueryable(t *testing.T) {
-	currentTime := time.Unix(1_700_000_000, 0).UTC()
-	store := newRelayJobStore()
-	store.limit = 1
-	store.minimumRetention = time.Minute
-	store.now = func() time.Time { return currentTime }
-	ids := []string{"job-accepted", "job-too-early", "job-after-window"}
-	store.newID = func() (string, error) {
-		id := ids[0]
-		ids = ids[1:]
-		return id, nil
-	}
-
-	accepted, err := store.create("mail-accepted", "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	store.complete(accepted.ID, nil)
-	if _, err := store.create("mail-too-early", ""); !errors.Is(err, errRelayJobCapacity) {
-		t.Fatalf("create during minimum retention error = %v, want %v", err, errRelayJobCapacity)
-	}
-	if got, ok := store.get(accepted.ID); !ok || got.Status != relayJobSucceeded {
-		t.Fatalf("freshly completed job was not queryable: %#v, %t", got, ok)
-	}
-
-	currentTime = currentTime.Add(time.Minute)
-	if _, err := store.create("mail-after-window", ""); err != nil {
-		t.Fatalf("create after minimum retention: %v", err)
-	}
-	if _, ok := store.get(accepted.ID); ok {
-		t.Fatal("completed job was retained after its protected window under capacity pressure")
-	}
-}
-
 func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 	api, server, _ := setupTestAPI(t)
 	defer func() {
@@ -348,11 +228,11 @@ func TestNativeRelayReturnsServiceUnavailableAtStatusCapacity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	api.relayJobs.limit = 1
-	api.relayJobs.newID = func() (string, error) { return "active-job", nil }
-	if _, err := api.relayJobs.create("other-mail", ""); err != nil {
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: 1}); err != nil {
 		t.Fatal(err)
 	}
+	now := time.Now().UTC()
+	installWorkflowRelay(t, api, relay.Options{Limit: 1}, relay.Job{ID: strings.Repeat("a", 32), EmailID: "other-mail", Status: relay.Queued, CreatedAt: now, UpdatedAt: now})
 
 	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
@@ -379,9 +259,8 @@ func TestDeleteEndpointsRejectMessagesWithPendingRelayJobs(t *testing.T) {
 	if err := server.SaveEmailToStore(email.ID, false, &types.Envelope{To: []string{"recipient@example.test"}}, email); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := api.relayJobs.create(email.ID, ""); err != nil {
-		t.Fatal(err)
-	}
+	now := time.Now().UTC()
+	installWorkflowRelay(t, api, relay.Options{}, relay.Job{ID: strings.Repeat("b", 32), EmailID: email.ID, Status: relay.Queued, CreatedAt: now, UpdatedAt: now})
 
 	for _, path := range []string{"/api/v1/emails/" + email.ID, "/api/v1/emails"} {
 		req, _ := http.NewRequest(http.MethodDelete, path, nil)
@@ -408,15 +287,17 @@ func TestNativeRelayReturnsServiceUnavailableForRuntimePersistenceFailure(t *tes
 		t.Fatal(err)
 	}
 
-	realSync := api.relayJobs.syncDirectory
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: 1}); err != nil {
+		t.Fatal(err)
+	}
 	syncCalls := 0
-	api.relayJobs.syncDirectory = func(path string) error {
+	installWorkflowRelay(t, api, relay.Options{SyncDirectory: func(path string) error {
 		syncCalls++
 		if syncCalls == 1 {
 			return errors.New("injected runtime sync failure")
 		}
-		return realSync(path)
-	}
+		return syncRelayFixtureDirectory(path)
+	}})
 	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
@@ -427,7 +308,7 @@ func TestNativeRelayReturnsServiceUnavailableForRuntimePersistenceFailure(t *tes
 	if resp.StatusCode != http.StatusServiceUnavailable || resp.Header.Get("Retry-After") != "1" {
 		t.Fatalf("runtime persistence status = %d, Retry-After = %q, body = %s", resp.StatusCode, resp.Header.Get("Retry-After"), body)
 	}
-	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
+	if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 0 {
 		t.Fatal("rejected persistence failure left a latent relay job")
 	}
 }
@@ -440,15 +321,12 @@ func TestNativeRelayRetainsJobWhenSynchronousRejectionCannotBeDurablyRemoved(t *
 		t.Fatal(err)
 	}
 
-	realSync := api.relayJobs.syncDirectory
-	syncCalls := 0
-	api.relayJobs.syncDirectory = func(path string) error {
-		syncCalls++
-		if syncCalls == 3 {
-			return errors.New("injected rejection sync failure")
-		}
-		return realSync(path)
+	if err := server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: 1}); err != nil {
+		t.Fatal(err)
 	}
+	installWorkflowRelay(t, api, relay.Options{SyncDirectory: func(string) error {
+		return errors.New("injected acceptance and rejection sync failure")
+	}})
 	req, _ := http.NewRequest(http.MethodPost, "/api/v1/emails/"+email.ID+"/actions/relay", nil)
 	resp, err := api.app.Test(req, fiber.TestConfig{Timeout: 0, FailOnTimeout: false})
 	if err != nil {
@@ -456,11 +334,11 @@ func TestNativeRelayRetainsJobWhenSynchronousRejectionCannotBeDurablyRemoved(t *
 	}
 	body, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
-	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"status":"failed"`) {
+	if resp.StatusCode != http.StatusAccepted || !strings.Contains(string(body), `"status":"queued"`) {
 		t.Fatalf("retained rejection status = %d, body = %s", resp.StatusCode, body)
 	}
-	if len(api.relayJobs.jobs) != 1 {
-		t.Fatalf("retained jobs = %d, want 1", len(api.relayJobs.jobs))
+	if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 1 {
+		t.Fatalf("retained jobs = %d, want 1", len(jobs))
 	}
 }
 
@@ -493,7 +371,16 @@ func TestNativeRelayRejectsSynchronousDisabledCallback(t *testing.T) {
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("disabled relay status = %d, body = %s", resp.StatusCode, body)
 	}
-	if len(api.relayJobs.jobs) != 0 || len(api.relayJobs.order) != 0 {
-		t.Fatalf("disabled relay retained a job: jobs=%d order=%d", len(api.relayJobs.jobs), len(api.relayJobs.order))
+	if jobs, _ := api.relayService.List("", "", 100); len(jobs) != 0 {
+		t.Fatalf("disabled relay retained jobs: %d", len(jobs))
 	}
+}
+
+func syncRelayFixtureDirectory(path string) error {
+	directory, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = directory.Close() }()
+	return directory.Sync()
 }

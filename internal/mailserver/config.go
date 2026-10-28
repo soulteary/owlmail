@@ -143,6 +143,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		receivedAtByID:          make(map[string]time.Time),
 		storePositionByID:       make(map[string]int),
 		mailDir:                 mailDir,
+		readOnly:                options.ReadOnly,
 		runtimeReadiness:        options.RuntimeReadiness,
 		relayJobHealthRequired:  options.RequireRelayJobReadiness,
 		outgoingReadinessWake:   make(chan struct{}, 1),
@@ -169,6 +170,7 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		tlsConfig:               options.TLSConfig,
 		useUUIDForID:            options.UseUUIDForID,
 	}
+	ms.deferRelayRecovery = options.DeferRelayRecovery
 	ms.retainAllHeaders.Store(options.RetainAllHeaders)
 
 	// Setup outgoing mail if config provided
@@ -204,6 +206,12 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		}
 	}
 
+	if ms.needsRelayInitialization() {
+		if err := ms.InitializeRelayService(); err != nil {
+			_ = ms.Close()
+			return nil, fmt.Errorf("initialize durable relay: %w", err)
+		}
+	}
 	return ms, nil
 }
 

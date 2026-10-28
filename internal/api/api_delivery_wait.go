@@ -58,7 +58,7 @@ func (api *API) deleteTestRunEmails(c fiber.Ctx) error {
 	failed := make([]string, 0)
 	// A nil/empty ID list means all sources to the protection helper; avoid it for an empty run.
 	if len(ids) > 0 {
-		err := api.relayJobs.protectSourceDeletion(ids, func() error {
+		err := api.relayService.ProtectSourceDeletion(ids, func() error {
 			for _, id := range ids {
 				if err := api.mailServer.DeleteEmail(id); err != nil {
 					failed = append(failed, id)

@@ -1062,7 +1062,7 @@
           "Relay"
         ],
         "summary": "Request email relay",
-        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes. All Relay entry points share this task owner. succeeded means downstream SMTP DATA acceptance, not inbox delivery. Automatic handoff and summary repair do not resend accepted tasks. Recovery also runs with HTTP disabled; cross-process recovery requires reusing the same persistent mail directory.",
         "operationId": "relayEmail",
         "parameters": [
           {
@@ -1097,7 +1097,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/APIResponse"
+                  "$ref": "#/components/schemas/RelayAcceptedResponse"
                 },
                 "example": {
                   "code": "RELAY_QUEUED",
@@ -1163,7 +1163,7 @@
           "Relay"
         ],
         "summary": "Request email relay to an explicit recipient",
-        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes.",
+        "description": "Returns 202 after OwlMail records a queryable relay job. With a persistent mail directory configured, the job is durable and recoverable across restarts; the default process-specific temporary directory provides only same-process status. Poll the returned statusUrl until the job is succeeded or failed; retryable connection, timeout, queue, and temporary SMTP (4xx) failures use at most three attempts with exponential jitter. Temporary SMTP responses expose temporary_smtp and schedule retries; permanent SMTP (5xx) responses expose permanent_smtp and become terminal immediately. Failed jobs expose only a bounded error category. Explicit recipients are limited to 1024 UTF-8 bytes. All Relay entry points share this task owner. succeeded means downstream SMTP DATA acceptance, not inbox delivery. Automatic handoff and summary repair do not resend accepted tasks. Recovery also runs with HTTP disabled; cross-process recovery requires reusing the same persistent mail directory.",
         "operationId": "relayEmailTo",
         "parameters": [
           {
@@ -1179,7 +1179,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/APIResponse"
+                  "$ref": "#/components/schemas/RelayAcceptedResponse"
                 },
                 "example": {
                   "code": "RELAY_QUEUED",
@@ -1245,7 +1245,7 @@
           "Relay"
         ],
         "summary": "Get asynchronous relay status",
-        "description": "Returns a queryable relay job. With a persistent mail directory configured, queued jobs are durable and recovered after restart with at-least-once delivery semantics; the default process-specific temporary directory provides only same-process status. `attempts` is always present and `nextAttemptAt` appears while a retry is scheduled. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted.",
+        "description": "Returns a queryable relay job. With a persistent mail directory configured, queued jobs are durable and recovered after restart with at-least-once delivery semantics; the default process-specific temporary directory provides only same-process status. `attempts` is always present and `nextAttemptAt` appears while a retry is scheduled. Completed jobs expire after 24 hours, but the 1000-job capacity may evict them earlier after a one-minute post-completion protection window. Active jobs are never evicted. All Relay entry points share this task owner. succeeded means downstream SMTP DATA acceptance, not inbox delivery. Automatic handoff and summary repair do not resend accepted tasks. Recovery also runs with HTTP disabled; cross-process recovery requires reusing the same persistent mail directory.",
         "operationId": "getRelayJob",
         "parameters": [
           {
@@ -1258,7 +1258,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/APIResponse"
+                  "$ref": "#/components/schemas/RelayStatusResponse"
                 },
                 "example": {
                   "code": "RELAY_STATUS",
@@ -2180,7 +2180,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/RelayJobList"
                 }
               }
             }
@@ -2220,7 +2220,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "$ref": "#/components/schemas/RelayAcceptedResponse"
                 }
               }
             }
@@ -2745,6 +2745,19 @@
             "items": {
               "$ref": "#/components/schemas/Address"
             }
+          },
+          "relayedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Most recent downstream SMTP DATA acceptance, retained independently of bounded task history. Omitted until a successful relay; does not prove final inbox placement."
+          },
+          "relayedTo": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string"
+            },
+            "description": "Actual recipients of the most recent accepted relay transaction."
           },
           "to": {
             "type": [
@@ -3850,6 +3863,161 @@
           }
         },
         "additionalProperties": false
+      },
+      "RelayJob": {
+        "type": "object",
+        "required": [
+          "id",
+          "emailId",
+          "status",
+          "attempts",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32}$"
+          },
+          "emailId": {
+            "type": "string"
+          },
+          "relayTo": {
+            "type": "string"
+          },
+          "confirmedRecipients": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Frozen downstream SMTP envelope recipients, reused across retries."
+          },
+          "recipientsConfirmed": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "succeeded",
+              "failed"
+            ],
+            "description": "succeeded means downstream SMTP DATA acceptance, not inbox delivery."
+          },
+          "attempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "errorCategory": {
+            "type": "string",
+            "description": "Bounded category; raw downstream errors are omitted."
+          },
+          "origin": {
+            "type": "string",
+            "description": "Entry point that created this task, such as native, auto, legacy, or maildev."
+          },
+          "key": {
+            "type": "string",
+            "description": "Optional internal idempotency key for durable handoff; not a client-supplied request key."
+          },
+          "receiptPending": {
+            "type": "boolean",
+            "description": "Downstream accepted the message; per-email success summary or terminal record persistence still needs repair. Repair does not resend SMTP."
+          },
+          "handoffPending": {
+            "type": "boolean",
+            "description": "Automatic task is durably queued but held until its submitted intent acknowledgement is durable. No SMTP dispatch while held."
+          }
+        },
+        "additionalProperties": false
+      },
+      "RelayAcceptedResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "type": "object",
+            "required": [
+              "job",
+              "statusUrl"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/RelayJob"
+              },
+              "statusUrl": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "RelayStatusResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "data"
+        ],
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RelayJob"
+          }
+        }
+      },
+      "RelayJobList": {
+        "type": "object",
+        "required": [
+          "jobs",
+          "more_possible",
+          "persistence_healthy"
+        ],
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RelayJob"
+            }
+          },
+          "more_possible": {
+            "type": "boolean"
+          },
+          "persistence_healthy": {
+            "type": "boolean"
+          }
+        }
       }
     },
     "responses": {

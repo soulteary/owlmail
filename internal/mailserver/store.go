@@ -103,8 +103,16 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 			return fmt.Errorf("persist email metadata: %w", err)
 		}
 	}
-	hasTransactionalHandoff := ms.hasSynchronousListener("new")
-	handoffErr := ms.emitSynchronous("new", storedEmail)
+	autoPrepared := false
+	var handoffErr error
+	automatic := ms.automaticRelay.Load()
+	if persistMetadata && !existed && automatic != nil {
+		autoPrepared, handoffErr = automatic.prepare(storedEmail)
+	}
+	hasTransactionalHandoff := ms.hasSynchronousListener("new") || autoPrepared
+	if handoffErr == nil {
+		handoffErr = ms.emitSynchronous("new", storedEmail)
+	}
 	if handoffErr == nil && hasTransactionalHandoff {
 		if finalizeRollbackFence {
 			handoffErr = ms.acceptRollbackFence(id)
@@ -115,6 +123,11 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 		handoffErr = ms.completeLocalRollbackFence(id)
 	}
 	if handoffErr != nil {
+		if autoPrepared {
+			if err := automatic.abort(id); err != nil {
+				handoffErr = errors.Join(handoffErr, fmt.Errorf("abort automatic relay intent: %w", err))
+			}
+		}
 		var rollbackErr error
 		if persistMetadata {
 			if existed {
@@ -155,15 +168,10 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	// commit both succeed.
 	ms.emitAsynchronous("new", storedEmail)
 
-	// Auto relay if enabled
-	if ms.IsAutoRelayEnabled() {
-		if err := ms.RelayMail(cloneEmail(storedEmail), true, func(err error) {
-			if err != nil {
-				common.Error("Error when auto-relaying email: %v", err)
-			}
-		}); err != nil {
-			common.Error("Error when initiating auto-relay: %v", err)
-		}
+	// Delivery promotion runs after this transaction releases its source lock.
+	// Restoring or reloading EML never creates automatic delivery intents.
+	if autoPrepared {
+		automatic.notify()
 	}
 
 	return nil
@@ -352,7 +360,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	}
 	ms.storageTransactionMutex.Lock()
 	defer ms.storageTransactionMutex.Unlock()
-	if ms.protectedEmailSources[id] > 0 {
+	if ms.protectedEmailSources[id] > 0 || ms.pendingAutomaticRelay(id) {
 		return ErrEmailSourceInUse
 	}
 	ms.storeMutex.RLock()
@@ -396,7 +404,7 @@ func (ms *MailServer) DeleteEmail(id string) error {
 func (ms *MailServer) DeleteAllEmail() error {
 	ms.storageTransactionMutex.Lock()
 	defer ms.storageTransactionMutex.Unlock()
-	if len(ms.protectedEmailSources) > 0 {
+	if len(ms.protectedEmailSources) > 0 || ms.pendingAutomaticRelay("") {
 		return ErrEmailSourceInUse
 	}
 	common.Log("Deleting all email")
@@ -459,7 +467,7 @@ func (ms *MailServer) DeleteAllEmail() error {
 					continue
 				}
 				for _, metadataEntry := range metadataEntries {
-					if metadataEntry.IsDir() && (metadataEntry.Name() == relayJobMetadataDirectoryName || metadataEntry.Name() == "webhook-history") {
+					if metadataEntry.IsDir() && (metadataEntry.Name() == relayJobMetadataDirectoryName || metadataEntry.Name() == relayIntentMetadataDirectoryName || metadataEntry.Name() == "webhook-history") {
 						continue
 					}
 					metadataPath := filepath.Join(path, metadataEntry.Name())
@@ -965,8 +973,9 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		if parseErr == nil && closeErr == nil {
 			persistRestoredMetadata := !metadataLoaded || metadata.Version < currentMetadataVersion
 			if metadataLoaded {
+				restoreRelayReceipt(email, metadata)
 				if metadata.Envelope != nil {
-					envelope = cloneEnvelope(metadata.Envelope)
+					envelope = restoreMetadataEnvelope(metadata)
 				}
 				if metadataErr := restoreAttachmentMetadata(email, metadata); metadataErr != nil {
 					loadErrors = append(loadErrors, fmt.Errorf("restore attachment metadata for %s: %w", id, metadataErr))

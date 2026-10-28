@@ -16,6 +16,8 @@ type Email struct {
 	From          []*mail.Address        `json:"from"`
 	To            []*mail.Address        `json:"to"`
 	ReplyTo       []*mail.Address        `json:"replyTo,omitempty"`
+	RelayedAt     *time.Time             `json:"relayedAt,omitempty"`
+	RelayedTo     []string               `json:"relayedTo,omitempty"`
 	CC            []*mail.Address        `json:"cc"`
 	BCC           []*mail.Address        `json:"bcc"`
 	CalculatedBCC []*mail.Address        `json:"calculatedBcc"`

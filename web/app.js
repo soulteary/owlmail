@@ -26,6 +26,7 @@ const i18n = {
         delete: '删除',
         from: '发件人:',
         replyTo: '回复地址:',
+        relayedTo: '下游已接收:',
         to: '收件人:',
         cc: '抄送:',
         time: '时间:',
@@ -120,6 +121,7 @@ const i18n = {
         delete: 'Delete',
         from: 'From:',
         replyTo: 'Reply-To:',
+        relayedTo: 'Accepted downstream:',
         to: 'To:',
         cc: 'CC:',
         time: 'Time:',
@@ -1757,6 +1759,7 @@ function renderEmailDetail() {
                     <span>${escapeHtml(cc)}</span>
                 ` : ''}
                 ${renderReplyToMetadata(email)}
+                ${renderRelayReceiptMetadata(email)}
                 ${email.run_id ? `<span class="email-detail-meta-label">${t('emailRunID')}</span><code>${escapeHtml(email.run_id)}</code>` : ''}
                 <span class="email-detail-meta-label">${t('time')}</span>
                 <span>${time}</span>
@@ -1765,6 +1768,47 @@ function renderEmailDetail() {
         ${renderEmailContentTabs(email)}
         ${attachments}
     `;
+}
+
+function renderRelayReceiptMetadata(email) {
+    if (!email.relayedAt || !Array.isArray(email.relayedTo) || email.relayedTo.length === 0) return '';
+    const acceptedAt = new Date(email.relayedAt);
+    if (Number.isNaN(acceptedAt.getTime())) return '';
+    const recipients = email.relayedTo.map(String).join(', ');
+    return `<span class="email-detail-meta-label" data-relay-receipt-part>${t('relayedTo')}</span><span data-testid="email-relay-receipt" data-relay-receipt-part>${escapeHtml(recipients)} · <time datetime="${escapeHtmlAttribute(acceptedAt.toISOString())}">${escapeHtml(acceptedAt.toLocaleString())}</time></span>`;
+}
+
+
+async function refreshRelayReceipt(id, completedAt) {
+    const selectedEmail = state.currentEmail;
+    if (selectedEmail?.id !== id) return;
+    const expectedAt = new Date(completedAt).getTime();
+    // Completion can become visible before the success summary is repaired.
+    // Bound this metadata-only wait and stop when the selected detail changes.
+    const attempts = Number.isNaN(expectedAt) ? 1 : 40;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+        if (state.currentEmail !== selectedEmail) return;
+        try {
+            const email = await API.getEmail(id);
+            if (state.currentEmail !== selectedEmail) return;
+            const acceptedAt = new Date(email.relayedAt);
+            const current = email.relayedAt && Array.isArray(email.relayedTo) && email.relayedTo.length > 0
+                && !Number.isNaN(acceptedAt.getTime()) && (Number.isNaN(expectedAt) || acceptedAt.getTime() >= expectedAt);
+            if (current) {
+                if (selectedEmail.relayedAt && new Date(selectedEmail.relayedAt) > acceptedAt) return;
+                selectedEmail.relayedAt = email.relayedAt;
+                selectedEmail.relayedTo = [...email.relayedTo];
+                const metadata = document.querySelector?.('.email-detail-meta');
+                if (!metadata?.insertAdjacentHTML) return;
+                metadata.querySelectorAll('[data-relay-receipt-part]').forEach(node => node.remove());
+                metadata.insertAdjacentHTML('beforeend', renderRelayReceiptMetadata(selectedEmail));
+                return;
+            }
+        } catch (error) {
+            console.warn('Unable to refresh relay receipt:', error);
+        }
+        if (attempt + 1 < attempts) await new Promise(resolve => setTimeout(resolve, 250));
+    }
 }
 
 function renderReplyToMetadata(email) {
@@ -2222,7 +2266,7 @@ async function waitForRelayJob(statusUrl, { signal } = {}) {
             console.warn('Relay status check failed; retrying:', error);
         }
         const current = statusResult && statusResult.data;
-        if (current && (current.status === 'succeeded' || current.status === 'failed')) return current;
+        if (current && (current.status === 'failed' || (current.status === 'succeeded' && !current.receiptPending))) return current;
         await relayWaitOperation(() => new Promise(resolve => setTimeout(resolve, RELAY_STATUS_POLL_INTERVAL_MS)), signal);
     }
 }
@@ -2230,6 +2274,7 @@ function stopRelayWaiting(id) {
     relayWaitControllers.get(id)?.abort('RELAY_WAIT_STOPPED');
 }
 function cacheRelayCompletion(id, completed) {
+    if (completed.status === 'succeeded') void refreshRelayReceipt(id, completed.completedAt);
     const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
     if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
     if (emailTools?.id !== id) return;
@@ -2896,7 +2941,7 @@ async function refreshEmailDeliveries() {
         }
     }
     const tracking = relayTracking.get(tools.id);
-    const terminal = tracking?.jobID && tools.relay?.jobs?.find(job => job.id === tracking.jobID && ['succeeded', 'failed'].includes(job.status));
+    const terminal = tracking?.jobID && tools.relay?.jobs?.find(job => job.id === tracking.jobID && (job.status === 'failed' || (job.status === 'succeeded' && !job.receiptPending)));
     if (terminal) {
         tracking.onCompleted?.(terminal);
         cacheRelayCompletion(tools.id, terminal);

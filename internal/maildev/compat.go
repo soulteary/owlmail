@@ -66,6 +66,8 @@ type Email struct {
 	From          []Address              `json:"from"`
 	To            []Address              `json:"to"`
 	ReplyTo       []Address              `json:"replyTo,omitempty"`
+	RelayedAt     *time.Time             `json:"relayedAt,omitempty"`
+	RelayedTo     []string               `json:"relayedTo,omitempty"`
 	CC            []Address              `json:"cc,omitempty"`
 	BCC           []Address              `json:"bcc,omitempty"`
 	CalculatedBCC []Address              `json:"calculatedBcc"`
@@ -130,6 +132,7 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		From:          addresses(email.From),
 		To:            addresses(email.To),
 		ReplyTo:       addressesOrNil(email.ReplyTo),
+		RelayedTo:     append([]string(nil), email.RelayedTo...),
 		CC:            addressesOrNil(email.CC),
 		BCC:           addressesOrNil(email.BCC),
 		CalculatedBCC: addresses(email.CalculatedBCC),
@@ -140,6 +143,10 @@ func FromEmail(email *types.Email, mailDir string) Email {
 		Envelope: Envelope{
 			To: make([]EnvelopeAddress, 0),
 		},
+	}
+	if email.RelayedAt != nil {
+		acceptedAt := *email.RelayedAt
+		result.RelayedAt = &acceptedAt
 	}
 	if email.Envelope != nil {
 		result.Envelope.From = EnvelopeAddress{Address: email.Envelope.From}
