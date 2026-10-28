@@ -86,7 +86,7 @@ func TestRelayQueueRecoversSMTP4xxButDoesNotRetry5xx(t *testing.T) {
 			}
 			deadline := time.Now().Add(4 * time.Second)
 			for time.Now().Before(deadline) {
-				job, _ := api.relayJobs.get(accepted.Data.Job.ID)
+				job, _ := api.relayService.Get(accepted.Data.Job.ID)
 				if job.CompletedAt != nil {
 					if code == 451 && (job.Status != relayJobSucceeded || job.Attempts != 3 || backend.attempts.Load() != 3) {
 						t.Fatal(job, backend.attempts.Load())

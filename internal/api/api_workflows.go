@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/gofiber/fiber/v3"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/webhook"
 )
 
@@ -29,43 +30,25 @@ func (api *API) listRelayJobs(c fiber.Ctx) error {
 	if status != "" && status != relayJobQueued && status != relayJobFailed && status != relayJobSucceeded {
 		return c.Status(400).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Invalid status"))
 	}
-	store := api.relayJobs
-	store.mu.Lock()
-	defer store.mu.Unlock()
-	store.pruneLocked(store.now().UTC())
-	jobs := make([]relayJob, 0)
-	more := false
-	for i := len(store.order) - 1; i >= 0; i-- {
-		j := store.jobs[store.order[i]]
-		if status != "" && j.Status != status || c.Query("email_id") != "" && j.EmailID != c.Query("email_id") {
-			continue
-		}
-		if len(jobs) == limit {
-			more = true
-			break
-		}
-		jobs = append(jobs, j)
-	}
-	return c.JSON(fiber.Map{"jobs": jobs, "more_possible": more, "persistence_healthy": api.relayJobsPersistenceErr == nil && store.lastPersistenceErr == nil})
+	jobs, more := api.relayService.List(status, c.Query("email_id"), limit)
+	return c.JSON(fiber.Map{"jobs": jobs, "more_possible": more, "persistence_healthy": api.relayService.PersistenceError() == nil})
 }
 func (api *API) replayRelayJob(c fiber.Ctx) error {
-	job, ok := api.relayJobs.get(c.Params("jobID"))
-	if !ok {
-		return c.Status(404).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Relay job not found"))
+	job, err := api.relayService.Retry(c.Params("jobID"))
+	if err != nil {
+		if errors.Is(err, relay.ErrNotFound) {
+			return c.Status(404).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Relay job not found"))
+		}
+		if errors.Is(err, relay.ErrPersistence) || errors.Is(err, relay.ErrCapacity) {
+			return relaySubmitError(c, err)
+		}
+		return c.Status(409).JSON(ErrorResponse(ErrorCodeRelayFailed, err.Error()))
 	}
-	if job.Status != relayJobFailed {
-		return c.Status(409).JSON(ErrorResponse(ErrorCodeRelayFailed, "Only failed relay jobs may be replayed"))
-	}
-	var recipients []string
-	if job.Confirmed {
-		recipients = job.Recipients
-	}
-	err := api.enqueueRelaySource(c, job.EmailID, job.RelayTo, recipients)
-	if c.Response().StatusCode() == fiber.StatusBadRequest {
-		c.Status(fiber.StatusConflict)
-	}
-	return err
+	statusURL := api.route("/api/v1/relay-jobs/" + job.ID)
+	c.Set(fiber.HeaderLocation, statusURL)
+	return c.Status(202).JSON(SuccessResponse("RELAY_QUEUED", "Relay request accepted", fiber.Map{"job": job, "statusUrl": statusURL}))
 }
+
 func (api *API) listWebhookDeliveries(c fiber.Ctx) error {
 	limit, err := workflowLimit(c)
 	if err != nil {

@@ -401,6 +401,9 @@ func (ms *MailServer) cleanupRollbackFencedEmail(id string) error {
 	if err := ms.deleteEmailMetadata(id); err != nil {
 		cleanupErrors = append(cleanupErrors, err)
 	}
+	if err := ms.removeAutomaticRelayIntent(id); err != nil {
+		cleanupErrors = append(cleanupErrors, err)
+	}
 	if len(cleanupErrors) != 0 {
 		return errors.Join(cleanupErrors...)
 	}

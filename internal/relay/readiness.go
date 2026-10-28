@@ -1,4 +1,4 @@
-package api
+package relay
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 // The queue owner maintains this cache independently of the store mutex. A
 // blocked filesystem operation must never block HTTP or runtime snapshot reads.
 type relayJobReadinessMonitor struct {
-	api       *API
+	service   *Service
 	directory string
 	loadErr   error
 	check     func(string) error
@@ -30,18 +30,18 @@ type relayJobReadinessMonitor struct {
 	closeOnce           sync.Once
 }
 
-func newRelayJobReadinessMonitor(api *API) *relayJobReadinessMonitor {
+func newRelayJobReadinessMonitor(service *Service) *relayJobReadinessMonitor {
 	monitor := &relayJobReadinessMonitor{
-		api: api, directory: api.relayJobs.directory, loadErr: api.relayJobsPersistenceErr,
+		service: service, directory: service.store.directory, loadErr: service.loadErr,
 		check:   checkRelayJobDirectory,
 		storage: attachmentstore.HealthStatus{State: attachmentstore.HealthChecking, ErrorCategory: attachmentstore.HealthErrorPending},
 		stop:    make(chan struct{}),
 	}
-	api.relayJobs.mu.Lock()
-	api.relayJobs.readiness = monitor
-	monitor.persistenceFailures = len(api.relayJobs.persistenceErrors)
-	api.relayJobs.refreshReadinessCapacityLocked()
-	api.relayJobs.mu.Unlock()
+	service.store.mu.Lock()
+	service.store.readiness = monitor
+	monitor.persistenceFailures = len(service.store.persistenceErrors)
+	service.store.refreshReadinessCapacityLocked()
+	service.store.mu.Unlock()
 	return monitor
 }
 
@@ -83,7 +83,7 @@ func (store *relayJobStore) refreshReadinessCapacityLocked() {
 	var availableAt time.Time
 	if blocked && store.limit > 0 {
 		for _, job := range store.jobs {
-			if job.CompletedAt != nil && (availableAt.IsZero() || job.retainUntil.Before(availableAt)) {
+			if job.CompletedAt != nil && !job.ReceiptPending && (availableAt.IsZero() || job.retainUntil.Before(availableAt)) {
 				availableAt = job.retainUntil
 				if availableAt.IsZero() {
 					availableAt = time.Now().Add(-time.Nanosecond)
@@ -119,7 +119,7 @@ func (monitor *relayJobReadinessMonitor) run() {
 			return
 		default:
 		}
-		configuration := monitor.api.mailServer.GetOutgoingConfig()
+		configuration := monitor.service.mailbox.GetOutgoingConfig()
 		if configuration != nil && configuration.Host != "" && (lastProbe.IsZero() || time.Since(lastProbe) >= 30*time.Second) {
 			monitor.probe()
 			lastProbe = time.Now()
@@ -148,7 +148,7 @@ func (monitor *relayJobReadinessMonitor) probe() {
 	if err == nil {
 		// Retry the authoritative in-memory records, not a new queue owner.
 		// A successful scratch write alone must not erase an unresolved job error.
-		store := monitor.api.relayJobs
+		store := monitor.service.store
 		store.mu.Lock()
 		select {
 		case <-monitor.stop:

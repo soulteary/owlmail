@@ -1,4 +1,4 @@
-package api
+package relay
 
 import (
 	"encoding/json"
@@ -11,12 +11,25 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/types"
 )
+
+type persistedRelayJob struct {
+	Job
+	Envelope        *types.Envelope `json:"envelope,omitempty"`
+	SMTPTransaction bool            `json:"smtpTransaction,omitempty"`
+}
 
 const maximumRelayJobFileBytes = 64 << 10
 
 func newPersistentRelayJobStore(mailDirectory string) (*relayJobStore, error) {
+	return newPersistentRelayJobStoreWithOptions(mailDirectory, Options{})
+}
+
+func newPersistentRelayJobStoreWithOptions(mailDirectory string, options Options) (*relayJobStore, error) {
 	store := newRelayJobStore()
+	applyOptions(store, options)
 	if strings.TrimSpace(mailDirectory) == "" {
 		return store, nil
 	}
@@ -75,7 +88,7 @@ func (store *relayJobStore) load() error {
 	now := store.now().UTC()
 	queuedByEmail := make(map[string]string)
 	for _, job := range jobs {
-		if job.CompletedAt != nil && now.Sub(*job.CompletedAt) > store.ttl {
+		if job.CompletedAt != nil && !job.ReceiptPending && now.Sub(*job.CompletedAt) > store.ttl {
 			if err := store.removePersistedLocked(job.ID); err != nil {
 				return fmt.Errorf("remove expired relay job %s: %w", job.ID, err)
 			}
@@ -132,12 +145,13 @@ func validateRelayJobPersistenceBudget(job relayJob) error {
 	worstTimestamp := time.Date(9999, time.December, 31, 23, 59, 59, 999999999, time.UTC)
 	worst := job
 	worst.Status = relayJobFailed
+	worst.ReceiptPending = true
 	worst.ErrorCategory = "configuration_changed"
 	worst.UpdatedAt = worstTimestamp
 	worst.CompletedAt = &worstTimestamp
 	worst.NextAttemptAt = &worstTimestamp
 	worst.Attempts = defaultRelayMaxAttempts
-	data, err := json.Marshal(worst)
+	data, err := json.Marshal(diskJob(worst))
 	if err != nil {
 		return fmt.Errorf("%w: encode relay job: %v", errRelayJobTooLarge, err)
 	}
@@ -176,7 +190,7 @@ func (store *relayJobStore) persistJobLocked(job relayJob) error {
 	if store.directory == "" {
 		return nil
 	}
-	data, err := json.Marshal(job)
+	data, err := json.Marshal(diskJob(job))
 	if err != nil {
 		return fmt.Errorf("encode relay job: %w", err)
 	}
@@ -256,7 +270,7 @@ func (store *relayJobStore) queued() []relayJob {
 	result := make([]relayJob, 0)
 	for _, id := range store.order {
 		if job := store.jobs[id]; job.Status == relayJobQueued {
-			result = append(result, job)
+			result = append(result, cloneJob(job))
 		}
 	}
 	return result
@@ -286,8 +300,13 @@ func readPersistedRelayJobs(directory string) ([]relayJob, error) {
 		}
 		decoder := json.NewDecoder(io.LimitReader(file, maximumRelayJobFileBytes+1))
 		decoder.DisallowUnknownFields()
-		var job relayJob
-		decodeErr := decoder.Decode(&job)
+		var record persistedRelayJob
+		decodeErr := decoder.Decode(&record)
+		job := record.Job
+		job.Envelope = record.Envelope
+		if job.Envelope != nil {
+			job.Envelope.SMTPTransaction = record.SMTPTransaction
+		}
 		if decodeErr == nil {
 			var extra any
 			if trailingErr := decoder.Decode(&extra); trailingErr != io.EOF {
@@ -307,4 +326,12 @@ func readPersistedRelayJobs(directory string) ([]relayJob, error) {
 		jobs = append(jobs, job)
 	}
 	return jobs, nil
+}
+
+func diskJob(job Job) persistedRelayJob {
+	record := persistedRelayJob{Job: job, Envelope: job.Envelope}
+	if job.Envelope != nil {
+		record.SMTPTransaction = job.Envelope.SMTPTransaction
+	}
+	return record
 }

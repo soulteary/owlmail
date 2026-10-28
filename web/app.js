@@ -26,6 +26,7 @@ const i18n = {
         delete: '删除',
         from: '发件人:',
         replyTo: '回复地址:',
+        relayedTo: '下游已接收:',
         to: '收件人:',
         cc: '抄送:',
         time: '时间:',
@@ -120,6 +121,7 @@ const i18n = {
         delete: 'Delete',
         from: 'From:',
         replyTo: 'Reply-To:',
+        relayedTo: 'Accepted downstream:',
         to: 'To:',
         cc: 'CC:',
         time: 'Time:',
@@ -1757,6 +1759,7 @@ function renderEmailDetail() {
                     <span>${escapeHtml(cc)}</span>
                 ` : ''}
                 ${renderReplyToMetadata(email)}
+                ${renderRelayReceiptMetadata(email)}
                 ${email.run_id ? `<span class="email-detail-meta-label">${t('emailRunID')}</span><code>${escapeHtml(email.run_id)}</code>` : ''}
                 <span class="email-detail-meta-label">${t('time')}</span>
                 <span>${time}</span>
@@ -1765,6 +1768,34 @@ function renderEmailDetail() {
         ${renderEmailContentTabs(email)}
         ${attachments}
     `;
+}
+
+function renderRelayReceiptMetadata(email) {
+    if (!email.relayedAt || !Array.isArray(email.relayedTo) || email.relayedTo.length === 0) return '';
+    const acceptedAt = new Date(email.relayedAt);
+    if (Number.isNaN(acceptedAt.getTime())) return '';
+    const recipients = email.relayedTo.map(String).join(', ');
+    return `<span class="email-detail-meta-label" data-relay-receipt-part>${t('relayedTo')}</span><span data-testid="email-relay-receipt" data-relay-receipt-part>${escapeHtml(recipients)} · <time datetime="${escapeHtmlAttribute(acceptedAt.toISOString())}">${escapeHtml(acceptedAt.toLocaleString())}</time></span>`;
+}
+
+
+async function refreshRelayReceipt(id) {
+    if (state.currentEmail?.id !== id) return;
+    try {
+        const email = await API.getEmail(id);
+        if (state.currentEmail?.id !== id || !email.relayedAt || !Array.isArray(email.relayedTo)) return;
+        const acceptedAt = new Date(email.relayedAt);
+        if (Number.isNaN(acceptedAt.getTime())) return;
+        if (state.currentEmail.relayedAt && new Date(state.currentEmail.relayedAt) > acceptedAt) return;
+        state.currentEmail.relayedAt = email.relayedAt;
+        state.currentEmail.relayedTo = [...email.relayedTo];
+        const metadata = document.querySelector?.('.email-detail-meta');
+        if (!metadata?.insertAdjacentHTML) return;
+        metadata.querySelectorAll('[data-relay-receipt-part]').forEach(node => node.remove());
+        metadata.insertAdjacentHTML('beforeend', renderRelayReceiptMetadata(state.currentEmail));
+    } catch (error) {
+        console.warn('Unable to refresh relay receipt:', error);
+    }
 }
 
 function renderReplyToMetadata(email) {
@@ -2230,6 +2261,7 @@ function stopRelayWaiting(id) {
     relayWaitControllers.get(id)?.abort('RELAY_WAIT_STOPPED');
 }
 function cacheRelayCompletion(id, completed) {
+    if (completed.status === 'succeeded') void refreshRelayReceipt(id);
     const staleRefreshes = new Set([...deliveryRefreshesInFlight].filter(tools => tools.id === id));
     if (completed.id && staleRefreshes.size) completedRelayJobs.set(completed.id, { refreshes: staleRefreshes, job: completed });
     if (emailTools?.id !== id) return;

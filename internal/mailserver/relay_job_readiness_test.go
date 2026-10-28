@@ -27,6 +27,9 @@ func TestRelayJobReadinessSnapshotUsesEnabledOwnersFreshCache(t *testing.T) {
 	if err := server.SetOutgoingConfig(configuration); err != nil {
 		t.Fatal(err)
 	}
+	// Dynamic outgoing configuration registers the real durable owner; this
+	// test substitutes its cache provider after initialization.
+	server.SetRelayJobReadinessProvider(provider)
 	server.smtpReady.Store(true)
 	server.probeMailStorage()
 	server.probeOutgoingReadiness(context.Background())

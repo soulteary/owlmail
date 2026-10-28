@@ -539,7 +539,9 @@ func persistMigrationMetadata(mailDir string, metadata emailMetadata) error {
 	email := &Email{
 		ID:          metadata.ID,
 		Read:        metadata.Read,
-		Envelope:    cloneEnvelope(metadata.Envelope),
+		Envelope:    restoreMetadataEnvelope(metadata),
+		RelayedAt:   cloneTime(metadata.RelayedAt),
+		RelayedTo:   append([]string(nil), metadata.RelayedTo...),
 		Attachments: make([]*Attachment, 0, len(metadata.Attachments)),
 	}
 	for _, saved := range metadata.Attachments {

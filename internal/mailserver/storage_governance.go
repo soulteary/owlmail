@@ -78,12 +78,15 @@ func (ms *MailServer) GetMailboxMetrics() MailboxMetrics {
 }
 
 type emailMetadata struct {
-	Version     int                  `json:"version"`
-	ID          string               `json:"id"`
-	Read        bool                 `json:"read"`
-	Sequence    time.Time            `json:"sequence"`
-	Envelope    *Envelope            `json:"envelope,omitempty"`
-	Attachments []attachmentMetadata `json:"attachments,omitempty"`
+	Version         int                  `json:"version"`
+	ID              string               `json:"id"`
+	Read            bool                 `json:"read"`
+	Sequence        time.Time            `json:"sequence"`
+	Envelope        *Envelope            `json:"envelope,omitempty"`
+	SMTPTransaction bool                 `json:"smtpTransaction,omitempty"`
+	Attachments     []attachmentMetadata `json:"attachments,omitempty"`
+	RelayedAt       *time.Time           `json:"relayedAt,omitempty"`
+	RelayedTo       []string             `json:"relayedTo,omitempty"`
 }
 
 type attachmentMetadata struct {
@@ -298,8 +301,11 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 		Read:        email.Read,
 		Sequence:    receivedAt,
 		Envelope:    cloneEnvelope(email.Envelope),
+		RelayedAt:   cloneTime(email.RelayedAt),
+		RelayedTo:   append([]string(nil), email.RelayedTo...),
 		Attachments: make([]attachmentMetadata, 0, len(email.Attachments)),
 	}
+	metadata.SMTPTransaction = email.Envelope != nil && email.Envelope.SMTPTransaction
 	for _, attachment := range email.Attachments {
 		if attachment == nil {
 			continue
@@ -357,6 +363,12 @@ func (ms *MailServer) loadEmailMetadata(id string) (emailMetadata, error) {
 	if (metadata.Version < 1 || metadata.Version > currentMetadataVersion) || metadata.ID != id {
 		return emailMetadata{}, fmt.Errorf("invalid metadata for %s", id)
 	}
+	if metadata.RelayedAt != nil && (metadata.RelayedAt.IsZero() || len(metadata.RelayedTo) == 0) {
+		return emailMetadata{}, fmt.Errorf("invalid relay receipt metadata for %s", id)
+	}
+	if metadata.RelayedAt == nil && len(metadata.RelayedTo) > 0 {
+		return emailMetadata{}, fmt.Errorf("relay recipients without acceptance time for %s", id)
+	}
 	for _, attachment := range metadata.Attachments {
 		if err := validateAttachmentFilename(attachment.GeneratedFileName); err != nil {
 			return emailMetadata{}, fmt.Errorf("invalid attachment metadata for %s: %w", id, err)
@@ -408,4 +420,13 @@ func syncStorageDirectory(path string) error {
 	}
 	defer func() { _ = dir.Close() }()
 	return dir.Sync()
+}
+
+// restoreMetadataEnvelope restores internal SMTP provenance omitted by Envelope's public JSON.
+func restoreMetadataEnvelope(metadata emailMetadata) *Envelope {
+	envelope := cloneEnvelope(metadata.Envelope)
+	if envelope != nil {
+		envelope.SMTPTransaction = metadata.SMTPTransaction
+	}
+	return envelope
 }

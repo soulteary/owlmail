@@ -84,6 +84,9 @@ func (ms *MailServer) cleanupDeletionFencedEmail(id string) error {
 	if err := ms.deleteEmailMetadata(id); err != nil {
 		cleanupErrors = append(cleanupErrors, fmt.Errorf("delete email metadata: %w", err))
 	}
+	if err := ms.removeAutomaticRelayIntent(id); err != nil {
+		cleanupErrors = append(cleanupErrors, fmt.Errorf("delete automatic relay intent: %w", err))
+	}
 	if err := syncDirectoryIfExists(filepath.Join(ms.mailDir, metadataDirectoryName)); err != nil {
 		cleanupErrors = append(cleanupErrors, fmt.Errorf("sync email metadata directory: %w", err))
 	}

@@ -522,6 +522,7 @@ test('manual relay confirms only recipients allowed by outgoing rules', async ()
                 preflightAttempts++;
                 return jsonResponse({ data: { recipients: preflightAttempts === 1 ? ['allowed@example.test'] : [] } });
             }
+            if (String(url).endsWith('/emails/mail-1')) return jsonResponse({ id: 'mail-1', relayedAt: '2026-10-29T01:00:00Z', relayedTo: ['allowed@example.test'] });
             return options && options.method === 'POST'
                 ? jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } })
                 : jsonResponse({ data: { id: 'job-1', status: 'succeeded' } });
@@ -539,11 +540,12 @@ test('manual relay confirms only recipients allowed by outgoing rules', async ()
 
     assert.match(harness.confirmations[0], /allowed@example\.test/);
     assert.doesNotMatch(harness.confirmations[0], /blocked@example\.test/);
-    assert.equal(harness.fetchRequests.length, 3);
+    assert.equal(harness.fetchRequests.length, 4);
+    assert.ok(harness.fetchRequests[3].url.endsWith('/emails/mail-1'));
     assert.deepEqual(JSON.parse(harness.fetchRequests[1].options.body).confirmedRecipients, ['allowed@example.test']);
 
     await harness.run(`relayCurrentEmail('mail-1')`);
-    assert.equal(harness.fetchRequests.length, 4);
+    assert.equal(harness.fetchRequests.length, 5);
     assert.match(harness.alerts.at(-1), /relay rules exclude every/);
 });
 
@@ -557,6 +559,7 @@ test('manual relay retries transient status failures', async () => {
             if (options && options.method === 'POST') {
                 return jsonResponse({ data: { job: { id: 'job-1', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/job-1' } });
             }
+            if (String(url).endsWith('/emails/mail-1')) return jsonResponse({ id: 'mail-1', relayedAt: '2026-10-29T01:00:00Z', relayedTo: ['recipient@example.test'] });
             statusAttempts++;
             if (statusAttempts === 1) {
                 return {
@@ -1137,6 +1140,7 @@ test('late verification response cannot overwrite another selected message', asy
 
 test('delivery panels keep partial errors visible and require explicit retry confirmation', async () => {
     const harness = createHarness({ fetchImpl: async (url, options) => {
+        if (String(url).endsWith('/emails/mail-1')) return jsonResponse({ id: 'mail-1', relayedAt: '2026-10-29T01:00:00Z', relayedTo: ['actual@example.test'] });
         if (options?.method === 'POST') return jsonResponse({ data: { job: { id: 'new-job', status: 'queued' }, statusUrl: '/api/v1/relay-jobs/new-job' } });
         if (String(url).endsWith('/relay-jobs/new-job')) return jsonResponse({ data: { id: 'new-job', status: 'succeeded' } });
         if (String(url).includes('/relay-jobs')) return jsonResponse({ jobs: [{ id: 'job-1', status: 'failed', attempts: 3, errorCategory: 'temporary' }], persistence_healthy: false });
@@ -1152,7 +1156,7 @@ test('delivery panels keep partial errors visible and require explicit retry con
     assert.equal(harness.fetchRequests[2].url, 'http://owlmail.test/api/v1/relay-jobs/job-1/retry');
     assert.equal(harness.run('emailTools.notice'), '');
     await harness.run(`retryEmailWorkflow('relay', 0)`);
-    assert.equal(harness.fetchRequests.length, 4);
+    assert.equal(harness.fetchRequests.length, 5);
     await harness.run('refreshEmailDeliveries()');
     assert.equal(harness.run('emailTools.notice'), '');
     assert.equal(harness.run("document.getElementById('emailDeliveriesPanel').outerHTML").includes('Retry accepted'), false);

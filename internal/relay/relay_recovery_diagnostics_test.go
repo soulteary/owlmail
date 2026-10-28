@@ -1,4 +1,4 @@
-package api
+package relay
 
 import (
 	"fmt"
@@ -18,14 +18,14 @@ func TestOfflineRelayInspectionPreservesExpiredRecordsAndValidatesSources(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := InspectRelayRecovery(dir)
+	report, err := InspectRecovery(dir)
 	if err != nil || report.Pending != 1 || report.MissingSources != 1 {
 		t.Fatal(report, err)
 	}
 	if err = os.WriteFile(filepath.Join(dir, "retained-source.eml"), []byte("Subject: test\r\n\r\nhello"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	report, err = InspectRelayRecovery(dir)
+	report, err = InspectRecovery(dir)
 	if err != nil || report.MissingSources != 0 {
 		t.Fatal(report, err)
 	}
@@ -44,7 +44,7 @@ func TestOfflineRelayInspectionPreservesExpiredRecordsAndValidatesSources(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err = InspectRelayRecovery(dir)
+	report, err = InspectRecovery(dir)
 	if err != nil || report.Completed != 1 {
 		t.Fatal(report, err)
 	}
@@ -55,7 +55,7 @@ func TestOfflineRelayInspectionPreservesExpiredRecordsAndValidatesSources(t *tes
 	if err = os.WriteFile(path, append(before, []byte(` {"extra":true}`)...), 0600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err = InspectRelayRecovery(dir); err == nil {
+	if _, err = InspectRecovery(dir); err == nil {
 		t.Fatal("accepted trailing JSON")
 	}
 	if _, err = newPersistentRelayJobStore(dir); err == nil {
@@ -64,7 +64,7 @@ func TestOfflineRelayInspectionPreservesExpiredRecordsAndValidatesSources(t *tes
 }
 func TestOfflineRelayInspectionDoesNotCreateMetadata(t *testing.T) {
 	dir := t.TempDir()
-	report, err := InspectRelayRecovery(dir)
+	report, err := InspectRecovery(dir)
 	if err != nil || report.Pending != 0 {
 		t.Fatal(report, err)
 	}
@@ -86,7 +86,7 @@ func TestOfflineRelayInspectionExcludesExpiredRecordsFromCapacity(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
-	report, err := InspectRelayRecovery(dir)
+	report, err := InspectRecovery(dir)
 	if err != nil || report.Completed != defaultRelayJobLimit+1 {
 		t.Fatal(report, err)
 	}

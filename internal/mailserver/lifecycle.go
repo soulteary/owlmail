@@ -133,6 +133,11 @@ func (ms *MailServer) ListenWithReady(ready func()) error {
 		stopRuntime := ms.startRuntimeReadiness()
 		defer stopRuntime()
 	}
+	if !ms.deferRelayRecovery && (ms.relayService.Load() != nil || ms.needsRelayInitialization()) {
+		if err := ms.StartRelayRecovery(); err != nil {
+			return err
+		}
+	}
 	if ready != nil {
 		ready()
 	}

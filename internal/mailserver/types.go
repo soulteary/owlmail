@@ -12,6 +12,7 @@ import (
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/outgoing"
+	"github.com/soulteary/owlmail/internal/relay"
 	"github.com/soulteary/owlmail/internal/types"
 	"github.com/soulteary/owlmail/internal/webhook"
 )
@@ -75,6 +76,9 @@ type ServerOptions struct {
 	// AllowEphemeralPort makes an explicit SMTP port zero bind an OS-selected
 	// port. Legacy constructors and zero-valued options keep the default port.
 	AllowEphemeralPort bool
+	// DeferRelayRecovery keeps durable delivery paused until the application has
+	// bound every required listener. Standalone SMTP callers leave it false.
+	DeferRelayRecovery bool
 	// ReadOnly requires an existing mail directory and prevents constructor
 	// writes. It is used by observer processes such as the MCP stdio bridge.
 	ReadOnly         bool
@@ -118,6 +122,12 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	readOnly                bool
+	deferRelayRecovery      bool
+	relayInitOnce           sync.Once
+	relayInitErr            error
+	relayService            atomic.Pointer[relay.Service]
+	automaticRelay          atomic.Pointer[automaticRelayManager]
 	runtimeReadiness        bool
 	smtpReady               atomic.Bool
 	smtpsReady              atomic.Bool

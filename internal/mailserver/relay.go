@@ -115,6 +115,13 @@ func waitRelayResult(ctx context.Context, result <-chan error) error {
 
 // SetOutgoingConfig sets the outgoing mail configuration
 func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) error {
+	// Initialize before publishing an enabled configuration so a concurrent
+	// SMTP commit cannot miss its durable automatic handoff manager.
+	if config != nil && config.Host != "" {
+		if err := ms.InitializeRelayService(); err != nil {
+			return err
+		}
+	}
 	ms.outgoingMutex.Lock()
 	defer ms.outgoingMutex.Unlock()
 	if ms.outgoingClosed {

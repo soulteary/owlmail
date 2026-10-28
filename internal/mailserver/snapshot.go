@@ -1,6 +1,8 @@
 package mailserver
 
 import (
+	"time"
+
 	"github.com/emersion/go-message/mail"
 	"github.com/soulteary/owlmail/internal/types"
 )
@@ -14,6 +16,8 @@ func cloneEmail(email *types.Email) *types.Email {
 	}
 
 	cloned := *email
+	cloned.RelayedAt = cloneTime(email.RelayedAt)
+	cloned.RelayedTo = append([]string(nil), email.RelayedTo...)
 	cloned.From = cloneAddresses(email.From)
 	cloned.To = cloneAddresses(email.To)
 	cloned.ReplyTo = cloneAddresses(email.ReplyTo)
@@ -99,4 +103,12 @@ func cloneHeaderValue(value interface{}) interface{} {
 	default:
 		return typed
 	}
+}
+
+func cloneTime(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	copy := *value
+	return &copy
 }
