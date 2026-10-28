@@ -372,6 +372,15 @@ func (s *Service) dispatch() {
 			s.finish(job, err)
 			continue
 		}
+		job, err = s.freezeRecoveredTargets(job, email)
+		if err != nil {
+			if errors.Is(err, ErrPersistence) {
+				s.deactivate(job.ID)
+			} else {
+				s.finish(job, err)
+			}
+			continue
+		}
 		previous := job
 		job, err = s.store.beginAttempt(job.ID)
 		if err != nil {
@@ -406,6 +415,46 @@ func (s *Service) dispatch() {
 		}
 	}
 }
+
+// freezeRecoveredTargets upgrades older queue records before SMTP admission.
+// Their original format omitted recipients and envelope unless the caller
+// confirmed targets. The receipt must use the exact targets admitted here.
+func (s *Service) freezeRecoveredTargets(job Job, email *types.Email) (Job, error) {
+	if len(job.Recipients) != 0 && job.Envelope != nil {
+		return job, nil
+	}
+	candidate := cloneJob(job)
+	if len(candidate.Recipients) == 0 {
+		if candidate.RelayTo != "" {
+			candidate.Recipients = []string{candidate.RelayTo}
+		} else {
+			recipients, err := s.mailbox.EffectiveRelayRecipients(email)
+			if err != nil {
+				return job, err
+			}
+			if len(recipients) == 0 {
+				return job, fmt.Errorf("email had no recipients")
+			}
+			candidate.Recipients = append([]string(nil), recipients...)
+		}
+		candidate.Confirmed = true
+	}
+	if candidate.Envelope == nil {
+		candidate.Envelope = cloneEnvelope(email.Envelope)
+	}
+	candidate.UpdatedAt = s.store.now().UTC()
+	s.store.mu.Lock()
+	defer s.store.mu.Unlock()
+	if err := validateRelayJobPersistenceBudget(candidate); err != nil {
+		return job, err
+	}
+	if err := s.store.persistLocked(candidate); err != nil {
+		return job, fmt.Errorf("%w: %v", ErrPersistence, err)
+	}
+	s.store.jobs[job.ID] = candidate
+	return candidate, nil
+}
+
 func (s *Service) deactivate(id string) {
 	s.mu.Lock()
 	delete(s.active, id)

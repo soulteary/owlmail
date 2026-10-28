@@ -137,6 +137,20 @@ func (manager *automaticRelayManager) read(id string) (automaticRelayIntent, err
 	return intent, nil
 }
 
+// Sync the directory links before acknowledging an intent. Repeat the parent
+// syncs even when directories already exist: a previous attempt may have created
+// them and then failed to make those links durable.
+func (manager *automaticRelayManager) ensureDirectory() error {
+	if err := os.MkdirAll(manager.directory, 0700); err != nil {
+		return err
+	}
+	parent := filepath.Dir(manager.directory)
+	if err := manager.syncDirectory(parent); err != nil {
+		return err
+	}
+	return manager.syncDirectory(filepath.Dir(parent))
+}
+
 func (manager *automaticRelayManager) persist(intent automaticRelayIntent) error {
 	encoded, err := json.Marshal(intent)
 	if err != nil {
@@ -145,7 +159,7 @@ func (manager *automaticRelayManager) persist(intent automaticRelayIntent) error
 	if len(encoded) > maximumAutomaticRelayIntentBytes {
 		return fmt.Errorf("automatic relay intent exceeds durable size limit")
 	}
-	if err := os.MkdirAll(manager.directory, 0700); err != nil {
+	if err := manager.ensureDirectory(); err != nil {
 		return err
 	}
 	file, err := os.CreateTemp(manager.directory, ".intent-*.tmp")

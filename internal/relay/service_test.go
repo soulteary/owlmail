@@ -2,7 +2,10 @@ package relay
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -274,5 +277,94 @@ func TestStoreRejectsReusingRequestKeyForAnotherSource(t *testing.T) {
 	}
 	if _, err := store.createRequest(Request{EmailID: "second", Origin: "auto", Key: "same"}); err == nil {
 		t.Fatal("shared request key accepted another source")
+	}
+}
+
+func TestLegacyQueuedJSONFreezesTargetsAndRepairsReceipt(t *testing.T) {
+	for _, override := range []string{"", "override@example.test"} {
+		t.Run(override, func(t *testing.T) {
+			service, mailbox := serviceFixture(t)
+			_ = service.Close()
+			now := time.Now().UTC()
+			legacy := Job{ID: "abcdef0123456789abcdef0123456789", EmailID: "mail", RelayTo: override, Status: Queued, CreatedAt: now, UpdatedAt: now}
+			data, err := json.Marshal(legacy)
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(mailbox.directory, ".owlmail-meta", "relay-jobs", legacy.ID+".json")
+			if err := os.WriteFile(path, data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			expected := "recipient@example.test"
+			if override != "" {
+				expected = override
+			}
+			var sent, receipts atomic.Int32
+			mailbox.send = func(_ *types.Email, to []string, callback func(error)) error {
+				persisted, err := readPersistedRelayJobs(filepath.Dir(path))
+				if err != nil || len(persisted) != 1 || len(persisted[0].Recipients) != 1 || persisted[0].Recipients[0] != expected || persisted[0].Envelope == nil {
+					t.Errorf("targets not durably frozen before SMTP: %#v %v", persisted, err)
+				}
+				if len(to) != 1 || to[0] != expected {
+					t.Errorf("delivery targets=%v", to)
+				}
+				sent.Add(1)
+				callback(nil)
+				return nil
+			}
+			mailbox.record = func(_ string, _ time.Time, to []string) error {
+				if len(to) != 1 || to[0] != expected {
+					return errors.New("empty or wrong receipt targets")
+				}
+				receipts.Add(1)
+				return nil
+			}
+			restored := New(mailbox, mailbox.directory)
+			defer func() { _ = restored.Close() }()
+			restored.Start()
+			awaitService(t, func() bool {
+				got, ok := restored.Get(legacy.ID)
+				return ok && got.Status == Succeeded && !got.ReceiptPending
+			})
+			if sent.Load() != 1 || receipts.Load() != 1 {
+				t.Fatalf("deliveries=%d receipts=%d", sent.Load(), receipts.Load())
+			}
+			restored.CheckPersistence()
+			if !restored.Snapshot().Ready() {
+				t.Fatalf("readiness=%#v", restored.Snapshot())
+			}
+			restored.store.mu.Lock()
+			restored.store.ttl = time.Nanosecond
+			restored.store.pruneLocked(time.Now().Add(time.Second))
+			_, retained := restored.store.jobs[legacy.ID]
+			restored.store.mu.Unlock()
+			if retained {
+				t.Fatal("repaired legacy job cannot expire")
+			}
+		})
+	}
+}
+
+func TestLegacyTargetUpgradePersistenceFailurePausesDelivery(t *testing.T) {
+	service, mailbox := serviceFixture(t)
+	job, err := service.store.create("mail", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sent atomic.Int32
+	mailbox.send = func(_ *types.Email, _ []string, callback func(error)) error { sent.Add(1); callback(nil); return nil }
+	realSync := service.store.syncDirectory
+	service.store.syncDirectory = func(string) error { return errors.New("target snapshot fsync failed") }
+	service.dispatch()
+	got, _ := service.Get(job.ID)
+	if sent.Load() != 0 || got.Attempts != 0 || got.Status != Queued {
+		t.Fatalf("unsafe attempt after snapshot failure: sent=%d job=%#v", sent.Load(), got)
+	}
+	service.store.syncDirectory = realSync
+	service.dispatch()
+	service.repairReceipts()
+	got, _ = service.Get(job.ID)
+	if sent.Load() != 1 || got.Status != Succeeded || got.ReceiptPending {
+		t.Fatalf("upgrade did not recover: sent=%d job=%#v", sent.Load(), got)
 	}
 }

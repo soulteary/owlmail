@@ -138,6 +138,7 @@ test('palette is localized, fits mobile screens and keeps delete confirmation', 
 test('relay receipt detail and successful refresh preserve the sandboxed preview', async ({ page }) => {
     let receipt = null;
     let detailRequests = 0;
+    let repairDetailRequests = 0;
     await page.route('**/api/v1/emails/**', async route => {
         const url = new URL(route.request().url());
         // Only decorate the singular native detail response; list, preview,
@@ -153,7 +154,10 @@ test('relay receipt detail and successful refresh preserve the sandboxed preview
             return;
         }
         detailRequests++;
-        await route.fulfill({ response, json: receipt ? { ...email, ...receipt } : email });
+        const repaired = receipt && ++repairDetailRequests >= 3;
+        const projected = !receipt || repairDetailRequests === 1 ? email
+            : { ...email, ...(repaired ? receipt : { relayedAt: '2026-10-28T01:02:03Z', relayedTo: ['old@example.test'] }) };
+        await route.fulfill({ response, json: projected });
     });
     await page.goto('./');
     await expect(page.locator('.email-item')).toHaveCount(1);
@@ -172,12 +176,12 @@ test('relay receipt detail and successful refresh preserve the sandboxed preview
     const scrollBefore = await preview.locator('body').evaluate(() => window.scrollY);
     receipt = { relayedAt: '2026-10-29T01:02:03Z', relayedTo: ['actual@example.test', 'blind@example.test'] };
     // This is the same completion hook used after a successful Relay status poll.
-    await page.evaluate(() => cacheRelayCompletion(state.currentEmail.id, { status: 'succeeded' }));
+    await page.evaluate(() => cacheRelayCompletion(state.currentEmail.id, { status: 'succeeded', receiptPending: false, completedAt: '2026-10-29T01:02:03Z' }));
     const summary = page.getByTestId('email-relay-receipt');
     await expect(summary).toContainText('actual@example.test, blind@example.test');
     await expect(summary.locator('time')).toHaveAttribute('datetime', '2026-10-29T01:02:03.000Z');
     await expect(summary.locator('time')).not.toHaveText('');
-    expect(detailRequests).toBe(2);
+    expect(detailRequests).toBe(4);
     await expect(iframe).toHaveAttribute('data-receipt-identity', 'original-preview');
     await expect(iframe).toHaveAttribute('sandbox', '');
     await expect(iframe).toHaveAttribute('referrerpolicy', 'no-referrer');

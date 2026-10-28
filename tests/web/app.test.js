@@ -1947,3 +1947,23 @@ test('pending batch operations lock existing mutations and unlock on completion'
  assert.equal(h.deleteAllBtn.disabled,false);
  assert.equal(h.run("document.getElementById('emailDeleteAction').disabled"),false);
 });
+
+test('delivery history keeps receipt-pending success tracked until repair completes', async () => {
+ let receiptPending = true;
+ const h=createHarness({fetchImpl:async url=>jsonResponse(url.includes('/relay-jobs?')
+  ? {jobs:[{id:'tracked-job',status:'succeeded',receiptPending}]}
+  : {deliveries:[]})});
+ h.run("let receiptCompletions=0; state.currentEmail={id:'mail-1',text:'hello'}; emailContentTab='deliveries'; relayPending.add('mail-1'); relayTracking.set('mail-1',{jobID:'tracked-job',statusUrl:'/api/v1/relay-jobs/tracked-job',paused:true,onCompleted:()=>receiptCompletions++})");
+ await h.run('refreshEmailDeliveries()');
+ assert.equal(h.run("relayTracking.has('mail-1')"),true);
+ assert.equal(h.run("relayPending.has('mail-1')"),true);
+ assert.equal(h.run('receiptCompletions'),0);
+ receiptPending=false;
+ await h.run('refreshEmailDeliveries()');
+ assert.equal(h.run("relayTracking.has('mail-1')"),false);
+ assert.equal(h.run("relayPending.has('mail-1')"),false);
+ assert.equal(h.run('receiptCompletions'),1);
+ await h.run('refreshEmailDeliveries()');
+ assert.equal(h.run('receiptCompletions'),1);
+ assert.equal(h.fetchRequests.some(r=>r.options?.method==='POST'),false);
+});

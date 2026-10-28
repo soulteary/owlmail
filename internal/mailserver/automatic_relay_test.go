@@ -2,9 +2,13 @@ package mailserver
 
 import (
 	"errors"
+	"net"
+	"net/smtp"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -76,7 +80,8 @@ func TestAutomaticRelayReadinessDoesNotWaitForIntentIO(t *testing.T) {
 	manager := server.automaticRelay.Load()
 	entered, release := make(chan struct{}), make(chan struct{})
 	original := manager.syncDirectory
-	manager.syncDirectory = func(string) error { close(entered); <-release; return nil }
+	var blocked sync.Once
+	manager.syncDirectory = func(string) error { blocked.Do(func() { close(entered); <-release }); return nil }
 	done := make(chan struct{})
 	go func() {
 		_ = server.storeIncomingEmail("auto-blocked", strings.NewReader("From: a@example.com\r\nTo: b@example.com\r\n\r\nbody"), nil)
@@ -252,5 +257,71 @@ func TestAutomaticRelayRejectsUnacceptedTransaction(t *testing.T) {
 	}
 	if _, ok := server.RelayService().Get(relay.RequestID("auto", intent.EmailID)); ok {
 		t.Fatal("uncommitted transaction created delivery job")
+	}
+}
+
+func TestAutomaticRelayDirectoryCreationRequiresDurableParentLinks(t *testing.T) {
+	root := t.TempDir()
+	manager := &automaticRelayManager{directory: filepath.Join(root, metadataDirectoryName, relayIntentMetadataDirectoryName)}
+	var synced []string
+	injected := errors.New("parent sync failed")
+	manager.syncDirectory = func(path string) error { synced = append(synced, path); return injected }
+	if err := manager.ensureDirectory(); !errors.Is(err, injected) {
+		t.Fatalf("parent failure ignored: %v", err)
+	}
+	if len(synced) != 1 || synced[0] != filepath.Join(root, metadataDirectoryName) {
+		t.Fatalf("wrong parent synced: %v", synced)
+	}
+	// A failed first sync leaves directories present. Retrying must sync their
+	// parent links again, rather than considering their existence durable.
+	synced = nil
+	manager.syncDirectory = func(path string) error { synced = append(synced, path); return nil }
+	if err := manager.ensureDirectory(); err != nil {
+		t.Fatal(err)
+	}
+	if len(synced) != 2 || synced[0] != filepath.Join(root, metadataDirectoryName) || synced[1] != root {
+		t.Fatalf("missing durable ancestor sync: %v", synced)
+	}
+}
+
+func TestAutomaticRelayStandaloneDynamicEnableStartsRecovery(t *testing.T) {
+	start := func() *MailServer {
+		server, err := NewMailServerWithOptions(0, "127.0.0.1", t.TempDir(), ServerOptions{AllowEphemeralPort: true})
+		if err != nil {
+			t.Fatal(err)
+		}
+		ready, result := make(chan struct{}), make(chan error, 1)
+		go func() { result <- server.ListenWithReady(func() { close(ready) }) }()
+		select {
+		case <-ready:
+		case err := <-result:
+			t.Fatal(err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("SMTP bind timeout")
+		}
+		t.Cleanup(func() { _ = server.Close(); <-result })
+		return server
+	}
+	destination, source := start(), start()
+	if source.automaticRelay.Load() != nil {
+		t.Fatal("empty standalone server unexpectedly owns Relay")
+	}
+	if err := source.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: destination.GetPort(), AutoRelay: true}); err != nil {
+		t.Fatal(err)
+	}
+	// Exercise real SMTP acceptance after enabling the previously absent owner.
+	address, ok := source.BoundAddress()
+	if !ok {
+		t.Fatal("source listener absent")
+	}
+	if err := smtp.SendMail(net.JoinHostPort(address.Host, strconv.Itoa(address.Port)), nil, "raw@example.com", []string{"hidden@example.com"}, []byte("From: visible@example.com\r\nTo: header@example.com\r\nSubject: dynamic\r\n\r\nbody\r\n")); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for len(destination.GetAllEmail()) != 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if len(destination.GetAllEmail()) != 1 {
+		t.Fatal("dynamically initialized standalone Relay never started")
 	}
 }

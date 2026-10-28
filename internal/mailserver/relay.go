@@ -114,7 +114,7 @@ func waitRelayResult(ctx context.Context, result <-chan error) error {
 }
 
 // SetOutgoingConfig sets the outgoing mail configuration
-func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) error {
+func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) (resultErr error) {
 	// Initialize before publishing an enabled configuration so a concurrent
 	// SMTP commit cannot miss its durable automatic handoff manager.
 	if config != nil && config.Host != "" {
@@ -123,7 +123,14 @@ func (ms *MailServer) SetOutgoingConfig(config *outgoing.OutgoingConfig) error {
 		}
 	}
 	ms.outgoingMutex.Lock()
-	defer ms.outgoingMutex.Unlock()
+	defer func() {
+		ms.outgoingMutex.Unlock()
+		// Standalone servers may first enable outgoing after SMTP has bound. CLI
+		// callers retain their explicit all-listeners-ready recovery gate.
+		if resultErr == nil && config != nil && config.Host != "" && !ms.deferRelayRecovery && ms.smtpReady.Load() {
+			resultErr = ms.StartRelayRecovery()
+		}
+	}()
 	if ms.outgoingClosed {
 		return outgoing.ErrClosed
 	}
