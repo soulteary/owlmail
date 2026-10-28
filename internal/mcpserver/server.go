@@ -391,6 +391,7 @@ type emailDetail struct {
 	Subject         string    `json:"subject"`
 	From            []address `json:"from"`
 	To              []address `json:"to"`
+	ReplyTo         []address `json:"reply_to,omitempty"`
 	CC              []address `json:"cc"`
 	BCC             []address `json:"bcc"`
 	CalculatedBCC   []address `json:"calculated_bcc"`
@@ -615,7 +616,7 @@ func getEmail(mailbox *mailserver.MailServer, id string) (*types.Email, error) {
 func makeEmailDetail(email *types.Email, includeHTML bool) emailDetail {
 	detail := emailDetail{
 		ID: email.ID, Time: email.Time, Read: email.Read, Subject: email.Subject,
-		From: addresses(email.From), To: addresses(email.To), CC: addresses(email.CC),
+		From: addresses(email.From), To: addresses(email.To), ReplyTo: addresses(email.ReplyTo), CC: addresses(email.CC),
 		BCC: addresses(email.BCC), CalculatedBCC: addresses(email.CalculatedBCC),
 		Text: email.Text, Size: email.Size, SizeHuman: email.SizeHuman,
 		AttachmentCount: len(email.Attachments),
@@ -654,3 +655,16 @@ func boolPointer(value bool) *bool { return &value }
 
 var _ http.Handler = (*Service)(nil)
 var _ interface{ Close() error } = (*Service)(nil)
+
+// SetWebBaseURL updates browser evidence links after an OS-selected HTTP port
+// has bound. The URL is validated before publication and reads are synchronized.
+func (service *Service) SetWebBaseURL(value string) error {
+	normalized, err := normalizeWebBaseURL(value)
+	if err != nil {
+		return err
+	}
+	service.mu.Lock()
+	service.webBaseURL = normalized
+	service.mu.Unlock()
+	return nil
+}

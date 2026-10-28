@@ -6,6 +6,16 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Expose structured Reply-To destinations in native email details, the MailDev REST facade, read-only MCP details, and the inbox without changing In-Reply-To semantics.
+- Support opt-in OS-selected SMTP and HTTP ports with bound-address discovery while retaining legacy SMTP constructor defaults and the SMTPS zero-port disable setting.
+
+### Fixed
+
+- Resolve inline CID references in both image sources and attachment links, including bracketed Content-IDs, encoded identifiers, and deployment base paths; preserve stored attachment filenames and unmatched references.
+- Parse nested MIME alternatives and related inline attachments with bounded nesting and part counts, retaining streaming attachment storage and rollback on invalid messages.
+
 ### Changed
 
 - Update health-kit/v4 from 4.0.2 to 4.0.4 and compatible shared HTTP dependencies; retain Go 1.27.3 and SQLite/libc 1.61.0/1.79.0.

@@ -2739,6 +2739,13 @@
               "$ref": "#/components/schemas/Address"
             }
           },
+          "replyTo": {
+            "type": "array",
+            "description": "Reply destinations parsed from one valid Reply-To header. Omitted when absent, invalid, or duplicated; distinct from In-Reply-To message identifiers.",
+            "items": {
+              "$ref": "#/components/schemas/Address"
+            }
+          },
           "to": {
             "type": [
               "array",

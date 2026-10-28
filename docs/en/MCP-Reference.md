@@ -64,6 +64,11 @@ The MCP tool has no `count` input. The REST `/api/v1/emails/wait` endpoint has
 a separate contract with `count` and an `emails` array; do not interchange
 those request or response shapes.
 
+In the development tree, `get_email` also returns optional `email.reply_to`,
+an ordered list of reply destinations with `name` and `address` fields. It is
+omitted when `Reply-To` is absent, malformed, or repeated. This is distinct from
+`In-Reply-To` message threading identifiers and does not change search matching.
+
 `get_email_source.max_bytes` counts decoded bytes, so the returned base64 JSON
 is larger. The result includes `returned_bytes`, full `size`, and `truncated`.
 

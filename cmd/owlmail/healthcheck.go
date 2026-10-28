@@ -79,7 +79,11 @@ options:
 func probeHealth(cfg *config.Config) error { return probeHealthEndpoint(cfg, false) }
 
 func probeHealthEndpoint(cfg *config.Config, ready bool) error {
-	return probeHealthEndpointWithCertificate(cfg, ready, nil)
+	resolved, err := resolveProbeListenerPorts(cfg)
+	if err != nil {
+		return err
+	}
+	return probeHealthEndpointWithCertificate(resolved, ready, nil)
 }
 
 func probeHealthEndpointWithCertificate(cfg *config.Config, ready bool, certificatePEM []byte) error {

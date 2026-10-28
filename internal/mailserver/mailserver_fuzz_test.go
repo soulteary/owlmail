@@ -228,6 +228,9 @@ func FuzzParseEmailMessage(f *testing.F) {
 		"From: from@example.com\r\n",
 		"\r\n\r\nbody with no headers at all\r\n",
 		"From: from@example.com\r\nTo: to@example.com\r\nSubject: Plain\r\n\r\nPlain body\r\n",
+		"Reply-To: Support <reply@example.test>, backup@example.test\r\nIn-Reply-To: <parent@example.test>\r\n\r\nbody",
+		"Reply-To: a@example.test\r\nReply-To: b@example.test\r\n\r\nbody",
+		"Reply-To: broken <\r\n\r\nbody",
 		"From: from@example.com\r\nTo: to@example.com\r\nContent-Type: text/html\r\n\r\n" +
 			"<html><body><img src=x onerror=alert(1)></body></html>\r\n",
 		"From: from@example.com\r\n" +
@@ -261,13 +264,20 @@ func FuzzParseEmailMessage(f *testing.F) {
 		"From: \"unterminated quote <from@example.com>\r\nTo: to@example.com\r\n\r\nbody\r\n",
 		"From: =?utf-8?q?broken?=\r\nSubject: =?utf-8?b?!!!!?=\r\n\r\nbody\r\n",
 		"Subject: " + strings.Repeat("folded\r\n ", 64) + "\r\n\r\nbody\r\n",
-		// Nested multipart: the parser descends one level only, so the inner
-		// document has to be consumed as an opaque part without stalling.
+		// Nested MIME containers are traversed with a shared depth/part budget.
 		"Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\n" +
 			"Content-Type: multipart/mixed; boundary=inner\r\n\r\n--inner\r\n" +
 			"Content-Type: text/plain\r\n\r\nnested\r\n--inner--\r\n--outer--\r\n",
 		"Content-Type: multipart/mixed; boundary=b\r\n\r\n" +
 			strings.Repeat("--b\r\nContent-Type: text/plain\r\n\r\npart\r\n", 32) + "--b--\r\n",
+		// The common text/plain + related HTML/inline-image composition.
+		"Content-Type: multipart/alternative; boundary=outer\r\n\r\n" +
+			"--outer\r\nContent-Type: text/plain\r\n\r\nPlain fallback\r\n" +
+			"--outer\r\nContent-Type: multipart/related; boundary=related\r\n\r\n" +
+			"--related\r\nContent-Type: text/html\r\n\r\n<img src=\"cid:logo@mail\">\r\n" +
+			"--related\r\nContent-Type: image/svg+xml\r\nContent-ID: <logo@mail>\r\n\r\n<svg/>\r\n" +
+			"--related--\r\n--outer--\r\n",
+		nestedMIMEMessage(maximumMIMEDepth),
 	}
 	for _, seed := range seeds {
 		f.Add([]byte(seed))
@@ -301,7 +311,7 @@ func FuzzParseEmailMessage(f *testing.F) {
 			t.Fatalf("envelope lists %d recipients for %d parsed To addresses", len(envelope.To), len(email.To))
 		}
 		for name, addresses := range map[string][]*mail.Address{
-			"From": email.From, "To": email.To, "Cc": email.CC, "Bcc": email.BCC,
+			"From": email.From, "To": email.To, "Reply-To": email.ReplyTo, "Cc": email.CC, "Bcc": email.BCC,
 		} {
 			for index, address := range addresses {
 				if address == nil {

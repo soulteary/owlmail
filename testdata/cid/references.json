@@ -1,0 +1,180 @@
+[
+  {
+    "name": "attributes and brackets",
+    "html": "<IMG SRC = 'CID:logo%40mail'><a href=\"cid:logo@mail\">file</a>",
+    "attachments": [
+      {
+        "contentId": " <logo@mail> ",
+        "generatedFileName": "logo image.svg"
+      }
+    ],
+    "rewritten": 2,
+    "targets": [
+      "logo image.svg",
+      "logo image.svg"
+    ]
+  },
+  {
+    "name": "plus is literal",
+    "html": "<img src=\"cid:a+b@mail\">",
+    "attachments": [
+      {
+        "contentId": "a+b@mail",
+        "generatedFileName": "plus.svg"
+      }
+    ],
+    "rewritten": 1,
+    "targets": [
+      "plus.svg"
+    ]
+  },
+  {
+    "name": "one decode only",
+    "html": "<img src=\"cid:a%2540mail\">",
+    "attachments": [
+      {
+        "contentId": "a@mail",
+        "generatedFileName": "once.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "exact precedes folded",
+    "html": "<img src=\"cid:AbC\">",
+    "attachments": [
+      {
+        "contentId": "AbC",
+        "generatedFileName": "exact.svg"
+      },
+      {
+        "contentId": "abc",
+        "generatedFileName": "other.svg"
+      }
+    ],
+    "rewritten": 1,
+    "targets": [
+      "exact.svg"
+    ]
+  },
+  {
+    "name": "ambiguous folded",
+    "html": "<img src=\"cid:ABC\">",
+    "attachments": [
+      {
+        "contentId": "AbC",
+        "generatedFileName": "one.svg"
+      },
+      {
+        "contentId": "abc",
+        "generatedFileName": "two.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "ambiguous exact",
+    "html": "<a href=\"cid:id\">file</a>",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "one.svg"
+      },
+      {
+        "contentId": "id",
+        "generatedFileName": "two.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "raw text and unrelated attributes",
+    "html": "<!-- <img src=\"cid:id\"> --><script>const x='<img src=\"cid:id\">';</script><style>p{background:url(cid:id)}</style><p data-src=\"cid:id\">cid:id</p>",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "id.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "numeric entity and quoted angle",
+    "html": "<a title=\">\" href=\"cid:logo&#64;mail\">file</a>",
+    "attachments": [
+      {
+        "contentId": "logo@mail",
+        "generatedFileName": "entity.svg"
+      }
+    ],
+    "rewritten": 1,
+    "targets": [
+      "entity.svg"
+    ]
+  },
+  {
+    "name": "unknown and invalid escapes",
+    "html": "<img src=\"cid:unknown\"><a href=\"cid:%ZZ\">file</a>",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "id.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "full named entity",
+    "html": "<a href=\"cid:logo&commat;mail\">file</a>",
+    "attachments": [
+      {
+        "contentId": "logo@mail",
+        "generatedFileName": "named.svg"
+      }
+    ],
+    "rewritten": 1,
+    "targets": [
+      "named.svg"
+    ]
+  },
+  {
+    "name": "invalid UTF8 escape",
+    "html": "<img src=\"cid:%FF\">",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "id.svg"
+      }
+    ],
+    "rewritten": 0
+  },
+  {
+    "name": "raw text opening attribute",
+    "html": "<script src=\"cid:id\">const x=\"cid:id\"</script>",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "id.js"
+      }
+    ],
+    "rewritten": 1,
+    "targets": [
+      "id.js"
+    ]
+  },
+  {
+    "name": "mixed unknown stays unchanged",
+    "html": "<img src=\"cid:id\"><a href=\"cid:unknown\">unknown</a>",
+    "attachments": [
+      {
+        "contentId": "id",
+        "generatedFileName": "id.svg"
+      }
+    ],
+    "rewritten": 1,
+    "preserved": "href=\"cid:unknown\"",
+    "targets": [
+      "id.svg"
+    ]
+  }
+]

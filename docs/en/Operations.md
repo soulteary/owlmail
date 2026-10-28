@@ -908,3 +908,47 @@ docker exec owlmail /app/owlmail healthcheck --container
 curl --fail http://localhost:1080/healthz
 curl -u admin:secret http://localhost:1080/api/v1/version
 ```
+
+## OS-selected ports for parallel tests (development branch)
+
+The development branch accepts `-smtp 0` and `-web 0` to let the operating
+system allocate independent listener ports. Omitted options still use 1025 and
+1080. `-smtps-port 0` continues to disable the implicit TLS listener; outgoing
+SMTP ports must remain between 1 and 65535.
+
+```bash
+./owlmail -smtp 0 -web 0 -ip 127.0.0.1 -web-ip 127.0.0.1 \
+  -mail-directory ./mail -listen-info-file ./listeners.json
+# In another shell, with the same listener and discovery settings:
+./owlmail healthcheck -smtp 0 -web 0 -ip 127.0.0.1 -web-ip 127.0.0.1 \
+  -mail-directory ./mail -listen-info-file ./listeners.json
+```
+
+Read `smtp.host` / `smtp.port` and `web.host` / `web.port` from the JSON to
+configure clients. The file appears only after all required listeners have
+bound; its presence describes addresses, not dependency readiness. Use
+`healthcheck --ready` with the same options for readiness. SMTP-only mode omits
+`web`. Wildcard bind addresses should be replaced with a reachable host when
+constructing client URLs.
+
+Each instance must own a different discovery path. OwlMail reserves a sibling
+`.lock` file, atomically publishes credential-free JSON with owner/PID metadata,
+and removes both files on normal shutdown. After a crash, confirm that the old
+owner has exited before removing its stale `.lock` and JSON files. A probe checks
+the matching owner lock, live PID, ports, bind hosts, base path, TLS mode and
+explicit mail directory before using discovered ports. These local files are
+not remote service identity or authentication; keep them in a trusted directory.
+Unix files are private mode 0600; Windows inherits the directory's ACL.
+
+HTTP settings, same-origin checks, MailDev's SMTP-port setting, and HTTP MCP
+browser links use the actual bound port. A stdio MCP observer can reuse the same
+configuration and discovery file; if a zero web port cannot be discovered,
+browser links are omitted. An explicit `-web-external-url` still takes precedence.
+Container probes use the actual listener ports captured at startup.
+
+Go callers opt in with `mailserver.ServerOptions{AllowEphemeralPort: true}`.
+The legacy constructors and zero-valued options retain `0 = default SMTP port`.
+`BoundAddress()` reports the actual SMTP or HTTP listener address after binding
+and before shutdown; `GetPort()` returns that port while bound, otherwise the
+requested port. Do not find and release a free port before starting a test:
+binding port zero directly avoids that race.

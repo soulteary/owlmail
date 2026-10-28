@@ -98,7 +98,7 @@ func freshReadinessStatus(status attachmentstore.HealthStatus, now time.Time) at
 func (ms *MailServer) GetRuntimeReadiness() RuntimeReadiness {
 	smtp, storage := ms.GetServiceReadiness()
 	now := time.Now()
-	result := RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: ms.host, Port: ms.port, UpdatedAt: now, SMTP: smtp, Storage: freshReadinessStatus(storage, now)}
+	result := RuntimeReadiness{Version: 1, PID: os.Getpid(), Host: ms.host, Port: ms.GetPort(), UpdatedAt: now, SMTP: smtp, Storage: freshReadinessStatus(storage, now)}
 	if attachment, enabled := ms.GetAttachmentHealth(); enabled {
 		result.Attachment = &attachment
 	}
@@ -150,14 +150,16 @@ func (ms *MailServer) publishRuntimeReadiness() error {
 	if err := file.Close(); err != nil {
 		return err
 	}
-	return os.Rename(path, RuntimeReadinessPath(ms.mailDir, ms.host, ms.port))
+	return os.Rename(path, RuntimeReadinessPath(ms.mailDir, ms.host, ms.GetPort()))
 }
 
 // One publisher can block on slow storage without spawning repeated I/O.
 // Its last snapshot then expires; CLI reads have their own bounded wait.
 func (ms *MailServer) startRuntimeReadiness() func() {
 	stop := make(chan struct{})
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -174,5 +176,5 @@ func (ms *MailServer) startRuntimeReadiness() func() {
 			}
 		}
 	}()
-	return func() { close(stop) }
+	return func() { close(stop); <-done }
 }

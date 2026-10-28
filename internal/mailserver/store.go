@@ -822,6 +822,13 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	email.To, _ = headers.AddressList("To")
 	email.CC, _ = headers.AddressList("Cc")
 	email.BCC, _ = headers.AddressList("Bcc")
+	// Reply-To is optional. Preserve malformed or duplicate raw headers, but
+	// do not guess a structured reply destination or reject the whole message.
+	if len(headers.Values("Reply-To")) == 1 {
+		if replyTo, parseErr := headers.AddressList("Reply-To"); parseErr == nil {
+			email.ReplyTo = replyTo
+		}
+	}
 
 	// Parse body
 	mediaType, _, err := headers.ContentType()
@@ -830,64 +837,8 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	}
 
 	if strings.HasPrefix(mediaType, "multipart/") {
-		mr := msg.MultipartReader()
-		if mr != nil {
-			for {
-				p, err := mr.NextPart()
-				if err == io.EOF {
-					break
-				}
-				if err != nil {
-					return nil, nil, fmt.Errorf("failed to read multipart: %w", err)
-				}
-
-				partMediaType, _, _ := p.Header.ContentType()
-				if partMediaType == "" {
-					partMediaType = "text/plain"
-				}
-
-				disposition, params, _ := p.Header.ContentDisposition()
-				contentID := strings.Trim(p.Header.Get("Content-ID"), "<>")
-
-				if partMediaType == "text/plain" && disposition != "attachment" {
-					body, err := io.ReadAll(p.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read text body: %w", err)
-					}
-					email.Text = strings.TrimSpace(string(body))
-				} else if partMediaType == "text/html" && disposition != "attachment" {
-					body, err := io.ReadAll(p.Body)
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read HTML body: %w", err)
-					}
-					email.HTML = strings.TrimSpace(string(body))
-				} else if disposition == "attachment" || contentID != "" {
-					// Handle attachment
-					filename := params["filename"]
-					if filename == "" {
-						filename = partMediaType
-					}
-
-					attachment := &Attachment{
-						ContentType:        partMediaType,
-						ContentDisposition: disposition,
-						FileName:           filename,
-						ContentID:          contentID,
-					}
-
-					if saveAttachments {
-						err = ms.saveAttachmentReaderInDirectory(attachmentDir, attachment, p.Body)
-					} else {
-						err = measureAttachment(attachment, p.Body)
-					}
-					if err != nil {
-						return nil, nil, fmt.Errorf("failed to read attachment: %w", err)
-					}
-					email.Attachments = append(email.Attachments, attachment)
-				} else if _, err := io.Copy(io.Discard, p.Body); err != nil {
-					return nil, nil, fmt.Errorf("failed to discard MIME part: %w", err)
-				}
-			}
+		if err := ms.parseMultipartBody(msg, email, saveAttachments, attachmentDir, 0, new(int)); err != nil {
+			return nil, nil, err
 		}
 	} else {
 		// Simple message

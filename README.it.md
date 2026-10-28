@@ -200,6 +200,8 @@ La tabella descrive OwlMail 0.11.4, incluso `-disable-web`. Vedere [la scelta de
 
 ### Argomenti da Riga di Comando
 
+Development branch: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests-development-branch) for discovery and probes.
+
 | Argomento | Variabile d'Ambiente | Predefinito | Descrizione |
 |-----------|---------------------|-------------|-------------|
 | `-smtp` | `MAILDEV_SMTP_PORT` / `OWLMAIL_SMTP_PORT` | 1025 | Porta SMTP |
@@ -275,6 +277,7 @@ La tabella descrive OwlMail 0.11.4, incluso `-disable-web`. Vedere [la scelta de
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | Abilita la compatibilità REST MailCatcher opzionale |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | Carica un file YAML o JSON all’avvio; CLI e ambiente hanno priorità |
+| `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Development branch: atomically publish actual listener addresses to private JSON; unique path per instance |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | Formato dei log: `console` o `json` |
 | `-use-uuid-for-email-id` | `OWLMAIL_USE_UUID_FOR_EMAIL_ID` | false | Usa UUID per ID email (predefinito: stringa casuale di 8 caratteri) |
 

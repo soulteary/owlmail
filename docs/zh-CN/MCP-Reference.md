@@ -3,6 +3,10 @@
 OwlMail 0.11.4 通过兼容两个协议时代的 Streamable HTTP 与 `owlmail mcp-stdio`
 提供同一套只读 MCP。MCP 是检查接口，不是邮箱管理 API。
 
+开发分支（尚未发布）的邮件详情增加可选 `reply_to` 地址列表，用于表示有效
+`Reply-To` 的回复目标。缺省、格式错误或重复头时省略；HTTP 和只读 stdio 目录恢复
+使用同一解析规则。列表摘要、搜索条件和工具写入权限保持原有契约。
+
 ## Transport
 
 | 模式 | 启用或启动 | 端点与行为 |

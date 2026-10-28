@@ -3,8 +3,10 @@ package mailserver
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/emersion/go-smtp"
@@ -92,7 +94,10 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 			return nil, fmt.Errorf("failed to initialize SMTP credential verifier: %w", err)
 		}
 	}
-	if port == 0 {
+	if port < 0 || port > 65535 {
+		return nil, fmt.Errorf("SMTP port must be between 0 and 65535")
+	}
+	if port == 0 && !options.AllowEphemeralPort {
 		port = defaultPort
 	}
 	host = ResolveSMTPHost(host)
@@ -207,7 +212,7 @@ func (ms *MailServer) setupSMTPServer() error {
 	be := &Backend{mailServer: ms}
 	s := smtp.NewServer(be)
 
-	s.Addr = fmt.Sprintf("%s:%d", ms.host, ms.port)
+	s.Addr = net.JoinHostPort(strings.Trim(ms.host, "[]"), fmt.Sprint(ms.port))
 	s.Domain = "localhost"
 	s.ReadTimeout = ms.readTimeout
 	s.WriteTimeout = ms.writeTimeout

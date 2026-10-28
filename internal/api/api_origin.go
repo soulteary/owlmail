@@ -131,7 +131,7 @@ func (api *API) originAllowList(configured []string) []string {
 	hosts = append(hosts, loopbackOriginHosts...)
 
 	for _, host := range hosts {
-		add(canonicalOrigin(scheme, host, strconv.Itoa(api.port)))
+		add(canonicalOrigin(scheme, host, strconv.Itoa(api.GetPort())))
 	}
 	return allowed
 }
