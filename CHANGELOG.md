@@ -6,10 +6,13 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-11-02
+
 ### Changed
 
 - Share one durable Relay task owner across native API, automatic forwarding, historical routes, and MailDev compatibility calls, with frozen envelope recipients, retry status, source protection, and recovery in SMTP-only mode.
 - Persist automatic forwarding through prepared intent, held task, and submitted acknowledgement so interrupted handoffs resume safely after restart.
+- Refresh cli-kit v1.9.3, health-kit/v4 v4.0.5, logger-kit/v3 v3.0.4, and version-kit/v4 v4.0.3, including required SQLite/libc and checksum updates; retain Go 1.27.3.
 
 ### Added
 
@@ -642,7 +645,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/soulteary/owlmail/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/soulteary/owlmail/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/soulteary/owlmail/compare/v0.11.3...v0.11.4
 [0.11.3]: https://github.com/soulteary/owlmail/compare/v0.11.2...v0.11.3
