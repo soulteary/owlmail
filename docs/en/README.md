@@ -30,10 +30,10 @@ Welcome to the OwlMail documentation directory. This directory contains technica
 
 - **[Delivery Waits and Test Runs](./Delivery-Waits-and-Test-Runs.md)**
   - Capture a cursor before triggering mail, wait for exact run/recipient matches,
-    and clean up one test run. Available in 0.12.0.
+    and clean up one test run. Available in 0.13.0.
 - **[Verification and Delivery Status](./Email-Verification-UI.md)**
   - Verify captured content and inspect or retry failed deliveries in the mailbox.
-    Available in 0.12.0.
+    Available in 0.13.0.
 - **[Browser and Container Regression Checks](./Browser-Regression-Testing.md)**
   - Run the live browser suite and validate packaged healthcheck behavior.
 
@@ -58,11 +58,11 @@ Welcome to the OwlMail documentation directory. This directory contains technica
   - Component ownership, data flow, single-instance boundaries, trust model, and deployment checklist.
   - **Other languages**: [架构](../zh-CN/Architecture.md) | [安全模型](../zh-CN/Security-Model.md)
 
-- **[OwlMail 0.12.0 Release Notes](./Release-0.12.0.md) · [0.11.4 release notes](./Release-0.11.4.md)**
+- **[OwlMail 0.13.0 Release Notes](./Release-0.13.0.md) · [0.12.0 release notes](./Release-0.12.0.md)**
   - Highlights, upgrade-sensitive behavior, installation commands, asset names,
     known limitations, and links to the detailed references.
-  - **Other languages**: [简体中文](../zh-CN/Release-0.12.0.md)
-  - **Previous release**: [0.11.4](./Release-0.11.4.md) ([简体中文](../zh-CN/Release-0.11.4.md))
+  - **Other languages**: [简体中文](../zh-CN/Release-0.13.0.md)
+  - **Previous release**: [0.12.0](./Release-0.12.0.md) ([简体中文](../zh-CN/Release-0.12.0.md))
 
 - **[API Reference](./API-Reference.md)**
   - Complete route inventory, request/response conventions, authentication,
@@ -135,6 +135,6 @@ When adding new documentation:
 
 For more information about OwlMail, please visit the [main README](../../README.md).
 
-Previous release: [OwlMail 0.11.4](Release-0.11.4.md).
+Previous release: [OwlMail 0.12.0](Release-0.12.0.md).
 
 - [Relay delivery and recovery](./Relay-Recovery.md): shared task state, automatic handoff, compatibility, and persistent storage.

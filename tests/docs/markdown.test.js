@@ -844,6 +844,17 @@ test("integration and AI-first guides are complete, bilingual, and runnable", ()
   }
 });
 
+test("release verification uses the current minor image alias", () => {
+  const minorAlias = currentVersion.split(".").slice(0, 2).join(".");
+  for (const file of [
+    "docs/en/Releasing.md", "docs/zh-CN/Releasing.md",
+    ...translatedReadmes.filter((file) => !["README.md", "README.zh-CN.md"].includes(file)),
+  ]) {
+    const source = fs.readFileSync(path.join(root, file), "utf8");
+    assert.ok(source.includes(`\`${minorAlias}\``), `${file} is missing the current minor image alias`);
+  }
+});
+
 test("GitHub community files match repository features and supported conventions", () => {
   assert.ok(!fs.existsSync(path.join(root, ".github/ISSUE_TEMPLATE/config.zh-CN.yml")));
   assert.ok(!fs.existsSync(path.join(root, ".github/pull_request_template.zh-CN.md")));
