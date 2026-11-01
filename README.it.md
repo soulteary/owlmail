@@ -145,7 +145,7 @@ docker run -d \
 ```
 
 **Tag disponibili:**
-- `0.13.0` - Tag di release esatto; `0.12` e `0` avanzano con le release successive della serie
+- `0.13.0` - Tag di release esatto; `0.13` e `0` avanzano con le release successive della serie
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-8d3445d`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Alias mobile dell’ultima release stabile, non aggiornato dalle build `main`

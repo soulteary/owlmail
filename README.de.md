@@ -144,7 +144,7 @@ docker run -d \
 ```
 
 **Verfügbare Tags:**
-- `0.13.0` - Exaktes Release-Tag; `0.12` und `0` werden mit späteren Releases der Reihe aktualisiert
+- `0.13.0` - Exaktes Release-Tag; `0.13` und `0` werden mit späteren Releases der Reihe aktualisiert
 - `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-8d3445d`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderlicher Alias des neuesten stabilen Releases; nicht vom `main`-Build aktualisiert

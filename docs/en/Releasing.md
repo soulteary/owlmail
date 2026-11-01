@@ -164,7 +164,7 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-For `v0.13.0`, verify the `0.13.0`, `0.12`, `0`, and `latest` tags and both target
+For `v0.13.0`, verify the `0.13.0`, `0.13`, `0`, and `latest` tags and both target
 architectures. The moving release aliases must resolve to the same manifest as
 the newest stable version. `main` and `sha-*` are development snapshots and may
 point to newer, unreleased commits. A subsequent main-branch build must leave
