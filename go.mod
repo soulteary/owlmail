@@ -17,13 +17,14 @@ require (
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/redis/go-redis/v9 v9.23.0
-	github.com/soulteary/cli-kit v1.9.2
-	github.com/soulteary/health-kit/v4 v4.0.4
-	github.com/soulteary/logger-kit/v3 v3.0.3
-	github.com/soulteary/version-kit/v4 v4.0.2
-	go.yaml.in/yaml/v3 v3.0.5
+	github.com/soulteary/cli-kit v1.9.3
+	github.com/soulteary/health-kit/v4 v4.0.5
+	github.com/soulteary/logger-kit/v3 v3.0.4
+	github.com/soulteary/version-kit/v4 v4.0.3
+	go.yaml.in/yaml/v3 v3.0.6
 	golang.org/x/net v0.62.0
-	modernc.org/sqlite v1.61.0
+	golang.org/x/sys v0.49.0
+	modernc.org/sqlite v1.61.1
 )
 
 require (
@@ -46,7 +47,7 @@ require (
 	github.com/dustin/go-humanize v1.1.0 // indirect
 	github.com/go-openapi/jsonpointer v0.22.5 // indirect
 	github.com/go-openapi/swag/jsonname v0.25.5 // indirect
-	github.com/gofiber/schema v1.9.1 // indirect
+	github.com/gofiber/schema v1.9.2 // indirect
 	github.com/gofiber/utils/v2 v2.6.3 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/gorilla/css v1.0.1 // indirect
@@ -73,10 +74,9 @@ require (
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/sys v0.49.0 // indirect
 	golang.org/x/text v0.43.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
-	modernc.org/libc v1.79.0 // indirect
+	modernc.org/libc v1.79.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
