@@ -6,11 +6,11 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
-## [0.14.0] - Unreleased candidate
+## [0.14.0] - 2026-11-03
 
 ### Changed
 
-- Prepare a stable standalone release while retaining the production multiuser startup gate. Synthetic fixtures are not release artifacts; actual Stargate identity acceptance and multiuser notification deployment remain outside enabled support.
+- Support standalone operation while retaining the production multiuser startup gate. Synthetic fixtures are not compiled into normal release binaries/images; actual Stargate identity acceptance and multiuser notification deployment remain outside enabled support.
 - Clarify published Alpha evidence and the remaining real-identity, notification-path and normal-binary gate acceptance without adding unrelated release prerequisites.
 
 ### Fixed
@@ -23,9 +23,9 @@ All notable changes to OwlMail are documented in this file. The format follows
 - Exercise Gorge's existing SMTP transport against OwlMail in an isolated component test; this does not establish a real Stargate/Phorge deployment.
 - Execute the pinned original Phorge PHP mail adapter through unchanged Gorge and OwlMail, with permanent-recipient rejection and isolated MIME checks; notification authorization, workers, databases and real Stargate claims remain unaccepted.
 
-### Publication
+### Release scope
 
-- Candidate metadata only. No stable tag, image alias or release has been published by this change.
+- Normal binaries retain the multiuser startup gate. Release artifact availability, digests and verification results are recorded from the release workflow, separately from these notes.
 
 ## [0.14.0-alpha.1] - 2026-11-02
 

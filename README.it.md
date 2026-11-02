@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
+> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 > 🦉 Un gateway self-hosted e AI-native per test email, CI, automazione e coding agent.
@@ -62,7 +62,7 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
 
 ## OwlMail 0.14.0
 
-`v0.14.0` è una versione candidata non ancora pubblicata. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.14.0](./docs/en/Release-0.14.0.md) · [Versione precedente 0.13.0](./docs/en/Release-0.13.0.md).
+`v0.14.0` supporta il funzionamento autonomo. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.14.0](./docs/en/Release-0.14.0.md) · [Versione precedente 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail è destinato a sviluppo, test, CI e reti interne affidabili; non è un
@@ -148,7 +148,7 @@ docker run -d \
 ```
 
 **Tag disponibili:**
-- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
+- `0.14.0` — exact release version. The successful stable release workflow also maintains eligible `0.14`, `0`, and `latest` aliases.
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-8d3445d`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Alias mobile dell’ultima release stabile, non aggiornato dalle build `main`

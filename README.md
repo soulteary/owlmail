@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
+> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 Capture application email locally, inspect its content and attachments, and verify delivery in CI and coding-agent workflows.
@@ -33,7 +33,7 @@ OwlMail runs as a single Go executable with an embedded Web UI. Docker images su
 
 ## Choose a version
 
-The Docker quick start below targets the unpublished **0.14.0** candidate for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
+The Docker quick start below uses **0.14.0** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
 
 All workflows below are available in **0.14.0**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.14.0 release notes](docs/en/Release-0.14.0.md) and [the previous 0.13.0 release](docs/en/Release-0.13.0.md).
 
@@ -111,7 +111,7 @@ HTML previews use an isolated iframe. Remote images, fonts, and styles are block
 
 ## Wait, check, and clean up in CI
 
-This example uses only the Python 3 standard library. Save it as `email-check.py` and run `python3 email-check.py` after starting the candidate standalone instance above:
+This example uses only the Python 3 standard library. Save it as `email-check.py` and run `python3 email-check.py` after starting the standalone instance above:
 
 ```python
 import json
@@ -253,7 +253,7 @@ Configure recipients and TLS policy before enabling forwarding. See [Relay and o
 
 Download a platform binary from [Releases](https://github.com/soulteary/owlmail/releases), rename it to `owlmail`, and run `chmod +x owlmail` on Unix platforms. In this README, `./owlmail` means that downloaded or locally built file.
 
-Alternatively, install this candidate after publication with Go 1.27.3+:
+Alternatively, install this version with Go 1.27.3+:
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0

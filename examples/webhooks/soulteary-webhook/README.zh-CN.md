@@ -1,6 +1,6 @@
 # OwlMail + `soulteary/webhook`
 
-固定版本命令面向尚未发布的 0.14.0 候选，请在后续获准发布后使用，见[候选说明](../../../docs/zh-CN/Release-0.14.0.md)。
+固定版本命令面向 0.14.0，请在发布工作流提供制品后使用，见[发布说明](../../../docs/zh-CN/Release-0.14.0.md)。
 
 这个可运行示例会把 OwlMail 新邮件发送到
 [`soulteary/webhook`](https://github.com/soulteary/webhook)，使用 HMAC-SHA256

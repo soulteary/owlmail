@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
+> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 > 🦉 Ein selbst gehostetes, AI-natives E-Mail-Test-Gateway für Entwicklung, CI, Automatisierung und Coding Agents.
@@ -62,7 +62,7 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
 
 ## OwlMail 0.14.0
 
-`v0.14.0` ist ein noch unveröffentlichter Release-Kandidat. Sie enthält Cursor-basierte Zustelltests, Inhalts- und Anhangsprüfungen, Zustellhistorie und bestätigte Wiederholungen, eine Befehlspalette, Offline-Diagnose und SMTP-only mit konfigurationsabhängigen Probes. [Versionshinweise 0.14.0](./docs/en/Release-0.14.0.md) · [Vorherige Version 0.13.0](./docs/en/Release-0.13.0.md).
+`v0.14.0` unterstützt den eigenständigen Betrieb. Sie enthält Cursor-basierte Zustelltests, Inhalts- und Anhangsprüfungen, Zustellhistorie und bestätigte Wiederholungen, eine Befehlspalette, Offline-Diagnose und SMTP-only mit konfigurationsabhängigen Probes. [Versionshinweise 0.14.0](./docs/en/Release-0.14.0.md) · [Vorherige Version 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail ist für Entwicklung, Tests, CI und vertrauenswürdige interne Netze
@@ -147,7 +147,7 @@ docker run -d \
 ```
 
 **Verfügbare Tags:**
-- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
+- `0.14.0` — exact release version. The successful stable release workflow also maintains eligible `0.14`, `0`, and `latest` aliases.
 - `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-8d3445d`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderlicher Alias des neuesten stabilen Releases; nicht vom `main`-Build aktualisiert
