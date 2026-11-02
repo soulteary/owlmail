@@ -22,6 +22,7 @@ require (
 	github.com/soulteary/logger-kit/v3 v3.0.4
 	github.com/soulteary/version-kit/v4 v4.0.3
 	go.yaml.in/yaml/v3 v3.0.6
+	golang.org/x/crypto v0.58.0
 	golang.org/x/net v0.62.0
 	golang.org/x/sys v0.49.0
 	modernc.org/sqlite v1.61.1
@@ -71,7 +72,6 @@ require (
 	github.com/valyala/fasthttp v1.77.0 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/text v0.43.0 // indirect

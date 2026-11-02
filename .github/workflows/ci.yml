@@ -48,6 +48,8 @@ jobs:
           bun-version-file: ".bun-version"
       - name: Build test server
         run: go build -o owlmail ./cmd/owlmail
+      - name: Build isolated multiuser browser fixture
+        run: go build -tags owlmail_browser_fixture -o owlmail-browser-fixture ./tests/browser/fixture
       - name: Install browser test dependencies
         working-directory: tests/browser
         run: bun install --frozen-lockfile
@@ -57,6 +59,17 @@ jobs:
       - name: Exercise the real inbox
         working-directory: tests/browser
         run: bun run test
+      - name: Exercise the real multiuser inbox with synthetic upstream assertions
+        working-directory: tests/browser
+        env:
+          OWLMAIL_BROWSER_FIXTURE: ${{ github.workspace }}/owlmail-browser-fixture
+        run: bun x playwright test --config multiuser.playwright.config.js --grep-invert 'real background visibility'
+      - name: Require real background pause and foreground refresh under Xvfb
+        working-directory: tests/browser
+        env:
+          OWLMAIL_BROWSER_FIXTURE: ${{ github.workspace }}/owlmail-browser-fixture
+          OWLMAIL_REQUIRE_REAL_BACKGROUND: '1'
+        run: ../../tests/container/run-browser-linux.sh bun x playwright test --config multiuser.playwright.config.js --grep 'real background visibility'
       - name: Upload browser failure evidence
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -65,6 +78,19 @@ jobs:
           path: |
             tests/browser/playwright-report/
             tests/browser/test-results/
+            tests/browser/multiuser-playwright-report/
+            tests/browser/multiuser-test-results/
+            tests/browser/multiuser-background-results/
+            tests/browser/multiuser-background-report/
+          retention-days: 7
+      - name: Upload successful multiuser browser evidence
+        if: success()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: multiuser-browser-evidence
+          path: |
+            tests/browser/multiuser-test-results/
+            tests/browser/multiuser-background-results/
           retention-days: 7
 
   test:

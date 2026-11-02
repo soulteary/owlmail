@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha 基础设施预览：单机仍为默认，正常二进制拒绝多人模式，测试 fixture 不发布。稳定版仍为 0.13.0；Alpha 不移动 `latest`、`0` 或 `0.14`。
+
+
 在本地捕获应用邮件，检查内容、链接与附件，并在 CI 和 AI Agent 中验证发信流程。
 
 [![Go Test Coverage](.github/coverage.svg)](.github/go-test-report.md) [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md) [![Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -30,12 +33,12 @@ OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker �
 
 ## 选择版本
 
-下面的 Docker 快速开始使用正式版 **0.13.0**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
+下面的 Docker 快速开始使用Alpha 预览版 **0.14.0-alpha.1**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
 
-下文的完整工作流均已包含在 **0.13.0**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.13.0 发布说明](docs/zh-CN/Release-0.13.0.md)和[上一版 0.12.0](docs/zh-CN/Release-0.12.0.md)。
+下文的完整工作流均已包含在 **0.14.0-alpha.1**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.14.0-alpha.1 发布说明](docs/zh-CN/Release-0.14.0-alpha.1.md)和[上一版 0.13.0](docs/zh-CN/Release-0.13.0.md)。
 
 
-0.13.0 新增统一持久 Relay、可恢复的转发交接与下游接受记录，保留 0.12.0 的结构化 Reply-To、CID/嵌套 MIME 修复和随机端口；配置方式见[随机端口与地址发现](docs/en/Operations.md#os-selected-ports-for-parallel-tests)。
+0.14.0-alpha.1 预览独立收件箱基础设施，正常二进制的多人模式仍关闭；单机保留现有 Relay、Reply-To、MIME/CID 与随机端口；配置方式见[随机端口与地址发现](docs/en/Operations.md#os-selected-ports-for-parallel-tests)。
 
 ## 快速开始：收到第一封邮件
 
@@ -46,7 +49,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -109,7 +112,7 @@ HTML 预览使用隔离 iframe，远程图片、字体和样式默认阻止，�
 
 ## 在 CI 中等待、验证和清理
 
-下面使用 Python 3 标准库完成一个测试，不需要额外安装依赖。保存为 `email-check.py`，在上述正式版实例启动后运行 `python3 email-check.py`：
+下面使用 Python 3 标准库完成一个测试，不需要额外安装依赖。保存为 `email-check.py`，在上述 Alpha 单机实例启动后运行 `python3 email-check.py`：
 
 ```python
 import json
@@ -251,10 +254,10 @@ Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览�
 
 从 [Releases](https://github.com/soulteary/owlmail/releases)下载适合平台的二进制，将文件重命名为 `owlmail`，Unix 平台执行 `chmod +x owlmail`。本文的 `./owlmail` 表示这个下载或本地构建的文件。
 
-也可以使用 Go 1.27.3+ 安装正式版：
+也可以使用 Go 1.27.3+ 安装此 Alpha：
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail -mail-directory ./mail
 ```
 
@@ -329,7 +332,7 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 ## 文档与反馈
 
-- [0.13.0 发布说明](docs/zh-CN/Release-0.13.0.md) · [上一版 0.12.0 发布说明](docs/zh-CN/Release-0.12.0.md)
+- [0.14.0-alpha.1 发布说明](docs/zh-CN/Release-0.14.0-alpha.1.md) · [上一版 0.13.0 发布说明](docs/zh-CN/Release-0.13.0.md)
 - [集成测试](docs/zh-CN/Integration-Testing.md) · [Sendmail 兼容 CLI](docs/zh-CN/Sendmail.md)
 - [配置参考](docs/zh-CN/Configuration-Reference.md)
 - [API 与 OpenAPI](docs/zh-CN/API-Reference.md)
@@ -344,4 +347,4 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 [MIT](LICENSE)。感谢 [MailDev](https://github.com/maildev/maildev) 的启发，以及 Go SMTP / MIME、Fiber 和 WebSocket 等上游项目。
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

@@ -1,0 +1,10 @@
+version: 1
+accounts:
+  - id: gorge
+    username: gorge
+    # Replace with a bcrypt hash of a random SMTP-only secret, cost 10..14.
+    password-hash: REPLACE_WITH_BCRYPT_HASH
+    namespace: main
+    enabled: true
+    allowed-domains:
+      - example.test

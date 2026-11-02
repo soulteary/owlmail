@@ -40,7 +40,7 @@ langue dans des répertoires distincts.
 
 ### Versions
 
-- **[Notes de version 0.13.0](../en/Release-0.13.0.md) · [0.12.0 release notes](../en/Release-0.12.0.md)** (English, [中文](../zh-CN/Release-0.13.0.md))
+- **[Notes de version 0.14.0-alpha.1](../en/Release-0.14.0-alpha.1.md) · [0.13.0 release notes](../en/Release-0.13.0.md)** (English, [中文](../zh-CN/Release-0.14.0-alpha.1.md))
 - **[Notes de version 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
 - **[Processus de publication](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
@@ -65,4 +65,4 @@ jour [l'index principal](../README.md). Consultez le
 
 Pour plus d'informations, consultez le [README principal](../../README.fr.md).
 
-Previous release: [OwlMail 0.12.0](../en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](../en/Release-0.13.0.md).

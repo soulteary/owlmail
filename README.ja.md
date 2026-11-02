@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+
+
 > 🦉 開発、CI、自動化、コーディング Agent のためのセルフホスト型 AI ネイティブ・メールテストゲートウェイ。
 
 [![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ja/Comparison-and-Migration.md)
@@ -56,9 +59,9 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
   プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと
   ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。
 
-## OwlMail 0.13.0
+## OwlMail 0.14.0-alpha.1
 
-`v0.13.0` は現在の安定版です。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.13.0 リリースノート](./docs/en/Release-0.13.0.md) · [前のバージョン 0.12.0](./docs/en/Release-0.12.0.md)。
+`v0.14.0-alpha.1` は Alpha プレビューです。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.14.0-alpha.1 リリースノート](./docs/en/Release-0.14.0-alpha.1.md) · [前のバージョン 0.13.0](./docs/en/Release-0.13.0.md)。
 
 > [!IMPORTANT]
 > OwlMail は開発、テスト、CI、信頼できる内部ネットワーク向けです。公開本番
@@ -72,7 +75,7 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 
 ```bash
 # Clone repository
-git clone --branch v0.13.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -85,7 +88,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail
 ```
 
@@ -127,8 +130,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# リリース 0.13.0 を取得
-docker pull ghcr.io/soulteary/owlmail:0.13.0
+# リリース 0.14.0-alpha.1 を取得
+docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 # 特定コミットのイメージを取得（例）
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -139,11 +142,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 ```
 
 **利用可能なタグ：**
-- `0.13.0` - 正確なリリースタグ。`0.13` と `0` は同じ系列の後続リリースで更新
+- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
 - `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-8d3445d`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - 最新の安定版に追随する可変エイリアス。`main` のビルドでは更新されません
@@ -194,11 +197,11 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-この表は `-disable-web` を含む OwlMail 0.13.0 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
+この表は `-disable-web` を含む OwlMail 0.14.0-alpha.1 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
 
 ### Command Line Arguments
 
-OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
@@ -222,9 +225,9 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | シャットダウン時に MCP セッションを終了する期限 |
 | `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | OwlMail 自身のオリジンに加えて `/mcp` で受け入れるブラウザーオリジン。`*` はオリジン検証を無効化 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
+| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited Multiuser rejects nonzero values; use pending-retention-days. |
+| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited Multiuser: hard admission only; 0 selects 100000 messages, without personal eviction. |
+| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited Multiuser: hard admission only; 0 selects 10240 MiB, without personal eviction. |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
 | `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 再構築可能な SQLite メールボックス索引の任意パス。EML ファイルが引き続き正本 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | デコード済み添付ファイルを S3 互換ストレージに保存 |
@@ -274,6 +277,24 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | TLS 有効時の暗黙 TLS（SMTPS）リスナーのポート。`0` を指定すると SMTPS リスナーを起動しない |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | オプションの MailCatcher REST 互換 API を有効化 |
+| `-multiuser-max-pending` | `OWLMAIL_MULTIUSER_MAX_PENDING` | 1000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-rcpt-per-minute` | `OWLMAIL_MULTIUSER_RCPT_PER_MINUTE` | 60 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-auth-per-minute` | `OWLMAIL_MULTIUSER_AUTH_PER_MINUTE` | 120 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-messages` | `OWLMAIL_MULTIUSER_MAX_MESSAGES` | 10000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-disk-mb` | `OWLMAIL_MULTIUSER_MAX_DISK_MB` | 1024 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-retention-days` | `OWLMAIL_PENDING_RETENTION_DAYS` | 7 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-empty-retention-hours` | `OWLMAIL_PENDING_EMPTY_RETENTION_HOURS` | 24 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-cleanup-interval` | `OWLMAIL_PENDING_CLEANUP_INTERVAL` | 1h | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-mode` | `OWLMAIL_MODE` | standalone | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-namespace` | `OWLMAIL_IDENTITY_NAMESPACE` | main | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-trusted-proxies` | `OWLMAIL_IDENTITY_TRUSTED_PROXIES` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-subject-header` | `OWLMAIL_IDENTITY_SUBJECT_HEADER` | X-Auth-User | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-email-header` | `OWLMAIL_IDENTITY_EMAIL_HEADER` | X-Auth-Email | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-verified-header` | `OWLMAIL_IDENTITY_VERIFIED_HEADER` | X-Auth-Email-Verified | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-claim-policy` | `OWLMAIL_CLAIM_POLICY` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-control-database` | `OWLMAIL_CONTROL_DATABASE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-system-smtp-accounts-file` | `OWLMAIL_SYSTEM_SMTP_ACCOUNTS_FILE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-recipient-allowed-domains` | `OWLMAIL_RECIPIENT_ALLOWED_DOMAINS` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 起動時に YAML または JSON を読み込む。CLI と環境変数を優先 |
 | `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Development branch: atomically publish actual listener addresses to private JSON; unique path per instance |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | ログ出力形式：`console` または `json` |
@@ -692,7 +713,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.13.0 リリースノート](./docs/en/Release-0.13.0.md) ([中文](./docs/zh-CN/Release-0.13.0.md))
+- [OwlMail 0.14.0-alpha.1 リリースノート](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
 - [統合テスト、CI、AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP リファレンス](./docs/en/MCP-Reference.md)、[アーキテクチャ](./docs/en/Architecture.md)、[セキュリティモデル](./docs/en/Security-Model.md)
 - [実行可能なテスト例](./examples/testing/README.md)
@@ -717,4 +738,4 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — 開発、CI、自動化、AI Agent のためのセルフホスト型メールテストゲートウェイ。🦉
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

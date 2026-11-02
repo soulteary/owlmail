@@ -1,0 +1,3 @@
+FROM docker.io/library/debian:bookworm-slim
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake pkg-config git ca-certificates curl libboost-dev libboost-system-dev libboost-filesystem-dev libssl-dev libfuse-dev zlib1g-dev libjudy-dev libspdlog-dev liburcu-dev libkrb5-dev libcap-dev libdbus-1-dev libnfsidmap-dev bison flex libblkid-dev uuid-dev libacl1-dev libntirpc-dev nfs-ganesha nfs-common netbase nfs4-acl-tools python3 util-linux attr acl && rm -rf /var/lib/apt/lists/*

@@ -108,6 +108,13 @@ func (ms *MailServer) storeIncomingEmail(id string, r io.Reader, session *Sessio
 		return fmt.Errorf("close parsed email: %w", closeErr)
 	}
 
+	if session != nil {
+		email.Ownership = cloneOwnership(session.ownership)
+	}
+	if err := ms.validateOwnership(email.Ownership); err != nil {
+		return err
+	}
+
 	entries, err := os.ReadDir(stagedAttachments)
 	if err != nil {
 		return fmt.Errorf("read staged attachments: %w", err)

@@ -1,0 +1,15 @@
+--- a/src/MainNFSD/libganesha_nfsd.ver
++++ b/src/MainNFSD/libganesha_nfsd.ver
+@@ -1,4 +1,12 @@
+ { global:
++  fsal_maxfilesize;
++  fsal_maxlink;
++  fsal_maxnamelen;
++  fsal_maxpathlen;
++  fsal_maxread;
++  fsal_maxwrite;
++  fsal_supports;
++  fsal_umask;
+   ace_count;
+   admin_halt;
+   admin_shutdown;

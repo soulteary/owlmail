@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -17,6 +18,7 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/soulteary/owlmail/internal/api"
 	"github.com/soulteary/owlmail/internal/config"
+	"github.com/soulteary/owlmail/internal/mailbox"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	webhooknotify "github.com/soulteary/owlmail/internal/webhook"
 )
@@ -27,10 +29,11 @@ type doctorCheck struct {
 	Message string `json:"message"`
 }
 type doctorReport struct {
-	Ready    bool                        `json:"ready"`
-	Scope    string                      `json:"scope"`
-	Checks   []doctorCheck               `json:"checks"`
-	Recovery api.RelayRecoveryInspection `json:"relay_recovery"`
+	Multiuser *mailbox.Inspection         `json:"multiuser,omitempty"`
+	Ready     bool                        `json:"ready"`
+	Scope     string                      `json:"scope"`
+	Checks    []doctorCheck               `json:"checks"`
+	Recovery  api.RelayRecoveryInspection `json:"relay_recovery"`
 }
 
 func doctorConfig(args []string) (*config.Config, error) {
@@ -112,6 +115,28 @@ func inspectDoctorConfig(cfg *config.Config) doctorReport {
 		}
 	}
 	add("configuration", err == nil, message)
+	if cfg.Mode == "multiuser" {
+		add("control_location", validateControlLocation(cfg) == nil, "Control database must be outside the mail directory")
+		_, accountErr := mailbox.LoadAccounts(cfg.SystemSMTPAccountsFile, cfg.IdentityNamespace, strings.Split(cfg.RecipientAllowedDomains, ","))
+		add("system_smtp_accounts", accountErr == nil, "System SMTP accounts must satisfy the configured identity and domain policy")
+		control, controlErr := mailbox.OpenReadOnly(cfg.ControlDatabase)
+		if controlErr == nil {
+			state, inspectErr := control.Inspect(context.Background())
+			closeErr := control.Close()
+			if inspectErr != nil {
+				controlErr = inspectErr
+			} else if closeErr != nil {
+				controlErr = closeErr
+			} else {
+				r.Multiuser = &state
+			}
+		}
+		add("multiuser_authority", controlErr == nil, "Control database integrity and ownership graph must pass read-only inspection")
+		if r.Multiuser != nil && (r.Multiuser.PendingMerges > 0 || r.Multiuser.PendingRetention > 0) {
+			note("multiuser_recovery", "Pending local recovery work exists; doctor does not apply it")
+		}
+		note("multiuser_release_gate", "Multiuser serving remains disabled pending verified upstream identity and release acceptance")
+	}
 	add("web_auth", cfg.DisableWeb || (cfg.WebUser == "") == (cfg.WebPassword == ""), "Web username and password must be configured together")
 	collision, uncertain := false, false
 	if !cfg.DisableWeb {

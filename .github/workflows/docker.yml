@@ -35,7 +35,7 @@ jobs:
     # development `main` tag that the publish job below pushes from `main`.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     env:
       SMOKE_IMAGE: owlmail:pr-verify
@@ -146,6 +146,55 @@ jobs:
 
       - name: Verify configured container health checks
         run: python3 tests/container/healthcheck.py --image "${SMOKE_IMAGE}"
+
+      - name: Build isolated component fixture image (never published)
+        run: docker build --build-arg BASE_IMAGE="${SMOKE_IMAGE}" --build-arg TARGETARCH=amd64 -f tests/container/Dockerfile.multiuser-fixture -t owlmail:multiuser-fixture .
+
+      - name: Verify production gate and isolated container components
+        run: python3 tests/container/multiuser.py --image "${SMOKE_IMAGE}" --fixture-image owlmail:multiuser-fixture
+
+      - name: Set up Go for test-only volume recovery binary
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build isolated SQLite recovery test binary
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: go test -c -o "${RUNNER_TEMP}/owlmail-recovery.test" ./tests/recovery
+
+      - name: Verify named-volume restore, permissions and derived SQLite rebuild
+        run: python3 tests/container/recovery.py --image "${SMOKE_IMAGE}" --fixture-image owlmail:multiuser-fixture --recovery-binary "${RUNNER_TEMP}/owlmail-recovery.test" --evidence-directory "${RUNNER_TEMP}/owlmail-volume-evidence"
+
+      - name: Verify restored SMTP TLS identity and trust rejection
+        run: python3 tests/container/tls_recovery.py --image "${SMOKE_IMAGE}" --fixture-image owlmail:multiuser-fixture --evidence-directory "${RUNNER_TEMP}/owlmail-volume-evidence/tls"
+
+      - name: Build test-only ACL and xattr recovery tools (never published)
+        run: docker build --build-arg BASE_IMAGE="${SMOKE_IMAGE}" -f tests/container/Dockerfile.metadata-recovery -t owlmail:metadata-recovery .
+
+      - name: Verify POSIX ACL and user xattr archive recovery
+        run: python3 tests/container/metadata_recovery.py --image "${SMOKE_IMAGE}" --helper-image owlmail:metadata-recovery --fixture-image owlmail:multiuser-fixture --evidence-directory "${RUNNER_TEMP}/owlmail-volume-evidence/metadata"
+
+      - name: Build test-only ACL creation-mode syscall helper
+        env:
+          CGO_ENABLED: '0'
+          GOOS: linux
+          GOARCH: amd64
+        run: go build -tags owlmail_acl_creation_fixture -o "${RUNNER_TEMP}/owlmail-acl-creation" ./tests/container/acl_creation
+
+      - name: Verify restored default ACL inheritance and creation modes
+        run: python3 tests/container/default_acl_recovery.py --image "${SMOKE_IMAGE}" --helper-image owlmail:metadata-recovery --creation-binary "${RUNNER_TEMP}/owlmail-acl-creation" --evidence-directory "${RUNNER_TEMP}/owlmail-volume-evidence/default-acl"
+
+      - name: Upload volume recovery evidence without archive or credentials
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: named-volume-recovery
+          path: ${{ runner.temp }}/owlmail-volume-evidence/
+          if-no-files-found: warn
+          retention-days: 7
 
   build-and-push:
     name: Build and Push Docker Image

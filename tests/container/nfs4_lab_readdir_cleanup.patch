@@ -1,0 +1,14 @@
+--- a/src/FSAL/FSAL_LIZARDFS/handle.c
++++ b/src/FSAL/FSAL_LIZARDFS/handle.c
+@@ -139,8 +139,10 @@
+ 				 direntry_offset, kBatchSize, buffer,
+ 				 &entries_count);
+ 		if (rc < 0) {
++			fsal_status_t status = lzfs_fsal_last_err();
++			liz_releasedir(lzfs_export->lzfs_instance, dir_desc);
+ 			liz_destroy_context(ctx);
+-			return lzfs_fsal_last_err();
++			return status;
+ 		}
+ 
+ 		cb_rc = DIR_CONTINUE;

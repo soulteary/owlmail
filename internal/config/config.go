@@ -259,6 +259,26 @@ func ResolveLogLevel(fs *flag.FlagSet, flagName, defaultValue string) string {
 
 // Config holds all application configuration
 type Config struct {
+	MultiuserMaxPending        int
+	MultiuserRCPTPerMinute     int
+	MultiuserAuthPerMinute     int
+	MultiuserMaxMessages       int
+	MultiuserMaxDiskMB         int
+	PendingRetentionDays       int
+	PendingEmptyRetentionHours int
+	PendingCleanupInterval     string
+
+	Mode                    string
+	IdentityNamespace       string
+	IdentityTrustedProxies  string
+	IdentitySubjectHeader   string
+	IdentityEmailHeader     string
+	IdentityVerifiedHeader  string
+	ClaimPolicy             string
+	ControlDatabase         string
+	SystemSMTPAccountsFile  string
+	RecipientAllowedDomains string
+
 	ConfigFile     string
 	ListenInfoFile string
 	// SMTP server configuration
@@ -368,6 +388,25 @@ type Config struct {
 // DefaultConfig returns a Config with default values
 func DefaultConfig() *Config {
 	return &Config{
+		MultiuserMaxPending:        1000,
+		MultiuserRCPTPerMinute:     60,
+		MultiuserAuthPerMinute:     120,
+		MultiuserMaxMessages:       10000,
+		MultiuserMaxDiskMB:         1024,
+		PendingRetentionDays:       7,
+		PendingEmptyRetentionHours: 24,
+		PendingCleanupInterval:     "1h",
+
+		Mode:                        "standalone",
+		IdentityTrustedProxies:      "",
+		ClaimPolicy:                 "",
+		ControlDatabase:             "",
+		SystemSMTPAccountsFile:      "",
+		RecipientAllowedDomains:     "",
+		IdentityNamespace:           "main",
+		IdentitySubjectHeader:       "X-Auth-User",
+		IdentityEmailHeader:         "X-Auth-Email",
+		IdentityVerifiedHeader:      "X-Auth-Email-Verified",
 		ConfigFile:                  "",
 		ListenInfoFile:              "",
 		SMTPPort:                    1025,
@@ -450,6 +489,26 @@ func DefaultConfig() *Config {
 
 // FlagRefs holds references to all flag values for resolution after parsing.
 type FlagRefs struct {
+	MultiuserMaxPending        *int
+	MultiuserRCPTPerMinute     *int
+	MultiuserAuthPerMinute     *int
+	MultiuserMaxMessages       *int
+	MultiuserMaxDiskMB         *int
+	PendingRetentionDays       *int
+	PendingEmptyRetentionHours *int
+	PendingCleanupInterval     *string
+
+	Mode                    *string
+	IdentityNamespace       *string
+	IdentityTrustedProxies  *string
+	IdentitySubjectHeader   *string
+	IdentityEmailHeader     *string
+	IdentityVerifiedHeader  *string
+	ClaimPolicy             *string
+	ControlDatabase         *string
+	SystemSMTPAccountsFile  *string
+	RecipientAllowedDomains *string
+
 	ConfigFile                  *string
 	ListenInfoFile              *string
 	SMTPPort                    *int
@@ -540,6 +599,26 @@ func DefineFlagsWithDefaults(fs *flag.FlagSet, cfg *Config) *FlagRefs {
 		cfg = DefaultConfig()
 	}
 	return &FlagRefs{
+		MultiuserMaxPending:        fs.Int("multiuser-max-pending", cfg.MultiuserMaxPending, "Multiuser bounded policy: multiuser-max-pending"),
+		MultiuserRCPTPerMinute:     fs.Int("multiuser-rcpt-per-minute", cfg.MultiuserRCPTPerMinute, "Multiuser bounded policy: multiuser-rcpt-per-minute"),
+		MultiuserAuthPerMinute:     fs.Int("multiuser-auth-per-minute", cfg.MultiuserAuthPerMinute, "Multiuser bounded policy: multiuser-auth-per-minute"),
+		MultiuserMaxMessages:       fs.Int("multiuser-max-messages", cfg.MultiuserMaxMessages, "Multiuser bounded policy: multiuser-max-messages"),
+		MultiuserMaxDiskMB:         fs.Int("multiuser-max-disk-mb", cfg.MultiuserMaxDiskMB, "Multiuser bounded policy: multiuser-max-disk-mb"),
+		PendingRetentionDays:       fs.Int("pending-retention-days", cfg.PendingRetentionDays, "Multiuser bounded policy: pending-retention-days"),
+		PendingEmptyRetentionHours: fs.Int("pending-empty-retention-hours", cfg.PendingEmptyRetentionHours, "Multiuser bounded policy: pending-empty-retention-hours"),
+		PendingCleanupInterval:     fs.String("pending-cleanup-interval", cfg.PendingCleanupInterval, "Multiuser bounded policy: pending-cleanup-interval"),
+
+		Mode:                    fs.String("mode", cfg.Mode, "Multiuser configuration: mode"),
+		IdentityNamespace:       fs.String("identity-namespace", cfg.IdentityNamespace, "Multiuser configuration: identity-namespace"),
+		IdentityTrustedProxies:  fs.String("identity-trusted-proxies", cfg.IdentityTrustedProxies, "Multiuser configuration: identity-trusted-proxies"),
+		IdentitySubjectHeader:   fs.String("identity-subject-header", cfg.IdentitySubjectHeader, "Multiuser configuration: identity-subject-header"),
+		IdentityEmailHeader:     fs.String("identity-email-header", cfg.IdentityEmailHeader, "Multiuser configuration: identity-email-header"),
+		IdentityVerifiedHeader:  fs.String("identity-verified-header", cfg.IdentityVerifiedHeader, "Multiuser configuration: identity-verified-header"),
+		ClaimPolicy:             fs.String("claim-policy", cfg.ClaimPolicy, "Multiuser configuration: claim-policy"),
+		ControlDatabase:         fs.String("control-database", cfg.ControlDatabase, "Multiuser configuration: control-database"),
+		SystemSMTPAccountsFile:  fs.String("system-smtp-accounts-file", cfg.SystemSMTPAccountsFile, "Multiuser configuration: system-smtp-accounts-file"),
+		RecipientAllowedDomains: fs.String("recipient-allowed-domains", cfg.RecipientAllowedDomains, "Multiuser configuration: recipient-allowed-domains"),
+
 		ConfigFile:                  fs.String("config", cfg.ConfigFile, "YAML or JSON configuration file"),
 		SMTPPort:                    fs.Int("smtp", cfg.SMTPPort, "SMTP port to catch emails (0 = OS-selected)"),
 		SMTPHost:                    fs.String("ip", cfg.SMTPHost, "IP address to bind SMTP service to"),
@@ -635,6 +714,26 @@ func secretStringFlag(fs *flag.FlagSet, name, value, usage string) *string {
 func ResolveConfig(fs *flag.FlagSet, refs *FlagRefs) *Config {
 	outgoingSecure, outgoingTLSMode := resolveOutgoingTransport(fs, *refs.OutgoingSecure, *refs.OutgoingTLSMode)
 	return &Config{
+		MultiuserMaxPending:        resolveIntWithFlag(fs, "multiuser-max-pending", "OWLMAIL_MULTIUSER_MAX_PENDING", *refs.MultiuserMaxPending),
+		MultiuserRCPTPerMinute:     resolveIntWithFlag(fs, "multiuser-rcpt-per-minute", "OWLMAIL_MULTIUSER_RCPT_PER_MINUTE", *refs.MultiuserRCPTPerMinute),
+		MultiuserAuthPerMinute:     resolveIntWithFlag(fs, "multiuser-auth-per-minute", "OWLMAIL_MULTIUSER_AUTH_PER_MINUTE", *refs.MultiuserAuthPerMinute),
+		MultiuserMaxMessages:       resolveIntWithFlag(fs, "multiuser-max-messages", "OWLMAIL_MULTIUSER_MAX_MESSAGES", *refs.MultiuserMaxMessages),
+		MultiuserMaxDiskMB:         resolveIntWithFlag(fs, "multiuser-max-disk-mb", "OWLMAIL_MULTIUSER_MAX_DISK_MB", *refs.MultiuserMaxDiskMB),
+		PendingRetentionDays:       resolveIntWithFlag(fs, "pending-retention-days", "OWLMAIL_PENDING_RETENTION_DAYS", *refs.PendingRetentionDays),
+		PendingEmptyRetentionHours: resolveIntWithFlag(fs, "pending-empty-retention-hours", "OWLMAIL_PENDING_EMPTY_RETENTION_HOURS", *refs.PendingEmptyRetentionHours),
+		PendingCleanupInterval:     resolveStringWithFlag(fs, "pending-cleanup-interval", "OWLMAIL_PENDING_CLEANUP_INTERVAL", *refs.PendingCleanupInterval),
+
+		Mode:                    resolveStringWithFlag(fs, "mode", "OWLMAIL_MODE", *refs.Mode),
+		IdentityNamespace:       resolveStringWithFlag(fs, "identity-namespace", "OWLMAIL_IDENTITY_NAMESPACE", *refs.IdentityNamespace),
+		IdentityTrustedProxies:  resolveStringWithFlag(fs, "identity-trusted-proxies", "OWLMAIL_IDENTITY_TRUSTED_PROXIES", *refs.IdentityTrustedProxies),
+		IdentitySubjectHeader:   resolveStringWithFlag(fs, "identity-subject-header", "OWLMAIL_IDENTITY_SUBJECT_HEADER", *refs.IdentitySubjectHeader),
+		IdentityEmailHeader:     resolveStringWithFlag(fs, "identity-email-header", "OWLMAIL_IDENTITY_EMAIL_HEADER", *refs.IdentityEmailHeader),
+		IdentityVerifiedHeader:  resolveStringWithFlag(fs, "identity-verified-header", "OWLMAIL_IDENTITY_VERIFIED_HEADER", *refs.IdentityVerifiedHeader),
+		ClaimPolicy:             resolveStringWithFlag(fs, "claim-policy", "OWLMAIL_CLAIM_POLICY", *refs.ClaimPolicy),
+		ControlDatabase:         resolveStringWithFlag(fs, "control-database", "OWLMAIL_CONTROL_DATABASE", *refs.ControlDatabase),
+		SystemSMTPAccountsFile:  resolveStringWithFlag(fs, "system-smtp-accounts-file", "OWLMAIL_SYSTEM_SMTP_ACCOUNTS_FILE", *refs.SystemSMTPAccountsFile),
+		RecipientAllowedDomains: resolveStringWithFlag(fs, "recipient-allowed-domains", "OWLMAIL_RECIPIENT_ALLOWED_DOMAINS", *refs.RecipientAllowedDomains),
+
 		ConfigFile:          resolveStringWithFlag(fs, "config", "OWLMAIL_CONFIG_FILE", *refs.ConfigFile),
 		SMTPPort:            resolveIntWithFlag(fs, "smtp", "OWLMAIL_SMTP_PORT", *refs.SMTPPort),
 		SMTPHost:            resolveStringWithFlag(fs, "ip", "OWLMAIL_SMTP_HOST", *refs.SMTPHost),

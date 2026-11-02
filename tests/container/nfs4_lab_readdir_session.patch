@@ -1,0 +1,53 @@
+--- a/src/mount/client/client.cc
++++ b/src/mount/client/client.cc
+@@ -311,15 +311,20 @@
+ }
+ 
+ Client::FileInfo *Client::opendir(Context &ctx, Inode inode, std::error_code &ec) {
+-	int ret = lizardfs_opendir_(ctx, inode);
++	std::unique_ptr<FileInfo> fileinfo(new FileInfo(inode, nextOpendirSessionID_++));
++	int ret = lizardfs_opendir_(ctx, inode, fileinfo->opendirSessionID);
+ 	ec = make_error_code(ret);
+ 	if (ec) {
+ 		return nullptr;
+ 	}
+-	FileInfo *fileinfo = new FileInfo(inode, nextOpendirSessionID_++);
+-	std::lock_guard<std::mutex> guard(mutex_);
+-	fileinfos_.push_front(*fileinfo);
+-	return fileinfo;
++	try {
++		std::lock_guard<std::mutex> guard(mutex_);
++		fileinfos_.push_front(*fileinfo);
++	} catch (...) {
++		lizardfs_releasedir_(inode, fileinfo->opendirSessionID);
++		throw;
++	}
++	return fileinfo.release();
+ }
+ 
+ void Client::releasedir(FileInfo* fileinfo) {
+--- a/src/mount/client/lizard_client_c_linkage.h
++++ b/src/mount/client/lizard_client_c_linkage.h
+@@ -50,7 +50,7 @@
+ int lizardfs_unlink(LizardClient::Context &ctx, LizardClient::Inode parent, const char *name);
+ int lizardfs_undel(LizardClient::Context &ctx, LizardClient::Inode ino);
+ int lizardfs_open(LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::FileInfo* fi);
+-int lizardfs_opendir(LizardClient::Context &ctx, LizardClient::Inode ino);
++int lizardfs_opendir(LizardClient::Context &ctx, LizardClient::Inode ino, uint64_t opendirSessionID);
+ int lizardfs_release(LizardClient::Inode ino, LizardClient::FileInfo* fi);
+ int lizardfs_getattr(LizardClient::Context &ctx, LizardClient::Inode ino, LizardClient::AttrReply &reply);
+ int lizardfs_releasedir(LizardClient::Inode ino, uint64_t opendirSessionID);
+--- a/src/mount/client/lizard_client_c_linkage.cc
++++ b/src/mount/client/lizard_client_c_linkage.cc
+@@ -323,9 +323,10 @@
+ 	}
+ }
+ 
+-int lizardfs_opendir(Context &ctx, Inode ino) {
++int lizardfs_opendir(Context &ctx, Inode ino, uint64_t opendirSessionID) {
+ 	try {
+ 		LizardClient::opendir(ctx, ino);
++		LizardClient::update_readdir_session(opendirSessionID, 0);
+ 		return LIZARDFS_STATUS_OK;
+ 	} catch (const RequestException &e) {
+ 		return e.lizardfs_error_code;

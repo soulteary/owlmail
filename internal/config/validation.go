@@ -42,6 +42,10 @@ func ValidateConfig(cfg *Config) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 
+	if err := ValidateMode(cfg); err != nil {
+		return err
+	}
+
 	// Validate ports
 	if err := ValidateListenerPort(cfg.SMTPPort, "SMTP port"); err != nil {
 		return err

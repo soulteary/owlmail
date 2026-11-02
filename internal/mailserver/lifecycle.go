@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"slices"
 
 	"github.com/soulteary/owlmail/internal/common"
 )
@@ -211,6 +212,12 @@ func (ms *MailServer) closeOwnedResources() error {
 	closers := append([]io.Closer(nil), ms.closers...)
 	ms.closers = nil
 	ms.closersMutex.Unlock()
+	// Isolated mode registers its authority before its HTTP consumer. Stop
+	// consumers first so no request can race closing the control database.
+	// Preserve historical standalone closer ordering.
+	if ms.requireOwnership {
+		slices.Reverse(closers)
+	}
 	for _, closer := range closers {
 		if err := closer.Close(); err != nil {
 			closeErrors = append(closeErrors, err)

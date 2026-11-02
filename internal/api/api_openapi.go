@@ -8,7 +8,14 @@ import (
 )
 
 func (api *API) getOpenAPIJSON(c fiber.Ctx) error {
-	document, err := openapicontract.JSON(api.route("/api/v1"))
+	var document []byte
+	var err error
+	if api.multiuser != nil {
+		subject, email, verified := api.multiuser.Proxy.IdentityHeaders()
+		document, err = openapicontract.MultiuserJSONWithHeaders(api.route("/api/v1"), subject, email, verified)
+	} else {
+		document, err = openapicontract.JSON(api.route("/api/v1"))
+	}
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, "OpenAPI contract unavailable"))
 	}
@@ -17,7 +24,14 @@ func (api *API) getOpenAPIJSON(c fiber.Ctx) error {
 }
 
 func (api *API) getOpenAPIYAML(c fiber.Ctx) error {
-	document, err := openapicontract.YAML(api.route("/api/v1"))
+	var document []byte
+	var err error
+	if api.multiuser != nil {
+		subject, email, verified := api.multiuser.Proxy.IdentityHeaders()
+		document, err = openapicontract.MultiuserYAMLWithHeaders(api.route("/api/v1"), subject, email, verified)
+	} else {
+		document, err = openapicontract.YAML(api.route("/api/v1"))
+	}
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(ErrorResponse(ErrorCodeInvalidRequest, "OpenAPI contract unavailable"))
 	}

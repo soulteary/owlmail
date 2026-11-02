@@ -71,7 +71,7 @@ function jsonResponse(data) {
     };
 }
 
-function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl = null, basePathname = '' } = {}) {
+function createHarness({ permission = 'default', secure = true, savedPreference = null, serviceWorker = false, fetchImpl = null, basePathname = '', multiuserMode = false } = {}) {
     const storage = new Map();
     if (savedPreference !== null) {
         storage.set('owlmail.browserNotifications.enabled', savedPreference);
@@ -158,6 +158,7 @@ function createHarness({ permission = 'default', secure = true, savedPreference 
         addEventListener(name, handler) { windowListeners.set(name, handler); },
         focus() {}
     };
+    window.OWLMAIL_MODE = multiuserMode ? 'multiuser' : undefined;
     const document = {
         title: '',
 		activeElement: null,
@@ -1966,4 +1967,34 @@ test('delivery history keeps receipt-pending success tracked until repair comple
  await h.run('refreshEmailDeliveries()');
  assert.equal(h.run('receiptCompletions'),1);
  assert.equal(h.fetchRequests.some(r=>r.options?.method==='POST'),false);
+});
+
+
+test('multiuser mode never opens WebSocket and schedules pausable polling', () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run('connectWebSocket(); startMultiuserPolling();');
+    assert.equal(h.webSocketURLs.length, 0);
+    assert.equal(h.run('multiuserPollTimer !== null'), true);
+    h.run('document.hidden = true;');
+    h.documentListeners.get('visibilitychange')();
+    assert.equal(h.run('multiuserPollTimer'), null);
+    assert.equal(h.run("renderEmailContentTabs({id:'a',html:'body'}).includes('email-content-tab-deliveries')"), false);
+});
+
+test('multiuser unauthorized responses clear old mailbox data and stop polling', async () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run("state.emails=[{id:'old',subject:'secret'}];state.total=1;state.currentEmail={id:'old'};emailSourceCache.set('old','secret');startMultiuserPolling();");
+    await assert.rejects(h.run("handleAPIResponse({status:401,ok:false,headers:{get:()=>null}})"), /expired/);
+    assert.equal(h.run('state.emails.length'), 0);
+    assert.equal(h.run('state.currentEmail'), null);
+    assert.equal(h.run('emailSourceCache.size'), 0);
+    assert.equal(h.run('multiuserAuthExpired'), true);
+});
+
+test('multiuser account switch clears old data even when the new mailbox returns 503', async () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run("multiuserResponseIdentity='alice-marker';state.emails=[{id:'old'}];state.currentEmail={id:'old'};");
+    await assert.rejects(h.run("handleAPIResponse({status:503,ok:false,headers:{get:(name)=>name==='x-owlmail-identity'?'bob-marker':null}})"), /changed/);
+    assert.equal(h.run('state.emails.length'), 0);
+    assert.equal(h.run('state.currentEmail'), null);
 });

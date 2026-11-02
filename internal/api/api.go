@@ -30,6 +30,10 @@ import (
 
 // API represents the REST API server
 type API struct {
+	multiuserClaims sync.Map
+
+	multiuser *MultiuserOptions
+
 	mailServer            *mailserver.MailServer
 	app                   *fiber.App
 	port                  int // requested port; immutable after construction
@@ -111,7 +115,9 @@ func NewAPIWithHTTPSDeferredRecovery(mailServer *mailserver.MailServer, port int
 	}
 	api.wsUpgrader.CheckOrigin = api.webSocketOriginAllowed
 	api.setupRoutes()
-	api.setupEventListeners()
+	if !mailServer.RequiresOwnership() {
+		api.setupEventListeners()
+	}
 	return api
 }
 
@@ -179,6 +185,9 @@ func (api *API) SetMetricsEnabled(enabled bool) {
 // SetMCPHandler enables the optional MCP endpoint using the same listener,
 // HTTPS configuration, base pathname, and Basic Auth middleware as the Web API.
 func (api *API) SetMCPHandler(handler http.Handler) error {
+	if api.multiuser != nil || api.mailServer.RequiresOwnership() {
+		return fmt.Errorf("MCP is unavailable in multiuser mode")
+	}
 	if handler == nil {
 		return fmt.Errorf("MCP handler cannot be nil")
 	}
@@ -194,6 +203,15 @@ func (api *API) route(path string) string {
 // setupRoutes configures OwlMail's historical and versioned APIs, plus the
 // default-off MailDev REST facade when explicitly enabled.
 func (api *API) setupRoutes() {
+	if api.multiuser != nil {
+		api.setupMultiuserRoutes()
+		return
+	}
+	if api.mailServer.RequiresOwnership() {
+		api.app = fiber.New()
+		api.app.Use(func(c fiber.Ctx) error { return c.SendStatus(503) })
+		return
+	}
 	app := fiber.New(fiber.Config{})
 
 	authEnabled := api.authUser != "" && api.authPassword != ""
@@ -329,6 +347,9 @@ func (api *API) serveWebAsset(name, contentType string) fiber.Handler {
 			basePathname = html.EscapeString(basePathname)
 		}
 		content = []byte(strings.ReplaceAll(string(content), "{{OWLMAIL_BASE_PATHNAME}}", basePathname))
+		if api.multiuser != nil && name == "index.html" {
+			content = []byte(strings.Replace(string(content), "<head>", "<head><script>window.OWLMAIL_MODE=\"multiuser\";</script>", 1))
+		}
 		c.Set(fiber.HeaderContentType, contentType)
 		return c.Send(content)
 	}

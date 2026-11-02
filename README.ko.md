@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+
+
 > 🦉 개발자, CI 파이프라인, 자동화 및 코딩 Agent를 위한 셀프 호스팅 AI 네이티브 이메일 테스트 게이트웨이.
 
 [![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/ko/Comparison-and-Migration.md)
@@ -56,9 +59,9 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
   [sendmail 가이드](./docs/ko/Sendmail.md)를 사용할 수 있습니다. 소스 및 브라우저
   테스트는 Bun을 사용하지만 배포 바이너리에는 런타임이 필요하지 않습니다.
 
-## OwlMail 0.13.0
+## OwlMail 0.14.0-alpha.1
 
-`v0.13.0`은 현재 안정 버전입니다. 커서 기반 전달 테스트, 본문 및 첨부 검증, 전달 기록과 확인 후 재시도, 명령 팔레트, 오프라인 진단, 설정을 반영하는 상태 검사와 SMTP-only를 제공합니다. [0.13.0 릴리스 노트](./docs/en/Release-0.13.0.md) · [이전 버전 0.12.0](./docs/en/Release-0.12.0.md).
+`v0.14.0-alpha.1`은 Alpha 미리보기입니다. 커서 기반 전달 테스트, 본문 및 첨부 검증, 전달 기록과 확인 후 재시도, 명령 팔레트, 오프라인 진단, 설정을 반영하는 상태 검사와 SMTP-only를 제공합니다. [0.14.0-alpha.1 릴리스 노트](./docs/en/Release-0.14.0-alpha.1.md) · [이전 버전 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail은 개발, 테스트, CI 및 신뢰할 수 있는 내부 네트워크용입니다. 공개 운영
@@ -72,7 +75,7 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
 
 ```bash
 # Clone repository
-git clone --branch v0.13.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -85,7 +88,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail
 ```
 
@@ -126,8 +129,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail을 사용하는 가장 쉬운 방법은 GitHub Container Registry에서 사전 빌드된 이미지를 가져오는 것입니다:
 
 ```bash
-# 0.13.0 릴리스 가져오기
-docker pull ghcr.io/soulteary/owlmail:0.13.0
+# 0.14.0-alpha.1 릴리스 가져오기
+docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 # 정확한 커밋 이미지 가져오기 (예시)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -138,11 +141,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 ```
 
 **사용 가능한 태그:**
-- `0.13.0` - 정확한 릴리스 태그. `0.13`와 `0`은 해당 계열의 후속 릴리스에 따라 이동
+- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
 - `sha-<commit>` - 특정 짧은 커밋 SHA의 이미지(예: `sha-8d3445d`)
 - `main` - 최신 `main` 빌드를 가리키는 이동 태그
 - `latest` - 최신 안정 릴리스를 가리키는 이동 별칭이며 `main` 빌드로 갱신되지 않음
@@ -193,11 +196,11 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-이 표는 `-disable-web`을 포함한 OwlMail 0.13.0의 설정입니다. [버전 선택](./README.md#choose-a-version)과 [설정 참조](./docs/en/Configuration-Reference.md)를 확인하세요.
+이 표는 `-disable-web`을 포함한 OwlMail 0.14.0-alpha.1의 설정입니다. [버전 선택](./README.md#choose-a-version)과 [설정 참조](./docs/en/Configuration-Reference.md)를 확인하세요.
 
 ### Command Line Arguments
 
-OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
@@ -221,9 +224,9 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 종료 시 MCP 세션 정리 제한 시간 |
 | `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | OwlMail 자체 출처 외에 `/mcp`에서 허용하는 브라우저 출처. `*`는 출처 검증을 끕니다 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Mail storage directory |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
+| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited Multiuser rejects nonzero values; use pending-retention-days. |
+| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited Multiuser: hard admission only; 0 selects 100000 messages, without personal eviction. |
+| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited Multiuser: hard admission only; 0 selects 10240 MiB, without personal eviction. |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
 | `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 재구축 가능한 SQLite 사서함 쿼리 인덱스의 선택 경로이며 EML 파일이 계속 원본 데이터 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 디코딩된 첨부 파일을 S3 호환 스토리지에 저장 |
@@ -273,6 +276,24 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | TLS 활성화 시 암시적 TLS(SMTPS) 리스너 포트; `0` 이면 SMTPS 리스너를 시작하지 않음 |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Log level |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 선택적 MailCatcher REST 호환 API 활성화 |
+| `-multiuser-max-pending` | `OWLMAIL_MULTIUSER_MAX_PENDING` | 1000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-rcpt-per-minute` | `OWLMAIL_MULTIUSER_RCPT_PER_MINUTE` | 60 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-auth-per-minute` | `OWLMAIL_MULTIUSER_AUTH_PER_MINUTE` | 120 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-messages` | `OWLMAIL_MULTIUSER_MAX_MESSAGES` | 10000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-disk-mb` | `OWLMAIL_MULTIUSER_MAX_DISK_MB` | 1024 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-retention-days` | `OWLMAIL_PENDING_RETENTION_DAYS` | 7 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-empty-retention-hours` | `OWLMAIL_PENDING_EMPTY_RETENTION_HOURS` | 24 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-cleanup-interval` | `OWLMAIL_PENDING_CLEANUP_INTERVAL` | 1h | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-mode` | `OWLMAIL_MODE` | standalone | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-namespace` | `OWLMAIL_IDENTITY_NAMESPACE` | main | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-trusted-proxies` | `OWLMAIL_IDENTITY_TRUSTED_PROXIES` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-subject-header` | `OWLMAIL_IDENTITY_SUBJECT_HEADER` | X-Auth-User | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-email-header` | `OWLMAIL_IDENTITY_EMAIL_HEADER` | X-Auth-Email | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-verified-header` | `OWLMAIL_IDENTITY_VERIFIED_HEADER` | X-Auth-Email-Verified | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-claim-policy` | `OWLMAIL_CLAIM_POLICY` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-control-database` | `OWLMAIL_CONTROL_DATABASE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-system-smtp-accounts-file` | `OWLMAIL_SYSTEM_SMTP_ACCOUNTS_FILE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-recipient-allowed-domains` | `OWLMAIL_RECIPIENT_ALLOWED_DOMAINS` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 시작 시 YAML 또는 JSON 파일 로드; CLI와 환경 변수가 우선 |
 | `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Development branch: atomically publish actual listener addresses to private JSON; unique path per instance |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 로그 출력 형식: `console` 또는 `json` |
@@ -691,7 +712,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.13.0 릴리스 노트](./docs/en/Release-0.13.0.md) ([中文](./docs/zh-CN/Release-0.13.0.md))
+- [OwlMail 0.14.0-alpha.1 릴리스 노트](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
 - [통합 테스트, CI 및 AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP 참조](./docs/en/MCP-Reference.md), [아키텍처](./docs/en/Architecture.md), [보안 모델](./docs/en/Security-Model.md)
 - [실행 가능한 테스트 예제](./examples/testing/README.md)
@@ -716,4 +737,4 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — 개발, CI, 자동화 및 AI Agent를 위한 셀프 호스팅 이메일 테스트 게이트웨이. 🦉
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

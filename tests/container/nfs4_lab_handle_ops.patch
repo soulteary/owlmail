@@ -1,0 +1,21 @@
+--- a/src/FSAL/FSAL_LIZARDFS/lzfs_internal.h
++++ b/src/FSAL/FSAL_LIZARDFS/lzfs_internal.h
+@@ -96,6 +96,7 @@
+ 
+ struct lzfs_fsal_handle {
+ 	struct fsal_obj_handle handle; /*< The public handle */
++	struct fsal_obj_ops ops; /*< Operations owned by this private handle */
+ 	struct lzfs_fsal_fd fd;
+ 	liz_inode_t inode;
+ 	struct lzfs_fsal_key unique_key;
+--- a/src/FSAL/FSAL_LIZARDFS/lzfs_internal.c
++++ b/src/FSAL/FSAL_LIZARDFS/lzfs_internal.c
+@@ -127,6 +127,8 @@
+ 	fsal_obj_handle_init(&result->handle,
+ 			     &lzfs_export->export,
+ 			     posix2fsal_type(attr->st_mode));
++	result->handle.obj_ops = &result->ops;
++	fsal_default_obj_ops_init(result->handle.obj_ops);
+ 	lzfs_fsal_handle_ops_init(lzfs_export, result->handle.obj_ops);
+ 	result->handle.fsid = posix2fsal_fsid(attr->st_dev);
+ 	result->handle.fileid = attr->st_ino;

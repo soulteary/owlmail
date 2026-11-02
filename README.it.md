@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+
+
 > 🦉 Un gateway self-hosted e AI-native per test email, CI, automazione e coding agent.
 
 [![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/it/Comparison-and-Migration.md)
@@ -57,9 +60,9 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
   [guida sendmail](./docs/it/Sendmail.md) per i programmi legacy. I test sorgente
   e browser usano Bun; il binario distribuito non richiede runtime.
 
-## OwlMail 0.13.0
+## OwlMail 0.14.0-alpha.1
 
-`v0.13.0` è la versione stabile corrente. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.13.0](./docs/en/Release-0.13.0.md) · [Versione precedente 0.12.0](./docs/en/Release-0.12.0.md).
+`v0.14.0-alpha.1` è un’anteprima Alpha. Include test di consegna con cursori, asserzioni su contenuti e allegati, cronologia e retry confermati, palette dei comandi, diagnostica offline e modalità SMTP-only con controlli basati sulla configurazione. [Note di rilascio 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) · [Versione precedente 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail è destinato a sviluppo, test, CI e reti interne affidabili; non è un
@@ -73,7 +76,7 @@ automazioni eventi durevoli e gli agenti AI un MCP limitato in sola lettura.
 
 ```bash
 # Clona il repository
-git clone --branch v0.13.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Compila
@@ -86,7 +89,7 @@ go build -o owlmail ./cmd/owlmail
 #### Installa con Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail
 ```
 
@@ -129,8 +132,8 @@ usano la forma loopback.
 Il modo più semplice per usare OwlMail è scaricare l'immagine pre-costruita da GitHub Container Registry:
 
 ```bash
-# Scarica la release 0.13.0
-docker pull ghcr.io/soulteary/owlmail:0.13.0
+# Scarica la release 0.14.0-alpha.1
+docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 # Scarica l'immagine di un commit esatto (esempio)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -141,11 +144,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 ```
 
 **Tag disponibili:**
-- `0.13.0` - Tag di release esatto; `0.13` e `0` avanzano con le release successive della serie
+- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
 - `sha-<commit>` - Immagine per uno SHA breve specifico (ad esempio `sha-8d3445d`)
 - `main` - Immagine mobile dell'ultimo build di `main`
 - `latest` - Alias mobile dell’ultima release stabile, non aggiornato dalle build `main`
@@ -196,11 +199,11 @@ docker buildx build \
 
 ## 📖 Opzioni di Configurazione
 
-La tabella descrive OwlMail 0.13.0, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
+La tabella descrive OwlMail 0.14.0-alpha.1, incluso `-disable-web`. Vedere [la scelta della versione](./README.md#choose-a-version) e [il riferimento della configurazione](./docs/en/Configuration-Reference.md).
 
 ### Argomenti da Riga di Comando
 
-OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argomento | Variabile d'Ambiente | Predefinito | Descrizione |
 |-----------|---------------------|-------------|-------------|
@@ -224,9 +227,9 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | Termine per chiudere le sessioni MCP durante l'arresto |
 | `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | Origini browser aggiuntive accettate su `/mcp`, oltre a quelle di OwlMail; `*` disattiva la convalida dell'origine |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | Directory di archiviazione email |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited |
+| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | Mail retention days; `0` is unlimited Multiuser rejects nonzero values; use pending-retention-days. |
+| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | Maximum stored messages; `0` is unlimited Multiuser: hard admission only; 0 selects 100000 messages, without personal eviction. |
+| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | Maximum mailbox MiB; `0` is unlimited Multiuser: hard admission only; 0 selects 10240 MiB, without personal eviction. |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | Background cleanup interval |
 | `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | Percorso opzionale per un indice SQLite ricostruibile; i file EML restano la fonte autorevole |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | Memorizza gli allegati decodificati in uno storage compatibile S3 |
@@ -276,6 +279,24 @@ OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0`
 | `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | Porta del listener TLS implicito (SMTPS) quando TLS è abilitato; `0` non avvia alcun listener SMTPS |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | Livello di log |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | Abilita la compatibilità REST MailCatcher opzionale |
+| `-multiuser-max-pending` | `OWLMAIL_MULTIUSER_MAX_PENDING` | 1000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-rcpt-per-minute` | `OWLMAIL_MULTIUSER_RCPT_PER_MINUTE` | 60 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-auth-per-minute` | `OWLMAIL_MULTIUSER_AUTH_PER_MINUTE` | 120 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-messages` | `OWLMAIL_MULTIUSER_MAX_MESSAGES` | 10000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-disk-mb` | `OWLMAIL_MULTIUSER_MAX_DISK_MB` | 1024 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-retention-days` | `OWLMAIL_PENDING_RETENTION_DAYS` | 7 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-empty-retention-hours` | `OWLMAIL_PENDING_EMPTY_RETENTION_HOURS` | 24 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-cleanup-interval` | `OWLMAIL_PENDING_CLEANUP_INTERVAL` | 1h | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-mode` | `OWLMAIL_MODE` | standalone | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-namespace` | `OWLMAIL_IDENTITY_NAMESPACE` | main | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-trusted-proxies` | `OWLMAIL_IDENTITY_TRUSTED_PROXIES` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-subject-header` | `OWLMAIL_IDENTITY_SUBJECT_HEADER` | X-Auth-User | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-email-header` | `OWLMAIL_IDENTITY_EMAIL_HEADER` | X-Auth-Email | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-verified-header` | `OWLMAIL_IDENTITY_VERIFIED_HEADER` | X-Auth-Email-Verified | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-claim-policy` | `OWLMAIL_CLAIM_POLICY` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-control-database` | `OWLMAIL_CONTROL_DATABASE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-system-smtp-accounts-file` | `OWLMAIL_SYSTEM_SMTP_ACCOUNTS_FILE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-recipient-allowed-domains` | `OWLMAIL_RECIPIENT_ALLOWED_DOMAINS` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | Carica un file YAML o JSON all’avvio; CLI e ambiente hanno priorità |
 | `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | Development branch: atomically publish actual listener addresses to private JSON; unique path per instance |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | Formato dei log: `console` o `json` |
@@ -695,7 +716,7 @@ Questo progetto è concesso in licenza sotto la Licenza MIT - vedi il file [LICE
 
 ## 📚 Documentazione Correlata
 
-- [Note di rilascio OwlMail 0.13.0](./docs/en/Release-0.13.0.md) ([中文](./docs/zh-CN/Release-0.13.0.md))
+- [Note di rilascio OwlMail 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
 - [Integrazione, CI e agenti AI](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Riferimento MCP](./docs/en/MCP-Reference.md), [architettura](./docs/en/Architecture.md) e [modello di sicurezza](./docs/en/Security-Model.md)
 - [Esempi di test eseguibili](./examples/testing/README.md)
@@ -720,4 +741,4 @@ Se questo progetto ti aiuta, per favore dagli una Star ⭐!
 
 **OwlMail** — un gateway email self-hosted per sviluppo, CI, automazione e agenti AI. 🦉
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

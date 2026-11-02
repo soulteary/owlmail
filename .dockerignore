@@ -18,6 +18,8 @@ SECURITY*.md
 *.out
 coverage.*
 *.html
+# Browser pages are required go:embed build inputs, not generated reports.
+!web/*.html
 
 # Build artifacts
 owlmail
@@ -50,3 +52,13 @@ docker-compose*.yml
 .env
 .env.local
 *.local
+
+# Browser dependencies and local verification evidence are never image inputs.
+**/node_modules
+tests/browser/*-playwright-report
+tests/browser/*-test-results
+tests/browser/multiuser-evidence
+tests/browser/playwright-report
+tests/browser/test-results
+tests/browser/multiuser-background-results
+tests/browser/multiuser-background-report

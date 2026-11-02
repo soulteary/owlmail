@@ -8,6 +8,9 @@ import (
 
 // Email represents a parsed email message
 type Email struct {
+	// Ownership is trusted storage metadata, never derived from MIME or exposed as API JSON.
+	Ownership *Ownership `json:"-"`
+
 	RunID         string                 `json:"run_id,omitempty"`
 	ID            string                 `json:"id"`
 	Time          time.Time              `json:"time"`
@@ -62,4 +65,13 @@ type Envelope struct {
 	// From is a meaningful null reverse-path) from a best-effort envelope
 	// reconstructed from an EML after restart.
 	SMTPTransaction bool `json:"-"`
+}
+
+// Ownership is the durable routing decision for a personal or pending mailbox.
+type Ownership struct {
+	MailboxID         string   `json:"mailboxId"`
+	IngestAccountID   string   `json:"ingestAccountId"`
+	TransactionID     string   `json:"transactionId"`
+	MatchedRecipients []string `json:"matchedRecipients"`
+	RouteRevisions    []int64  `json:"routeRevisions"`
 }

@@ -1,0 +1,33 @@
+--- a/src/FSAL/FSAL_LIZARDFS/lzfs_acl.c
++++ b/src/FSAL/FSAL_LIZARDFS/lzfs_acl.c
+@@ -20,7 +20,7 @@
+ #include "context_wrap.h"
+ #include "lzfs_internal.h"
+ 
+-void lzfs_int_apply_masks(liz_acl_t *lzfs_acl, uint32_t owner);
++/* Use the public LizardFS API; it preserves applyMasks and reports failures. */
+ 
+ liz_acl_t *lzfs_int_convert_fsal_acl(const fsal_acl_t *fsal_acl)
+ {
+@@ -173,7 +173,10 @@
+ 		return lzfs_fsal_last_err();
+ 	}
+ 
+-	lzfs_int_apply_masks(acl, owner_id);
++	if (liz_acl_apply_masks(acl, owner_id) < 0) {
++		liz_destroy_acl(acl);
++		return lzfs_fsal_last_err();
++	}
+ 
+ 	*fsal_acl = lzfs_int_convert_lzfs_acl(acl);
+ 	liz_destroy_acl(acl);
+--- a/src/FSAL/FSAL_LIZARDFS/CMakeLists.txt
++++ b/src/FSAL/FSAL_LIZARDFS/CMakeLists.txt
+@@ -29,6 +29,7 @@
+ ########### next target ###############
+ 
+ SET(fsallizardfs_LIB_SRCS
++   /build/lizardfs/src/nfs-ganesha/fileinfo_cache.c
+    context_wrap.c
+    context_wrap.h
+    ds.c

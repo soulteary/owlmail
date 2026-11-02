@@ -13,7 +13,7 @@ import (
 // It does not start delivery. Read-only observers never create relay state.
 func (ms *MailServer) InitializeRelayService() error {
 	ms.relayInitOnce.Do(func() {
-		if ms.readOnly {
+		if ms.readOnly || ms.requireOwnership {
 			return
 		}
 		manager, err := newAutomaticRelayManager(ms)
@@ -55,6 +55,9 @@ func (ms *MailServer) RelayService() *relay.Service {
 // StartRelayRecovery begins persisted task recovery and automatic intent
 // promotion. CLI callers invoke it only after all required listeners bind.
 func (ms *MailServer) StartRelayRecovery() error {
+	if ms.requireOwnership {
+		return nil
+	}
 	if err := ms.InitializeRelayService(); err != nil {
 		return err
 	}
@@ -68,7 +71,7 @@ func (ms *MailServer) StartRelayRecovery() error {
 }
 
 func (ms *MailServer) needsRelayInitialization() bool {
-	if ms.readOnly {
+	if ms.readOnly || ms.requireOwnership {
 		return false
 	}
 	if configuration := ms.GetOutgoingConfig(); configuration != nil && configuration.Host != "" {

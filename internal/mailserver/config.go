@@ -65,6 +65,9 @@ func ResolveMailDirectory(mailDir string) string {
 // NewMailServerWithOptions creates a mail server with optional external
 // attachment storage and a configurable SMTP message-size limit.
 func NewMailServerWithOptions(port int, host, mailDir string, options ServerOptions) (*MailServer, error) {
+	if options.ReadOnly && options.RequireOwnership {
+		return nil, fmt.Errorf("isolated storage does not support read-only MCP observers")
+	}
 	if options.ReadOnly && options.RuntimeReadiness {
 		return nil, fmt.Errorf("read-only observers cannot publish runtime readiness")
 	}
@@ -137,7 +140,11 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		return nil, fmt.Errorf("failed to create mail directory: %w", err)
 	}
 
+	if err := prepareOwnershipDirectory(mailDir, options.RequireOwnership); err != nil {
+		return nil, err
+	}
 	ms := &MailServer{
+		requireOwnership:        options.RequireOwnership,
 		storeByID:               make(map[string]*types.Email),
 		storeOrder:              make([]string, 0),
 		receivedAtByID:          make(map[string]time.Time),
@@ -178,6 +185,13 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 		ms.outgoing = outgoing.NewOutgoingMail(options.OutgoingConfig)
 	}
 
+	if err := ms.configureRoutedIngress(options.RoutedIngress); err != nil {
+		return nil, err
+	}
+	if err := ms.recoverRoutedIngress(); err != nil {
+		return nil, err
+	}
+
 	// Setup SMTP server
 	if err := ms.setupSMTPServer(); err != nil {
 		if ms.mailboxIndex != nil {
@@ -191,6 +205,10 @@ func NewMailServerWithOptions(port int, host, mailDir string, options ServerOpti
 	// Read-only observers explicitly refresh through the non-mutating loader.
 	if !options.ReadOnly {
 		if err := ms.LoadMailsFromDirectory(); err != nil {
+			if options.RequireOwnership {
+				_ = ms.Close()
+				return nil, fmt.Errorf("restore isolated mailbox: %w", err)
+			}
 			common.Error("Failed to load emails from directory: %v", err)
 			// Continue anyway, as this is not a fatal error
 		}

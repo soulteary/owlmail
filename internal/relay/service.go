@@ -92,6 +92,7 @@ type Service struct {
 	active               map[string]bool
 	leases               map[string]func()
 	startOnce, closeOnce sync.Once
+	closeErr             error
 	receiptPending       atomic.Int64
 	admissions           sync.WaitGroup
 }
@@ -677,7 +678,7 @@ func (s *Service) Close() error {
 		close(s.stop)
 		s.signalLocked()
 		s.mu.Unlock()
-		_ = s.readiness.Close()
+		s.closeErr = s.readiness.Close()
 		s.admissions.Wait()
 		if started {
 			<-s.done
@@ -695,7 +696,7 @@ func (s *Service) Close() error {
 			release()
 		}
 	})
-	return nil
+	return s.closeErr
 }
 
 func relayFailureIsRetryable(err error) bool {

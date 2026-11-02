@@ -1,0 +1,15 @@
+--- a/src/mount/client/CMakeLists.txt
++++ b/src/mount/client/CMakeLists.txt
+@@ -10,10 +10,10 @@
+ 
+ add_library(lizardfs-client_shared SHARED client.cc lizardfs_c_api.cc client_error_code.cc)
+ set_target_properties(lizardfs-client_shared PROPERTIES OUTPUT_NAME "lizardfs-client")
+-target_link_libraries(lizardfs-client_shared ${CMAKE_DL_LIBS} mount_pic)
++target_link_libraries(lizardfs-client_shared ${CMAKE_DL_LIBS} mount_pic mfscommon_pic)
+ 
+ add_library(lizardfsmount_shared SHARED ${MOUNT_SOURCES} lizard_client_c_linkage.cc)
+-target_link_libraries(lizardfsmount_shared mount_pic ${ADDITIONAL_LIBS})
++target_link_libraries(lizardfsmount_shared mount_pic mfscommon_pic ${ADDITIONAL_LIBS})
+ 
+ install(TARGETS lizardfs-client DESTINATION ${LIB_SUBDIR})
+ install(TARGETS lizardfs-client_pic DESTINATION ${LIB_SUBDIR})

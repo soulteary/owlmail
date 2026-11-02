@@ -29,7 +29,13 @@ func (s *Session) Auth(mechanism string) (sasl.Server, error) {
 	switch strings.ToUpper(mechanism) {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
-			if s.mailServer.authRequired() && identity != "" {
+			if s.mailServer.routedIngress != nil && identity != "" && identity != username {
+				s.authenticated = false
+				s.ingestAccount = nil
+				s.Reset()
+				return smtp.ErrAuthFailed
+			}
+			if s.mailServer.routedIngress == nil && s.mailServer.authRequired() && identity != "" {
 				if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.StringsEqual(identity, username) {
 					return smtp.ErrAuthFailed
 				}
@@ -44,6 +50,22 @@ func (s *Session) Auth(mechanism string) (sasl.Server, error) {
 }
 
 func (s *Session) authenticate(username, password string) error {
+	if ingress := s.mailServer.routedIngress; ingress != nil {
+		s.authenticated = false
+		s.ingestAccount = nil
+		s.Reset()
+		if !ingress.allowAttempt("", true) {
+			return smtp.ErrAuthFailed
+		}
+		account, err := ingress.options.Accounts.Authenticate(username, password)
+		if err != nil {
+			return smtp.ErrAuthFailed
+		}
+		s.ingestAccount = &account
+		s.authenticated = true
+		return nil
+	}
+
 	if s.mailServer.authRequired() {
 		if s.mailServer.authVerifier == nil || !s.mailServer.authVerifier.CredentialsEqual(username, password) {
 			return smtp.ErrAuthFailed
@@ -61,7 +83,7 @@ func (s *Session) requireAuthentication() error {
 }
 
 func (ms *MailServer) authRequired() bool {
-	return ms.authConfig != nil && ms.authConfig.Enabled
+	return ms.routedIngress != nil || (ms.authConfig != nil && ms.authConfig.Enabled)
 }
 
 type loginServer struct {

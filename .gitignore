@@ -15,3 +15,12 @@ coverage.html
 /owlmail-darwin-arm64
 /owlmail-windows-amd64.exe
 /dist/
+
+# Explicitly tagged test fixture and real multiuser browser evidence.
+/owlmail-browser-fixture
+/tests/browser/multiuser-playwright-report/
+/tests/browser/multiuser-test-results/
+
+/tests/browser/multiuser-evidence/
+/tests/browser/multiuser-background-results/
+/tests/browser/multiuser-background-report/

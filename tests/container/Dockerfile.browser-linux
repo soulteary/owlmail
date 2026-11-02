@@ -1,0 +1,19 @@
+ARG FIXTURE_IMAGE=localhost/owlmail:multiuser-container-fixture
+FROM ${FIXTURE_IMAGE}
+USER 0
+RUN apk add --no-cache chromium xvfb xvfb-run xauth nodejs
+WORKDIR /checks
+COPY playwright-node-modules.tar /tmp/playwright-node-modules.tar
+RUN tar -xf /tmp/playwright-node-modules.tar -C /checks && rm /tmp/playwright-node-modules.tar
+COPY multiuser.playwright.config.js multiuser.spec.js /checks/
+COPY run-browser-linux.sh run-browser-linux.mjs /app/
+RUN chmod 755 /app/run-browser-linux.sh
+RUN chown -R 1000:1000 /checks
+USER owlmail
+ENV CHROME_BIN=/usr/bin/chromium-browser
+ENV OWLMAIL_BROWSER_HEADED=1
+ENV OWLMAIL_REQUIRE_REAL_BACKGROUND=1
+ENV OWLMAIL_BROWSER_FIXTURE=/app/owlmail-fixture
+HEALTHCHECK NONE
+ENTRYPOINT ["/app/run-browser-linux.sh"]
+CMD ["node", "node_modules/@playwright/test/cli.js", "test", "--config", "multiuser.playwright.config.js", "--grep", "real background visibility"]

@@ -12,11 +12,13 @@ import (
 	"time"
 
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 const metadataDirectoryName = ".owlmail-meta"
 
 const currentMetadataVersion = 3
+const ownershipMetadataVersion = 4
 
 const (
 	attachmentStorageLocal = "local"
@@ -78,6 +80,8 @@ func (ms *MailServer) GetMailboxMetrics() MailboxMetrics {
 }
 
 type emailMetadata struct {
+	Ownership *types.Ownership `json:"ownership,omitempty"`
+
 	Version         int                  `json:"version"`
 	ID              string               `json:"id"`
 	Read            bool                 `json:"read"`
@@ -291,6 +295,9 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 	if email == nil {
 		return nil
 	}
+	if err := ms.validateOwnership(email.Ownership); err != nil {
+		return err
+	}
 	dir := filepath.Join(ms.mailDir, metadataDirectoryName)
 	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
@@ -304,6 +311,10 @@ func (ms *MailServer) persistEmailMetadataAt(email *Email, receivedAt time.Time)
 		RelayedAt:   cloneTime(email.RelayedAt),
 		RelayedTo:   append([]string(nil), email.RelayedTo...),
 		Attachments: make([]attachmentMetadata, 0, len(email.Attachments)),
+	}
+	if email.Ownership != nil {
+		metadata.Version = ownershipMetadataVersion
+		metadata.Ownership = cloneOwnership(email.Ownership)
 	}
 	metadata.SMTPTransaction = email.Envelope != nil && email.Envelope.SMTPTransaction
 	for _, attachment := range email.Attachments {
@@ -360,8 +371,19 @@ func (ms *MailServer) loadEmailMetadata(id string) (emailMetadata, error) {
 	if err := json.Unmarshal(encoded, &metadata); err != nil {
 		return emailMetadata{}, err
 	}
-	if (metadata.Version < 1 || metadata.Version > currentMetadataVersion) || metadata.ID != id {
+	if (metadata.Version < 1 || metadata.Version > ownershipMetadataVersion) || metadata.ID != id {
 		return emailMetadata{}, fmt.Errorf("invalid metadata for %s", id)
+	}
+	if metadata.Version == ownershipMetadataVersion && metadata.Ownership == nil {
+		return emailMetadata{}, fmt.Errorf("missing ownership metadata for %s", id)
+	}
+	if metadata.Ownership != nil {
+		if metadata.Version != ownershipMetadataVersion {
+			return emailMetadata{}, fmt.Errorf("ownership requires metadata v4")
+		}
+		if err := validateOwnershipValue(metadata.Ownership); err != nil {
+			return emailMetadata{}, err
+		}
 	}
 	if metadata.RelayedAt != nil && (metadata.RelayedAt.IsZero() || len(metadata.RelayedTo) == 0) {
 		return emailMetadata{}, fmt.Errorf("invalid relay receipt metadata for %s", id)

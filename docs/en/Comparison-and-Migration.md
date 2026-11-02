@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit: Feature, API, and Migration Guide
 
-Current stable release: 0.13.0. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.13.0 release notes](Release-0.13.0.md) for features added after that baseline.
+Current Alpha preview: 0.14.0-alpha.1. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged. See the [0.14.0-alpha.1 release notes](Release-0.14.0-alpha.1.md) for features added after that baseline.
 
 > A source-based comparison for choosing a development mail server. It describes
 > verified behavior, not drop-in compatibility.

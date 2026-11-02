@@ -246,3 +246,117 @@ func TestDurableRelayBlockedProbeKeepsCacheAndShutdownResponsive(t *testing.T) {
 		t.Fatal("finished probe replaced shutdown state")
 	}
 }
+
+func TestRelayReadinessCloseJoinsActiveScratchProbe(t *testing.T) {
+	service, mailbox := newRelayReadinessTestService(t)
+	if err := mailbox.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "localhost"}); err != nil {
+		t.Fatal(err)
+	}
+	monitor := service.readiness
+	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	monitor.check = func(directory string) error {
+		file, err := os.CreateTemp(directory, ".relay-close-test-*")
+		if err != nil {
+			return err
+		}
+		_ = file.Close()
+		close(entered)
+		<-release
+		err = os.Remove(file.Name())
+		close(finished)
+		return err
+	}
+	monitor.Start()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("scratch probe did not start")
+	}
+	closed := make(chan struct{})
+	go func() { _ = monitor.Close(); close(closed) }()
+	<-monitor.stop
+	// Keep the real scratch file live until shutdown has had a chance to join.
+	// The old fire-and-forget Close deterministically returns in this window.
+	select {
+	case <-closed:
+		close(release)
+		<-finished
+		t.Fatal("Close returned while its scratch probe still owned a file")
+	case <-time.After(20 * time.Millisecond):
+	}
+	close(release)
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("Close did not join the released probe")
+	}
+	select {
+	case <-finished:
+	default:
+		t.Fatal("scratch cleanup had not finished before Close returned")
+	}
+	entries, err := os.ReadDir(monitor.directory)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("scratch directory after Close: entries=%v error=%v", entries, err)
+	}
+}
+
+func TestRelayReadinessCloseBoundsStartedBlockedWorker(t *testing.T) {
+	service, mailbox := newRelayReadinessTestService(t)
+	if err := mailbox.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "localhost"}); err != nil {
+		t.Fatal(err)
+	}
+	monitor := service.readiness
+	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
+	monitor.check = func(string) error { close(entered); <-release; close(finished); return nil }
+	monitor.Start()
+	select {
+	case <-entered:
+	case <-time.After(time.Second):
+		t.Fatal("blocked worker did not start")
+	}
+	closed := make(chan error, 1)
+	go func() { closed <- service.Close() }()
+	select {
+	case err := <-closed:
+		if !errors.Is(err, ErrReadinessShutdownPending) {
+			t.Fatalf("Close error = %v, want explicit pending filesystem probe", err)
+		}
+	case <-time.After(time.Second):
+		close(release)
+		<-finished
+		t.Fatal("Close indefinitely joined a blocked filesystem worker")
+	}
+	close(release)
+	<-finished
+	if monitor.Snapshot().State != attachmentstore.HealthClosed {
+		t.Fatal("released worker replaced the closed health state")
+	}
+}
+
+func TestRelayReadinessConcurrentStartClosePublishesWorker(t *testing.T) {
+	for i := 0; i < 32; i++ {
+		service, _ := newRelayReadinessTestService(t)
+		monitor := service.readiness
+		start := make(chan struct{})
+		started := make(chan struct{})
+		closed := make(chan error, 1)
+		go func() { <-start; monitor.Start(); close(started) }()
+		go func() { <-start; closed <- monitor.Close() }()
+		close(start)
+		<-started
+		if err := <-closed; err != nil {
+			t.Fatalf("iteration %d: Close: %v", i, err)
+		}
+		monitor.mu.RLock()
+		done := monitor.workerDone
+		monitor.mu.RUnlock()
+		if done != nil {
+			select {
+			case <-done:
+			default:
+				t.Fatalf("iteration %d: Close missed a concurrently published worker", i)
+			}
+		}
+	}
+}

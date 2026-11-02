@@ -6,7 +6,7 @@ const binary = process.env.OWLMAIL_BINARY || path.resolve(__dirname, '../../owlm
 const mailDir = fs.mkdtempSync(path.join(os.tmpdir(), 'owlmail-browser-'));
 module.exports = defineConfig({
     testDir: '.',
-    testMatch: '*.spec.js',
+    testMatch: 'mailbox.spec.js',
     workers: 1,
     retries: process.env.CI ? 1 : 0,
     reporter: [['list'], ['html', { open: 'never' }]],

@@ -23,6 +23,8 @@ import (
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 	"github.com/soulteary/owlmail/internal/common"
 	"github.com/soulteary/owlmail/internal/config"
+	"github.com/soulteary/owlmail/internal/identity"
+	"github.com/soulteary/owlmail/internal/mailbox"
 	"github.com/soulteary/owlmail/internal/mailserver"
 	"github.com/soulteary/owlmail/internal/mcpserver"
 	"github.com/soulteary/owlmail/internal/outgoing"
@@ -519,13 +521,8 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 	if err := server.InitializeRelayService(); err != nil {
 		return nil, fmt.Errorf("initialize durable relay: %w", err)
 	}
-	// Durable jobs and automatic handoffs protect their sources before retention.
-	storagePolicy, err := setupStoragePolicy(cfg)
-	if err != nil {
+	if err := configureStoragePolicyForMode(server, cfg); err != nil {
 		return nil, err
-	}
-	if err := server.ConfigureStoragePolicy(storagePolicy); err != nil {
-		return nil, fmt.Errorf("configure storage policy: %w", err)
 	}
 	if cfg.DisableWeb {
 		// The delivery pipeline owns durable relay jobs and source leases.
@@ -546,7 +543,20 @@ func startAPIServer(server *mailserver.MailServer, cfg *config.Config) (*api.API
 		common.Log("SMTP-only mode: Web, REST, WebSocket and HTTP MCP listener disabled")
 		return nil, nil
 	}
-	apiServer := api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	var apiServer *api.API
+	var err error
+	if cfg.Mode == "multiuser" {
+		proxy, err := identity.NewProxy(cfg.IdentityNamespace, strings.Split(cfg.IdentityTrustedProxies, ","), cfg.IdentitySubjectHeader, cfg.IdentityEmailHeader, cfg.IdentityVerifiedHeader)
+		if err != nil {
+			return nil, err
+		}
+		apiServer, err = api.NewMultiuserAPIWithHTTPS(server, cfg.WebPort, cfg.WebHost, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile, api.MultiuserOptions{Proxy: proxy, Store: server.MailboxControl(), ClaimPolicy: mailbox.ClaimPolicy(cfg.ClaimPolicy)})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		apiServer = api.NewAPIWithHTTPSDeferredRecovery(server, cfg.WebPort, cfg.WebHost, cfg.WebUser, cfg.WebPassword, cfg.HTTPSEnabled, cfg.HTTPSCertFile, cfg.HTTPSKeyFile)
+	}
 	apiServer.SetWebhookService(server.WebhookService())
 	if err := server.AddCloser(apiServer); err != nil {
 		_ = apiServer.Close()
@@ -818,6 +828,9 @@ func initializeApplication(cfg *config.Config) error {
 	if cfg == nil {
 		return fmt.Errorf("config is nil")
 	}
+	if err := config.ValidateModeRuntime(cfg); err != nil {
+		return err
+	}
 	if err := config.ValidateWebMode(cfg); err != nil {
 		return err
 	}
@@ -870,6 +883,21 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		return nil, fmt.Errorf("SMTP max concurrency must be a non-negative integer")
 	}
 
+	if cfg.Mode == "multiuser" {
+		if err := validateControlLocation(cfg); err != nil {
+			return nil, err
+		}
+	}
+	routed, err := setupMultiuserIngress(cfg)
+	if err != nil {
+		return nil, err
+	}
+	routedOwned := routed != nil
+	defer func() {
+		if routedOwned {
+			_ = routed.Control.Close()
+		}
+	}()
 	// Validate and compile webhook configuration before starting server resources.
 	webhookDispatcher, err := setupWebhookDispatcher(cfg)
 	if err != nil {
@@ -952,6 +980,8 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 
 	// Create mail server
 	server, err := mailserver.NewMailServerWithOptions(cfg.SMTPPort, cfg.SMTPHost, cfg.MailDir, mailserver.ServerOptions{
+		RequireOwnership:         cfg.Mode == "multiuser",
+		RoutedIngress:            routed,
 		AllowEphemeralPort:       true,
 		DeferRelayRecovery:       true,
 		OutgoingConfig:           outgoingConfig,
@@ -962,7 +992,7 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 		MaxMessageBytes:          int64(maxMessageMB) << 20,
 		MaxDataConcurrency:       cfg.SMTPMaxConcurrency,
 		RuntimeReadiness:         cfg.DisableWeb,
-		RequireRelayJobReadiness: true,
+		RequireRelayJobReadiness: cfg.Mode != "multiuser",
 		ReadTimeout:              readTimeout,
 		WriteTimeout:             writeTimeout,
 		MaxRecipients:            maxRecipients,
@@ -974,6 +1004,17 @@ func createMailServer(cfg *config.Config) (*mailserver.MailServer, error) {
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create mail server: %w", err)
+	}
+	if routed != nil {
+		if err := server.AddCloser(routed.Control); err != nil {
+			_ = server.Close()
+			return nil, err
+		}
+		routedOwned = false
+		if err := startPendingCleanup(server, cfg); err != nil {
+			_ = server.Close()
+			return nil, err
+		}
 	}
 	if attachmentHealth != nil {
 		if err := server.AddCloser(attachmentHealth); err != nil {
@@ -1208,6 +1249,9 @@ func runMCPStdio(ctx context.Context, args []string, stderr io.Writer) (resultEr
 }
 
 func validateMCPStdioConfig(cfg *config.Config) error {
+	if cfg != nil && cfg.Mode != "" && cfg.Mode != "standalone" {
+		return fmt.Errorf("mcp-stdio is unavailable outside standalone mode")
+	}
 	if cfg == nil {
 		return fmt.Errorf("config cannot be nil")
 	}
@@ -1272,6 +1316,19 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "migrate-mailbox" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := runMailboxMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)
+		stop()
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Mailbox migration failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
 	}
 	if len(os.Args) > 1 && os.Args[1] == "migrate-attachments" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)

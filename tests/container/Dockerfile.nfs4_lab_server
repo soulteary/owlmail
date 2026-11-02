@@ -1,0 +1,44 @@
+# Authorized isolated native NFSv4/RichACL lab; never a production OwlMail image.
+ARG TOOLS_IMAGE=localhost/owlmail:nfs4-lab-tools
+FROM ${TOOLS_IMAGE}
+ARG LIZARDFS_COMMIT=b1e97f974fc3a4046edaf9fdc3962264d4cd24fa
+RUN git init /build/lizardfs && cd /build/lizardfs && git remote add origin https://github.com/lizardfs/lizardfs.git && git fetch --depth=1 origin ${LIZARDFS_COMMIT} && git checkout FETCH_HEAD
+COPY nfs4_lab_client_wrappers.patch /build/wrappers.patch
+COPY nfs4_lab_aarch64_storage.patch /build/aarch64-storage.patch
+COPY nfs4_lab_linkage.patch /build/linkage.patch
+COPY nfs4_lab_fsal_bridge.patch /build/fsal-bridge.patch
+RUN cd /build/lizardfs && git apply --check /build/wrappers.patch && git apply /build/wrappers.patch && git apply --check /build/aarch64-storage.patch && git apply /build/aarch64-storage.patch && git apply --check /build/linkage.patch && git apply /build/linkage.patch && git rev-parse HEAD > /build/lizardfs-source-commit && git diff > /build/lizardfs-applied.patch && sha256sum /build/wrappers.patch /build/aarch64-storage.patch /build/linkage.patch
+COPY nfs4_lab_validate_objects.py /build/validate-objects.py
+RUN --mount=type=cache,id=owlmail-nfs4-lizard-build,target=/build/lizardfs-build python3 /build/validate-objects.py /build/lizardfs-build && cmake -S /build/lizardfs -B /build/lizardfs-build -DCMAKE_BUILD_TYPE=Lab -DCMAKE_CXX_FLAGS_LAB="-O1 -DNDEBUG" -DCMAKE_SHARED_LINKER_FLAGS="-Wl,--no-undefined" -DCMAKE_C_FLAGS_LAB="-O1 -DNDEBUG" -DENABLE_CLIENT_LIB=YES -DENABLE_DOCS=NO -DENABLE_TESTS=NO -DENABLE_POLONAISE=NO -DENABLE_URAFT=NO -DENABLE_WERROR=NO && cmake --build /build/lizardfs-build --target mfsmaster mfschunkserver lizardfs-client_shared lizardfsmount_shared -j4 && install -Dm755 /build/lizardfs-build/src/master/mfsmaster /usr/local/sbin/mfsmaster && install -Dm755 /build/lizardfs-build/src/chunkserver/mfschunkserver /usr/local/sbin/mfschunkserver && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfs-client.so /usr/local/lib/liblizardfs-client.so && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfsmount_shared.so /usr/local/lib/liblizardfsmount_shared.so && install -Dm644 /build/lizardfs/src/mount/client/lizardfs_c_api.h /usr/local/include/lizardfs/lizardfs_c_api.h && install -Dm644 /build/lizardfs/src/common/lizardfs_error_codes.h /usr/local/include/lizardfs/lizardfs_error_codes.h && ldconfig
+COPY nfs4_lab_ganesha_exports.patch /build/ganesha-exports.patch
+COPY nfs4_lab_readdir_session.patch /build/readdir-session.patch
+RUN cd /build/lizardfs && git apply --check /build/readdir-session.patch && git apply /build/readdir-session.patch && git diff > /build/lizardfs-applied.patch && sha256sum /build/readdir-session.patch
+RUN --mount=type=cache,id=owlmail-nfs4-lizard-build,target=/build/lizardfs-build python3 /build/validate-objects.py /build/lizardfs-build && cmake --build /build/lizardfs-build --target lizardfs-client_shared lizardfsmount_shared -j4 && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfs-client.so /usr/local/lib/liblizardfs-client.so && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfsmount_shared.so /usr/local/lib/liblizardfsmount_shared.so && ldconfig
+ARG GANESHA_COMMIT=5e14815e5d7a6b7ad9584e16ac1984733ca72ccc
+RUN git init /build/ganesha && cd /build/ganesha && git remote add origin https://github.com/nfs-ganesha/nfs-ganesha.git && git fetch --depth=1 origin ${GANESHA_COMMIT} && git checkout FETCH_HEAD && git rev-parse HEAD > /build/ganesha-source-commit && cd /build/ganesha && git apply --check /build/fsal-bridge.patch && git apply /build/fsal-bridge.patch && git apply --check /build/ganesha-exports.patch && git apply /build/ganesha-exports.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/fsal-bridge.patch /build/ganesha-exports.patch
+COPY nfs4_lab_handle_ops.patch /build/handle-ops.patch
+RUN cd /build/ganesha && git apply --check /build/handle-ops.patch && git apply /build/handle-ops.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/handle-ops.patch
+COPY nfs4_lab_acl_projection.patch /build/acl-projection.patch
+RUN cd /build/ganesha && git apply --check /build/acl-projection.patch && git apply /build/acl-projection.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/acl-projection.patch
+COPY nfs4_lab_io_counts.patch /build/io-counts.patch
+RUN cd /build/ganesha && git apply --check /build/io-counts.patch && git apply /build/io-counts.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/io-counts.patch
+# Backport official 98eb77c4fd94effa6882b214698a77752ec79f6e: legal optional op46 returns NOTSUPP.
+COPY nfs4_lab_dir_delegation.patch /build/dir-delegation.patch
+RUN cd /build/ganesha && git apply --check /build/dir-delegation.patch && git apply /build/dir-delegation.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/dir-delegation.patch
+COPY nfs4_lab_readdir_cleanup.patch /build/readdir-cleanup.patch
+RUN cd /build/ganesha && git apply --check /build/readdir-cleanup.patch && git apply /build/readdir-cleanup.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/readdir-cleanup.patch
+COPY nfs4_lab_readdir_cookies.patch /build/readdir-cookies.patch
+RUN cd /build/ganesha && git apply --check /build/readdir-cookies.patch && git apply /build/readdir-cookies.patch && git diff > /build/ganesha-applied.patch && sha256sum /build/readdir-cookies.patch
+RUN --mount=type=cache,id=owlmail-nfs4-ganesha-build,target=/build/ganesha-build python3 /build/validate-objects.py /build/ganesha-build && cmake -S /build/ganesha/src -B /build/ganesha-build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS=-I/build/lizardfs/src -DUSE_FSAL_LIZARDFS=ON -DUSE_FSAL_VFS=OFF -DUSE_FSAL_MEM=OFF -DUSE_FSAL_CEPH=OFF -DUSE_FSAL_PROXY_V4=OFF -DUSE_DBUS=OFF -DUSE_SYSTEM_NTIRPC=ON -DUSE_MONITORING=OFF && cmake --build /build/ganesha-build --target fsallizardfs -j4 && mkdir -p /usr/local/lib/ganesha && cp /build/ganesha-build/FSAL/FSAL_LIZARDFS/libfsallizardfs.so* /usr/local/lib/ganesha/ && ldconfig
+RUN apt-get update -qq && apt-get install -y --no-install-recommends netbase && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,id=owlmail-nfs4-ganesha-build,target=/build/ganesha-build python3 /build/validate-objects.py /build/ganesha-build && cmake --build /build/ganesha-build --target ganesha.nfsd -j4 && install -Dm755 /build/ganesha-build/ganesha.nfsd /usr/local/bin/ganesha.nfsd && cp -a /build/ganesha-build/MainNFSD/libganesha_nfsd.so* /usr/local/lib/ && ldconfig && LD_LIBRARY_PATH=/usr/local/lib ldd /usr/local/bin/ganesha.nfsd | grep /usr/local/lib/libganesha_nfsd
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
+# Test-only diagnostics preserve native init error semantics; expose the real cause.
+COPY nfs4_lab_init_native_diagnostics.patch /build/init-native-diagnostics.patch
+COPY nfs4_lab_init_fsal_diagnostics.patch /build/init-fsal-diagnostics.patch
+RUN cd /build/lizardfs && git apply --check /build/init-native-diagnostics.patch && git apply /build/init-native-diagnostics.patch && git diff > /build/lizardfs-applied.patch && cd /build/ganesha && git apply --check /build/init-fsal-diagnostics.patch && git apply /build/init-fsal-diagnostics.patch && git diff > /build/ganesha-applied.patch
+RUN --mount=type=cache,id=owlmail-nfs4-lizard-build,target=/build/lizardfs-build python3 /build/validate-objects.py /build/lizardfs-build && cmake --build /build/lizardfs-build --target lizardfs-client_shared lizardfsmount_shared -j4 && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfs-client.so /usr/local/lib/liblizardfs-client.so && install -Dm755 /build/lizardfs-build/src/mount/client/liblizardfsmount_shared.so /usr/local/lib/liblizardfsmount_shared.so && ldconfig
+RUN --mount=type=cache,id=owlmail-nfs4-ganesha-build,target=/build/ganesha-build python3 /build/validate-objects.py /build/ganesha-build && cmake --build /build/ganesha-build --target fsallizardfs -j4 && cp /build/ganesha-build/FSAL/FSAL_LIZARDFS/libfsallizardfs.so* /usr/local/lib/ganesha/ && ldconfig
+COPY nfs4_lab_native_probe.c /build/native-probe.c
+RUN gcc -Wall -Wextra -Werror /build/native-probe.c -I/usr/local/include -L/usr/local/lib -llizardfs-client -o /usr/local/bin/owlmail-native-probe

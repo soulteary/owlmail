@@ -2,6 +2,12 @@
 // API Base URL - 使用新的 API v1 端点
 const BASE_PATHNAME = document.querySelector('meta[name="owlmail-base-pathname"]')?.content || '';
 const API_BASE = `${window.location.origin}${BASE_PATHNAME}/api/v1`;
+const MULTIUSER_MODE = window.OWLMAIL_MODE === 'multiuser';
+let multiuserPollTimer = null;
+let multiuserPollingEnabled = true;
+let multiuserAuthExpired = false;
+let multiuserPollFailures = 0;
+let multiuserResponseIdentity = null;
 
 // Internationalization (i18n)
 const i18n = {
@@ -1371,6 +1377,28 @@ async function notifyBrowserForEmail(email) {
 
 // Helper function to handle API errors
 async function handleAPIResponse(response) {
+    if (MULTIUSER_MODE) {
+        const identity = response.headers.get('x-owlmail-identity');
+        if (response.status === 401 || (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
+            multiuserAuthExpired = true;
+            emailListRequestSequence += 1;
+            emailListActiveSequence = null;
+            mailboxRefreshAfterLoad = false;
+            if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
+            state.emails = [];
+            state.total = 0;
+            selectedMailIDs.clear();
+            clearEmailSelection('replace');
+            renderEmailList();
+            updateEmailCount();
+            if (identity && typeof window.location.reload === 'function') window.location.reload();
+            throw new Error('Identity changed or expired; sign in again.');
+        }
+        if (identity) multiuserResponseIdentity = identity;
+        if (response.ok) multiuserPollFailures = 0;
+        else multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4);
+    }
+
     const contentType = response.headers.get('content-type');
     const isJSON = contentType && contentType.includes('application/json');
     
@@ -1510,6 +1538,7 @@ const API = {
 // WebSocket Connection - 使用新的 API v1 WebSocket 端点
 let websocketHasConnected = false;
 function connectWebSocket() {
+    if (MULTIUSER_MODE) return;
     try {
         // Use ws:// or wss:// based on current protocol
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1598,6 +1627,8 @@ function updateUI(renderDynamic = true) {
 
     const webhookBtn = document.getElementById('webhookBtn');
     if (webhookBtn) {
+        webhookBtn.hidden = MULTIUSER_MODE;
+        webhookBtn.style.display = MULTIUSER_MODE ? 'none' : '';
         webhookBtn.textContent = t('webhooks');
         webhookBtn.title = t('webhooks');
     }
@@ -1819,7 +1850,7 @@ function renderReplyToMetadata(email) {
 }
 
 function renderEmailContentTabs(email) {
-    const availableTabs = ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'];
+    const availableTabs = MULTIUSER_MODE ? ['html', 'text', 'headers', 'source', 'inspect'] : ['html', 'text', 'headers', 'source', 'inspect', 'deliveries'];
     if (!availableTabs.includes(emailContentTab) || (emailContentTab === 'html' && !email.html)) {
         emailContentTab = email.html ? 'html' : 'text';
     }
@@ -2150,6 +2181,7 @@ let emailListRequestSequence = 0;
 let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
 async function loadEmails({ background = false } = {}) {
+    if (MULTIUSER_MODE && (multiuserAuthExpired || emailListActiveSequence !== null)) return;
     if (!background && mailboxRefreshTimer !== null) {
         clearTimeout(mailboxRefreshTimer);
         mailboxRefreshTimer = null;
@@ -2178,6 +2210,7 @@ async function loadEmails({ background = false } = {}) {
             renderEmailList();
             updateEmailCount();
             updatePagination();
+            if (MULTIUSER_MODE) emailListActiveSequence = null;
             return await loadEmails({ background });
         }
         state.emails = remaining;
@@ -2186,6 +2219,7 @@ async function loadEmails({ background = false } = {}) {
         updatePagination();
     } catch (error) {
         if (sequence !== emailListRequestSequence) return;
+        if (MULTIUSER_MODE) multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4);
         console.error('Failed to load emails:', error);
         if (!background) alert(t('loadEmailsError', { error: parseAPIError(error) }));
     } finally {
@@ -2762,8 +2796,9 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('popstate', handleHistoryNavigation);
     document.addEventListener('keydown', handleMailboxKeydown);
 
-    // Connect WebSocket
-    connectWebSocket();
+    // Multiuser mode has no real-time transport or background push.
+    if (MULTIUSER_MODE) startMultiuserPolling();
+    else connectWebSocket();
 
     // Button event listeners
     const refreshBtn = document.getElementById('refreshBtn');
@@ -3152,4 +3187,48 @@ function exportMailbox(selected) {
     if (mailboxControlsBusy()) return;
     const url = mailboxExportURL(selected);
     if (url) window.open(url, '_blank', 'noopener');
+}
+
+
+function startMultiuserPolling() {
+    if (!MULTIUSER_MODE) return;
+    const refreshButton = document.getElementById('refreshBtn');
+    if (refreshButton && refreshButton.parentElement && !document.getElementById('autoRefreshToggle')) {
+        const toggle = document.createElement('button');
+        toggle.id = 'autoRefreshToggle';
+        toggle.className = 'btn btn-secondary';
+        toggle.type = 'button';
+        toggle.textContent = 'Auto refresh: on';
+        toggle.setAttribute('aria-pressed', 'true');
+        toggle.addEventListener('click', () => {
+            multiuserPollingEnabled = !multiuserPollingEnabled;
+            toggle.textContent = multiuserPollingEnabled ? 'Auto refresh: on' : 'Auto refresh: off';
+            toggle.setAttribute('aria-pressed', String(multiuserPollingEnabled));
+            if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
+            multiuserPollTimer = null;
+            if (multiuserPollingEnabled) schedule();
+        });
+        refreshButton.parentElement.appendChild(toggle);
+    }
+    function schedule(immediate = false) {
+        if (!multiuserPollingEnabled || multiuserAuthExpired || document.hidden || multiuserPollTimer !== null) return;
+        multiuserPollTimer = setTimeout(async () => {
+            multiuserPollTimer = null;
+            if (!multiuserPollingEnabled || multiuserAuthExpired || document.hidden) return;
+            if (emailListActiveSequence === null && !mailboxBatchBusy) {
+                const scroll = document.getElementById('emailList')?.scrollTop;
+                try { await loadEmails({ background: true }); }
+                catch (_) { multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4); }
+                const list = document.getElementById('emailList');
+                if (list && scroll !== undefined) list.scrollTop = scroll;
+            }
+            schedule();
+        }, immediate ? 0 : 15000 * (2 ** multiuserPollFailures));
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
+        multiuserPollTimer = null;
+        if (!document.hidden) schedule(true);
+    });
+    schedule();
 }

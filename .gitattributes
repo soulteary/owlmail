@@ -1,0 +1,3 @@
+# Unified-diff context deliberately starts with a space before source tabs,
+# and an empty context line consists of one space. Preserve upstream bytes.
+tests/container/nfs4_lab*.patch whitespace=-blank-at-eol,-space-before-tab
