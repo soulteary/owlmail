@@ -6,7 +6,7 @@ routes. The unversioned routes remain available for existing OwlMail clients and
 for common MailDev-style workflows, but they are not a promise of exact MailDev
 protocol compatibility.
 
-**Version scope:** this page describes OwlMail **0.13.0**, including cursor waits, test-run selectors, email checks, delivery history, and manual retries. These additions are absent from the original `v0.10.1`; users of that release should use the
+**Version scope:** this page describes OwlMail **0.14.0-alpha.1**, including cursor waits, test-run selectors, email checks, delivery history, and manual retries. These additions are absent from the original `v0.10.1`; users of that release should use the
 [tagged 0.10.1 API reference](https://github.com/soulteary/owlmail/blob/v0.10.1/docs/en/API-Reference.md).
 
 ## Base URL and authentication
@@ -299,10 +299,10 @@ A release build returns version provenance similar to:
 
 ```json
 {
-  "version": "0.13.0",
+  "version": "0.14.0-alpha.1",
   "commit": "<full Git commit SHA>",
   "build_date": "<UTC RFC 3339 timestamp>",
-  "branch": "v0.13.0",
+  "branch": "v0.14.0-alpha.1",
   "go_version": "go1.27.3",
   "platform": "linux/amd64",
   "compiler": "gc"

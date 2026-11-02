@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+
+
 Capture application email locally, inspect its content and attachments, and verify delivery in CI and coding-agent workflows.
 
 [![Go Test Coverage](.github/coverage.svg)](.github/go-test-report.md) [![Go Report Card](.github/goreportcard.svg)](.github/goreportcard-report.md) [![Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -30,11 +33,11 @@ OwlMail runs as a single Go executable with an embedded Web UI. Docker images su
 
 ## Choose a version
 
-The Docker quick start below uses stable **0.13.0** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
+The Docker quick start below uses Alpha **0.14.0-alpha.1** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
 
-All workflows below are available in **0.13.0**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.13.0 release notes](docs/en/Release-0.13.0.md) and [the previous 0.12.0 release](docs/en/Release-0.12.0.md).
+All workflows below are available in **0.14.0-alpha.1**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.14.0-alpha.1 release notes](docs/en/Release-0.14.0-alpha.1.md) and [the previous 0.13.0 release](docs/en/Release-0.13.0.md).
 
-Version 0.13.0 adds durable Relay ownership, restart-safe forwarding handoff and downstream acceptance receipts. It retains the structured Reply-To, CID/nested MIME fixes and dynamic ports introduced in 0.12.0. See [dynamic-port discovery](docs/en/Operations.md#os-selected-ports-for-parallel-tests).
+Version 0.14.0-alpha.1 previews isolated-mailbox infrastructure. Production multiuser mode remains closed; standalone retains the existing Relay, Reply-To, MIME/CID and dynamic-port behavior. See [dynamic-port discovery](docs/en/Operations.md#os-selected-ports-for-parallel-tests).
 
 ## Quick start: receive your first email
 
@@ -45,7 +48,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -108,7 +111,7 @@ HTML previews use an isolated iframe. Remote images, fonts, and styles are block
 
 ## Wait, check, and clean up in CI
 
-This example uses only the Python 3 standard library. Save it as `email-check.py` and run `python3 email-check.py` after starting the stable instance above:
+This example uses only the Python 3 standard library. Save it as `email-check.py` and run `python3 email-check.py` after starting the Alpha standalone instance above:
 
 ```python
 import json
@@ -250,10 +253,10 @@ Configure recipients and TLS policy before enabling forwarding. See [Relay and o
 
 Download a platform binary from [Releases](https://github.com/soulteary/owlmail/releases), rename it to `owlmail`, and run `chmod +x owlmail` on Unix platforms. In this README, `./owlmail` means that downloaded or locally built file.
 
-Alternatively, install stable with Go 1.27.3+:
+Alternatively, install this Alpha with Go 1.27.3+:
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail -mail-directory ./mail
 ```
 
@@ -328,7 +331,7 @@ See the [security model](docs/en/Security-Model.md).
 
 ## Documentation and feedback
 
-- [0.13.0 release notes](docs/en/Release-0.13.0.md) · [Previous 0.12.0 release notes](docs/en/Release-0.12.0.md)
+- [0.14.0-alpha.1 release notes](docs/en/Release-0.14.0-alpha.1.md) · [Previous 0.13.0 release notes](docs/en/Release-0.13.0.md)
 - [Integration testing](docs/en/Integration-Testing.md) · [Sendmail-compatible CLI](docs/en/Sendmail.md)
 - [Configuration reference](docs/en/Configuration-Reference.md)
 - [API and OpenAPI](docs/en/API-Reference.md)
@@ -343,4 +346,4 @@ Include your version or commit, startup method, redacted configuration, error ou
 
 [MIT](LICENSE). Inspired by [MailDev](https://github.com/maildev/maildev), and built on upstream Go SMTP / MIME, Fiber, and WebSocket projects.
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

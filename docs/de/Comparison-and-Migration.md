@@ -1,6 +1,6 @@
 # OwlMail × MailDev × MailCatcher × Mailpit: Funktions-, API- und Migrationsleitfaden
 
-Current stable release: 0.13.0. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged.
+Current Alpha preview: 0.14.0-alpha.1. The source-reviewed comparison baseline below remains 0.10.0; its commit references are unchanged.
 
 > **Ein tiefer Quellcode-Vergleich + Migrationsleitfaden für Benutzer und Entwickler**
 

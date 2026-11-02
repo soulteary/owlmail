@@ -5,7 +5,15 @@ ARG TARGETOS=linux
 ARG TARGETARCH
 WORKDIR /build
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
+# Module proxy HTTP/2 streams can fail after partial downloads. Retry only the
+# download (at most three attempts); checksum verification still must succeed.
+RUN attempt=1; \
+    until go mod download; do \
+      if [ "$attempt" -ge 3 ]; then exit 1; fi; \
+      echo "Module download failed; retrying ($attempt/3)" >&2; \
+      sleep "$attempt"; \
+      attempt=$((attempt + 1)); \
+    done && go mod verify
 COPY . .
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -tags=owlmail_browser_fixture -o /build/owlmail-fixture ./tests/browser/fixture

@@ -6,6 +6,26 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.14.0-alpha.1] - 2026-11-02
+
+### Added
+
+- Preview isolated mailbox infrastructure: trusted recipient routing with system SMTP credentials, pending inbox claims, stable identity ownership, scoped APIs, polling UI, persistent quotas, and durable ingress/merge/retention recovery.
+- Add mode-specific OpenAPI contracts, offline migration/doctor tooling, process-crash and immutable backup recovery tests, and isolated browser/storage/ACL lab verification.
+
+### Fixed
+
+- Drain a healthy Relay readiness probe before shutdown returns; report a bounded pending-shutdown error when filesystem IO remains blocked instead of silently allowing queue cleanup.
+- Retry transient module-download failures in the isolated container fixture without retrying builds/tests or weakening checksum verification.
+- Recognize prerelease versions in release-history documentation checks while retaining release ordering and file-existence validation.
+
+### Compatibility and limitations
+
+- This is an infrastructure Alpha preview. Standalone remains the default; production binaries still reject multiuser mode. No environment switch or published fixture bypass enables it.
+- Stargate has not supplied a trusted verified-email declaration; real Phorge/Gorge integration and two-physical-host recovery remain unaccepted. Gorge is unchanged.
+- Multiuser component contracts exclude MCP, WebSocket, shared spaces, outbound relay, and global mailbox operations. Test-only fixtures and NFS/RichACL server experiments are not production artifacts or supported production NFS deployments.
+- Publication depends on the exact merged commit passing CI and the release workflow; this entry is not evidence that artifacts have been published.
+
 ## [0.13.0] - 2026-11-02
 
 ### Changed
@@ -645,7 +665,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.14.0-alpha.1...HEAD
+[0.14.0-alpha.1]: https://github.com/soulteary/owlmail/compare/v0.13.0...v0.14.0-alpha.1
 [0.13.0]: https://github.com/soulteary/owlmail/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/soulteary/owlmail/compare/v0.11.4...v0.12.0
 [0.11.4]: https://github.com/soulteary/owlmail/compare/v0.11.3...v0.11.4

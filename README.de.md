@@ -1,5 +1,8 @@
 # OwlMail
 
+> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+
+
 > 🦉 Ein selbst gehostetes, AI-natives E-Mail-Test-Gateway für Entwicklung, CI, Automatisierung und Coding Agents.
 
 [![Go Test Coverage](./.github/coverage.svg)](./.github/go-test-report.md) [![Go Report Card](./.github/goreportcard.svg)](./.github/goreportcard-report.md) [![Go Version](https://img.shields.io/badge/Go-1.27.3+-00ADD8?style=flat&logo=go)](https://go.dev/) [![Latest Release](https://img.shields.io/github/v/release/soulteary/owlmail)](https://github.com/soulteary/owlmail/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE) [![MailDev Workflows](https://img.shields.io/badge/MailDev-Workflow%20Compatibility-blue.svg)](./docs/de/Comparison-and-Migration.md)
@@ -57,9 +60,9 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
   erstellen und Altprogramme über den [Sendmail-Leitfaden](./docs/de/Sendmail.md)
   anbinden. Quell- und Browsertests verwenden Bun; die Binärdatei benötigt keine Laufzeit.
 
-## OwlMail 0.13.0
+## OwlMail 0.14.0-alpha.1
 
-`v0.13.0` ist die aktuelle stabile Version. Sie enthält Cursor-basierte Zustelltests, Inhalts- und Anhangsprüfungen, Zustellhistorie und bestätigte Wiederholungen, eine Befehlspalette, Offline-Diagnose und SMTP-only mit konfigurationsabhängigen Probes. [Versionshinweise 0.13.0](./docs/en/Release-0.13.0.md) · [Vorherige Version 0.12.0](./docs/en/Release-0.12.0.md).
+`v0.14.0-alpha.1` ist eine Alpha-Vorschau. Sie enthält Cursor-basierte Zustelltests, Inhalts- und Anhangsprüfungen, Zustellhistorie und bestätigte Wiederholungen, eine Befehlspalette, Offline-Diagnose und SMTP-only mit konfigurationsabhängigen Probes. [Versionshinweise 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) · [Vorherige Version 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail ist für Entwicklung, Tests, CI und vertrauenswürdige interne Netze
@@ -73,7 +76,7 @@ Ereignisse und AI Agents eine begrenzte, schreibgeschützte MCP-Schnittstelle.
 
 ```bash
 # Repository klonen
-git clone --branch v0.13.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Kompilieren
@@ -86,7 +89,7 @@ go build -o owlmail ./cmd/owlmail
 #### Mit Go installieren
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.13.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
 owlmail
 ```
 
@@ -128,8 +131,8 @@ Authentifizierung annimmt. Alle Beispiele unten verwenden die Loopback-Form.
 Der einfachste Weg, OwlMail zu verwenden, ist das Abrufen des vorgefertigten Images von GitHub Container Registry:
 
 ```bash
-# Release 0.13.0 abrufen
-docker pull ghcr.io/soulteary/owlmail:0.13.0
+# Release 0.14.0-alpha.1 abrufen
+docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 
 # Image für einen exakten Commit abrufen (Beispiel)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -140,11 +143,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.13.0
+  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
 ```
 
 **Verfügbare Tags:**
-- `0.13.0` - Exaktes Release-Tag; `0.13` und `0` werden mit späteren Releases der Reihe aktualisiert
+- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
 - `sha-<commit>` - Image für einen bestimmten kurzen Commit-SHA (z. B. `sha-8d3445d`)
 - `main` - Veränderliches Image des neuesten `main`-Builds
 - `latest` - Veränderlicher Alias des neuesten stabilen Releases; nicht vom `main`-Build aktualisiert
@@ -195,11 +198,11 @@ docker buildx build \
 
 ## 📖 Konfigurationsoptionen
 
-Diese Tabelle beschreibt OwlMail 0.13.0 einschließlich `-disable-web`. Siehe [Versionswahl](./README.md#choose-a-version) und [Konfigurationsreferenz](./docs/en/Configuration-Reference.md).
+Diese Tabelle beschreibt OwlMail 0.14.0-alpha.1 einschließlich `-disable-web`. Siehe [Versionswahl](./README.md#choose-a-version) und [Konfigurationsreferenz](./docs/en/Configuration-Reference.md).
 
 ### Befehlszeilenargumente
 
-OwlMail 0.13.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Umgebungsvariable | Standard | Beschreibung |
 |----------|------------------|---------|--------------|
@@ -716,7 +719,7 @@ Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe [LICENSE](LICENSE)-Da
 
 ## 📚 Verwandte Dokumentation
 
-- [Versionshinweise zu OwlMail 0.13.0](./docs/en/Release-0.13.0.md) ([中文](./docs/zh-CN/Release-0.13.0.md))
+- [Versionshinweise zu OwlMail 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
 - [Integration, CI und AI-Agenten](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP-Referenz](./docs/en/MCP-Reference.md), [Architektur](./docs/en/Architecture.md) und [Sicherheitsmodell](./docs/en/Security-Model.md)
 - [Ausführbare Testbeispiele](./examples/testing/README.md)
@@ -741,4 +744,4 @@ Wenn dieses Projekt Ihnen hilft, geben Sie bitte einen Star ⭐!
 
 **OwlMail** — ein selbst gehostetes E-Mail-Test-Gateway für Entwicklung, CI, Automatisierung und AI Agents. 🦉
 
-Previous release: [OwlMail 0.12.0](docs/en/Release-0.12.0.md).
+Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).

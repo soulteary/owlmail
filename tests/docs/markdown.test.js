@@ -931,7 +931,7 @@ test("release history and generated reports avoid stale documentation", () => {
   const changelog = fs.readFileSync(path.join(root, "CHANGELOG.md"), "utf8");
   assert.ok(changelog.includes("## [0.6.0] - 2026-09-01"));
   assert.ok(changelog.includes("## [0.5.0] - 2026-08-30"));
-  const releaseVersions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+)\]/gm)].map(
+  const releaseVersions = [...changelog.matchAll(/^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?)\]/gm)].map(
     (match) => match[1],
   );
   assert.equal(releaseVersions[0], currentVersion, "current release is not first in CHANGELOG.md");

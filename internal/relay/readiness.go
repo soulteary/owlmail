@@ -9,6 +9,13 @@ import (
 	"github.com/soulteary/owlmail/internal/attachmentstore"
 )
 
+// ErrReadinessShutdownPending means shutdown reached its bounded wait while a
+// filesystem probe was still running. The queue must not yet be treated as an
+// offline snapshot or removed by a caller.
+var ErrReadinessShutdownPending = errors.New("relay readiness filesystem probe still running after shutdown deadline")
+
+const relayReadinessShutdownTimeout = 250 * time.Millisecond
+
 // The queue owner maintains this cache independently of the store mutex. A
 // blocked filesystem operation must never block HTTP or runtime snapshot reads.
 type relayJobReadinessMonitor struct {
@@ -26,6 +33,8 @@ type relayJobReadinessMonitor struct {
 	started             bool
 	closed              bool
 	stop                chan struct{}
+	workerDone          chan struct{}
+	closeErr            error
 	startOnce           sync.Once
 	closeOnce           sync.Once
 }
@@ -103,6 +112,7 @@ func (monitor *relayJobReadinessMonitor) Start() {
 			monitor.mu.Unlock()
 			return
 		}
+		monitor.workerDone = make(chan struct{})
 		monitor.started = true
 		monitor.mu.Unlock()
 		go monitor.run()
@@ -110,6 +120,7 @@ func (monitor *relayJobReadinessMonitor) Start() {
 }
 
 func (monitor *relayJobReadinessMonitor) run() {
+	defer close(monitor.workerDone)
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	var lastProbe time.Time
@@ -211,14 +222,25 @@ func checkRelayJobDirectory(directory string) error {
 	return syncRelayJobDirectory(directory)
 }
 
-// Filesystem syscalls cannot be canceled portably. One background owner may
-// remain blocked, but closing the service and answering probes never join it.
+// Filesystem syscalls cannot be canceled portably. Join normal probes so their
+// scratch files are gone before Close returns; report a bounded timeout instead
+// of claiming an offline queue while an abnormal filesystem is still blocked.
 func (monitor *relayJobReadinessMonitor) Close() error {
 	monitor.closeOnce.Do(func() {
 		monitor.mu.Lock()
 		monitor.closed = true
+		done := monitor.workerDone
 		monitor.mu.Unlock()
 		close(monitor.stop)
+		if done != nil {
+			timer := time.NewTimer(relayReadinessShutdownTimeout)
+			defer timer.Stop()
+			select {
+			case <-done:
+			case <-timer.C:
+				monitor.closeErr = ErrReadinessShutdownPending
+			}
+		}
 	})
-	return nil
+	return monitor.closeErr
 }

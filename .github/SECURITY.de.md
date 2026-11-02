@@ -10,6 +10,7 @@ Wir bieten derzeit Sicherheitsupdates für die folgenden Versionen:
 
 | Version | Unterstützt |
 |---------|-------------|
+| 0.14.x (Alpha) | Preview; multiuser gate CLOSED |
 | 0.13.x | ✅ Ja |
 | 0.12.x | ✅ Ja |
 | 0.11.x | ✅ Ja |

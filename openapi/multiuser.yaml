@@ -618,7 +618,7 @@ info:
     description: Only this multiuser whitelist is exposed. Public CLI multiuser startup remains gated pending a real Stargate verified-email assertion and release evidence. A stable upstream subject automatically obtains its own personal mailbox; email alone never authenticates. Historical pending mail is claimed only using a trustworthy verified-email assertion under the explicit claim policy. Absent or false verification leaves pending mail inaccessible. Address ownership now does not prove historical ownership. No Basic Auth, anonymous mailbox access, personal API token, shared mailbox, global settings writes, reload, Relay sends, WebSocket or MCP. Source/header content is not rewritten. The server URL includes the effective base pathname. Public unversioned healthz/readyz aliases and static browser assets are outside this versioned contract.
     summary: Isolated personal-mailbox API; experimental public startup remains gated
     title: OwlMail multiuser HTTP API
-    version: 0.13.0
+    version: 0.14.0-alpha.1
 jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 openapi: 3.1.0
 paths:
