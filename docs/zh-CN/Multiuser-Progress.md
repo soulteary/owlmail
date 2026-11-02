@@ -1,12 +1,26 @@
 # OwlMail 多人模式实施进度
 
-日期：2026-11-02。分支：`feat/multiuser-mailboxes`。基线：`ae57db251533f7f2a21f3aab34e1f289ef47d3c3`。
+更新日期：2026-11-02。实现已通过 [PR #214](https://github.com/soulteary/owlmail/pull/214) 合并到 `main`，合并提交为 `39e3ced315a027f6e5938146387179fa683fe7b1`。
 
-## 发布状态
+## 当前发布状态
 
-多人 CLI 发布门禁继续关闭。用户已确认 Stargate 尚未提供“邮箱已验证”可信声明；本轮组件测试使用合成可信代理声明，不代表真实上游已经满足自动认领条件。默认单机行为保持兼容，Gorge 没有代码修改。
+[0.14.0-alpha.1](https://github.com/soulteary/owlmail/releases/tag/v0.14.0-alpha.1) 已发布为预发布版本，[Release 工作流](https://github.com/soulteary/owlmail/actions/runs/41459011723) 全部成功。发布提交的 [CI](https://github.com/soulteary/owlmail/actions/runs/41457095521)、[Docker 验证](https://github.com/soulteary/owlmail/actions/runs/41457095598)、[CodeQL](https://github.com/soulteary/owlmail/actions/runs/41457095388)、[Build](https://github.com/soulteary/owlmail/actions/runs/41457095513) 和 [Integration Examples](https://github.com/soulteary/owlmail/actions/runs/41457095793) 均通过。Docker/Linux amd64 与远程 CI 不再属于未执行项。
 
-当前已有可独立验证的 SMTP→待认领→身份认领→个人 HTTP 访问通路，但不能将全部 T01—T17 标记为完成或直接部署多人模式。
+发布镜像为 `ghcr.io/soulteary/owlmail@sha256:05e730b44a2d614cc50f2f2e18764f4942f58450f6bf5e71486a827127393f95`，发布包含 13 项制品。该 Alpha 保留正常二进制的多人启动门禁，测试 fixture 不作为发布入口；单机默认兼容，Gorge 未改动，继续使用其现有 SMTP 能力，不需要新增适配器。
+
+英文检查单见 [Multiuser release readiness](../en/Multiuser-Release-Readiness.md)。
+
+### 正式多人版本剩余验收
+
+- **T02：真实身份契约。** 在真实 Stargate 部署确认稳定 subject/namespace、代理剥头和可信邮箱验证声明，验证伪造声明拒绝、未验证邮箱不能认领；合法稳定 subject 缺少已验证邮箱时仍只建立空个人箱。已验证当前邮箱不等于历史归属：邮箱回收或身份重分配必须有明确策略，无连续归属保证时采用 `explicit-history`，不自动公开旧历史。合成声明通过不能替代此项。
+- **T16：真实通知闭环。** 用真实 Phorge 两个身份和 Gorge 现有 SMTP 路径，验证先投递后登录认领、跨身份隔离、系统账号不能读信、TLS/域限制和不可用时不意外投向真实邮箱；保存脱敏配置与结果。
+- **T17：正常二进制验收与门禁决策。** T02/T16 通过后，用候选版本的正常发布二进制执行实际启动、配置拒绝、认领、隔离、轮询、重启恢复和单机兼容回归；关闭阻断项后，单独评审是否解除门禁。当前 Alpha 的成功发布不等于此项完成。
+
+Beta/RC 是可选发布节奏，不是必须追加的阶段。本期不扩展团队管理、共享空间、生产邮件外发，也不把固定压测天数、NFS 生产部署或双宿主实验作为个人收件箱正式版的统一前置条件；仅在实际部署使用对应能力时验收其适用边界。
+
+## 历史实施记录
+
+以下按实施顺序保留当时的结果、失败与未执行状态。后文“未推送/未执行远程 CI”等表述描述该轮时间点，以本页顶部当前状态为准；旧失败证据不因后续通过而删除。
 
 ## 本轮并行实施
 
@@ -101,12 +115,12 @@
 
 具体配置、命令和回滚步骤见 [多人运维指南](Multiuser-Operations.md)。
 
-## 仍未开放或未执行
+## 历史阶段：当时仍未开放或未执行
 
 - T02：真实 Stargate 已验证邮箱声明尚未提供。
 - T12：多人 Relay/Webhook/S3 仍明确禁用，单机原功能保留。
 - T16：尚未运行真实 Phorge/Gorge 与真实 Stargate 部署联调。
-- T17：本轮已完成模式化 OpenAPI、真实 Chrome 和 rootless Podman 容器验证；真实后台暂停和恢复已在 macOS Chrome 与 Linux/Xvfb 严格验证，见验证报告。Docker daemon/amd64 实跑、远程 CI 和真实生产备份恢复演练尚未执行。
+- T17：本轮已完成模式化 OpenAPI、真实 Chrome 和 rootless Podman 容器验证；真实后台暂停和恢复已在 macOS Chrome 与 Linux/Xvfb 严格验证，见验证报告。当时 Docker daemon/amd64 实跑、远程 CI 和真实部署备份恢复演练尚未执行；远程 CI 和 Docker 后续已通过，见顶部当前状态。真实部署验收仅按实际部署范围执行。
 - `-offline` 是调用者已停写声明及额外一致性检查，不是对旧二进制的自动排他锁。
 
 多人运行门禁保持关闭，不因离线工具可用而开启；Gorge 未修改。

@@ -1,6 +1,8 @@
 # 多人模式契约、浏览器和容器验证
 
-日期：2026-11-02。状态：组件验收阶段，公开多人启动门禁仍关闭。Gorge 未修改。
+日期：2026-11-02。当前状态：0.14.0-alpha.1 已发布，公开多人启动门禁仍关闭。Gorge 未修改。
+
+发布提交 `39e3ced315a027f6e5938146387179fa683fe7b1` 的 [CI](https://github.com/soulteary/owlmail/actions/runs/41457095521)、[Docker/Linux amd64 验证](https://github.com/soulteary/owlmail/actions/runs/41457095598) 和 [Release](https://github.com/soulteary/owlmail/actions/runs/41459011723) 已成功；后文 Podman/macOS 记录描述对应本地环境，不替代或否认后续远程结果。正式多人版本仍需真实 T02/T16 与正常二进制 T17 验收，见[当前进度](Multiuser-Progress.md)和[发布检查单](../en/Multiuser-Release-Readiness.md)。
 
 ## 模式化 OpenAPI
 
@@ -82,7 +84,7 @@ python3 tests/container/multiuser.py --image owlmail:check --fixture-image owlma
 - 普通 Go CI 覆盖新旧模式的契约、路由和 schema 测试。
 - 浏览器 job 保留单机套件，构建显式 tagged fixture；多人业务用例 headless 执行，真实后台用例由 Linux/Xvfb 独立严格执行。两步使用不同结果目录，保存成功截图、证据 JSON 和失败诊断。
 - Docker PR verify job 构建本地 fixture 镜像并执行生产门禁/组件验证；不推送该测试镜像。正式发布仍只使用生产 Dockerfile。
-- 本次未推送或触发远程 CI；工作流已配置，本地实际执行结果单独记录。
+- 上述本地验证记录形成时尚未推送远程 CI；后续 PR #214 的远程 CI、Docker 和 Alpha Release 已通过，见本页顶部工作流链接。旧失败与本地环境限制保留，不记为当前远程检查失败。
 
 仍未满足真实 Stargate 已验证邮箱声明和真实 Phorge/Gorge 联调，不能解除多人发布门禁。单机兼容回归、组件测试与真实容器验证不等于已批准发布多人服务。
 
