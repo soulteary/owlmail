@@ -1,6 +1,6 @@
 # OwlMail 0.14.0-alpha.1
 
-基础设施 Alpha 预览，整理于 2026-11-02（Asia/Shanghai）。发布以最终合并提交的 CI 和 release 工作流结果为准；本文不表示制品已经发布。
+基础设施 Alpha 预览，已于 2026-11-02 发布。[Release 工作流](https://github.com/soulteary/owlmail/actions/runs/41459011723) 已成功，[GitHub 预发布](https://github.com/soulteary/owlmail/releases/tag/v0.14.0-alpha.1) 包含 13 项制品。正常二进制仍保留多人启动门禁。
 
 ## 相对 0.13.0 的变化
 
@@ -13,7 +13,7 @@
 
 单机仍为默认模式，保留现有 SMTP、Web、MailDev、MCP 与 Relay 行为。**正常发布二进制仍拒绝启动多人模式。** 本 Alpha 用于基础设施审阅和单机回归，不是已开放的多人服务；没有发布运行时绕过开关。测试专用 fixture 和合成身份不作为发布制品。
 
-Stargate 尚未提供自动认领所需的可信“邮箱已验证”声明。真实 Phorge/Gorge 链路尚未联调；Gorge 保持不变，方案采用系统级 SMTP 凭据而非每用户密码。双物理宿主恢复与生产身份验收仍待完成。
+Stargate 尚未提供自动认领所需的可信“邮箱已验证”声明。真实 Phorge/Gorge 链路尚未联调；Gorge 保持不变，方案采用系统级 SMTP 凭据而非每用户密码。真实上游身份验收仍待完成。双物理宿主恢复和生产 NFS 支持不在本次范围，不是独立个人收件箱正式版的统一前置。
 
 NFSv4/RichACL 证据来自同一 VM 内的隔离补丁实验栈与 numeric AUTH_SYS，不能据此宣称生产 NFS、Kerberos/域身份、任意服务端或 SQLite-on-NFS 部署支持。进程硬退出验证不等于硬件掉电耐久性或 SMTP 恰好一次投递证明。
 
@@ -24,7 +24,7 @@ NFSv4/RichACL 证据来自同一 VM 内的隔离补丁实验栈与 numeric AUTH_
 3. 不要将生产目录切换为多人模式。隔离目录必须保留完整控制数据库和所有权状态，不能作为单机目录打开，也不能只用 EML 恢复；显式迁移应离线并先完整备份。
 4. 回滚时停止 Alpha，恢复完整升级前快照后再运行 0.13.0。不要让两个版本共用可写目录；核对待发送任务并另行保留快照后的新邮件。
 
-Alpha 仅发布精确预发布标签，不应移动 `latest`、`0` 或 `0.14`。发布后应记录实际 digest、校验和、签名与工作流结果。
+Alpha 仅发布精确预发布标签，不应移动 `latest`、`0` 或 `0.14`。已发布镜像索引为 `ghcr.io/soulteary/owlmail@sha256:05e730b44a2d614cc50f2f2e18764f4942f58450f6bf5e71486a827127393f95`；使用前核验随发布提供的校验和与签名。
 
 上一版：[0.13.0](Release-0.13.0.md)。
 

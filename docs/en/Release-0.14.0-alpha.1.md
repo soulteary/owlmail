@@ -1,6 +1,6 @@
 # OwlMail 0.14.0-alpha.1
 
-Alpha infrastructure preview, prepared 2026-11-02 (Asia/Shanghai). Publication is conditional on the exact merged commit passing CI and the release workflow; these notes do not claim artifacts have been published.
+Alpha infrastructure preview, published 2026-11-02. The [release workflow](https://github.com/soulteary/owlmail/actions/runs/41459011723) succeeded and the [GitHub prerelease](https://github.com/soulteary/owlmail/releases/tag/v0.14.0-alpha.1) contains 13 assets. Normal binaries retain the multiuser gate.
 
 ## Changes since 0.13.0
 
@@ -13,7 +13,7 @@ Alpha infrastructure preview, prepared 2026-11-02 (Asia/Shanghai). Publication i
 
 Standalone remains the default and retains the existing SMTP, Web, MailDev, MCP and Relay behavior. **Normal release binaries still reject multiuser mode.** This Alpha previews infrastructure for review and standalone regression testing; it is not an enabled multiuser service. There is no published runtime bypass. Test-only fixtures and their synthetic identities are not release artifacts.
 
-Stargate has not yet provided the trusted verified-email declaration required for automatic inbox claiming. Real Phorge/Gorge integration remains untested; Gorge is unchanged and the design uses system-level SMTP credentials rather than user passwords. Two-physical-host recovery and production identity acceptance remain pending.
+Stargate has not yet provided the trusted verified-email declaration required for automatic inbox claiming. Real Phorge/Gorge integration remains untested; Gorge is unchanged and the design uses system-level SMTP credentials rather than user passwords. Real upstream identity acceptance remains pending. Recovery on two physical hosts and production NFS support are outside this release scope, rather than universal prerequisites for independent personal inboxes.
 
 NFSv4/RichACL experiments used an isolated, patched lab stack and numeric AUTH_SYS on one VM. They do not establish production NFS support, Kerberos/domain identity support, arbitrary server compatibility, or SQLite-on-NFS deployment support. Process-kill tests do not prove hardware power-loss durability or exactly-once SMTP delivery.
 
@@ -24,7 +24,7 @@ NFSv4/RichACL experiments used an isolated, patched lab stack and numeric AUTH_S
 3. Do not switch a production directory to multiuser mode. An isolated directory requires its complete control database and ownership state; it cannot be opened as standalone or restored from only EML files. Explicit migrations must remain offline and use a complete backup.
 4. Roll back by stopping the Alpha and restoring the complete pre-upgrade snapshot before running 0.13.0. Do not run both versions against one writable directory. Reconcile pending outbound work and preserve newer captures separately.
 
-Only the exact prerelease image tag is intended for this Alpha; `latest`, `0`, and `0.14` must not move. Record the actual published digest, checksums, signatures and workflow result after publication.
+Only the exact prerelease image tag is intended for this Alpha; `latest`, `0`, and `0.14` must not move. Published image index: `ghcr.io/soulteary/owlmail@sha256:05e730b44a2d614cc50f2f2e18764f4942f58450f6bf5e71486a827127393f95`. Verify the checksums and signatures supplied with the release before use.
 
 Previous release: [0.13.0](Release-0.13.0.md).
 
