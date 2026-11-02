@@ -1,0 +1,39 @@
+--- a/src/FSAL/FSAL_LIZARDFS/handle.c
++++ b/src/FSAL/FSAL_LIZARDFS/handle.c
+@@ -1064,6 +1064,7 @@
+ 		goto out;
+ 	}
+ 
++	read_arg->io_amount = 0;
+ 	for (i = 0; i < read_arg->iov_count; i++) {
+ 		nb_read = liz_cred_read(lzfs_export->lzfs_instance,
+ 					&op_ctx->creds,
+@@ -1071,10 +1072,10 @@
+ 					read_arg->iov[i].iov_len,
+ 					read_arg->iov[i].iov_base);
+ 
+-		if (offset == -1 || nb_read < 0) {
++		if (nb_read < 0) {
+ 			status = lzfs_fsal_last_err();
+ 			goto out;
+-		} else if (offset == 0) {
++		} else if (nb_read == 0) {
+ 			break;
+ 		}
+ 
+@@ -1137,6 +1138,7 @@
+ 		goto out;
+ 	}
+ 
++	write_arg->io_amount = 0;
+ 	for (i = 0; i < write_arg->iov_count; i++) {
+ 		nb_written = liz_cred_write(lzfs_export->lzfs_instance,
+ 					    &op_ctx->creds, lzfs_fd.fd, offset,
+@@ -1147,7 +1149,6 @@
+ 			status = lzfs_fsal_last_err();
+ 			goto out;
+ 		} else {
+-			write_arg->io_amount = nb_written;
+ 			if (write_arg->fsal_stable) {
+ 				int rc = liz_cred_fsync(
+ 						lzfs_export->lzfs_instance,

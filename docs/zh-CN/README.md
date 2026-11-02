@@ -129,3 +129,17 @@
 有关 OwlMail 的更多信息，请访问[主 README](../../README.zh-CN.md)。
 
 Previous release: [OwlMail 0.12.0](../en/Release-0.12.0.md).
+
+## 多人模式实施资料（未发布）
+
+- [技术设计](Multiuser-Design.md)
+- [分阶段实施清单](Multiuser-Implementation-Plan.md)
+- [实施进度与发布门禁](Multiuser-Progress.md)
+
+多人模式仍由运行时门禁关闭，默认单机行为保持兼容。
+
+- [多人配额、保留清理与离线迁移](Multiuser-Operations.md)（多人服务门禁仍关闭）
+
+- [多人 OpenAPI、真实浏览器与容器验证](Multiuser-Validation.md)（公开多人门禁仍关闭）
+- [多人备份恢复与崩溃演练](Multiuser-Recovery.md)（停机一致备份与进程级中断验证）
+- [隔离 NFSv4 ACL 实验室](Multiuser-NFS4-Lab.md)（原生后端、真实身份 IO 与完整状态恢复；非生产存储支持声明）

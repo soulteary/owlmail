@@ -104,6 +104,9 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 		return summary, fmt.Errorf("migration retry delay cannot be negative")
 	}
 
+	if err := prepareOwnershipDirectory(mailDir, false); err != nil {
+		return summary, fmt.Errorf("external attachment migration is unavailable for isolated storage: %w", err)
+	}
 	plans, err := preflightAttachmentMigration(ctx, mailDir)
 	if err != nil {
 		return summary, err
@@ -208,6 +211,9 @@ func MigrateLocalAttachments(ctx context.Context, mailDir string, store attachme
 			metadataAttachment.ContentSHA256 = item.sha256
 			metadataAttachment.Storage = attachmentStorageS3
 			plan.metadata.Version = currentMetadataVersion
+			if plan.metadata.Ownership != nil {
+				plan.metadata.Version = ownershipMetadataVersion
+			}
 			if err := persistMigrationMetadata(mailDir, plan.metadata); err != nil {
 				summary.Failed++
 				migrationErrors = append(migrationErrors, fmt.Errorf("commit migration metadata for %s/%s: %w", plan.emailID, item.filename, err))
@@ -533,10 +539,11 @@ func persistMigrationMetadata(mailDir string, metadata emailMetadata) error {
 	if err := validateEmailID(metadata.ID); err != nil {
 		return err
 	}
-	server := &MailServer{mailDir: mailDir}
+	server := &MailServer{mailDir: mailDir, requireOwnership: metadata.Ownership != nil}
 	// Reuse the normal atomic temp-write, fsync, rename, and directory-fsync
 	// path without constructing or starting a MailServer.
 	email := &Email{
+		Ownership:   cloneOwnership(metadata.Ownership),
 		ID:          metadata.ID,
 		Read:        metadata.Read,
 		Envelope:    restoreMetadataEnvelope(metadata),

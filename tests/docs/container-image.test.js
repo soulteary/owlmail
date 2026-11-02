@@ -84,3 +84,19 @@ test("pull requests build and run the image instead of publishing it", () => {
   );
   assert.ok(workflow.includes("trap cleanup EXIT"), "the verification job leaks the container on failure");
 });
+
+test("image context keeps embedded HTML and excludes local browser evidence", () => {
+  const ignore = fs.readFileSync(path.join(root, ".dockerignore"), "utf8");
+  assert.ok(ignore.includes("!web/*.html"), "embedded browser HTML must survive the report exclusion");
+  for (const pattern of ["**/node_modules", "tests/browser/*-playwright-report", "tests/browser/*-test-results", "tests/browser/multiuser-evidence", "tests/browser/playwright-report", "tests/browser/test-results"]) {
+    assert.ok(ignore.includes(pattern), `image context includes browser artifacts: ${pattern}`);
+  }
+});
+
+test("multiuser container fixture remains separate from production startup", () => {
+  const fixture = fs.readFileSync(path.join(root, "tests/container/Dockerfile.multiuser-fixture"), "utf8");
+  assert.ok(fixture.includes("-tags=owlmail_browser_fixture"), "synthetic proxy must require the explicit test build tag");
+  assert.ok(fixture.includes('ENTRYPOINT ["/app/owlmail-fixture"]'));
+  assert.ok(!dockerfile.includes("owlmail_browser_fixture"), "production build must not include the synthetic identity proxy");
+  assert.ok(dockerfile.includes('ENTRYPOINT ["/app/owlmail"]'));
+});

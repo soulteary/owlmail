@@ -44,6 +44,12 @@ func (ms *MailServer) SaveEmailToStore(id string, isRead bool, envelope *Envelop
 }
 
 func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelope, parsedEmail *Email, persistMetadata, finalizeRollbackFence bool) error {
+	if parsedEmail == nil {
+		return fmt.Errorf("email cannot be nil")
+	}
+	if err := ms.validateOwnership(parsedEmail.Ownership); err != nil {
+		return err
+	}
 	emlPath := filepath.Join(ms.mailDir, id+".eml")
 	if !ms.retainAllHeaders.Load() {
 		parsedEmail.AllHeaders = nil
@@ -965,6 +971,17 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 			ms.storeMutex.Unlock()
 		}
 
+		if ms.requireOwnership && (!metadataLoaded || metadata.Ownership == nil) {
+			_ = emailFile.Close()
+			loadErrors = append(loadErrors, fmt.Errorf("isolated email %s has missing or invalid ownership", id))
+			continue
+		}
+		if metadataLoaded && metadata.Ownership != nil && !ms.requireOwnership {
+			_ = emailFile.Close()
+			loadErrors = append(loadErrors, fmt.Errorf("isolated email %s cannot be loaded in standalone mode", id))
+			continue
+		}
+
 		// Parse email. Legacy messages without metadata start unread instead of
 		// being silently marked read during recovery. Close the file before a
 		// possible quarantine rename because Windows cannot rename an open file.
@@ -973,6 +990,7 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 		if parseErr == nil && closeErr == nil {
 			persistRestoredMetadata := !metadataLoaded || metadata.Version < currentMetadataVersion
 			if metadataLoaded {
+				email.Ownership = cloneOwnership(metadata.Ownership)
 				restoreRelayReceipt(email, metadata)
 				if metadata.Envelope != nil {
 					envelope = restoreMetadataEnvelope(metadata)

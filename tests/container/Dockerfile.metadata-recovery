@@ -1,0 +1,6 @@
+# Test-only metadata drill helper. Never used to build or publish OwlMail.
+ARG BASE_IMAGE=owlmail:pr-verify
+FROM ${BASE_IMAGE}
+USER root
+RUN apk add --no-cache acl attr tar
+USER owlmail

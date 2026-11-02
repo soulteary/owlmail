@@ -73,6 +73,10 @@ type TLSConfig struct {
 // instead of selecting a default, so a caller that wants the historical
 // listener has to name DefaultSMTPSPort and accept its privileged bind.
 type ServerOptions struct {
+	// RequireOwnership selects isolated storage; standalone directories remain unchanged.
+	RequireOwnership bool
+	RoutedIngress    *RoutedIngressOptions
+
 	// AllowEphemeralPort makes an explicit SMTP port zero bind an OS-selected
 	// port. Legacy constructors and zero-valued options keep the default port.
 	AllowEphemeralPort bool
@@ -122,6 +126,9 @@ type eventListener struct {
 
 // MailServer represents the SMTP mail server
 type MailServer struct {
+	requireOwnership bool
+	routedIngress    *routedIngress
+
 	readOnly                bool
 	deferRelayRecovery      bool
 	relayInitOnce           sync.Once
@@ -152,6 +159,7 @@ type MailServer struct {
 	deliverySequences       map[string]uint64
 	deliveryOrder           []deliveryEntry
 	deliveryChanged         chan struct{}
+	scopedWaiters           map[string]int
 	deliveryWaiters         int
 	deliveryClosed          bool
 	storageTransactionMutex sync.RWMutex

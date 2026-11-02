@@ -9,7 +9,7 @@ import (
 	"strconv"
 )
 
-//go:embed openapi.json openapi.yaml
+//go:embed openapi.json openapi.yaml multiuser.json multiuser.yaml
 var documents embed.FS
 
 // JSON returns the JSON contract with its first server URL set to the

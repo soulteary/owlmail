@@ -16,6 +16,7 @@ func cloneEmail(email *types.Email) *types.Email {
 	}
 
 	cloned := *email
+	cloned.Ownership = cloneOwnership(email.Ownership)
 	cloned.RelayedAt = cloneTime(email.RelayedAt)
 	cloned.RelayedTo = append([]string(nil), email.RelayedTo...)
 	cloned.From = cloneAddresses(email.From)
@@ -111,4 +112,14 @@ func cloneTime(value *time.Time) *time.Time {
 	}
 	copy := *value
 	return &copy
+}
+
+func cloneOwnership(value *types.Ownership) *types.Ownership {
+	if value == nil {
+		return nil
+	}
+	result := *value
+	result.MatchedRecipients = append([]string(nil), value.MatchedRecipients...)
+	result.RouteRevisions = append([]int64(nil), value.RouteRevisions...)
+	return &result
 }

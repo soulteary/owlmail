@@ -1,0 +1,7 @@
+# Isolated lab client only; never used for production OwlMail.
+ARG TOOLS_IMAGE=localhost/owlmail:nfs4-lab-tools
+FROM ${TOOLS_IMAGE}
+# Debian slim can omit /etc/protocols, required by mount.nfs for TCP lookup.
+RUN apt-get update && apt-get install -y --no-install-recommends netbase && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 1001 nfsalice && useradd -u 1001 -g 1001 -M nfsalice && groupadd -g 1002 nfsbob && useradd -u 1002 -g 1002 -M nfsbob && printf '[General]\nDomain = lab.test\n' > /etc/idmapd.conf
+COPY nfs4_client_check.py nfs4_client_acceptance.py /opt/owlmail-nfs4-client/

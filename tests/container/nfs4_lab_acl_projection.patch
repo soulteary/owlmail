@@ -1,0 +1,10 @@
+--- a/src/FSAL/FSAL_LIZARDFS/lzfs_acl.c
++++ b/src/FSAL/FSAL_LIZARDFS/lzfs_acl.c
+@@ -115,6 +115,7 @@
+ 		assert(rc == 0);
+ 
+ 		fsal_ace->type = lzfs_ace.type;
++		fsal_ace->perm = lzfs_ace.mask;
+ 		fsal_ace->flag = lzfs_ace.flags & 0xFF;
+ 		fsal_ace->iflag = (lzfs_ace.flags & LIZ_ACL_SPECIAL_WHO) ?
+ 						FSAL_ACE_IFLAG_SPECIAL_ID : 0;

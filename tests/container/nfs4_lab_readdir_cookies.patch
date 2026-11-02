@@ -1,0 +1,42 @@
+--- a/src/FSAL/FSAL_LIZARDFS/handle.c
++++ b/src/FSAL/FSAL_LIZARDFS/handle.c
+@@ -106,7 +106,7 @@
+ 	struct liz_direntry buffer[kBatchSize];
+ 	struct liz_fileinfo *dir_desc;
+ 	struct fsal_attrlist attrs;
+-	off_t direntry_offset = 2;
++	off_t direntry_offset = 0;
+ 	enum fsal_dir_result cb_rc;
+ 	int rc;
+ 
+@@ -125,7 +125,7 @@
+ 	}
+ 
+ 	if (whence != NULL) {
+-		direntry_offset = MAX(3, *whence) - 1;
++		direntry_offset = *whence;
+ 	}
+ 
+ 	LogFullDebug(COMPONENT_FSAL, "export=%" PRIu16 " inode=%" PRIu32
+@@ -147,15 +147,19 @@
+ 
+ 		cb_rc = DIR_CONTINUE;
+ 		for (i = 0; i < entries_count && cb_rc != DIR_TERMINATE; ++i) {
++			direntry_offset = buffer[i].next_entry_offset;
++			if (strcmp(buffer[i].name, ".") == 0 ||
++			    strcmp(buffer[i].name, "..") == 0) {
++				continue;
++			}
+ 			lzfs_obj = lzfs_fsal_new_handle(&buffer[i].attr,
+ 							lzfs_export);
+ 
+ 			fsal_prepare_attrs(&attrs, attrmask);
+ 			posix2fsal_attributes_all(&buffer[i].attr, &attrs);
+ 
+-			direntry_offset = buffer[i].next_entry_offset;
+ 			cb_rc = cb(buffer[i].name, &lzfs_obj->handle, &attrs,
+-				   dir_state, direntry_offset + 1);
++				   dir_state, direntry_offset);
+ 
+ 			fsal_release_attrs(&attrs);
+ 		}

@@ -1,0 +1,35 @@
+# Design-preview deployment. The production CLI intentionally rejects multiuser
+# mode until release acceptance is complete; this file contains no gate bypass.
+services:
+  prepare-state:
+    image: owlmail:multiuser-development
+    build:
+      context: ../..
+    user: "0:0"
+    entrypoint: /bin/sh
+    command: ["-ec", "mkdir -p /data/mail /data/control && chown 1000:1000 /data /data/mail /data/control"]
+    volumes:
+      - state:/data
+    restart: "no"
+
+  owlmail:
+    image: owlmail:multiuser-development
+    depends_on:
+      prepare-state:
+        condition: service_completed_successfully
+    user: "1000:1000"
+    command: ["-config", "/run/owlmail/owlmail.yaml"]
+    ports:
+      - "127.0.0.1:1465:1465"
+      - "127.0.0.1:1080:1080"
+    volumes:
+      - state:/data
+      - ./config:/run/owlmail:ro
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    restart: "no"
+
+volumes:
+  state:

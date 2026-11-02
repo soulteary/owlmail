@@ -1,0 +1,17 @@
+# Test-only image: the synthetic proxy is never linked into the production binary.
+ARG BASE_IMAGE=owlmail:pr-verify
+FROM golang:1.27.3-alpine3.24 AS fixture-builder
+ARG TARGETOS=linux
+ARG TARGETARCH
+WORKDIR /build
+COPY go.mod go.sum ./
+RUN go mod download && go mod verify
+COPY . .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
+    -tags=owlmail_browser_fixture -o /build/owlmail-fixture ./tests/browser/fixture
+
+FROM ${BASE_IMAGE}
+COPY --from=fixture-builder /build/owlmail-fixture /app/owlmail-fixture
+HEALTHCHECK --interval=5s --timeout=3s --retries=3 \
+    CMD wget --quiet --output-document=- http://127.0.0.1:21180/__fixture__/health || exit 1
+ENTRYPOINT ["/app/owlmail-fixture"]

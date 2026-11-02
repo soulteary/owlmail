@@ -1,0 +1,2100 @@
+components:
+    parameters:
+        AttachmentFilename:
+            description: The attachment's generated filename from the email metadata.
+            example: invoice.pdf
+            in: path
+            name: filename
+            required: true
+            schema:
+                minLength: 1
+                type: string
+        DateFrom:
+            description: Inclusive UTC-naive calendar date lower boundary. Invalid values return 400.
+            example: "2026-09-01"
+            in: query
+            name: dateFrom
+            schema:
+                format: date
+                type: string
+        DateTo:
+            description: Inclusive UTC-naive upper boundary at 00:00:00 of the following calendar date. Invalid values return 400.
+            example: "2026-09-02"
+            in: query
+            name: dateTo
+            schema:
+                format: date
+                type: string
+        EmailID:
+            description: Eight-character OwlMail ID or UUID, depending on server configuration.
+            example: aB3dEfGh
+            in: path
+            name: id
+            required: true
+            schema:
+                minLength: 1
+                type: string
+        ExportIDs:
+            description: Comma-separated IDs. When non-empty, takes precedence over filters.
+            example: aB3dEfGh,550e8400-e29b-41d4-a716-446655440000
+            in: query
+            name: ids
+            schema:
+                type: string
+        From:
+            description: Case-insensitive substring match against sender name or address.
+            example: sender@example.com
+            in: query
+            name: from
+            schema:
+                type: string
+        Limit:
+            description: Page size. Values outside 1 through 1000 return 400.
+            example: 20
+            in: query
+            name: limit
+            schema:
+                default: 50
+                maximum: 1000
+                minimum: 1
+                type: integer
+        Offset:
+            description: Zero-based number of matching records to skip. Invalid or negative values return 400.
+            example: 0
+            in: query
+            name: offset
+            schema:
+                default: 0
+                minimum: 0
+                type: integer
+        Read:
+            description: Read-state filter. Only the literal values `true` and `false` are accepted.
+            example: false
+            in: query
+            name: read
+            schema:
+                type: boolean
+        Search:
+            description: Case-insensitive substring search in subject, text, and HTML.
+            example: welcome
+            in: query
+            name: q
+            schema:
+                type: string
+        SortBy:
+            description: Sort key. When omitted, results are sorted newest-first. Unsupported values return 400.
+            example: time
+            in: query
+            name: sortBy
+            schema:
+                enum:
+                    - time
+                    - subject
+                    - from
+                    - size
+                    - store
+                type: string
+        SortOrder:
+            description: Ascending or descending order for a supported sort key.
+            example: desc
+            in: query
+            name: sortOrder
+            schema:
+                default: desc
+                enum:
+                    - asc
+                    - desc
+                type: string
+        To:
+            description: Case-insensitive substring match against To, CC, and calculated BCC recipients.
+            example: recipient@example.com
+            in: query
+            name: to
+            schema:
+                type: string
+    responses:
+        BadRequest:
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/Error'
+                text/plain:
+                    schema:
+                        type: string
+            description: Invalid request, selector or parameters; malformed JSON and some validation paths return plain text.
+        Forbidden:
+            content:
+                text/plain:
+                    schema:
+                        type: string
+            description: Pre-authentication browser Origin policy refused the request; the policy applies independently of identity.
+        NotFound:
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/Error'
+            description: Email is absent or belongs to another mailbox; the responses are indistinguishable.
+        Unauthorized:
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/Error'
+            description: Missing, malformed, duplicate or untrusted upstream identity. User-supplied headers do not authenticate.
+        Unavailable:
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/Error'
+                text/plain:
+                    schema:
+                        type: string
+            description: Identity/control-store or mailbox recovery is temporarily unavailable. No authentication fallback.
+    schemas:
+        Address:
+            additionalProperties: false
+            description: Address fields retain the capitalization produced by Go's mail.Address JSON encoding.
+            properties:
+                Address:
+                    examples:
+                        - sender@example.com
+                    type: string
+                Name:
+                    examples:
+                        - Sender
+                    type: string
+            required:
+                - Name
+                - Address
+            type: object
+        Attachment:
+            additionalProperties: false
+            properties:
+                contentId:
+                    examples:
+                        - logo@example.com
+                    type: string
+                contentType:
+                    examples:
+                        - application/pdf
+                    type: string
+                fileName:
+                    examples:
+                        - invoice.pdf
+                    type: string
+                generatedFileName:
+                    examples:
+                        - invoice.pdf
+                    type: string
+                size:
+                    examples:
+                        - 1280
+                    format: int64
+                    minimum: 0
+                    type: integer
+            required:
+                - contentType
+                - fileName
+                - generatedFileName
+                - contentId
+                - size
+            type: object
+        BatchRequest:
+            properties:
+                ids:
+                    items:
+                        type: string
+                    maxItems: 1000
+                    minItems: 1
+                    type: array
+            required:
+                - ids
+            type: object
+        DisabledOutgoing:
+            additionalProperties: false
+            properties:
+                enabled:
+                    const: false
+                    type: boolean
+            required:
+                - enabled
+            type: object
+        DisabledRelayJobs:
+            additionalProperties: false
+            properties:
+                jobs:
+                    items: {}
+                    maxItems: 0
+                    type: array
+                more_possible:
+                    const: false
+                    type: boolean
+            required:
+                - jobs
+                - more_possible
+            type: object
+        DisabledWebhookDeliveries:
+            additionalProperties: false
+            properties:
+                deliveries:
+                    items: {}
+                    maxItems: 0
+                    type: array
+                enabled:
+                    const: false
+                    type: boolean
+                more_possible:
+                    const: false
+                    type: boolean
+            required:
+                - enabled
+                - deliveries
+                - more_possible
+            type: object
+        Email:
+            additionalProperties: false
+            description: Only the authenticated personal mailbox is visible. Ownership metadata is never returned. Envelope recipients are limited to this mailbox's matched SMTP recipients. Original MIME To/Cc/header/body content is not rewritten and may name other recipients. Reading does not mark the message read.
+            properties:
+                attachments:
+                    items:
+                        $ref: '#/components/schemas/Attachment'
+                    type:
+                        - array
+                        - "null"
+                bcc:
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type:
+                        - array
+                        - "null"
+                calculatedBcc:
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type:
+                        - array
+                        - "null"
+                cc:
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type:
+                        - array
+                        - "null"
+                envelope:
+                    $ref: '#/components/schemas/Envelope'
+                from:
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type:
+                        - array
+                        - "null"
+                headers:
+                    additionalProperties: true
+                    type:
+                        - object
+                        - "null"
+                html:
+                    description: Sanitized HTML body.
+                    type: string
+                id:
+                    examples:
+                        - aB3dEfGh
+                    type: string
+                read:
+                    type: boolean
+                relayedAt:
+                    description: Most recent downstream SMTP DATA acceptance, retained independently of bounded task history. Omitted until a successful relay; does not prove final inbox placement.
+                    format: date-time
+                    type: string
+                relayedTo:
+                    description: Actual recipients of the most recent accepted relay transaction.
+                    items:
+                        type: string
+                    minItems: 1
+                    type: array
+                replyTo:
+                    description: Reply destinations parsed from one valid Reply-To header. Omitted when absent, invalid, or duplicated; distinct from In-Reply-To message identifiers.
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type: array
+                run_id:
+                    description: Optional X-OwlMail-Run-ID grouping selector, not an authorization boundary
+                    maxLength: 128
+                    type: string
+                size:
+                    format: int64
+                    type: integer
+                sizeHuman:
+                    type: string
+                source:
+                    const: ""
+                    description: Filesystem source paths are redacted in multiuser mode.
+                    type: string
+                subject:
+                    type: string
+                text:
+                    type: string
+                time:
+                    format: date-time
+                    type: string
+                to:
+                    items:
+                        $ref: '#/components/schemas/Address'
+                    type:
+                        - array
+                        - "null"
+            required:
+                - id
+                - time
+                - read
+                - subject
+                - from
+                - to
+                - cc
+                - bcc
+                - calculatedBcc
+                - text
+                - html
+                - attachments
+                - envelope
+                - source
+                - size
+                - sizeHuman
+                - headers
+            type: object
+        EmailList:
+            additionalProperties: false
+            properties:
+                emails:
+                    items:
+                        $ref: '#/components/schemas/Email'
+                    type: array
+                limit:
+                    type: integer
+                offset:
+                    type: integer
+                total:
+                    minimum: 0
+                    type: integer
+            required:
+                - total
+                - limit
+                - offset
+                - emails
+            type: object
+        EmailPreview:
+            additionalProperties: false
+            properties:
+                from:
+                    type: string
+                hasAttachment:
+                    type: boolean
+                id:
+                    type: string
+                preview:
+                    description: Truncated after 200 UTF-8 bytes, not characters, with `...` appended when truncated.
+                    type: string
+                read:
+                    type: boolean
+                size:
+                    format: int64
+                    type: integer
+                sizeHuman:
+                    type: string
+                subject:
+                    type: string
+                time:
+                    format: date-time
+                    type: string
+                to:
+                    items:
+                        type: string
+                    type: array
+            required:
+                - id
+                - time
+                - read
+                - subject
+                - from
+                - to
+                - size
+                - sizeHuman
+                - hasAttachment
+                - preview
+            type: object
+        EmailPreviewList:
+            additionalProperties: false
+            properties:
+                limit:
+                    type: integer
+                offset:
+                    type: integer
+                previews:
+                    items:
+                        $ref: '#/components/schemas/EmailPreview'
+                    type: array
+                total:
+                    minimum: 0
+                    type: integer
+            required:
+                - total
+                - limit
+                - offset
+                - previews
+            type: object
+        EmailStats:
+            additionalProperties: false
+            properties:
+                byDate:
+                    additionalProperties:
+                        minimum: 0
+                        type: integer
+                    type: object
+                read:
+                    minimum: 0
+                    type: integer
+                total:
+                    minimum: 0
+                    type: integer
+                unread:
+                    minimum: 0
+                    type: integer
+            required:
+                - total
+                - unread
+                - read
+                - byDate
+            type: object
+        Envelope:
+            additionalProperties: false
+            properties:
+                bcc:
+                    items:
+                        type: string
+                    type:
+                        - array
+                        - "null"
+                calculatedBcc:
+                    items:
+                        type: string
+                    type:
+                        - array
+                        - "null"
+                cc:
+                    items:
+                        type: string
+                    type:
+                        - array
+                        - "null"
+                from:
+                    type: string
+                host:
+                    type: string
+                remoteAddress:
+                    type: string
+                to:
+                    items:
+                        type: string
+                    type:
+                        - array
+                        - "null"
+            required:
+                - from
+                - to
+                - cc
+                - bcc
+                - calculatedBcc
+                - host
+                - remoteAddress
+            type:
+                - object
+                - "null"
+        Error:
+            additionalProperties: false
+            properties:
+                code:
+                    type: string
+                error:
+                    type: string
+                message:
+                    type: string
+            required:
+                - code
+                - error
+                - message
+            type: object
+        Liveness:
+            additionalProperties: false
+            properties:
+                status:
+                    const: ok
+                    type: string
+            required:
+                - status
+            type: object
+        MailboxMutation:
+            additionalProperties: false
+            properties:
+                code:
+                    const: MAILBOX_UPDATED
+                    type: string
+                count:
+                    minimum: 0
+                    type: integer
+                failed:
+                    const: 0
+                    type: integer
+                failedIDs:
+                    items:
+                        type: string
+                    maxItems: 0
+                    type: array
+                success:
+                    minimum: 0
+                    type: integer
+                total:
+                    minimum: 0
+                    type: integer
+            required:
+                - success
+                - failed
+                - failedIDs
+                - total
+                - count
+                - code
+            type: object
+        MultiuserSettings:
+            additionalProperties: false
+            properties:
+                capabilities:
+                    additionalProperties: false
+                    properties:
+                        mcp:
+                            const: false
+                            type: boolean
+                        relay:
+                            const: false
+                            type: boolean
+                        webhooks:
+                            const: false
+                            type: boolean
+                        websocket:
+                            const: false
+                            type: boolean
+                    required:
+                        - mcp
+                        - websocket
+                        - relay
+                        - webhooks
+                    type: object
+                mode:
+                    const: multiuser
+                    type: string
+                refreshIntervalSeconds:
+                    const: 15
+                    type: integer
+            required:
+                - mode
+                - capabilities
+                - refreshIntervalSeconds
+            type: object
+        Readiness:
+            additionalProperties: false
+            properties:
+                status:
+                    enum:
+                        - ready
+                        - unready
+                    type: string
+            required:
+                - status
+            type: object
+    securitySchemes:
+        trustedProxyIdentity:
+            description: Trusted reverse-proxy identity assertion, NOT a user API key. Authenticate at Stargate upstream; clients must not forge this header. The actual peer must be a configured trusted proxy, which strips client identity headers and injects the successful upstream result. Header presence alone never authenticates. Header names are deployment-configurable and the served contract reports the effective names.
+            in: header
+            name: X-Auth-User
+            type: apiKey
+            x-owlmail-requires-trusted-peer: true
+info:
+    description: Only this multiuser whitelist is exposed. Public CLI multiuser startup remains gated pending a real Stargate verified-email assertion and release evidence. A stable upstream subject automatically obtains its own personal mailbox; email alone never authenticates. Historical pending mail is claimed only using a trustworthy verified-email assertion under the explicit claim policy. Absent or false verification leaves pending mail inaccessible. Address ownership now does not prove historical ownership. No Basic Auth, anonymous mailbox access, personal API token, shared mailbox, global settings writes, reload, Relay sends, WebSocket or MCP. Source/header content is not rewritten. The server URL includes the effective base pathname. Public unversioned healthz/readyz aliases and static browser assets are outside this versioned contract.
+    summary: Isolated personal-mailbox API; experimental public startup remains gated
+    title: OwlMail multiuser HTTP API
+    version: 0.13.0
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+openapi: 3.1.0
+paths:
+    /emails:
+        delete:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserDeleteAllEmails
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserListEmails
+            parameters:
+                - $ref: '#/components/parameters/Limit'
+                - $ref: '#/components/parameters/Offset'
+                - $ref: '#/components/parameters/Search'
+                - $ref: '#/components/parameters/From'
+                - $ref: '#/components/parameters/To'
+                - $ref: '#/components/parameters/DateFrom'
+                - $ref: '#/components/parameters/DateTo'
+                - $ref: '#/components/parameters/Read'
+                - $ref: '#/components/parameters/SortBy'
+                - $ref: '#/components/parameters/SortOrder'
+                - description: Exact case-sensitive SMTP envelope recipient
+                  in: query
+                  name: recipient
+                  schema:
+                    maxLength: 1024
+                    type: string
+                - description: Exact test-run header
+                  in: query
+                  name: run_id
+                  schema:
+                    maxLength: 128
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EmailList'
+                    description: Successful response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: List full emails
+            tags:
+                - Emails
+    /emails/{id}:
+        delete:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserDeleteEmail
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetEmail
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Email'
+                    description: Successful response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get one full email
+            tags:
+                - Emails
+    /emails/{id}/attachments/{filename}:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetAttachment
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+                - $ref: '#/components/parameters/AttachmentFilename'
+            responses:
+                "200":
+                    content:
+                        '*/*':
+                            schema:
+                                contentEncoding: binary
+                                type: string
+                    description: Attachment bytes. Content-Type is taken from the stored attachment metadata.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Download one decoded attachment
+            tags:
+                - Emails
+    /emails/{id}/check:
+        post:
+            description: Deterministic offline assertions on one owned email; assertion failure still returns 200 with passed=false. Does not mark read or fetch links. Request body above 65536 bytes returns 413.
+            operationId: multiuserCheckEmail
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    type: string
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                allowed_link_hosts:
+                                    items:
+                                        type: string
+                                    type: array
+                                attachment_count:
+                                    minimum: 0
+                                    type: integer
+                                attachments:
+                                    items:
+                                        properties:
+                                            content_type:
+                                                type: string
+                                            filename:
+                                                type: string
+                                            max_bytes:
+                                                minimum: 0
+                                                type: integer
+                                            sha256:
+                                                type: string
+                                        required:
+                                            - filename
+                                        type: object
+                                    type: array
+                                extract:
+                                    items:
+                                        properties:
+                                            name:
+                                                type: string
+                                            pattern:
+                                                type: string
+                                            source:
+                                                enum:
+                                                    - text
+                                                    - subject
+                                                    - html
+                                                type: string
+                                        required:
+                                            - name
+                                            - pattern
+                                        type: object
+                                    type: array
+                                subject_contains:
+                                    items:
+                                        type: string
+                                    type: array
+                                text_contains:
+                                    items:
+                                        type: string
+                                    type: array
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    checks:
+                                        items:
+                                            properties:
+                                                message:
+                                                    type: string
+                                                name:
+                                                    type: string
+                                                passed:
+                                                    type: boolean
+                                            type: object
+                                        type: array
+                                    extractions:
+                                        additionalProperties:
+                                            items:
+                                                type: string
+                                            type: array
+                                        type: object
+                                    extractions_truncated:
+                                        type: boolean
+                                    links:
+                                        items:
+                                            properties:
+                                                host:
+                                                    type: string
+                                                scheme:
+                                                    type: string
+                                                source:
+                                                    type: string
+                                                url:
+                                                    type: string
+                                            type: object
+                                        type: array
+                                    links_truncated:
+                                        type: boolean
+                                    passed:
+                                        type: boolean
+                                required:
+                                    - passed
+                                    - checks
+                                    - links
+                                    - extractions
+                                    - links_truncated
+                                    - extractions_truncated
+                                type: object
+                    description: Inspection report; assertion failures also return 200. Read state is unchanged.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Email not found
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "413":
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+                    description: Inspection request exceeds 65536 bytes.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Inspect an email with deterministic offline assertions
+            tags:
+                - Emails
+            x-max-body-bytes: 65536
+    /emails/{id}/html:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetEmailHTML
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        text/html:
+                            schema:
+                                type: string
+                    description: Sanitized HTML body with Content-Type `text/html; charset=utf-8`.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get the sanitized HTML body
+            tags:
+                - Emails
+    /emails/{id}/raw:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserDownloadEmail
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        message/rfc822:
+                            schema:
+                                contentEncoding: binary
+                                type: string
+                    description: Downloadable RFC 822 message with Content-Type `message/rfc822`.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Download the raw EML file
+            tags:
+                - Emails
+    /emails/{id}/read:
+        patch:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserReadEmail
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+    /emails/{id}/source:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetEmailSource
+            parameters:
+                - $ref: '#/components/parameters/EmailID'
+            responses:
+                "200":
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+                    description: Raw message source without a download disposition, using Content-Type `text/plain; charset=utf-8`.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get the raw RFC 822 source
+            tags:
+                - Emails
+    /emails/batch:
+        delete:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserBatchDeleteEmails
+            requestBody:
+                content:
+                    application/json:
+                        example:
+                            ids:
+                                - aB3dEfGh
+                                - missing
+                        schema:
+                            $ref: '#/components/schemas/BatchRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+    /emails/batch/read:
+        patch:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserBatchReadEmails
+            requestBody:
+                content:
+                    application/json:
+                        example:
+                            ids:
+                                - aB3dEfGh
+                        schema:
+                            $ref: '#/components/schemas/BatchRequest'
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+    /emails/cursor:
+        get:
+            description: The encrypted cursor is bound to this mailbox and current process epoch. It reveals no global sequence, cannot be reused across users, and becomes invalid after restart. Obtain it before triggering a send.
+            operationId: multiuserGetDeliveryCursor
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    cursor:
+                                        type: string
+                                required:
+                                    - cursor
+                                type: object
+                    description: Successful result
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid cursor, selector, or request
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get an opaque personal-mailbox delivery cursor
+            tags:
+                - Emails
+    /emails/export:
+        get:
+            description: Export only owned messages, at most 1000 and 256 MiB total raw source. ids overrides selection filters after normal query validation. limit/offset do not truncate exports. Empty selection is 400; foreign IDs are 404; oversize is 413. Original EML is unmodified.
+            operationId: multiuserExportEmails
+            parameters:
+                - $ref: '#/components/parameters/ExportIDs'
+                - $ref: '#/components/parameters/Search'
+                - $ref: '#/components/parameters/From'
+                - $ref: '#/components/parameters/To'
+                - $ref: '#/components/parameters/DateFrom'
+                - $ref: '#/components/parameters/DateTo'
+                - $ref: '#/components/parameters/Read'
+                - description: Exact case-sensitive SMTP envelope recipient
+                  in: query
+                  name: recipient
+                  schema:
+                    maxLength: 1024
+                    type: string
+                - description: Exact test-run header
+                  in: query
+                  name: run_id
+                  schema:
+                    maxLength: 128
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/zip:
+                            schema:
+                                contentEncoding: binary
+                                type: string
+                    description: ZIP archive of EML files.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "413":
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+                    description: Export exceeds 1000 messages or 256 MiB raw source.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "500":
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+                    description: Archive generation failed.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Export matching EML files as ZIP
+            tags:
+                - Emails
+    /emails/preview:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserListEmailPreviews
+            parameters:
+                - $ref: '#/components/parameters/Limit'
+                - $ref: '#/components/parameters/Offset'
+                - $ref: '#/components/parameters/Search'
+                - $ref: '#/components/parameters/From'
+                - $ref: '#/components/parameters/To'
+                - $ref: '#/components/parameters/DateFrom'
+                - $ref: '#/components/parameters/DateTo'
+                - $ref: '#/components/parameters/Read'
+                - $ref: '#/components/parameters/SortBy'
+                - $ref: '#/components/parameters/SortOrder'
+                - description: Exact case-sensitive SMTP envelope recipient
+                  in: query
+                  name: recipient
+                  schema:
+                    maxLength: 1024
+                    type: string
+                - description: Exact test-run header
+                  in: query
+                  name: run_id
+                  schema:
+                    maxLength: 128
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EmailPreviewList'
+                    description: Successful response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: List lightweight email previews
+            tags:
+                - Emails
+    /emails/read:
+        patch:
+            description: The complete deduplicated ID set is ownership-checked before mutation. A foreign or absent ID rejects the whole batch before changes. A later storage failure may interrupt a valid batch and returns 409; this is not a transactional multi-message delete. Clearing affects only this mailbox.
+            operationId: multiuserReadAllEmails
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MailboxMutation'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "404":
+                    $ref: '#/components/responses/NotFound'
+                "409":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Owned mailbox update could not complete; inspect current state before retrying.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Update only the current personal mailbox
+            tags:
+                - Emails
+    /emails/stats:
+        get:
+            description: Counts and byDate include only this personal mailbox; no global storage/index metrics are returned.
+            operationId: multiuserGetEmailStats
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/EmailStats'
+                    description: Successful response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get mailbox statistics
+            tags:
+                - Emails
+    /emails/wait:
+        post:
+            description: 'Long-poll only this mailbox after its opaque cursor. count means at least count retained matching deliveries. A 200 result can time out: check timed_out, not only HTTP status. Cursors from another mailbox or an earlier process fail with 400. Capacity is 8 waiters per mailbox and 64 globally; 429 has no Retry-After guarantee.'
+            operationId: multiuserWaitDeliveries
+            requestBody:
+                content:
+                    application/json:
+                        schema:
+                            properties:
+                                after:
+                                    type: string
+                                count:
+                                    default: 1
+                                    description: 0 selects the default 1; effective range 1..100.
+                                    maximum: 100
+                                    minimum: 0
+                                    type: integer
+                                recipient:
+                                    maxLength: 1024
+                                    type: string
+                                run_id:
+                                    maxLength: 128
+                                    type: string
+                                subject:
+                                    maxLength: 1024
+                                    type: string
+                                text:
+                                    maxLength: 1024
+                                    type: string
+                                timeout_seconds:
+                                    default: 30
+                                    description: 0 selects the default 30 seconds; effective range 1..120.
+                                    maximum: 120
+                                    minimum: 0
+                                    type: integer
+                            required:
+                                - after
+                            type: object
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    cursor:
+                                        type: string
+                                    emails:
+                                        items:
+                                            $ref: '#/components/schemas/Email'
+                                        maxItems: 100
+                                        type: array
+                                    timed_out:
+                                        type: boolean
+                                    waited_milliseconds:
+                                        type: integer
+                                required:
+                                    - emails
+                                    - cursor
+                                    - timed_out
+                                    - waited_milliseconds
+                                type: object
+                    description: Successful result
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Invalid cursor, selector, or request
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "429":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: Per-mailbox or global wait capacity reached. No Retry-After header is guaranteed.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Wait for at least count retained deliveries after a cursor
+            tags:
+                - Emails
+    /health:
+        get:
+            description: Public cached probe, subject to the independent browser Origin guard. No user, mailbox, credential or storage-path details.
+            operationId: multiuserGetHealth
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Liveness'
+                    description: Successful personal-mailbox response
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+            security: []
+            summary: Check process liveness
+            tags:
+                - Operations
+            x-owlmail-public: true
+    /openapi.json:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetOpenAPIJSON
+            responses:
+                "200":
+                    content:
+                        application/vnd.oai.openapi+json:
+                            schema:
+                                type: object
+                    description: OpenAPI 3.1 JSON document with the effective base path in `servers`.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: The embedded contract could not be rendered.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get the OpenAPI contract as JSON
+            tags:
+                - Contract
+    /openapi.yaml:
+        get:
+            description: Only the authenticated personal mailbox is accessed. Other users' IDs are indistinguishable from absent IDs.
+            operationId: multiuserGetOpenAPIYAML
+            responses:
+                "200":
+                    content:
+                        application/vnd.oai.openapi:
+                            schema:
+                                type: string
+                    description: OpenAPI 3.1 YAML document with the effective base path in `servers`.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Error'
+                    description: The embedded contract could not be rendered.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get the OpenAPI contract as YAML
+            tags:
+                - Contract
+    /ready:
+        get:
+            description: Public cached probe, subject to the independent browser Origin guard. No user, mailbox, credential or storage-path details.
+            operationId: multiuserGetReadiness
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Readiness'
+                    description: Successful personal-mailbox response
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/Readiness'
+                    description: Successful personal-mailbox response
+            security: []
+            summary: Check cached SMTP and storage readiness
+            tags:
+                - Operations
+            x-owlmail-public: true
+    /relay-jobs:
+        get:
+            description: Read-only capability status. Outgoing delivery is disabled and no global settings, secrets or other users' delivery history are returned.
+            operationId: multiuserListRelayJobs
+            parameters: []
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisabledRelayJobs'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: List retained relay jobs
+            tags:
+                - Settings
+    /settings:
+        get:
+            description: Read-only capability status. Outgoing delivery is disabled and no global settings, secrets or other users' delivery history are returned.
+            operationId: multiuserGetSettings
+            parameters: []
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/MultiuserSettings'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get runtime settings
+            tags:
+                - Settings
+    /settings/outgoing:
+        get:
+            description: Read-only capability status. Outgoing delivery is disabled and no global settings, secrets or other users' delivery history are returned.
+            operationId: multiuserGetOutgoingSettings
+            parameters: []
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisabledOutgoing'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Get outgoing SMTP settings
+            tags:
+                - Settings
+    /test-runs/{runID}/emails:
+        delete:
+            description: Delete a snapshot of at most 1000 matching emails in this personal mailbox. run_id is a selector, never authorization. Repeat while more_possible is true. A storage failure may partially complete and returns 409.
+            operationId: multiuserDeleteTestRunEmails
+            parameters:
+                - in: path
+                  name: runID
+                  required: true
+                  schema:
+                    maxLength: 128
+                    minLength: 1
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                properties:
+                                    deleted:
+                                        items:
+                                            type: string
+                                        type: array
+                                    failed:
+                                        items:
+                                            type: string
+                                        type: array
+                                    more_possible:
+                                        type: boolean
+                                    run_id:
+                                        type: string
+                                type: object
+                    description: Successful result
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "400":
+                    $ref: '#/components/responses/BadRequest'
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "409":
+                    content:
+                        text/plain:
+                            schema:
+                                type: string
+                    description: Run cleanup could not complete.
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: Delete a bounded snapshot of one test run
+            tags:
+                - Emails
+    /webhook-deliveries:
+        get:
+            description: Read-only capability status. Outgoing delivery is disabled and no global settings, secrets or other users' delivery history are returned.
+            operationId: multiuserListWebhookDeliveries
+            parameters: []
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/DisabledWebhookDeliveries'
+                    description: Successful personal-mailbox response
+                    headers:
+                        Cache-Control:
+                            description: Sensitive responses are private and must not be stored.
+                            schema:
+                                const: private, no-store
+                                type: string
+                        X-OwlMail-Identity:
+                            description: Opaque stable assertion marker, only after trusted identity verification; clients clear old mailbox state when it changes. It is not an authentication credential.
+                            schema:
+                                pattern: ^[a-f0-9]{64}$
+                                type: string
+                "401":
+                    $ref: '#/components/responses/Unauthorized'
+                "403":
+                    $ref: '#/components/responses/Forbidden'
+                "503":
+                    $ref: '#/components/responses/Unavailable'
+            summary: List bounded terminal webhook summaries
+            tags:
+                - Settings
+security:
+    - trustedProxyIdentity: []
+servers:
+    - description: Effective base-path-aware personal API prefix
+      url: /api/v1
+tags:
+    - name: Emails
+    - name: Settings
+    - name: Operations
+    - name: Contract
+x-owlmail-disabled-capabilities:
+    - mcp
+    - websocket
+    - relay-send
+    - webhook-send
+    - s3
+    - legacy-compatibility
+    - global-settings-write
+    - global-reload
+x-owlmail-identity:
+    conflict: An already-bound address is never automatically transferred to another subject; the new subject only retains its own mailbox.
+    emailHeader: X-Auth-Email
+    emailVerifiedHeader: X-Auth-Email-Verified
+    namespace: Deployment-fixed; cannot be selected by the client
+    subjectHeader: X-Auth-User
+    verifiedValue: "true"
+x-owlmail-mode: multiuser
+x-owlmail-public-startup-gated: true
+x-owlmail-smtp-quotas:
+    attempts: AUTH and authenticated RCPT attempts use durable fixed-minute budgets and a nondecreasing clock watermark. Restart/clock rollback cannot reset them; unknown AUTH names share one global key.
+    configuration: Positive limits are deployment-configurable. These documented defaults are not a per-request remaining-budget API.
+    defaults:
+        authAttemptsGlobalMinute: 120
+        diskMiBGlobal: 10240
+        diskMiBPerMailbox: 1024
+        messagesGlobal: 100000
+        messagesPerMailbox: 10000
+        pendingMailboxes: 1000
+        rcptAttemptsPerAccountMinute: 60
+    transport: SMTP quotas are not HTTP 429 responses. Exhausted capacity or RCPT attempt quota refuses submission temporarily with 451; auth attempt exhaustion rejects AUTH. Multi-recipient DATA is accepted or refused as one group, never partly charged.
+    usage: Per-mailbox and global hard limits count committed messages and logical EML + metadata + decoded-attachment bytes. Deletion releases capacity; recovery derives the same usage. Global limits refuse new mail rather than evict another user's mail. Merge over quota is deferred without denying personal inbox access.

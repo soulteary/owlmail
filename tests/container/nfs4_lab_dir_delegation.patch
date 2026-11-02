@@ -1,0 +1,15 @@
+--- a/src/Protocols/NFS/nfs4_Compound.c
++++ b/src/Protocols/NFS/nfs4_Compound.c
+@@ -438,9 +438,9 @@
+ 		.exp_perm_flags = 0},
+ 	[NFS4_OP_GET_DIR_DELEGATION] = {
+ 		.name = "OP_GET_DIR_DELEGATION",
+-		.funct = nfs4_op_illegal,
+-		.resume = nfs4_default_resume,
+-		.free_res = nfs4_op_illegal_Free,
++		.funct = nfs4_op_notsupp,
++		.resume = nfs4_default_resume,
++		.free_res = nfs4_op_notsupp_Free,
+ 		.resp_size = sizeof(GET_DIR_DELEGATION4res),
+ 		.exp_perm_flags = 0	/* tbd */},
+ 	[NFS4_OP_GETDEVICEINFO] = {

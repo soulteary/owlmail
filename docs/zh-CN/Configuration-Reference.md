@@ -35,9 +35,9 @@ YAML / JSON 配置文件和内置默认值。文件键名使用去掉开头 `-` 
 | `-mcp-shutdown-timeout` | `OWLMAIL_MCP_SHUTDOWN_TIMEOUT` | 5s | 关闭时清理 MCP 工作的期限 |
 | `-mcp-allowed-origins` | `OWLMAIL_MCP_ALLOWED_ORIGINS` | - | 除 OwlMail 自身来源外,`/mcp` 额外接受的浏览器来源;`*` 关闭来源校验 |
 | `-mail-directory` | `MAILDEV_MAIL_DIRECTORY` / `OWLMAIL_MAIL_DIR` | - | 邮件存储目录 |
-| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 |
-| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 |
-| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | 邮箱最大磁盘 MiB；`0` 表示不限 |
+| `-mail-retention-days` | `OWLMAIL_MAIL_RETENTION_DAYS` | 0 | 删除超过 N 天的邮件；`0` 表示不限 Multiuser rejects nonzero values; use pending-retention-days. |
+| `-mail-max-messages` | `OWLMAIL_MAIL_MAX_MESSAGES` | 0 | 最大邮件封数；`0` 表示不限 Multiuser: hard admission only; 0 selects 100000 messages, without personal eviction. |
+| `-mail-max-disk-mb` | `OWLMAIL_MAIL_MAX_DISK_MB` | 0 | 邮箱最大磁盘 MiB；`0` 表示不限 Multiuser: hard admission only; 0 selects 10240 MiB, without personal eviction. |
 | `-mail-cleanup-interval` | `OWLMAIL_MAIL_CLEANUP_INTERVAL` | 1h | 后台保留策略清理间隔 |
 | `-mail-index-path` | `OWLMAIL_MAIL_INDEX_PATH` | - | 可选的 SQLite 邮箱查询索引路径；索引可重建，EML 文件仍是权威数据源 |
 | `-s3-enabled` | `OWLMAIL_S3_ENABLED` | false | 将解析后的附件存入 S3 兼容对象存储 |
@@ -87,6 +87,24 @@ YAML / JSON 配置文件和内置默认值。文件键名使用去掉开头 `-` 
 | `-smtps-port` | `OWLMAIL_SMTPS_PORT` | 465 | 启用 TLS 时隐式 TLS（SMTPS）监听端口；设为 `0` 则不启动 SMTPS 监听 |
 | `-log-level` | `MAILDEV_VERBOSE` / `MAILDEV_SILENT` / `OWLMAIL_LOG_LEVEL` | normal | 日志级别 |
 | `-mailcatcher-rest-compat` | `OWLMAIL_MAILCATCHER_REST_COMPAT` | false | 启用可选的 MailCatcher REST 兼容接口 |
+| `-multiuser-max-pending` | `OWLMAIL_MULTIUSER_MAX_PENDING` | 1000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-rcpt-per-minute` | `OWLMAIL_MULTIUSER_RCPT_PER_MINUTE` | 60 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-auth-per-minute` | `OWLMAIL_MULTIUSER_AUTH_PER_MINUTE` | 120 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-messages` | `OWLMAIL_MULTIUSER_MAX_MESSAGES` | 10000 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-multiuser-max-disk-mb` | `OWLMAIL_MULTIUSER_MAX_DISK_MB` | 1024 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-retention-days` | `OWLMAIL_PENDING_RETENTION_DAYS` | 7 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-empty-retention-hours` | `OWLMAIL_PENDING_EMPTY_RETENTION_HOURS` | 24 | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-pending-cleanup-interval` | `OWLMAIL_PENDING_CLEANUP_INTERVAL` | 1h | Experimental multiuser quota or retention policy; standalone behavior is unchanged |
+| `-mode` | `OWLMAIL_MODE` | standalone | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-namespace` | `OWLMAIL_IDENTITY_NAMESPACE` | main | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-trusted-proxies` | `OWLMAIL_IDENTITY_TRUSTED_PROXIES` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-subject-header` | `OWLMAIL_IDENTITY_SUBJECT_HEADER` | X-Auth-User | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-email-header` | `OWLMAIL_IDENTITY_EMAIL_HEADER` | X-Auth-Email | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-identity-verified-header` | `OWLMAIL_IDENTITY_VERIFIED_HEADER` | X-Auth-Email-Verified | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-claim-policy` | `OWLMAIL_CLAIM_POLICY` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-control-database` | `OWLMAIL_CONTROL_DATABASE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-system-smtp-accounts-file` | `OWLMAIL_SYSTEM_SMTP_ACCOUNTS_FILE` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
+| `-recipient-allowed-domains` | `OWLMAIL_RECIPIENT_ALLOWED_DOMAINS` | - | Experimental multiuser foundation; runtime remains disabled until isolation and recovery are complete |
 | `-config` | `OWLMAIL_CONFIG_FILE` | - | 启动时读取 YAML 或 JSON 配置文件；命令行和环境变量优先 |
 | `-listen-info-file` | `OWLMAIL_LISTEN_INFO_FILE` | - | 将实际监听地址原子写入私有 JSON 文件；每个实例使用独立路径 |
 | `-log-format` | `OWLMAIL_LOG_FORMAT` | console | 日志输出格式：`console` 或 `json` |

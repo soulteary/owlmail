@@ -1,0 +1,26 @@
+--- a/src/FSAL/FSAL_LIZARDFS/main.c
++++ b/src/FSAL/FSAL_LIZARDFS/main.c
+@@ -200,8 +200,10 @@
+ 
+ 	if (lzfs_export->lzfs_instance == NULL) {
+ 		LogCrit(COMPONENT_FSAL,
+-			"Unable to mount LizardFS cluster for %s.",
+-			CTX_FULLPATH(op_ctx));
++			"Unable to mount LizardFS cluster for %s host=%s port=%s error=%d (%s).",
++			CTX_FULLPATH(op_ctx), lzfs_export->lzfs_params.host,
++			lzfs_export->lzfs_params.port, liz_last_err(),
++			liz_error_string(liz_last_err()));
+ 		status = fsalstat(ERR_FSAL_SERVERFAULT, 0);
+ 		goto error;
+ 	}
+@@ -288,8 +290,8 @@
+ 	lzfs_export->root = lzfs_fsal_new_handle(&ret.attr, lzfs_export);
+ 	op_ctx->fsal_export = &lzfs_export->export;
+ 
+-	LogDebug(COMPONENT_FSAL,
+-		 "LizardFS module export %s.",
++	LogEvent(COMPONENT_FSAL,
++		 "OWLMAIL_NATIVE_EXPORT_READY LizardFS module export %s.",
+ 		 CTX_FULLPATH(op_ctx));
+ 
+ 	return fsalstat(ERR_FSAL_NO_ERROR, 0);

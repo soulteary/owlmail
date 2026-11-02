@@ -1,0 +1,36 @@
+--- a/src/mount/client/lizardfs_c_api.cc
++++ b/src/mount/client/lizardfs_c_api.cc
+@@ -19,6 +19,7 @@
+ #include "common/platform.h"
+ 
+ #include <cassert>
++#include <cstdio>
+ #include <system_error>
+ 
+ #include "lizardfs_c_api.h"
+@@ -175,7 +176,12 @@
+ 		Client *ret = new Client(host, port, mountpoint);
+ 		gLastErrorCode = LIZARDFS_STATUS_OK;
+ 		return (liz_t *)ret;
++	} catch (const std::exception &e) {
++		std::fprintf(stderr, "owlmail native init exception: %s\n", e.what());
++		gLastErrorCode = LIZARDFS_ERROR_CANTCONNECT;
++		return nullptr;
+ 	} catch (...) {
++		std::fprintf(stderr, "owlmail native init: non-standard exception\n");
+ 		gLastErrorCode = LIZARDFS_ERROR_CANTCONNECT;
+ 		return nullptr;
+ 	}
+@@ -255,7 +261,12 @@
+ 		Client *ret = new Client(init_params);
+ 		gLastErrorCode = LIZARDFS_STATUS_OK;
+ 		return (liz_t *)ret;
++	} catch (const std::exception &e) {
++		std::fprintf(stderr, "owlmail native init exception: %s\n", e.what());
++		gLastErrorCode = LIZARDFS_ERROR_CANTCONNECT;
++		return nullptr;
+ 	} catch (...) {
++		std::fprintf(stderr, "owlmail native init: non-standard exception\n");
+ 		gLastErrorCode = LIZARDFS_ERROR_CANTCONNECT;
+ 		return nullptr;
+ 	}

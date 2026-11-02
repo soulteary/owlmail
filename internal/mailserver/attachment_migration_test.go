@@ -811,3 +811,25 @@ func TestAttachmentMigrationCrashRecoveryBoundaries(t *testing.T) {
 		}
 	})
 }
+
+func TestAttachmentMigrationCannotStripIsolatedOwnership(t *testing.T) {
+	directory := t.TempDir()
+	if err := prepareOwnershipDirectory(directory, true); err != nil {
+		t.Fatal(err)
+	}
+	metadata := emailMetadata{Version: ownershipMetadataVersion, ID: "owned-migration", Sequence: time.Now().UTC(), Ownership: sampleOwnership()}
+	if err := persistMigrationMetadata(directory, metadata); err != nil {
+		t.Fatal(err)
+	}
+	got := migrationMetadata(t, directory, metadata.ID)
+	if got.Version != ownershipMetadataVersion || got.Ownership == nil || got.Ownership.MailboxID != metadata.Ownership.MailboxID {
+		t.Fatal("attachment sidecar rewrite stripped ownership")
+	}
+	store := newMigrationFakeStore()
+	if _, err := MigrateLocalAttachments(context.Background(), directory, store, migrationTestOptions()); err == nil {
+		t.Fatal("external attachment migration enabled for isolated storage")
+	}
+	if len(store.putCalls) != 0 {
+		t.Fatal("rejected migration uploaded content")
+	}
+}

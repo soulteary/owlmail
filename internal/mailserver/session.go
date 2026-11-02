@@ -6,6 +6,8 @@ import (
 	_ "github.com/emersion/go-message/charset"
 	"github.com/emersion/go-smtp"
 	"github.com/soulteary/owlmail/internal/common"
+	"github.com/soulteary/owlmail/internal/mailbox"
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 // Backend implements smtp.Backend
@@ -24,6 +26,11 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 
 // Session represents an SMTP session
 type Session struct {
+	ingestAccount *mailbox.Account
+	rcptRoutes    map[string]mailbox.Route
+
+	ownership *types.Ownership
+
 	mailServer    *MailServer
 	conn          *smtp.Conn
 	from          string
@@ -54,6 +61,9 @@ func (s *Session) Rcpt(to string, opts *smtp.RcptOptions) error {
 	if err := s.requireAuthentication(); err != nil {
 		return err
 	}
+	if s.mailServer.routedIngress != nil {
+		return s.routeRecipient(to)
+	}
 	s.to = append(s.to, to)
 	return nil
 }
@@ -70,12 +80,17 @@ func (s *Session) Data(r io.Reader) error {
 	if s.mailServer.afterDataAcquire != nil {
 		s.mailServer.afterDataAcquire()
 	}
+	if s.mailServer.routedIngress != nil {
+		return s.mailServer.storeRoutedIncoming(r, s)
+	}
 	id := makeID(s.mailServer.useUUIDForID)
 	return s.mailServer.storeIncomingEmail(id, r, s)
 }
 
 // Reset resets the session
 func (s *Session) Reset() {
+	s.rcptRoutes = nil
+	s.ownership = nil
 	s.from = ""
 	s.to = []string{}
 }

@@ -1,0 +1,21 @@
+--- a/src/common/compact_vector.h
++++ b/src/common/compact_vector.h
+@@ -193,6 +193,9 @@
+  * which just stores pointer (and isn't used for anything else) so valgrind can find
+  * correct pointer.
+  */
++// The packed representation assumes low 47-bit x86_64 addresses. AArch64
++// allocations can use bit 47; preserve complete pointers with generic storage.
++#if !defined(__aarch64__)
+ template <typename Alloc, typename T, typename Size>
+ class compact_vector_storage<
+ 	Alloc, T *, Size,
+@@ -286,6 +289,8 @@
+ 	pointer debug_ptr_;
+ #endif
+ };
++
++#endif // !defined(__aarch64__)
+ 
+ /*! \brief Base class for compact_vector
+  *

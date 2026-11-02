@@ -1,0 +1,22 @@
+mode: multiuser
+smtp: 1025
+smtps-port: 1465
+web: 1080
+mail-directory: /data/mail
+control-database: /data/control/control.sqlite
+identity-namespace: main
+# Replace this with the actual private proxy peer CIDR, never 0.0.0.0/0.
+identity-trusted-proxies: 172.20.0.2/32
+identity-subject-header: X-Auth-User
+identity-email-header: X-Auth-Email
+identity-verified-header: X-Auth-Email-Verified
+claim-policy: explicit-history
+recipient-allowed-domains: example.test
+system-smtp-accounts-file: /run/owlmail/accounts.yaml
+tls: true
+tls-cert: /run/owlmail/smtp-cert.pem
+tls-key: /run/owlmail/smtp-key.pem
+smtp-auth-require-tls: true
+pending-retention-days: 7
+pending-empty-retention-hours: 24
+pending-cleanup-interval: 1h

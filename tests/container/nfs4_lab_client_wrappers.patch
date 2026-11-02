@@ -1,0 +1,19 @@
+diff --git a/src/mount/client/client.cc b/src/mount/client/client.cc
+--- a/src/mount/client/client.cc
++++ b/src/mount/client/client.cc
+@@ -253,6 +253,6 @@
+ std::string Client::readlink(Context &ctx, Inode inode) {
+ 	std::error_code ec;
+-	std::string link = readlink(ctx, inode);
++	std::string link = readlink(ctx, inode, ec);
+ 	if (ec) {
+ 		throw std::system_error(ec);
+ 	}
+@@ -540,6 +540,6 @@
+ void Client::fsync(Context &ctx, FileInfo *fileinfo) {
+ 	std::error_code ec;
+-	fsync(ctx, fileinfo);
++	fsync(ctx, fileinfo, ec);
+ 	if (ec) {
+ 		throw std::system_error(ec);
+ 	}
