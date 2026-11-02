@@ -101,3 +101,42 @@ jobs:
           retention-days: 7
           path: ${{ runner.temp }}/owlmail-integration.log
           if-no-files-found: error
+
+  gorge-smtp:
+    name: Pinned Gorge SMTP adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout OwlMail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: owlmail
+
+      - name: Checkout unchanged Gorge source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: soulteary/gorge
+          ref: e9ca3b7af2cc8914207fc22ffb499f5069d3364c
+          path: gorge
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: owlmail/go.mod
+          cache-dependency-path: |
+            owlmail/go.sum
+            gorge/go/go.sum
+
+      - name: Build pinned external adapter
+        timeout-minutes: 5
+        run: |
+          test "$(git -C gorge rev-parse HEAD)" = e9ca3b7af2cc8914207fc22ffb499f5069d3364c
+          test -z "$(git -C gorge status --porcelain)"
+          go -C gorge/go build -mod=readonly -o "${RUNNER_TEMP}/gorge-mailer" ./cmd/gorge-mailer
+
+      - name: Exercise real Gorge implicit-TLS SMTP delivery
+        working-directory: owlmail
+        env:
+          OWLMAIL_GORGE_BINARY: ${{ runner.temp }}/gorge-mailer
+        run: go test -race -tags gorge_integration ./tests/gorge -run '^TestPinnedGorgeSMTP$' -count=1 -timeout=120s -v
