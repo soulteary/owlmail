@@ -4,8 +4,8 @@
 
 | Metric | Value |
 | --- | --- |
-| Total | 1056 |
-| Passed | 1053 |
+| Total | 1058 |
+| Passed | 1055 |
 | Failed | 0 |
 | Skipped | 3 |
 | Coverage | 79.37% |
@@ -15,7 +15,7 @@
 
 | Package | Status | Tests | Failed | Coverage |
 | --- | --- | --- | --- | --- |
-| cmd/owlmail | pass | 91 | 0 | 69.17% |
+| cmd/owlmail | pass | 93 | 0 | 69.17% |
 | examples/faults | pass | 3 | 0 | 55.08% |
 | examples/testing/go | pass | 5 | 0 | N/A |
 | examples/webhooks/receiver | pass | 7 | 0 | 78.85% |

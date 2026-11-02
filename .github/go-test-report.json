@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "tests": {
-    "total": 1056,
-    "passed": 1053,
+    "total": 1058,
+    "passed": 1055,
     "failed": 0,
     "skipped": 3
   },
@@ -16,7 +16,7 @@
     {
       "name": "cmd/owlmail",
       "status": "pass",
-      "tests": 91,
+      "tests": 93,
       "failed": 0,
       "coverage": 69.17
     },
