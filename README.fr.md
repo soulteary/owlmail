@@ -1,6 +1,6 @@
 # OwlMail
 
-> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
 
 
 > 🦉 Une passerelle de test d’e-mails auto-hébergée et AI-native pour le développement, la CI, l’automatisation et les agents de code.
@@ -61,9 +61,9 @@ borné en lecture seule.
   utilisez le [guide sendmail](./docs/fr/Sendmail.md) pour les programmes existants.
   Les tests source et navigateur utilisent Bun ; le binaire déployé n’en dépend pas.
 
-## OwlMail 0.14.0-alpha.1
+## OwlMail 0.14.0
 
-`v0.14.0-alpha.1` est une préversion Alpha. Elle inclut les tests de livraison par curseur, les assertions de contenu et de pièces jointes, l’historique et les reprises confirmées, la palette de commandes, le diagnostic hors ligne et le mode SMTP-only avec des sondes adaptées à la configuration. [Notes de version 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) · [Version précédente 0.13.0](./docs/en/Release-0.13.0.md).
+`v0.14.0` est une version candidate non encore publiée. Elle inclut les tests de livraison par curseur, les assertions de contenu et de pièces jointes, l’historique et les reprises confirmées, la palette de commandes, le diagnostic hors ligne et le mode SMTP-only avec des sondes adaptées à la configuration. [Notes de version 0.14.0](./docs/en/Release-0.14.0.md) · [Version précédente 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail cible le développement, les tests, la CI et les réseaux internes de
@@ -77,7 +77,7 @@ borné en lecture seule.
 
 ```bash
 # Clone repository
-git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -90,7 +90,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
 owlmail
 ```
 
@@ -134,8 +134,8 @@ boucle locale.
 La façon la plus simple d'utiliser OwlMail est de récupérer l'image pré-construite depuis GitHub Container Registry :
 
 ```bash
-# Récupérer la version 0.14.0-alpha.1
-docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+# Récupérer la version 0.14.0
+docker pull ghcr.io/soulteary/owlmail:0.14.0
 
 # Récupérer l'image d'un commit exact (exemple)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -146,11 +146,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+  ghcr.io/soulteary/owlmail:0.14.0
 ```
 
 **Tags disponibles :**
-- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
+- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
 - `sha-<commit>` - Image d'un SHA court précis (par exemple `sha-8d3445d`)
 - `main` - Image mobile issue du dernier build de `main`
 - `latest` - Alias mobile de la dernière version stable, jamais modifié par les builds `main`
@@ -201,11 +201,11 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-Ce tableau décrit OwlMail 0.14.0-alpha.1, y compris `-disable-web`. Voir [le choix de version](./README.md#choose-a-version) et [la référence de configuration](./docs/en/Configuration-Reference.md).
+Ce tableau décrit OwlMail 0.14.0, y compris `-disable-web`. Voir [le choix de version](./README.md#choose-a-version) et [la référence de configuration](./docs/en/Configuration-Reference.md).
 
 ### Command Line Arguments
 
-OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
@@ -719,7 +719,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [Notes de version OwlMail 0.14.0-alpha.1](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
+- [Notes de version OwlMail 0.14.0](./docs/en/Release-0.14.0.md) ([中文](./docs/zh-CN/Release-0.14.0.md))
 - [Intégration, CI et agents IA](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [Référence MCP](./docs/en/MCP-Reference.md), [architecture](./docs/en/Architecture.md) et [modèle de sécurité](./docs/en/Security-Model.md)
 - [Exemples de test exécutables](./examples/testing/README.md)

@@ -1,6 +1,6 @@
 # OwlMail
 
-> Alpha infrastructure preview: standalone is the default; normal binaries reject multiuser mode. Test fixtures are not published. Stable 0.13.0 remains available; Alpha must not move `latest`, `0`, or `0.14`.
+> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
 
 
 > 🦉 開発、CI、自動化、コーディング Agent のためのセルフホスト型 AI ネイティブ・メールテストゲートウェイ。
@@ -59,9 +59,9 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
   プログラムは [sendmail ガイド](./docs/ja/Sendmail.md)を参照できます。ソースと
   ブラウザテストは Bun を使用しますが、配布バイナリの実行には不要です。
 
-## OwlMail 0.14.0-alpha.1
+## OwlMail 0.14.0
 
-`v0.14.0-alpha.1` は Alpha プレビューです。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.14.0-alpha.1 リリースノート](./docs/en/Release-0.14.0-alpha.1.md) · [前のバージョン 0.13.0](./docs/en/Release-0.13.0.md)。
+`v0.14.0` は未公開のリリース候補です。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.14.0 リリースノート](./docs/en/Release-0.14.0.md) · [前のバージョン 0.13.0](./docs/en/Release-0.13.0.md)。
 
 > [!IMPORTANT]
 > OwlMail は開発、テスト、CI、信頼できる内部ネットワーク向けです。公開本番
@@ -75,7 +75,7 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 
 ```bash
 # Clone repository
-git clone --branch v0.14.0-alpha.1 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.14.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -88,7 +88,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0-alpha.1
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
 owlmail
 ```
 
@@ -130,8 +130,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail を使用する最も簡単な方法は、GitHub Container Registry から事前に構築されたイメージを取得することです：
 
 ```bash
-# リリース 0.14.0-alpha.1 を取得
-docker pull ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+# リリース 0.14.0 を取得
+docker pull ghcr.io/soulteary/owlmail:0.14.0
 
 # 特定コミットのイメージを取得（例）
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -142,11 +142,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+  ghcr.io/soulteary/owlmail:0.14.0
 ```
 
 **利用可能なタグ：**
-- `0.14.0-alpha.1` — exact Alpha tag only; `0.14`, `0`, and `latest` are not updated by prereleases.
+- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
 - `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-8d3445d`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - 最新の安定版に追随する可変エイリアス。`main` のビルドでは更新されません
@@ -197,11 +197,11 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-この表は `-disable-web` を含む OwlMail 0.14.0-alpha.1 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
+この表は `-disable-web` を含む OwlMail 0.14.0 の設定です。[バージョン選択](./README.md#choose-a-version)と[設定リファレンス](./docs/en/Configuration-Reference.md)を参照してください。
 
 ### Command Line Arguments
 
-OwlMail 0.14.0-alpha.1: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.14.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
@@ -713,7 +713,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.14.0-alpha.1 リリースノート](./docs/en/Release-0.14.0-alpha.1.md) ([中文](./docs/zh-CN/Release-0.14.0-alpha.1.md))
+- [OwlMail 0.14.0 リリースノート](./docs/en/Release-0.14.0.md) ([中文](./docs/zh-CN/Release-0.14.0.md))
 - [統合テスト、CI、AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP リファレンス](./docs/en/MCP-Reference.md)、[アーキテクチャ](./docs/en/Architecture.md)、[セキュリティモデル](./docs/en/Security-Model.md)
 - [実行可能なテスト例](./examples/testing/README.md)

@@ -1,7 +1,7 @@
 # Release process
 
 This guide is for OwlMail maintainers. A release is identified by a signed or
-annotated semantic-version tag such as `v0.14.0-alpha.1`. GitHub release binaries and
+annotated semantic-version tag such as `v0.14.0`. GitHub release binaries and
 container images must be built from that same tag.
 
 ## Sources of truth
@@ -36,7 +36,7 @@ file.
 - [ ] A multi-architecture Docker build succeeds.
 - [ ] The complete mail directory has been backed up for any upgrade smoke test using persistent data.
 
-For 0.14.0-alpha.1, also confirm that browser `Origin` validation is exercised against
+For 0.14.0, also confirm that browser `Origin` validation is exercised against
 the Web, API, WebSocket, and MCP surfaces including the documented `*` opt-out,
 that a configuration whose SMTPS listener cannot bind fails to start instead of
 starting without it, that the fuzz seed corpora replay clean, and that every
@@ -47,7 +47,7 @@ tagging.
 
 Update local `main`, record the exact commit, then create one annotated tag:
 
-The commands use `v0.14.0-alpha.1` as a syntax example. Confirm that the chosen version
+The commands use `v0.14.0` as a syntax example. Confirm that the chosen version
 has not already been published and that `VERSION` and both release notes match
 before running them.
 
@@ -56,8 +56,8 @@ git switch main
 git pull --ff-only
 git status --short
 git rev-parse HEAD
-git tag -a v0.14.0-alpha.1 -m "OwlMail v0.14.0-alpha.1"
-git push origin v0.14.0-alpha.1
+git tag -a v0.14.0 -m "OwlMail v0.14.0"
+git push origin v0.14.0
 ```
 
 Do not move or reuse a published release tag. If a release needs a correction,
@@ -67,7 +67,7 @@ The tag push starts the release workflow. A manual run is only a retry mechanism
 and must execute at the same tag ref so its OIDC identity is tag-bound:
 
 ```bash
-gh workflow run release.yml --ref v0.14.0-alpha.1 -f version=v0.14.0-alpha.1
+gh workflow run release.yml --ref v0.14.0 -f version=v0.14.0
 ```
 
 The workflow rejects a manual run whose ref and requested version differ, then
@@ -164,18 +164,18 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-For `v0.14.0-alpha.1`, verify only the exact `0.14.0-alpha.1` image tag and both target architectures. This Alpha must not update `0.14`, `0`, or `latest`; verify that existing stable aliases remain unchanged. Record the published manifest digest. `main` and `sha-*` remain development snapshots.
+The prepared `v0.14.0` candidate is not published yet. After an authorized stable release, verify the exact `0.14.0` tag, both target architectures, and the eligible stable aliases `0.14`, `0`, and `latest` against the release digest. Prereleases such as `v0.14.0-alpha.1` must not move those aliases. `main` and `sha-*` remain development snapshots.
 
 ```bash
-docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.14.0
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+  ghcr.io/soulteary/owlmail:0.14.0
 docker run --rm \
   -p 127.0.0.1:11025:1025 \
   -p 127.0.0.1:11080:1080 \
-  ghcr.io/soulteary/owlmail:0.14.0-alpha.1
+  ghcr.io/soulteary/owlmail:0.14.0
 ```
 
 Confirm the manifest lists `linux/amd64` and `linux/arm64`, then repeat the
@@ -185,13 +185,13 @@ attestation, and explicit OCI source, revision, version, and MIT license labels.
 
 ## Post-release checklist
 
-- [ ] GitHub marks `v0.14.0-alpha.1` as a prerelease and leaves the latest stable release unchanged.
+- [ ] GitHub marks `v0.14.0` as a stable release only after authorized publication; prereleases remain separate.
 - [ ] The curated note appears before the generated pull-request list.
 - [ ] Every binary, SBOM, checksum, signature bundle, and GitHub attestation is
   downloadable or discoverable and verified.
 - [ ] Container version and moving tags resolve to the expected manifest.
 - [ ] The published multi-architecture manifest digest is recorded for exact deployments.
 - [ ] The release image's Cosign signature and OCI attestations verify.
-- [ ] Go installation with `@v0.14.0-alpha.1` succeeds on the documented Go version.
+- [ ] Go installation with `@v0.14.0` succeeds on the documented Go version.
 - [ ] README and release-note installation commands resolve.
 - [ ] Any release failure or known limitation is added to the release body and changelog.

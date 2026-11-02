@@ -40,7 +40,7 @@ lingua in directory separate.
 
 ### Release
 
-- **[Note di rilascio 0.14.0-alpha.1](../en/Release-0.14.0-alpha.1.md) · [0.13.0 release notes](../en/Release-0.13.0.md)** (English, [中文](../zh-CN/Release-0.14.0-alpha.1.md))
+- **[Note di rilascio 0.14.0](../en/Release-0.14.0.md) · [0.13.0 release notes](../en/Release-0.13.0.md)** (English, [中文](../zh-CN/Release-0.14.0.md))
 - **[Note di rilascio 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
 - **[Processo di rilascio](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
