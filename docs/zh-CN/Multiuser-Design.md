@@ -3,6 +3,7 @@
 - 状态：Draft，供实现与评审；本文不代表功能已实现。
 - 日期：2026-11-02。
 - 配套任务：[分阶段实施清单](Multiuser-Implementation-Plan.md)。
+- 上游身份部署约束：[Stargate identity contract](../en/Stargate-Identity-Contract.md)。
 - OwlMail 源码基线：`41a10e75d726c194d9cd418e3d44fd3e069ac061`。
 - Stargate 基线：`da26b02411fdb588b74971f31a59df05e24f9dee`。
 - Gorge 基线：`e9ca3b7af2cc8914207fc22ffb499f5069d3364c`。
