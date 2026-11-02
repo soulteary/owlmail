@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const { spawn } = require('node:child_process');
+const { removeBrowserProfile } = require('./profile-cleanup');
 
 // This suite uses the explicitly tagged loopback proxy fixture. Assertions are
 // synthetic verified-email evidence, not a claim about deployed Stargate.
@@ -157,7 +158,7 @@ async function nativeBackgroundBrowser(playwright) {
             await Promise.race([exit, new Promise(resolve => setTimeout(resolve, 3000))]);
         }
         if (!exited) throw new Error(`Native Chromium did not exit after SIGKILL; test profile retained at ${profile}`);
-        fs.rmSync(profile, { recursive: true, force: true });
+        await removeBrowserProfile(profile);
     };
     try {
         const activePort = path.join(profile, 'DevToolsActivePort');
