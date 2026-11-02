@@ -1,6 +1,6 @@
 # 多人模式：配额、待认领清理与离线迁移
 
-状态：实现及组件验证阶段。多人服务的公开启动门禁仍关闭；离线迁移工具可用于准备和校验数据，不会启动 SMTP、HTTP 或外发任务。
+状态：保留多人门禁的 0.14.0-alpha.1 已发布，远程 CI 与组件验证已通过。多人服务的公开启动门禁仍关闭；离线迁移工具可用于准备和校验数据，不会启动 SMTP、HTTP 或外发任务。
 
 关联：[技术设计](Multiuser-Design.md)、[实施清单](Multiuser-Implementation-Plan.md)、[当前进度](Multiuser-Progress.md)。
 
