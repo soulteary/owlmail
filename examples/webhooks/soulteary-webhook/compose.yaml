@@ -1,6 +1,6 @@
 services:
   webhook:
-    image: soulteary/webhook:7.0.0
+    image: soulteary/webhook:runner-7.3.4
     ports:
       - "127.0.0.1:9000:9000"
     environment:

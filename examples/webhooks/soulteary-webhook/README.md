@@ -6,8 +6,12 @@ request body with HMAC-SHA256, maps JSON fields into command environment
 variables, and runs `print-email.sh`.
 
 The Compose demo intentionally pins both released components: OwlMail `0.13.0`
-and WebHook `7.0.0`. This keeps the example reproducible instead of rebuilding
+and WebHook `runner-7.3.4`. This keeps the example reproducible instead of rebuilding
 OwlMail from a moving `main` branch.
+
+The `runner` variant is required: the hook executes `/bin/sh` through `print-email.sh`, and its healthcheck uses BusyBox `wget`. The unprefixed/core 7.3.4 image has neither shell nor wget. Both mounted files must remain readable, and `print-email.sh` executable, by UID/GID 65532.
+
+Upgrading an existing demo keeps the same HMAC secret, hook mapping and loopback ports. Stop the old stack before recreating it. If a mail volume was added, back it up completely before the OwlMail 0.13 upgrade and read the [durable Relay upgrade/rollback notes](../../../docs/en/Release-0.13.0.md#upgrade-compatibility-and-rollback). Outbound delivery remains at least once.
 
 ## Files
 
