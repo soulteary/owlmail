@@ -71,7 +71,7 @@ selecting another service.
 
 See the [multiuser release-readiness checklist](../../docs/en/Multiuser-Release-Readiness.md) for the remaining production gates.
 
-This is a Gorge SMTP compatibility test, not a running Phorge notification or
+The original `gorge_integration` suite is a Gorge SMTP compatibility test, not a running Phorge notification or
 Stargate deployment. The HTTP request follows the pinned Phorge/Gorge contract;
 it does not execute the PHP adapter, permission decisions, durable delivery
 ledger, worker retries or unknown-outcome reconciliation. It does not prove
@@ -80,5 +80,55 @@ exactly-once delivery or the behavior of other Gorge backends.
 Real Stargate has not supplied the trusted verified-email declaration needed
 for automatic historical claiming. That remains a release blocker; a synthetic
 verified header is not a substitute. Production OwlMail continues to reject
-multiuser mode. This test constructs internal components only, is excluded
-without `gorge_integration`, and adds no runtime flag or published fixture.
+multiuser mode. These tests construct internal components only, are excluded
+without the explicit `gorge_integration` or `phorge_integration` tag, and add no runtime flag or published fixture.
+
+## Real Phorge PHP adapter
+
+The separate `phorge_integration` suite executes the original
+`PhabricatorMailEmailMessage`, `PhabricatorMailGorgeAdapter`,
+`PhabricatorGorgeMailerClient` and bundled `HTTPSFuture` from an unchanged,
+clean Phorge checkout at `e2eab00eb21ee9ff04b66b27ea835673f3e6027b`. The Go
+harness sends no success-request JSON directly: the real PHP adapter builds and
+submits it to the real Gorge process. It also checks that an unknown-domain
+recipient becomes Phorge's permanent-failure exception without a partial inbox
+copy. The existing SMTP, isolation and original MIME assertions inspect what
+OwlMail actually received.
+
+This pinned Phorge requires **PHP 8.5.x, at least 8.5.12**, plus `curl` and
+`mbstring`; its unchanged bootstrap enforces that requirement. A missing or
+older runtime fails, rather than skipping or bypassing the upstream check.
+The independent CI job uses PHP 8.5.12 and the third-party
+`shivammathur/setup-php` action pinned to its reviewed 2.40.0 release commit.
+Its source checkouts, external Gorge binary and test processes remain separate
+from OwlMail's module and production artifacts. Changes to any file under
+`tests/gorge/` trigger the workflow, including the PHP driver.
+
+On Linux, with a fresh pinned Phorge checkout and the pinned Gorge binary from
+the earlier command:
+
+```bash
+git clone https://github.com/soulteary/phorge.git "$scratch/phorge"
+git -C "$scratch/phorge" checkout --detach e2eab00eb21ee9ff04b66b27ea835673f3e6027b
+OWLMAIL_PHORGE_SOURCE="$scratch/phorge" \
+  OWLMAIL_GORGE_BINARY="$scratch/gorge-mailer" \
+  go test -race -tags phorge_integration ./tests/gorge \
+  -run '^TestPinnedPhorgeAdapter$' -count=1 -timeout=120s -v
+```
+
+The PHP adapter is used for successful delivery and permanent unknown-domain rejection. TLS/authentication/outage negatives continue to use the existing Go-to-Gorge HTTP requests; they are not PHP transport tests. The source HEAD and clean status, including ignored files, are checked both before and after execution. Local configuration such as ignored `conf/local/local.json`, `conf/local/ENVIRONMENT` or custom configuration causes a failure before PHP starts; an existing deployment checkout is not an acceptable fixture.
+
+The PHP driver uses a private working directory and a filtered environment,
+uses `php -n` and loads only missing `curl`/`mbstring` shared extensions from the compiled-in extension directory, loads the pinned bundled runtime without initializing Phorge's global configuration/database stack, and refuses non-loopback submission
+URLs. It creates real message/header/attachment objects and invokes the
+original adapter's `sendMessage`; it does not replace or subclass the adapter,
+serializer, HTTP transport or exceptions. Reflection records the original
+source file for each executed class. The subprocess has a 20-second deadline
+and is waited for before the test continues. No Phorge database, queue,
+notification rules, user authorization or worker process is deployed.
+
+This advances the **adapter** portion of T16. Recipient/content authorization
+is still provided as synthetic input, and trusted identity assertions remain
+synthetic. It does not establish a complete Phorge notification deployment or
+a real Stargate verified-email contract, and the production multiuser gate
+remains closed.

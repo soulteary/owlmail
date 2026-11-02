@@ -21,6 +21,7 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 - Cover explicit-history isolation with real loopback SMTP/HTTP, including delivery across login and competing stable subjects.
 - Exercise Gorge's existing SMTP transport against OwlMail in an isolated component test; this does not establish a real Stargate/Phorge deployment.
+- Execute the pinned original Phorge PHP mail adapter through unchanged Gorge and OwlMail, with permanent-recipient rejection and isolated MIME checks; notification authorization, workers, databases and real Stargate claims remain unaccepted.
 
 ### Publication
 

@@ -1,4 +1,4 @@
-//go:build gorge_integration
+//go:build gorge_integration || phorge_integration
 
 // Package gorgeintegration exercises the unchanged external Gorge SMTP adapter.
 // Identity headers below are synthetic component inputs, never a Stargate proof.
@@ -47,6 +47,11 @@ const smtpPassword = "synthetic-gorge-smtp-only-password"
 const serviceToken = "synthetic-gorge-http-service-token"
 
 func TestPinnedGorgeSMTP(t *testing.T) {
+	runPinnedGorgeSMTP(t, nil)
+}
+
+// submit optionally exercises a real language adapter instead of hand-built HTTP.
+func runPinnedGorgeSMTP(t *testing.T, submit func(*testing.T, string, map[string]any, bool)) {
 	if runtime.GOOS != "linux" {
 		t.Fatal("this integration requires Linux SSL_CERT_FILE trust; run the documented isolated Linux container instead of changing host trust")
 	}
@@ -136,18 +141,24 @@ func TestPinnedGorgeSMTP(t *testing.T) {
 		"headers":     []any{map[string]string{"name": "Message-ID", "value": "<gorge-synthetic@example.test>"}},
 		"attachments": []any{map[string]string{"filename": "synthetic.bin", "mimeType": "application/octet-stream", "data": base64.StdEncoding.EncodeToString([]byte{0, 1, 2, 255, 10})}},
 	}, "mailerKeys": []string{"owlmail-only"}}
-	status, body := request(t, client, http.MethodPost, gorge+"/api/mailer/send", payload, map[string]string{"X-Service-Token": serviceToken})
-	if status != 200 {
-		t.Fatalf("Gorge send: %d %s", status, body)
-	}
-	var receipt struct {
-		Data struct {
-			MailerKey string `json:"mailerKey"`
-		} `json:"data"`
-	}
-	decode(t, body, &receipt)
-	if receipt.Data.MailerKey != "owlmail-only" {
-		t.Fatalf("wrong backend receipt: %s", body)
+	var status int
+	var body []byte
+	if submit != nil {
+		submit(t, gorge, payload, false)
+	} else {
+		status, body = request(t, client, http.MethodPost, gorge+"/api/mailer/send", payload, map[string]string{"X-Service-Token": serviceToken})
+		if status != 200 {
+			t.Fatalf("Gorge send: %d %s", status, body)
+		}
+		var receipt struct {
+			Data struct {
+				MailerKey string `json:"mailerKey"`
+			} `json:"data"`
+		}
+		decode(t, body, &receipt)
+		if receipt.Data.MailerKey != "owlmail-only" {
+			t.Fatalf("wrong backend receipt: %s", body)
+		}
 	}
 	// Basic SMTP credentials carry no browser identity, including on raw/detail exits.
 	status, _ = request(t, client, http.MethodGet, endpoint+"/api/v1/emails", nil, map[string]string{"Authorization": "Basic " + base64.StdEncoding.EncodeToString([]byte("gorge:"+smtpPassword))})
@@ -206,9 +217,13 @@ func TestPinnedGorgeSMTP(t *testing.T) {
 	raw, _ := json.Marshal(payload)
 	decode(t, raw, &bad)
 	bad["message"].(map[string]any)["cc"] = []any{map[string]string{"address": "outside@forbidden.invalid"}}
-	status, body = request(t, client, http.MethodPost, gorge+"/api/mailer/send", bad, map[string]string{"X-Service-Token": serviceToken})
-	if status != 422 || !bytes.Contains(body, []byte("ERR_PERMANENT_FAILURE")) {
-		t.Fatalf("unknown-domain rejection: %d %s", status, body)
+	if submit != nil {
+		submit(t, gorge, bad, true)
+	} else {
+		status, body = request(t, client, http.MethodPost, gorge+"/api/mailer/send", bad, map[string]string{"X-Service-Token": serviceToken})
+		if status != 422 || !bytes.Contains(body, []byte("ERR_PERMANENT_FAILURE")) {
+			t.Fatalf("unknown-domain rejection: %d %s", status, body)
+		}
 	}
 	assertTotals(t, client, endpoint)
 	for _, item := range []struct{ name, ca, password, reason string }{{"untrusted TLS", wrongCA, smtpPassword, "x509: certificate signed by unknown authority"}, {"invalid SMTP credentials", cert, "wrong-synthetic-password", "535"}} {

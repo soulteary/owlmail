@@ -8,6 +8,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'examples/testing/**'
+      - 'tests/gorge/**'
       - '.github/workflows/integration-examples.yml'
   pull_request:
     branches: [ main, develop ]
@@ -16,6 +17,7 @@ on:
       - 'go.mod'
       - 'go.sum'
       - 'examples/testing/**'
+      - 'tests/gorge/**'
       - '.github/workflows/integration-examples.yml'
   workflow_dispatch:
 
@@ -140,3 +142,59 @@ jobs:
         env:
           OWLMAIL_GORGE_BINARY: ${{ runner.temp }}/gorge-mailer
         run: go test -race -tags gorge_integration ./tests/gorge -run '^TestPinnedGorgeSMTP$' -count=1 -timeout=120s -v
+
+  phorge-adapter:
+    name: Pinned Phorge PHP mail adapter
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout OwlMail
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: owlmail
+
+      - name: Checkout unchanged Gorge source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: soulteary/gorge
+          ref: e9ca3b7af2cc8914207fc22ffb499f5069d3364c
+          path: gorge
+          persist-credentials: false
+
+      - name: Checkout unchanged Phorge source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: soulteary/phorge
+          ref: e2eab00eb21ee9ff04b66b27ea835673f3e6027b
+          path: phorge
+          persist-credentials: false
+
+      - name: Set up PHP for the pinned Phorge runtime
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.5.12'
+          extensions: curl, mbstring
+          coverage: none
+          tools: none
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: owlmail/go.mod
+          cache-dependency-path: |
+            owlmail/go.sum
+            gorge/go/go.sum
+
+      - name: Build pinned external adapter
+        timeout-minutes: 5
+        run: |
+          test "$(git -C gorge rev-parse HEAD)" = e9ca3b7af2cc8914207fc22ffb499f5069d3364c
+          test -z "$(git -C gorge status --porcelain)"
+          go -C gorge/go build -mod=readonly -o "${RUNNER_TEMP}/gorge-mailer" ./cmd/gorge-mailer
+
+      - name: Exercise real Phorge adapter through Gorge SMTP
+        working-directory: owlmail
+        env:
+          OWLMAIL_GORGE_BINARY: ${{ runner.temp }}/gorge-mailer
+          OWLMAIL_PHORGE_SOURCE: ${{ github.workspace }}/phorge
+        run: go test -race -tags phorge_integration ./tests/gorge -run '^TestPinnedPhorgeAdapter$' -count=1 -timeout=120s -v

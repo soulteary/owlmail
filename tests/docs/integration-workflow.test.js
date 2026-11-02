@@ -31,6 +31,7 @@ test("CI runs all three integration examples against a live OwlMail binary", () 
     "go.mod",
     "go.sum",
     "examples/testing/**",
+    "tests/gorge/**",
     ".github/workflows/integration-examples.yml",
   ];
   assert.deepEqual(triggerPaths(workflow, "push", "pull_request"), expectedPaths);
