@@ -145,7 +145,7 @@ curl --fail http://localhost:11080/api/v1/version
 
 ## 验证容器发布
 
-当前准备的 `v0.14.0` 候选尚未发布。后续获准发布稳定版后，检查精确镜像标签 `0.14.0`、两个目标架构及适用的稳定别名 `0.14`、`0`、`latest` 是否指向发布摘要。`v0.14.0-alpha.1` 等预发布不能移动稳定别名。`main` 与 `sha-*` 仍为开发快照。
+稳定版 `v0.14.0` 的发布工作流完成后，检查精确镜像标签 `0.14.0`、两个目标架构及适用的稳定别名 `0.14`、`0`、`latest` 是否指向发布摘要。`v0.14.0-alpha.1` 等预发布不能移动稳定别名。`main` 与 `sha-*` 仍为开发快照。
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.14.0

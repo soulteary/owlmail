@@ -6,9 +6,9 @@
 
 The remaining scope is independent personal inboxes. Gorge uses its existing SMTP support with system credentials and recipient routing; no new adapter or per-user SMTP password is required.
 
-## Stable standalone candidate
+## Stable standalone release scope
 
-[0.14.0](Release-0.14.0.md) is being prepared, not published. Its supported runtime remains standalone; the normal binary keeps the multiuser gate. This is separate from completing the acceptance below or enabling multiuser mode. No stable tag or moving image alias is created by candidate preparation.
+[0.14.0](Release-0.14.0.md) supports standalone operation; the normal binary keeps the multiuser gate. Artifact publication and verification are recorded from the release workflow, separately from completing the acceptance below or enabling multiuser mode. The original Phorge PHP adapter and Gorge SMTP transport have isolated component coverage, not a complete notification deployment or real Stargate contract.
 
 ## Remaining acceptance before opening multiuser mode
 

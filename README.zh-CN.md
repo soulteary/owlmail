@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 正式版候选，尚未发布。单机仍为支持的默认模式，正常二进制拒绝多人模式，测试 fixture 不发布。候选准备不移动 `latest`、`0` 或 `0.14`。
+> OwlMail 0.14.0 默认支持单机运行。正常二进制保留多人启动门禁，正常二进制和容器镜像不包含测试 fixture 可执行入口；制品可用性和核验结果以发布工作流为准。
 
 
 在本地捕获应用邮件，检查内容、链接与附件，并在 CI 和 AI Agent 中验证发信流程。
@@ -33,7 +33,7 @@ OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker �
 
 ## 选择版本
 
-下面的 Docker 快速开始以尚未发布的 **0.14.0** 候选为目标，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
+下面的 Docker 快速开始使用 **0.14.0**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
 
 下文的完整工作流均已包含在 **0.14.0**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.14.0 发布说明](docs/zh-CN/Release-0.14.0.md)和[上一版 0.13.0](docs/zh-CN/Release-0.13.0.md)。
 
@@ -112,7 +112,7 @@ HTML 预览使用隔离 iframe，远程图片、字体和样式默认阻止，�
 
 ## 在 CI 中等待、验证和清理
 
-下面使用 Python 3 标准库完成一个测试，不需要额外安装依赖。保存为 `email-check.py`，在上述候选单机实例启动后运行 `python3 email-check.py`：
+下面使用 Python 3 标准库完成一个测试，不需要额外安装依赖。保存为 `email-check.py`，在上述单机实例启动后运行 `python3 email-check.py`：
 
 ```python
 import json
@@ -254,7 +254,7 @@ Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览�
 
 从 [Releases](https://github.com/soulteary/owlmail/releases)下载适合平台的二进制，将文件重命名为 `owlmail`，Unix 平台执行 `chmod +x owlmail`。本文的 `./owlmail` 表示这个下载或本地构建的文件。
 
-也可以使用 Go 1.27.3+ 在发布后安装此候选版本：
+也可以使用 Go 1.27.3+ 安装此版本：
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0

@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
+> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 > 🦉 Une passerelle de test d’e-mails auto-hébergée et AI-native pour le développement, la CI, l’automatisation et les agents de code.
@@ -63,7 +63,7 @@ borné en lecture seule.
 
 ## OwlMail 0.14.0
 
-`v0.14.0` est une version candidate non encore publiée. Elle inclut les tests de livraison par curseur, les assertions de contenu et de pièces jointes, l’historique et les reprises confirmées, la palette de commandes, le diagnostic hors ligne et le mode SMTP-only avec des sondes adaptées à la configuration. [Notes de version 0.14.0](./docs/en/Release-0.14.0.md) · [Version précédente 0.13.0](./docs/en/Release-0.13.0.md).
+`v0.14.0` prend en charge le fonctionnement autonome. Elle inclut les tests de livraison par curseur, les assertions de contenu et de pièces jointes, l’historique et les reprises confirmées, la palette de commandes, le diagnostic hors ligne et le mode SMTP-only avec des sondes adaptées à la configuration. [Notes de version 0.14.0](./docs/en/Release-0.14.0.md) · [Version précédente 0.13.0](./docs/en/Release-0.13.0.md).
 
 > [!IMPORTANT]
 > OwlMail cible le développement, les tests, la CI et les réseaux internes de
@@ -150,7 +150,7 @@ docker run -d \
 ```
 
 **Tags disponibles :**
-- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
+- `0.14.0` — exact release version. The successful stable release workflow also maintains eligible `0.14`, `0`, and `latest` aliases.
 - `sha-<commit>` - Image d'un SHA court précis (par exemple `sha-8d3445d`)
 - `main` - Image mobile issue du dernier build de `main`
 - `latest` - Alias mobile de la dernière version stable, jamais modifié par les builds `main`

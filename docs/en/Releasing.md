@@ -164,7 +164,7 @@ Stop the smoke-test process after both endpoints and one SMTP receipt succeed.
 
 ## Verify container publication
 
-The prepared `v0.14.0` candidate is not published yet. After an authorized stable release, verify the exact `0.14.0` tag, both target architectures, and the eligible stable aliases `0.14`, `0`, and `latest` against the release digest. Prereleases such as `v0.14.0-alpha.1` must not move those aliases. `main` and `sha-*` remain development snapshots.
+After the stable `v0.14.0` release workflow completes, verify the exact `0.14.0` tag, both target architectures, and the eligible stable aliases `0.14`, `0`, and `latest` against the release digest. Prereleases such as `v0.14.0-alpha.1` must not move those aliases. `main` and `sha-*` remain development snapshots.
 
 ```bash
 docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.14.0

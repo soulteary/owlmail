@@ -1,6 +1,6 @@
 # OwlMail + `soulteary/webhook`
 
-Version-pinned commands currently target the unpublished 0.14.0 candidate; use them after an authorized release. See the [candidate release notes](../../../docs/en/Release-0.14.0.md).
+Version-pinned commands target 0.14.0; use them after the release workflow makes artifacts available. See the [release notes](../../../docs/en/Release-0.14.0.md).
 
 This runnable example sends each new OwlMail message to
 [`soulteary/webhook`](https://github.com/soulteary/webhook), verifies the exact

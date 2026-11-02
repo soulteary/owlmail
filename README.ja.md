@@ -1,6 +1,6 @@
 # OwlMail
 
-> 0.14.0 release candidate: not yet published. Standalone remains the supported default; normal binaries reject multiuser mode. Test fixtures are not release artifacts. Preparing this candidate does not move `latest`, `0`, or `0.14`.
+> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 > 🦉 開発、CI、自動化、コーディング Agent のためのセルフホスト型 AI ネイティブ・メールテストゲートウェイ。
@@ -61,7 +61,7 @@ REST API と OpenAPI、自動化は永続イベント、AI Agent は境界が明
 
 ## OwlMail 0.14.0
 
-`v0.14.0` は未公開のリリース候補です。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.14.0 リリースノート](./docs/en/Release-0.14.0.md) · [前のバージョン 0.13.0](./docs/en/Release-0.13.0.md)。
+`v0.14.0` は単独実行をサポートします。カーソルによる配信テスト、本文と添付の検証、配信履歴と確認付き再試行、コマンドパレット、オフライン診断、設定に対応したヘルスチェックと SMTP-only を提供します。[0.14.0 リリースノート](./docs/en/Release-0.14.0.md) · [前のバージョン 0.13.0](./docs/en/Release-0.13.0.md)。
 
 > [!IMPORTANT]
 > OwlMail は開発、テスト、CI、信頼できる内部ネットワーク向けです。公開本番
@@ -146,7 +146,7 @@ docker run -d \
 ```
 
 **利用可能なタグ：**
-- `0.14.0` — exact candidate version; not published yet. Only a later approved stable release may update `0.14`, `0`, and `latest`.
+- `0.14.0` — exact release version. The successful stable release workflow also maintains eligible `0.14`, `0`, and `latest` aliases.
 - `sha-<commit>` - 特定の短いコミット SHA のイメージ（例：`sha-8d3445d`）
 - `main` - 最新の `main` ビルドに追随する可変イメージ
 - `latest` - 最新の安定版に追随する可変エイリアス。`main` のビルドでは更新されません
