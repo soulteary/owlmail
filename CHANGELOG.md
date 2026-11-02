@@ -6,6 +6,26 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.14.0] - Unreleased candidate
+
+### Changed
+
+- Prepare a stable standalone release while retaining the production multiuser startup gate. Synthetic fixtures are not release artifacts; actual Stargate identity acceptance and multiuser notification deployment remain outside enabled support.
+- Clarify published Alpha evidence and the remaining real-identity, notification-path and normal-binary gate acceptance without adding unrelated release prerequisites.
+
+### Fixed
+
+- Bound transient Chromium test-profile cleanup retries without rerunning browser assertions; persistent failures retain diagnostics.
+
+### Tests
+
+- Cover explicit-history isolation with real loopback SMTP/HTTP, including delivery across login and competing stable subjects.
+- Exercise Gorge's existing SMTP transport against OwlMail in an isolated component test; this does not establish a real Stargate/Phorge deployment.
+
+### Publication
+
+- Candidate metadata only. No stable tag, image alias or release has been published by this change.
+
 ## [0.14.0-alpha.1] - 2026-11-02
 
 ### Added
@@ -665,7 +685,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.14.0-alpha.1...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/soulteary/owlmail/compare/v0.13.0...v0.14.0
 [0.14.0-alpha.1]: https://github.com/soulteary/owlmail/compare/v0.13.0...v0.14.0-alpha.1
 [0.13.0]: https://github.com/soulteary/owlmail/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/soulteary/owlmail/compare/v0.11.4...v0.12.0

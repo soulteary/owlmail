@@ -6,6 +6,10 @@
 
 The remaining scope is independent personal inboxes. Gorge uses its existing SMTP support with system credentials and recipient routing; no new adapter or per-user SMTP password is required.
 
+## Stable standalone candidate
+
+[0.14.0](Release-0.14.0.md) is being prepared, not published. Its supported runtime remains standalone; the normal binary keeps the multiuser gate. This is separate from completing the acceptance below or enabling multiuser mode. No stable tag or moving image alias is created by candidate preparation.
+
 ## Remaining acceptance before opening multiuser mode
 
 1. **T02 — Real identity and historical ownership.** Validate the actual Stargate stable subject/namespace, trusted verified-email declaration, and proxy header stripping. Reject forged assertions and deny claiming with an unverified email; a valid stable subject without verified email can still obtain an empty personal inbox. A currently verified address does not establish historical ownership. Document address reuse and continuous historical ownership; use `explicit-history` when continuity cannot be guaranteed, without exposing old history automatically. Synthetic identities do not satisfy this item.
