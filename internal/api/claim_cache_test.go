@@ -143,6 +143,9 @@ func BenchmarkClaimCacheBinding(b *testing.B) {
 	b.Run("repeated_binding", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
+			if _, err := store.PersonalMailbox(context.Background(), "main", "alice"); err != nil {
+				b.Fatal(err)
+			}
 			if _, err := store.BindLogin(context.Background(), login, mailbox.ExplicitHistory); err != nil {
 				b.Fatal(err)
 			}
