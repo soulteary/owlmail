@@ -8,11 +8,13 @@ import (
 // setEmailHTMLResponseHeaders gives direct HTML views the same default remote
 // resource boundary as the browser preview. The JSON body remains available to
 // clients, and the UI's explicit remote-content preview is unaffected.
+// User-initiated links can open normal destination pages without allowing
+// scripts or automatic remote resources in the email document itself.
 func setEmailHTMLResponseHeaders(c interface{ Set(string, string) }) {
 	c.Set("Content-Type", "text/html; charset=utf-8")
 	c.Set("X-Content-Type-Options", "nosniff")
 	c.Set("Referrer-Policy", "no-referrer")
-	c.Set("Content-Security-Policy", "sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; img-src 'self' data:; media-src 'self' data:; style-src 'unsafe-inline' 'self'; font-src 'self' data:")
+	c.Set("Content-Security-Policy", "sandbox allow-popups allow-popups-to-escape-sandbox; default-src 'none'; base-uri 'none'; form-action 'none'; img-src 'self' data:; media-src 'self' data:; style-src 'unsafe-inline' 'self'; font-src 'self' data:")
 }
 
 // sanitizeFilename sanitizes a filename for safe download

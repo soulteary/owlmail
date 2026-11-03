@@ -61,9 +61,16 @@ test('sandboxed long HTML preview supports scrolling, widths and persisted prefe
 test('direct HTML view blocks remote resources while the preview keeps explicit opt-in', async ({ page, request, baseURL }) => {
     const http = require('node:http');
     const remoteHits = [];
+    let destinationReferrer;
     const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
     const tracker = http.createServer((req, res) => {
         remoteHits.push(req.url);
+        if (req.url === '/destination') {
+            destinationReferrer = req.headers.referer || null;
+            res.writeHead(200, { 'Content-Type': 'text/html' });
+            res.end('<html><head><link rel="icon" href="data:,"></head><body><h1>Verification destination</h1><script>document.body.dataset.functional="yes"</script></body></html>');
+            return;
+        }
         res.writeHead(200, { 'Content-Type': req.url === '/mail.css' ? 'text/css' : 'image/png' });
         res.end(req.url === '/mail.css' ? 'h1 { color: blue; }' : pixel);
     });
@@ -79,7 +86,7 @@ m['From'] = 'sender@example.test'
 m['To'] = 'reader@example.test'
 m['Subject'] = 'Direct HTML resource boundary'
 m.set_content('Plain fallback')
-m.add_alternative('<h1>HTML boundary</h1><link rel="stylesheet" href="'+sys.argv[1]+'/mail.css"><img alt="Remote pixel" src="'+sys.argv[1]+'/pixel"><img alt="Local asset" src="/preview/favicon.svg">', subtype='html')
+m.add_alternative('<h1>HTML boundary</h1><a href="'+sys.argv[1]+'/destination">Verification link</a><link rel="stylesheet" href="'+sys.argv[1]+'/mail.css"><img alt="Remote pixel" src="'+sys.argv[1]+'/pixel"><img alt="Local asset" src="/preview/favicon.svg">', subtype='html')
 with smtplib.SMTP('127.0.0.1', 21025) as client:
     client.send_message(m)
 `, remote]);
@@ -92,6 +99,22 @@ with smtplib.SMTP('127.0.0.1', 21025) as client:
         await expect.poll(() => page.getByAltText('Remote pixel').evaluate(node => node.complete && node.naturalWidth === 0)).toBe(true);
         await expect.poll(() => page.getByAltText('Local asset').evaluate(node => node.naturalWidth)).toBeGreaterThan(0);
         expect(remoteHits).toEqual([]);
+
+        const destinationOpened = page.context().waitForEvent('page');
+        await page.getByRole('link', { name: 'Verification link', exact: true }).click();
+        const destination = await destinationOpened;
+        try {
+            await expect(destination.locator('h1')).toHaveText('Verification destination');
+            await expect(destination.locator('body')).toHaveAttribute('data-functional', 'yes');
+            expect(await destination.evaluate(() => window.opener)).toBeNull();
+            expect(destinationReferrer).toBeNull();
+            expect(remoteHits).toContain('/destination');
+            expect(remoteHits).not.toContain('/pixel');
+            expect(remoteHits).not.toContain('/mail.css');
+        } finally {
+            await destination.close();
+        }
+        remoteHits.length = 0;
 
         await page.goto('./');
         await page.locator('.email-item').filter({ hasText: 'Direct HTML resource boundary' }).click();
