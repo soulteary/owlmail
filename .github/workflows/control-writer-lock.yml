@@ -47,3 +47,5 @@ jobs:
       # locking primitive, including subprocess crash/release on Windows.
       - name: Verify writer lock lifecycle
         run: go test ./internal/mailbox -run '^TestControlWriter' -count=1 -timeout=2m
+      - name: Verify offline route operation safety
+        run: go test ./internal/mailbox ./cmd/owlmail -run '^(TestOperatorRoute|TestRecipientRouteCLI)' -count=1 -timeout=3m

@@ -4,6 +4,8 @@
 
 关联：[技术设计](Multiuser-Design.md)、[实施清单](Multiuser-Implementation-Plan.md)、[当前进度](Multiuser-Progress.md)。
 
+地址重新分配的只读检查、精确计划、阻断及未来路由改绑见 [离线收件路由操作](Recipient-Route-Operations.md)。该流程不转移历史邮件，也不解除多人门禁。
+
 完整停机备份、恢复顺序及进程崩溃验证见 [备份恢复与崩溃演练](Multiuser-Recovery.md)。迁移工具的 source-archive 不能代替包含控制库、应用 journal、配置与凭据的完整部署备份。
 
 ## 配额与保留配置
