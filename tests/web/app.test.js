@@ -1998,3 +1998,18 @@ test('multiuser account switch clears old data even when the new mailbox returns
     assert.equal(h.run('state.emails.length'), 0);
     assert.equal(h.run('state.currentEmail'), null);
 });
+
+test('automatic refresh labels follow every supported locale and retain toggle state', () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run(`const refreshLabel = document.createElement('button');
+        const originalLookup = document.getElementById.bind(document);
+        document.getElementById = id => id === 'autoRefreshToggle' ? refreshLabel : originalLookup(id);`);
+    for (const lang of ['zh-CN', 'en', 'de', 'it', 'fr', 'ko', 'ja']) {
+        h.run(`multiuserPollingEnabled=true;setLanguage(${JSON.stringify(lang)},false)`);
+        assert.equal(h.run('refreshLabel.textContent'), h.run("t('autoRefreshOn')"));
+        assert.notEqual(h.run('refreshLabel.textContent'), 'autoRefreshOn');
+        h.run('multiuserPollingEnabled=false;updateAutoRefreshLabel()');
+        assert.equal(h.run('refreshLabel.textContent'), h.run("t('autoRefreshOff')"));
+        assert.equal(h.run('multiuserPollingEnabled'), false);
+    }
+});
