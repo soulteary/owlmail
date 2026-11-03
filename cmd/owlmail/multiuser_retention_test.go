@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"testing"
 	"time"
+
+	"github.com/soulteary/owlmail/internal/mailbox"
 )
 
 func TestPendingMaintenanceRunsAtStartupAndOnSchedule(t *testing.T) {
@@ -73,6 +75,48 @@ func TestPendingMaintenanceRunsAtStartupAndOnSchedule(t *testing.T) {
 	}
 	if third.MailboxID == second.MailboxID {
 		t.Fatal("scheduled cleanup left retired route active")
+	}
+	if err = server.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPendingMergeProgressDoesNotWaitForRetentionInterval(t *testing.T) {
+	cfg := multiuserComponentConfig(t)
+	cfg.PendingCleanupInterval = "1h"
+	server, err := createMailServer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	control := server.MailboxControl()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err = control.BindLogin(ctx, mailbox.Login{Namespace: "main", Subject: "alice"}, mailbox.VerifiedEmail); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = control.EnsurePending(ctx, "main", "alice@example.com", 10); err != nil {
+		t.Fatal(err)
+	}
+	claim, err := control.BindLogin(ctx, mailbox.Login{Namespace: "main", Subject: "alice", Email: "alice@example.com", Verified: true}, mailbox.VerifiedEmail)
+	if err != nil || claim.MergeID == "" {
+		t.Fatal(claim, err)
+	}
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		pending, err := control.PendingMerges(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(pending) == 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("merge waited for hourly retention")
+		case <-ticker.C:
+		}
 	}
 	if err = server.Close(); err != nil {
 		t.Fatal(err)

@@ -76,12 +76,12 @@ func (api *API) setupMultiuserRoutes() {
 		prior, cached := api.multiuserClaims.Load(cacheKey)
 		_, lookupErr := api.multiuser.Store.PersonalMailbox(c.Context(), assertion.Namespace, assertion.Subject)
 		if !cached || prior != claimEvidence || lookupErr != nil {
-			_, bindErr := api.multiuser.Store.BindLogin(c.Context(), mailbox.Login{Namespace: assertion.Namespace, Subject: assertion.Subject, Email: assertion.Email, Verified: assertion.EmailVerified}, api.multiuser.ClaimPolicy)
+			bound, bindErr := api.multiuser.Store.BindLogin(c.Context(), mailbox.Login{Namespace: assertion.Namespace, Subject: assertion.Subject, Email: assertion.Email, Verified: assertion.EmailVerified}, api.multiuser.ClaimPolicy)
 			if bindErr != nil {
 				return c.Status(503).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Identity service unavailable"))
 			}
-			if err := api.multiuser.Store.RunPendingMerges(c.Context(), func(ctx context.Context, merge mailbox.Merge) error {
-				return api.mailServer.MergeOwnership(ctx, merge.SourceID, merge.TargetID)
+			if _, err := api.multiuser.Store.RunMergeBatch(c.Context(), bound.MailboxID, "", func(ctx context.Context, merge mailbox.Merge) (bool, error) {
+				return api.mailServer.MergeOwnershipBatch(ctx, merge.SourceID, merge.TargetID, 32)
 			}); err != nil {
 				return c.Status(503).JSON(ErrorResponse(ErrorCodeInvalidRequest, "Mailbox claim recovery unavailable"))
 			}

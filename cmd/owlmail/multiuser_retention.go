@@ -60,17 +60,25 @@ func startPendingCleanup(server *mailserver.MailServer, cfg *config.Config) erro
 		defer close(worker.done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
+		mergeTicker := time.NewTicker(250 * time.Millisecond)
+		defer mergeTicker.Stop()
+		cursor := ""
 		for {
 			select {
 			case <-ctx.Done():
 				return
+			case <-mergeTicker.C:
+				batchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+				next, mergeErr := control.RunMergeBatch(batchCtx, "", cursor, func(ctx context.Context, item mailbox.Merge) (bool, error) {
+					return server.MergeOwnershipBatch(ctx, item.SourceID, item.TargetID, 32)
+				})
+				cancel()
+				cursor = next
+				if mergeErr != nil && ctx.Err() == nil {
+					common.Error("Pending mailbox merge batch failed: %v", mergeErr)
+				}
 			case now := <-ticker.C:
 				err := control.CleanupPending(ctx, now, retention, emptyRetention, apply)
-				if err == nil {
-					err = control.RunPendingMerges(ctx, func(ctx context.Context, item mailbox.Merge) error {
-						return server.MergeOwnership(ctx, item.SourceID, item.TargetID)
-					})
-				}
 				if err != nil && ctx.Err() == nil {
 					common.Error("Pending mailbox maintenance failed: %v", err)
 				}
