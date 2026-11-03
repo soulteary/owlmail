@@ -2179,3 +2179,27 @@ test('multiuser refresh coalesces searches while discarding the old query respon
     assert.equal(h.run('emailListActiveSequence'),null);
     assert.equal(urls.filter(url=>url.includes('/preview')).length,2);
 });
+
+test('queued refresh uses latest page and filter and does not survive session expiry', async () => {
+    const pending = [], urls = [];
+    const trusted = data => ({ok:true,status:200,headers:{get:n=>n==='x-owlmail-identity'?'alice':'application/json'},json:async()=>data});
+    const h = createHarness({multiuserMode:true,fetchImpl:async url=>{
+        urls.push(url);
+        if (url.includes('/me/mailbox')) return trusted({mailbox_state:'ready'});
+        return new Promise(resolve=>pending.push(resolve));
+    }});
+    const loading = h.run('loadEmails({background:true})');
+    while (!pending.length) await new Promise(resolve=>setTimeout(resolve,0));
+    h.run("state.currentPage=1;mailboxFilters.read='false';loadEmails();state.currentPage=2;mailboxFilters.read='true';loadEmails()");
+    pending.shift()(trusted({previews:[{id:'old'}],total:200}));
+    while (!pending.length) await new Promise(resolve=>setTimeout(resolve,0));
+    assert.match(urls.at(-1), /offset=100/);
+    assert.match(urls.at(-1), /read=true/);
+    h.run("state.currentPage=3;loadEmails();try{validateMultiuserResponse({status:401,ok:false,headers:{get:()=>null}})}catch(_){}");
+    const count = urls.length;
+    pending.shift()(trusted({previews:[{id:'secret'}],total:200}));
+    await loading;
+    assert.equal(urls.length,count);
+    assert.equal(h.run('state.emails.length'),0);
+    assert.equal(h.run('multiuserAuthExpired'),true);
+});
