@@ -30,11 +30,7 @@ func OpenReadOnly(path string) (*Store, error) {
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("control database must be regular")
 	}
-	uri := url.URL{Scheme: "file", Path: path}
-	q := uri.Query()
-	q.Set("mode", "ro")
-	uri.RawQuery = q.Encode()
-	db, err := sql.Open("sqlite", uri.String())
+	db, err := sql.Open("sqlite", controlSQLiteURI(path, "ro"))
 	if err != nil {
 		return nil, err
 	}
@@ -86,4 +82,18 @@ func (s *Store) CheckPersonalMailboxID(ctx context.Context, id string) error {
 		return ErrMailboxUnavailable
 	}
 	return nil
+}
+
+// controlSQLiteURI keeps filesystem punctuation out of DSN query syntax and
+// represents Windows drive paths as absolute URI paths rather than hosts.
+func controlSQLiteURI(path, mode string) string {
+	sqlitePath := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(sqlitePath, "/") {
+		sqlitePath = "/" + sqlitePath
+	}
+	uri := url.URL{Scheme: "file", Path: sqlitePath}
+	query := uri.Query()
+	query.Set("mode", mode)
+	uri.RawQuery = query.Encode()
+	return uri.String()
 }
