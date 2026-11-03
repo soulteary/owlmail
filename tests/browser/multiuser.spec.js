@@ -298,3 +298,45 @@ test('restored cached pages reload before showing private mail', async ({ page, 
     ]);
     await expect(page.locator('.email-item').filter({ hasText: 'Restored Bob private mail' })).toHaveCount(1);
 });
+
+test('proxy 403 and successful HTML with a stale identity marker clear all private views', async ({ page, context }) => {
+    await identity(context, 'alice', true);
+    await context.request.delete('/api/v1/emails');
+    await deliver(context.request, 'alice', 'Protocol private mail');
+    for (const htmlWithMarker of [false, true]) {
+        await page.goto('/');
+        await expect(page.locator('.email-item')).toHaveCount(1);
+        await page.locator('.email-item-open').click();
+        await expect(page.locator('#emailDetail')).toContainText('Protocol private mail');
+        const marker = await page.evaluate(() => {
+            personalMailboxStatus = { mailbox_state: 'ready', delivery_state: 'bound', history_state: 'retained' };
+            renderPersonalMailboxStatus();
+            return multiuserResponseIdentity;
+        });
+        await expect(page.locator('#personalMailboxStatus')).toBeVisible();
+        await page.route('**/api/v1/emails/preview?*', route => route.fulfill({
+            status: htmlWithMarker ? 200 : 403,
+            contentType: 'text/html',
+            headers: htmlWithMarker ? { 'x-owlmail-identity': marker } : {},
+            body: '<html>Sign in</html>'
+        }));
+        await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(page.locator('.email-item')).toHaveCount(0);
+        await expect(page.locator('#emailDetail')).not.toContainText('Protocol private mail');
+        await expect(page.locator('#personalMailboxStatus')).toBeHidden();
+        expect(await page.evaluate(() => multiuserAuthExpired)).toBe(true);
+        await expect(page.locator('#sessionExpiredNotice')).toBeVisible();
+        await page.getByRole('combobox', { name: 'Switch Language' }).selectOption('zh-CN');
+        await expect(page.locator('#refreshBtn')).toHaveText('重新登录');
+        await page.getByRole('combobox').selectOption('en');
+        await expect(page.locator('#refreshBtn')).toHaveText('Sign in again');
+        await page.unroute('**/api/v1/emails/preview?*');
+        await Promise.all([
+            page.waitForEvent('load'),
+            page.getByRole('button', { name: 'Sign in again', exact: true }).click()
+        ]);
+        await expect(page.locator('.email-item')).toHaveCount(1);
+        await expect(page.locator('.email-item')).toContainText('Protocol private mail');
+        await expect(page.locator('#sessionExpiredNotice')).toBeHidden();
+    }
+});
