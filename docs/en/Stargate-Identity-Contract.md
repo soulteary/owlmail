@@ -5,7 +5,36 @@ OwlMail's public multiuser release gate remains closed. A stable subject, a
 currently verified email address, and ownership of historical mail are three
 separate requirements.
 
-## Reviewed upstream revisions
+## Implemented upstream milestone; deployment acceptance still pending
+
+[Stargate PR #229](https://github.com/soulteary/stargate/pull/229) was merged at
+[`67d1e1c8dc458433a2cb8df41e4ce4d9081ae547`](https://github.com/soulteary/stargate/tree/67d1e1c8dc458433a2cb8df41e4ce4d9081ae547).
+It implements `X-Auth-Email-Verified` for authenticated Warden-backed sessions
+with successful, server-bound Herald **email-channel** challenge evidence matching
+the explicit subject and exact canonical asserted email. Local parts and plus tags
+remain exact; only the domain is normalized. Old sessions and password, SMS,
+TOTP or header authentication do not acquire evidence from generic AMR.
+
+Evidence is stored as session primitives, expires independently of sliding session
+access, and is permanently cleared when directory refresh observes an email
+change. The handler removes client-supplied verification headers before checking
+authentication. Evidence is not a statement of historical address ownership, nor
+does it enforce the user's ID non-reassignment policy.
+
+The upstream PR's lint, race/unit coverage, Linux image packaging and Windows
+startup checks passed. Its PR workflow is not a vulnerability-scan result. These
+are source/component checks with test providers, not a real deployed
+Stargate/Warden/Herald or Phorge notification acceptance result. Older upstream
+versions do not gain the feature automatically. Deploy a version containing this
+commit, configure the proxy's response-header allowlist and private peer boundary,
+and perform [T02/T16/T17 acceptance](Multiuser-Release-Readiness.md) before any
+multiuser gate decision. The normal OwlMail gate remains closed.
+
+The following review describes the **initial pinned baseline** and explains why
+this implementation was necessary; its missing-export statements apply to those
+older revisions, not to the merged milestone above.
+
+## Initial reviewed upstream revisions
 
 - [Stargate `111c3f94bc1d7f76d6e31548918adda2f82b61e9`](https://github.com/soulteary/stargate/tree/111c3f94bc1d7f76d6e31548918adda2f82b61e9)
 - [Warden `af23fee285e3cb2d4c01cac56d50db86ab9338dc`](https://github.com/soulteary/warden/tree/af23fee285e3cb2d4c01cac56d50db86ab9338dc)
@@ -38,7 +67,7 @@ Changing the hash strategy does not make a reassigned address or phone number a
 non-reassignable subject. A hash's repeatability is not an identity lifecycle
 contract. Do not use these fallbacks as proof of that requirement.
 
-## Current email verification: still missing from the exported contract
+## Initial baseline: missing exported email verification
 
 Stargate's
 [ForwardAuth configuration](https://github.com/soulteary/stargate/blob/111c3f94bc1d7f76d6e31548918adda2f82b61e9/src/internal/handlers/forwardauth.go)

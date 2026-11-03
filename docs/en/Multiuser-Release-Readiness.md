@@ -10,6 +10,16 @@ The remaining scope is independent personal inboxes. Gorge uses its existing SMT
 
 [0.14.0](Release-0.14.0.md) supports standalone operation; the normal binary keeps the multiuser gate. Artifact publication and verification are recorded from the release workflow, separately from completing the acceptance below or enabling multiuser mode. The original Phorge PHP adapter and Gorge SMTP transport have isolated component coverage, not a complete notification deployment or real Stargate contract.
 
+## Upstream implementation is available; real acceptance is pending
+
+[Stargate #229](https://github.com/soulteary/stargate/pull/229) implements exact
+verified-email session evidence at commit
+`67d1e1c8dc458433a2cb8df41e4ce4d9081ae547`. See the
+[updated identity contract](Stargate-Identity-Contract.md). Passing upstream CI
+closes the missing source implementation, not T02 or T16: no isolated real
+identity/notification deployment was available for this round. Keep both items
+open, keep the normal runtime gate, and do not inject a constant verified header.
+
 ## Remaining acceptance before opening multiuser mode
 
 1. **T02 — Real identity and historical ownership.** Validate the actual Stargate stable subject/namespace, trusted verified-email declaration, and proxy header stripping. Reject forged assertions and deny claiming with an unverified email; a valid stable subject without verified email can still obtain an empty personal inbox. A currently verified address does not establish historical ownership. Document address reuse and continuous historical ownership; use `explicit-history` when continuity cannot be guaranteed, without exposing old history automatically. Synthetic identities do not satisfy this item.
