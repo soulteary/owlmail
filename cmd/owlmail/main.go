@@ -1317,6 +1317,19 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "sendmail" {
 		os.Exit(sendmail.Run(os.Args[2:], os.Stdin, os.Stdout, os.Stderr))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "recipient-route" {
+		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		err := runRecipientRoute(ctx, os.Args[2:], os.Stdout, os.Stderr)
+		stop()
+		if errors.Is(err, flag.ErrHelp) {
+			return
+		}
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Recipient route operation failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "migrate-mailbox" {
 		ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		err := runMailboxMigration(ctx, os.Args[2:], os.Stdout, os.Stderr)
