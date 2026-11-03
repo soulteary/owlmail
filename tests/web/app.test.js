@@ -2043,3 +2043,20 @@ test('personal status refresh is absent in standalone and ignores stale response
     assert.equal(h.run('personalMailboxStatus'), null);
     assert.equal(new URL(h.fetchRequests[0].url).pathname, '/api/v1/me/mailbox');
 });
+
+
+test('any authentication expiry clears the previous personal mailbox notice', async () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run(`
+        const expiredStatusNotice = document.createElement('p');
+        const expiredStatusLookup = document.getElementById.bind(document);
+        document.getElementById = id => id === 'personalMailboxStatus' ? expiredStatusNotice : expiredStatusLookup(id);
+        personalMailboxStatus={mailbox_state:'ready',delivery_state:'bound',history_state:'retained'};
+        renderPersonalMailboxStatus();
+    `);
+    assert.equal(h.run('expiredStatusNotice.hidden'), false);
+    await assert.rejects(h.run("handleAPIResponse({status:401,headers:{get(){return null;}}})"));
+    assert.equal(h.run('personalMailboxStatus'), null);
+    assert.equal(h.run('expiredStatusNotice.hidden'), true);
+    assert.equal(h.run('expiredStatusNotice.textContent'), '');
+});

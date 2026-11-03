@@ -1391,6 +1391,7 @@ async function handleAPIResponse(response) {
         const identity = response.headers.get('x-owlmail-identity');
         if (response.status === 401 || (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
             multiuserAuthExpired = true;
+            clearPersonalMailboxStatus();
             emailListRequestSequence += 1;
             emailListActiveSequence = null;
             mailboxRefreshAfterLoad = false;
