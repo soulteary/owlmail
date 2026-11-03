@@ -83,6 +83,9 @@ type Store struct {
 	db             *sql.DB
 	mu             sync.Mutex
 	readOnlySchema int
+	writerFile     *os.File
+	closeOnce      sync.Once
+	closeErr       error
 }
 
 type Route struct {
@@ -112,6 +115,18 @@ func Open(path string, create bool) (*Store, error) {
 	if !filepath.IsAbs(path) {
 		return nil, errors.New("control database path must be absolute")
 	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	path = filepath.Join(parent, filepath.Base(path))
+	// Reject a final symlink before opening or changing permissions. Parent
+	// directories must remain under the operator's control throughout use.
+	if info, err := os.Lstat(path); err == nil && !info.Mode().IsRegular() {
+		return nil, errors.New("control database must be regular, not a symlink")
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, err
+	}
 	file, err := os.OpenFile(path, os.O_RDWR, 0600)
 	fresh := false
 	if errors.Is(err, os.ErrNotExist) && create {
@@ -121,18 +136,31 @@ func Open(path string, create bool) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open control database: %w", err)
 	}
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
-	closeErr := file.Close()
 	if err != nil {
 		return nil, err
-	}
-	if closeErr != nil {
-		return nil, closeErr
 	}
 	if !info.Mode().IsRegular() {
 		return nil, errors.New("control database must be regular")
 	}
-	if err = os.Chmod(path, 0600); err != nil {
+	if err = singleLinkControlFile(file); err != nil {
+		return nil, err
+	}
+	writer, err := openWriterFence(path + ".writer-lock")
+	if err != nil {
+		return nil, err
+	}
+	owned := false
+	defer func() {
+		if !owned {
+			_ = writer.Close()
+		}
+	}()
+	if err = sameControlFile(path, info); err != nil {
+		return nil, err
+	}
+	if err = file.Chmod(0600); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", path)
@@ -145,6 +173,9 @@ func Open(path string, create bool) (*Store, error) {
 		if _, err = db.Exec(q); err != nil {
 			return fail(err)
 		}
+	}
+	if err = sameControlFile(path, info); err != nil {
+		return fail(err)
 	}
 	var version int
 	if err = db.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
@@ -191,7 +222,11 @@ func Open(path string, create bool) (*Store, error) {
 	if err = validateControlState(context.Background(), db); err != nil {
 		return fail(err)
 	}
-	return &Store{db: db}, nil
+	if err = sameControlFile(path, info); err != nil {
+		return fail(err)
+	}
+	owned = true
+	return &Store{db: db, writerFile: writer}, nil
 }
 func checkForeignKeys(db *sql.DB) error {
 	rows, err := db.Query("PRAGMA foreign_key_check")
@@ -205,7 +240,19 @@ func checkForeignKeys(db *sql.DB) error {
 	return rows.Err()
 }
 
-func (s *Store) Close() error { return s.db.Close() }
+// Close retains the writer fence until SQLite has released its connections.
+// Repeated cleanup calls return the same result without closing another file.
+func (s *Store) Close() error {
+	s.closeOnce.Do(func() {
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.closeErr = s.db.Close()
+		if s.writerFile != nil {
+			s.closeErr = errors.Join(s.closeErr, s.writerFile.Close())
+		}
+	})
+	return s.closeErr
+}
 func validIdentity(namespace, subject string) bool {
 	for _, v := range []string{namespace, subject} {
 		if v == "" || len(v) > 256 || strings.TrimSpace(v) != v || strings.ContainsAny(v, "\r\n\x00") {
