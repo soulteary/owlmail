@@ -30,6 +30,13 @@ commit, configure the proxy's response-header allowlist and private peer boundar
 and perform [T02/T16/T17 acceptance](Multiuser-Release-Readiness.md) before any
 multiuser gate decision. The normal OwlMail gate remains closed.
 
+Email verification must reach an already usable mailbox through the upstream's
+trusted delivery channel. Routing the verification code only into the unclaimed
+OwlMail inbox creates a bootstrap deadlock; do not solve it by granting access or
+forcing a verified header. Keep Herald verification delivery separate from the
+Phorge/Gorge capture path. If a capture-domain alias is used, its trusted identity
+mapping must match the asserted recipient contract before acceptance.
+
 The following review describes the **initial pinned baseline** and explains why
 this implementation was necessary; its missing-export statements apply to those
 older revisions, not to the merged milestone above.
