@@ -86,7 +86,7 @@ func TestMultiuserClaimCacheEvictionPreservesAuthority(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusUnauthorized {
 		t.Fatal("cached claim bypassed invalid upstream evidence")
 	}
@@ -105,7 +105,7 @@ func TestMultiuserClaimCacheRebindsChangedEvidence(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode != http.StatusOK {
 		t.Fatal("changed evidence was not accepted")
 	}
