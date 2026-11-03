@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -178,6 +179,10 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 		common.Error("Stage routed SMTP DATA failed: transaction: %s, class: staging", txID)
 		return routedTemporary()
 	}
+	sourceInfo, err := os.Stat(source)
+	if err != nil {
+		return routedTemporary()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	expected := make([]mailbox.Route, 0, len(s.to))
@@ -188,7 +193,7 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 		}
 		expected = append(expected, route)
 	}
-	err := ms.routedIngress.options.Control.WithExpectedRouteSnapshot(ctx, s.ingestAccount.Namespace, expected, func(routes []mailbox.Route) error {
+	err = ms.routedIngress.options.Control.WithExpectedRouteSnapshot(ctx, s.ingestAccount.Namespace, expected, func(routes []mailbox.Route) error {
 		ms.storageTransactionMutex.Lock()
 		defer ms.storageTransactionMutex.Unlock()
 		// No global event path may observe routed emails or perform external side
@@ -208,6 +213,20 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 			ownership.MatchedRecipients = append(ownership.MatchedRecipients, route.Address)
 			ownership.RouteRevisions = append(ownership.RouteRevisions, route.Revision)
 		}
+		// The raw file is a lower bound for every unique mailbox copy. Reserve
+		// all message slots and raw bytes before copying or parsing any target.
+		// Metadata and decoded attachments are charged as each copy is prepared.
+		budget, err := ms.routedQuotaBudgetLocked(order)
+		if err != nil {
+			return err
+		}
+		exactBudget := *budget
+		exactBudget.usage = maps.Clone(budget.usage)
+		for _, mailboxID := range order {
+			if err := budget.add(mailboxID, 1, sourceInfo.Size()); err != nil {
+				return err
+			}
+		}
 		journal := routedJournal{Version: 1, TransactionID: txID}
 		copies := make([]routedPrepared, 0, len(order))
 		for _, mailboxID := range order {
@@ -217,9 +236,19 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 			if err != nil {
 				return err
 			}
+			bytes, err := routedDiskUsage(stage, id)
+			if err != nil {
+				return err
+			}
+			if bytes < sourceInfo.Size() {
+				return errors.New("routed copy is smaller than its raw source")
+			}
+			if err := budget.add(mailboxID, 0, bytes-sourceInfo.Size()); err != nil {
+				return err
+			}
 			copies = append(copies, copy)
 		}
-		if err := ms.checkRoutedQuotaLocked(stage, copies); err != nil {
+		if err := ms.checkRoutedQuotaLocked(stage, copies, &exactBudget); err != nil {
 			return err
 		}
 		if err := ms.checkRoutedDestinations(journal); err != nil {
@@ -604,83 +633,88 @@ func routedDiskUsage(directory, id string) (int64, error) {
 	return total, nil
 }
 
-// checkRoutedQuotaLocked runs inside control.mu -> storage write lock, before
-// the prepared journal. All targets are checked together. Usage is derived
-// from the same durable messages recovery reloads; no separate charge ledger
-// can diverge after rejection, crashes, deletion, or ownership migration.
-func (ms *MailServer) checkRoutedQuotaLocked(stage string, copies []routedPrepared) error {
+// routedQuotaBudget is transaction-local admission state, never a durable
+// ledger. All readers/writers use control.mu -> storage write lock. Existing
+// usage comes from the same durable messages recovery reloads.
+type routedQuotaBudget struct {
+	limits RoutedIngressOptions
+	usage  map[string]routedUsage
+	total  routedUsage
+}
+
+func (b *routedQuotaBudget) add(box string, messages int, bytes int64) error {
+	current, wanted := b.usage[box]
+	if wanted {
+		next, err := addRoutedUsage(current, messages, bytes, b.limits.MaxMessages, b.limits.MaxDiskBytes)
+		if err != nil {
+			return err
+		}
+		b.usage[box] = next
+	}
+	// Zero global limits preserve raw-component compatibility; the CLI supplies
+	// finite defaults. No admission attempt evicts another user's messages.
+	if b.limits.MaxTotalMessages > 0 || b.limits.MaxTotalDiskBytes > 0 {
+		maxMessages := b.limits.MaxTotalMessages
+		if maxMessages == 0 {
+			maxMessages = int(^uint(0) >> 1)
+		}
+		maxBytes := b.limits.MaxTotalDiskBytes
+		if maxBytes == 0 {
+			maxBytes = int64(^uint64(0) >> 1)
+			bytes = 0
+		}
+		next, err := addRoutedUsage(b.total, messages, bytes, maxMessages, maxBytes)
+		if err != nil {
+			return err
+		}
+		b.total = next
+	}
+	return nil
+}
+
+func (ms *MailServer) routedQuotaBudgetLocked(mailboxIDs []string) (*routedQuotaBudget, error) {
 	if ms.routedIngress == nil {
-		return errors.New("routed quota requires ingress")
+		return nil, errors.New("routed quota requires ingress")
 	}
-	limits := ms.routedIngress.options
-	usage := make(map[string]routedUsage, len(copies))
-	for _, copy := range copies {
-		usage[copy.email.Ownership.MailboxID] = routedUsage{}
+	budget := &routedQuotaBudget{limits: ms.routedIngress.options, usage: make(map[string]routedUsage, len(mailboxIDs))}
+	for _, id := range mailboxIDs {
+		budget.usage[id] = routedUsage{}
 	}
-	// A zero global limit is only a raw-component compatibility value. The CLI
-	// supplies finite positive defaults. Positive global limits reject new mail;
-	// they never evict another person's existing messages.
-	globalEnabled := limits.MaxTotalMessages > 0 || limits.MaxTotalDiskBytes > 0
-	globalMessages := limits.MaxTotalMessages
-	if globalMessages == 0 {
-		globalMessages = int(^uint(0) >> 1)
-	}
-	globalBytes := limits.MaxTotalDiskBytes
-	if globalBytes == 0 {
-		globalBytes = int64(^uint64(0) >> 1)
-	}
-	total := routedUsage{}
 	ms.storeMutex.RLock()
 	defer ms.storeMutex.RUnlock()
 	for _, email := range ms.storeByID {
 		if email.Ownership == nil {
-			return errors.New("isolated message has no ownership")
+			return nil, errors.New("isolated message has no ownership")
 		}
 		box := email.Ownership.MailboxID
-		current, wanted := usage[box]
+		_, wanted := budget.usage[box]
 		var bytes int64
 		var err error
-		if wanted || limits.MaxTotalDiskBytes > 0 {
+		if wanted || budget.limits.MaxTotalDiskBytes > 0 {
 			bytes, err = routedDiskUsage(ms.mailDir, email.ID)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		}
-		if globalEnabled {
-			chargedBytes := bytes
-			if limits.MaxTotalDiskBytes == 0 {
-				chargedBytes = 0
-			}
-			total, err = addRoutedUsage(total, 1, chargedBytes, globalMessages, globalBytes)
-			if err != nil {
-				return err
-			}
-		}
-		if wanted {
-			usage[box], err = addRoutedUsage(current, 1, bytes, limits.MaxMessages, limits.MaxDiskBytes)
-			if err != nil {
-				return err
-			}
+		if err := budget.add(box, 1, bytes); err != nil {
+			return nil, err
 		}
 	}
+	return budget, nil
+}
+
+// checkRoutedQuotaLocked is the final exact check before the prepared journal.
+// The enclosing control and storage write locks exclude routed additions,
+// deletion, and ownership migration. Read flags can only shrink metadata;
+// routed mode has no relay receipt writer. The committed snapshot is therefore
+// conservative. Prepared files are reread rather than trusting reservations.
+func (ms *MailServer) checkRoutedQuotaLocked(stage string, copies []routedPrepared, budget *routedQuotaBudget) error {
 	for _, copy := range copies {
-		box := copy.email.Ownership.MailboxID
 		bytes, err := routedDiskUsage(stage, copy.email.ID)
 		if err != nil {
 			return err
 		}
-		if globalEnabled {
-			chargedBytes := bytes
-			if limits.MaxTotalDiskBytes == 0 {
-				chargedBytes = 0
-			}
-			total, err = addRoutedUsage(total, 1, chargedBytes, globalMessages, globalBytes)
-			if err != nil {
-				return err
-			}
-		}
-		usage[box], err = addRoutedUsage(usage[box], 1, bytes, limits.MaxMessages, limits.MaxDiskBytes)
-		if err != nil {
+		if err := budget.add(copy.email.Ownership.MailboxID, 1, bytes); err != nil {
 			return err
 		}
 	}
