@@ -108,3 +108,8 @@ on top of the existing 15-second interval (and its existing failure backoff).
 Foreground synchronization remains immediate after session validation; manual
 refresh and standalone behavior do not use jitter. No extra configuration is
 required. The maximum-in-flight and actual background-pause tests apply unchanged.
+
+Expired sessions show a localized notice and turn the existing Refresh button into
+“Sign in again”. This explicit action reloads the same protected page so Stargate
+can authenticate it; background polling never retries login automatically. The
+notice and action follow all seven UI languages, including live language changes.

@@ -325,6 +325,18 @@ test('proxy 403 and successful HTML with a stale identity marker clear all priva
         await expect(page.locator('#emailDetail')).not.toContainText('Protocol private mail');
         await expect(page.locator('#personalMailboxStatus')).toBeHidden();
         expect(await page.evaluate(() => multiuserAuthExpired)).toBe(true);
+        await expect(page.locator('#sessionExpiredNotice')).toBeVisible();
+        await page.getByRole('combobox', { name: 'Switch Language' }).selectOption('zh-CN');
+        await expect(page.locator('#refreshBtn')).toHaveText('重新登录');
+        await page.getByRole('combobox').selectOption('en');
+        await expect(page.locator('#refreshBtn')).toHaveText('Sign in again');
         await page.unroute('**/api/v1/emails/preview?*');
+        await Promise.all([
+            page.waitForEvent('load'),
+            page.getByRole('button', { name: 'Sign in again', exact: true }).click()
+        ]);
+        await expect(page.locator('.email-item')).toHaveCount(1);
+        await expect(page.locator('.email-item')).toContainText('Protocol private mail');
+        await expect(page.locator('#sessionExpiredNotice')).toBeHidden();
     }
 });

@@ -12,6 +12,8 @@ let multiuserResponseIdentity = null;
 // Internationalization (i18n)
 const i18n = {
     'zh-CN': {
+        sessionExpired: '登录已失效，请重新登录以查看邮件。',
+        signInAgain: '重新登录',
         autoRefreshOn: '自动刷新：开',
         autoRefreshOff: '自动刷新：关',
         title: 'OwlMail - 邮件开发测试工具',
@@ -107,6 +109,8 @@ const i18n = {
         'CONFIG_UPDATED': '配置已更新'
     },
     'en': {
+        sessionExpired: 'Your session expired. Sign in again to view your mail.',
+        signInAgain: 'Sign in again',
         autoRefreshOn: 'Auto refresh: on',
         autoRefreshOff: 'Auto refresh: off',
         title: 'OwlMail - Email Development Testing Tool',
@@ -229,6 +233,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration updated'
     },
     'de': {
+        sessionExpired: 'Deine Sitzung ist abgelaufen. Melde dich erneut an, um deine E-Mails zu sehen.',
+        signInAgain: 'Erneut anmelden',
         autoRefreshOn: 'Automatisch aktualisieren: ein',
         autoRefreshOff: 'Automatisch aktualisieren: aus',
         title: 'OwlMail - E-Mail-Entwicklungstest-Tool',
@@ -313,6 +319,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Konfiguration aktualisiert'
     },
     'it': {
+        sessionExpired: 'La sessione è scaduta. Accedi di nuovo per vedere le email.',
+        signInAgain: 'Accedi di nuovo',
         autoRefreshOn: 'Aggiornamento automatico: attivo',
         autoRefreshOff: 'Aggiornamento automatico: disattivato',
         title: 'OwlMail - Strumento di Test per lo Sviluppo Email',
@@ -397,6 +405,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configurazione aggiornata'
     },
     'fr': {
+        sessionExpired: 'Votre session a expiré. Reconnectez-vous pour consulter vos e-mails.',
+        signInAgain: 'Se reconnecter',
         autoRefreshOn: 'Actualisation automatique : activée',
         autoRefreshOff: 'Actualisation automatique : désactivée',
         title: 'OwlMail - Outil de Test de Développement Email',
@@ -481,6 +491,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration mise à jour'
     },
     'ko': {
+        sessionExpired: '세션이 만료되었습니다. 메일을 보려면 다시 로그인하세요.',
+        signInAgain: '다시 로그인',
         autoRefreshOn: '자동 새로고침: 켜짐',
         autoRefreshOff: '자동 새로고침: 꺼짐',
         title: 'OwlMail - 이메일 개발 테스트 도구',
@@ -565,6 +577,8 @@ const i18n = {
         'CONFIG_UPDATED': '설정이 업데이트되었습니다'
     },
     'ja': {
+        sessionExpired: 'セッションの有効期限が切れました。メールを見るには再度ログインしてください。',
+        signInAgain: '再ログイン',
         autoRefreshOn: '自動更新：オン',
         autoRefreshOff: '自動更新：オフ',
         title: 'OwlMail - メール開発テストツール',
@@ -1421,7 +1435,8 @@ function validateMultiuserResponse(response, expectsJSON = false) {
         renderEmailList();
         updateEmailCount();
         if (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity && typeof window.location.reload === 'function') window.location.reload();
-        throw new Error('Identity changed or expired; sign in again.');
+        renderSessionExpiry();
+        throw new Error(t('sessionExpired'));
     }
     if (identity) multiuserResponseIdentity = identity;
 }
@@ -1650,7 +1665,8 @@ function updateUI(renderDynamic = true) {
     
     // Update header buttons
     const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) refreshBtn.textContent = t('refresh');
+    if (refreshBtn) refreshBtn.textContent = t(MULTIUSER_MODE && multiuserAuthExpired ? 'signInAgain' : 'refresh');
+    renderSessionExpiry();
     
     const markAllReadBtn = document.getElementById('markAllReadBtn');
     if (markAllReadBtn) markAllReadBtn.textContent = t('markAllRead');
@@ -2254,6 +2270,20 @@ async function loadPersonalMailboxStatus(sequence) {
 let emailListRequestSequence = 0;
 let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
+function renderSessionExpiry() {
+    const expired = MULTIUSER_MODE && multiuserAuthExpired;
+    const notice = document.getElementById('sessionExpiredNotice');
+    if (notice) { notice.hidden = !expired; notice.textContent = expired ? t('sessionExpired') : ''; }
+    const button = document.getElementById('refreshBtn');
+    if (button) button.textContent = t(expired ? 'signInAgain' : 'refresh');
+}
+function refreshMailbox() {
+    if (MULTIUSER_MODE && multiuserAuthExpired) {
+        window.location.reload();
+        return;
+    }
+    return loadEmails();
+}
 async function loadEmails({ background = false } = {}) {
     if (MULTIUSER_MODE && (multiuserAuthExpired || emailListActiveSequence !== null)) return;
     if (!background && mailboxRefreshTimer !== null) {
@@ -2880,7 +2910,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Button event listeners
     const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) refreshBtn.addEventListener('click', loadEmails);
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshMailbox);
     
     const markAllReadBtn = document.getElementById('markAllReadBtn');
     if (markAllReadBtn) markAllReadBtn.addEventListener('click', markAllRead);

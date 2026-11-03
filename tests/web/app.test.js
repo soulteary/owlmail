@@ -1994,7 +1994,7 @@ test('multiuser unauthorized responses clear old mailbox data and stop polling',
 test('multiuser account switch clears old data even when the new mailbox returns 503', async () => {
     const h = createHarness({ multiuserMode: true });
     h.run("multiuserResponseIdentity='alice-marker';state.emails=[{id:'old'}];state.currentEmail={id:'old'};");
-    await assert.rejects(h.run("handleAPIResponse({status:503,ok:false,headers:{get:(name)=>name==='x-owlmail-identity'?'bob-marker':null}})"), /changed/);
+    await assert.rejects(h.run("handleAPIResponse({status:503,ok:false,headers:{get:(name)=>name==='x-owlmail-identity'?'bob-marker':null}})"), /expired/);
     assert.equal(h.run('state.emails.length'), 0);
     assert.equal(h.run('state.currentEmail'), null);
 });
@@ -2134,4 +2134,25 @@ test('multiuser polling adds bounded jitter without changing immediate refresh o
     const standalone = createHarness();
     standalone.run('startMultiuserPolling()');
     assert.equal(standalone.run('multiuserPollTimer'), null);
+});
+
+test('expired sessions offer a localized one-click login reload without background retries', async () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run(`const sessionNotice=document.createElement('p'),loginButton=document.createElement('button');
+        const sessionLookup=document.getElementById.bind(document);
+        document.getElementById=id=>id==='sessionExpiredNotice'?sessionNotice:id==='refreshBtn'?loginButton:sessionLookup(id);
+        let loginReloads=0;window.location.reload=()=>loginReloads++;`);
+    await assert.rejects(h.run("handleAPIResponse({status:403,ok:false,headers:{get:()=>null}})"));
+    for (const lang of ['zh-CN','en','de','it','fr','ko','ja']) {
+        h.run(`setLanguage(${JSON.stringify(lang)},false)`);
+        assert.equal(h.run('sessionNotice.hidden'), false);
+        assert.equal(h.run('sessionNotice.textContent'), h.run("t('sessionExpired')"));
+        assert.equal(h.run('loginButton.textContent'), h.run("t('signInAgain')"));
+    }
+    await h.run('loadEmails({background:true});startMultiuserPolling()');
+    assert.equal(h.fetchRequests.length, 0);
+    assert.equal(h.run('loginReloads'), 0);
+    h.run('refreshMailbox()');
+    assert.equal(h.run('loginReloads'), 1);
+    assert.equal(h.fetchRequests.length, 0);
 });
