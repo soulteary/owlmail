@@ -2901,7 +2901,9 @@ function updateEmailInspectionDisplay(tools) {
 }
 async function emailToolRequest(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
-    return handleAPIResponse(response);
+    validateMultiuserResponse(response);
+    if (!response.ok) throw new Error(parseAPIError(await response.text()));
+    return response.json();
 }
 async function runEmailInspection() {
     if (!state.currentEmail) return;
