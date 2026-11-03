@@ -87,3 +87,12 @@ to the report. Standard results/report use `multiuser-test-results/` and
 `multiuser-background-results/` and `multiuser-background-report/` directories,
 including `real_background_evidence.json` and `background_resume_selection.png`.
 Failed screenshots/traces are diagnostics, not successful walkthrough evidence.
+
+Protected multiuser responses also require the server identity marker. Unexpected
+login redirects and successful login HTML clear the current private view and stop
+polling instead of being consumed as mailbox data. On foreground resume the UI
+checks settings through the same authenticated response path before refreshing;
+a persisted `pageshow` clears the view and reloads the document. The regression
+suite uses real browser requests with intercepted proxy-style responses; its
+persisted-page test dispatches the lifecycle event and does not certify that a
+particular browser actually admitted the document into its back-forward cache.

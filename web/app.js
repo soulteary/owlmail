@@ -1385,27 +1385,35 @@ async function notifyBrowserForEmail(email) {
     }
 }
 
+// Validate every protected response, including raw source and inspection calls.
+function validateMultiuserResponse(response) {
+    if (!MULTIUSER_MODE) return;
+    const identity = response.headers.get('x-owlmail-identity');
+    if (multiuserAuthExpired || response.status === 401 || response.redirected ||
+        (response.ok && !identity) ||
+        (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
+        multiuserAuthExpired = true;
+        if (typeof clearPersonalMailboxStatus === 'function') clearPersonalMailboxStatus();
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
+        mailboxRefreshAfterLoad = false;
+        if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
+        state.emails = [];
+        state.total = 0;
+        selectedMailIDs.clear();
+        clearEmailSelection('replace');
+        renderEmailList();
+        updateEmailCount();
+        if (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity && typeof window.location.reload === 'function') window.location.reload();
+        throw new Error('Identity changed or expired; sign in again.');
+    }
+    if (identity) multiuserResponseIdentity = identity;
+}
+
 // Helper function to handle API errors
 async function handleAPIResponse(response) {
+    validateMultiuserResponse(response);
     if (MULTIUSER_MODE) {
-        const identity = response.headers.get('x-owlmail-identity');
-        if (response.status === 401 || (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
-            multiuserAuthExpired = true;
-            clearPersonalMailboxStatus();
-            emailListRequestSequence += 1;
-            emailListActiveSequence = null;
-            mailboxRefreshAfterLoad = false;
-            if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
-            state.emails = [];
-            state.total = 0;
-            selectedMailIDs.clear();
-            clearEmailSelection('replace');
-            renderEmailList();
-            updateEmailCount();
-            if (identity && typeof window.location.reload === 'function') window.location.reload();
-            throw new Error('Identity changed or expired; sign in again.');
-        }
-        if (identity) multiuserResponseIdentity = identity;
         if (response.ok) multiuserPollFailures = 0;
         else multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4);
     }
@@ -1472,6 +1480,7 @@ const API = {
 
     async getEmailSource(id, maximumBytes = EMAIL_SOURCE_INLINE_MAX_BYTES) {
         const response = await fetch(`${API_BASE}/emails/${id}/source`);
+        validateMultiuserResponse(response);
         if (!response.ok) return await handleAPIResponse(response);
         const contentLength = Number(response.headers.get('content-length'));
         if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
@@ -2944,6 +2953,7 @@ function updateEmailInspectionDisplay(tools) {
 }
 async function emailToolRequest(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
+    validateMultiuserResponse(response);
     if (!response.ok) throw new Error(parseAPIError(await response.text()));
     return response.json();
 }
@@ -3278,10 +3288,29 @@ function startMultiuserPolling() {
             schedule();
         }, immediate ? 0 : 15000 * (2 ** multiuserPollFailures));
     }
+    // A restored document must not display another session's cached mailbox.
+    window.addEventListener('pageshow', event => {
+        if (!event.persisted) return;
+        multiuserAuthExpired = true;
+        if (typeof clearPersonalMailboxStatus === 'function') clearPersonalMailboxStatus();
+        state.emails = [];
+        state.total = 0;
+        selectedMailIDs.clear();
+        clearEmailSelection('replace');
+        renderEmailList();
+        updateEmailCount();
+        window.location.reload();
+    });
     document.addEventListener('visibilitychange', () => {
         if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
         multiuserPollTimer = null;
-        if (!document.hidden) schedule(true);
+        if (!document.hidden && !multiuserAuthExpired) {
+            // Validate the session before a resumed mailbox response can render.
+            fetch(`${API_BASE}/settings`, { cache: 'no-store' })
+                .then(handleAPIResponse)
+                .then(() => schedule(true))
+                .catch(() => { if (!multiuserAuthExpired) schedule(); });
+        }
     });
     schedule();
 }

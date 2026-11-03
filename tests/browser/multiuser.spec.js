@@ -267,3 +267,34 @@ test('real background visibility pauses polling and immediately refreshes on ret
         finally { await native.close(); }
     }
 });
+
+test('successful proxy login HTML and missing identity clear private content', async ({ page, context, request }) => {
+    await deliver(context.request, 'alice', 'Session safety private mail');
+    for (const redirected of [false, true]) {
+        await identity(context, 'alice', true);
+        await page.goto('/');
+        await expect(page.locator('.email-item').filter({ hasText: 'Session safety private mail' })).toHaveCount(1);
+        await page.route('**/__session-login', route => route.fulfill({ status: 200, contentType: 'text/html', body: '<html>Sign in</html>' }));
+        await page.route('**/api/v1/emails/preview?*', route => route.fulfill(redirected
+            ? { status: 302, headers: { location: '/__session-login' } }
+            : { status: 200, contentType: 'text/html', body: '<html>Sign in</html>' }));
+        await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+        await expect(page.locator('.email-item')).toHaveCount(0);
+        expect(await page.evaluate(() => multiuserAuthExpired)).toBe(true);
+        await page.unroute('**/api/v1/emails/preview?*');
+        await page.unroute('**/__session-login');
+    }
+});
+
+test('restored cached pages reload before showing private mail', async ({ page, context }) => {
+    await identity(context, 'alice', true);
+    await page.goto('/');
+    await expect(page.locator('#refreshBtn')).toBeVisible();
+    await deliver(context.request, 'bob', 'Restored Bob private mail');
+    await identity(context, 'bob', true);
+    await Promise.all([
+        page.waitForEvent('load'),
+        page.evaluate(() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true })))
+    ]);
+    await expect(page.locator('.email-item').filter({ hasText: 'Restored Bob private mail' })).toHaveCount(1);
+});
