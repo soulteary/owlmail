@@ -163,7 +163,7 @@ func Open(path string, create bool) (*Store, error) {
 	if err = file.Chmod(0600); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", controlSQLiteURI(path, "rw"))
 	if err != nil {
 		return nil, err
 	}

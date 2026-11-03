@@ -286,3 +286,29 @@ func TestControlWriterParentAliasUsesTheSameFence(t *testing.T) {
 		t.Fatalf("parent alias bypassed fence: %v", err)
 	}
 }
+
+func TestControlWriterReadOnlyURIWithSpecialPath(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "control space # question?.sqlite")
+	if runtime.GOOS == "windows" {
+		path = filepath.Join(filepath.Dir(path), "control space # percent%.sqlite")
+	}
+	writer, err := Open(path, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = writer.Close() }()
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil || len(entries) != 2 {
+		t.Fatal("database URI opened a different file", entries, err)
+	}
+	reader, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = reader.Inspect(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err = reader.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
