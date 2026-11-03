@@ -96,3 +96,9 @@ a persisted `pageshow` clears the view and reloads the document. The regression
 suite uses real browser requests with intercepted proxy-style responses; its
 persisted-page test dispatches the lifecycle event and does not certify that a
 particular browser actually admitted the document into its back-forward cache.
+
+Multiuser scheduled polling adds an independent uniform integer delay of 0–1500 ms
+on top of the existing 15-second interval (and its existing failure backoff).
+Foreground synchronization remains immediate after session validation; manual
+refresh and standalone behavior do not use jitter. No extra configuration is
+required. The maximum-in-flight and actual background-pause tests apply unchanged.
