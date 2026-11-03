@@ -141,6 +141,9 @@ func TestOwnershipMergeBatchPreservesRecoveryAndOtherMailbox(t *testing.T) {
 	if moved != 1 {
 		t.Fatal("batch did not bound mutations", moved)
 	}
+	if server.DeliveryCursor() != cursor {
+		t.Fatal("first batch replayed historical delivery")
+	}
 	mail, err := server.GetEmail("other")
 	if err != nil || mail.Ownership.MailboxID != other {
 		t.Fatal("unrelated mailbox changed", err)
