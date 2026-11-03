@@ -108,3 +108,66 @@ func TestMergeOwnershipRequiresIsolatedWritableStore(t *testing.T) {
 		t.Fatal("standalone ownership mutation allowed")
 	}
 }
+
+func TestOwnershipMergeBatchPreservesRecoveryAndOtherMailbox(t *testing.T) {
+	dir := t.TempDir()
+	server := isolatedServer(t, dir)
+	source, target, other := uuid.NewString(), uuid.NewString(), uuid.NewString()
+	for _, id := range []string{"a", "b", "c", "other"} {
+		own := sampleOwnership()
+		own.MailboxID = source
+		if id == "other" {
+			own.MailboxID = other
+		}
+		if err := server.storeIncomingEmail(id, strings.NewReader("Subject: batch\r\n\r\nbody"), &Session{mailServer: server, ownership: own, to: []string{"alice@example.com"}}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cursor := server.DeliveryCursor()
+	complete, err := server.MergeOwnershipBatch(context.Background(), source, target, 1)
+	if err != nil || complete {
+		t.Fatal(complete, err)
+	}
+	moved := 0
+	for _, id := range []string{"a", "b", "c"} {
+		mail, err := server.GetEmail(id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if mail.Ownership.MailboxID == target {
+			moved++
+		}
+	}
+	if moved != 1 {
+		t.Fatal("batch did not bound mutations", moved)
+	}
+	if server.DeliveryCursor() != cursor {
+		t.Fatal("first batch replayed historical delivery")
+	}
+	mail, err := server.GetEmail("other")
+	if err != nil || mail.Ownership.MailboxID != other {
+		t.Fatal("unrelated mailbox changed", err)
+	}
+	if err = server.Close(); err != nil {
+		t.Fatal(err)
+	}
+	server = isolatedServer(t, dir)
+	// Delivery cursors include a process epoch; compare within each process.
+	cursor = server.DeliveryCursor()
+	for i := 0; i < 3 && !complete; i++ {
+		complete, err = server.MergeOwnershipBatch(context.Background(), source, target, 1)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !complete {
+		t.Fatal("batch did not recover after restart")
+	}
+	// Historical moves do not publish new-delivery events.
+	if server.DeliveryCursor() != cursor {
+		t.Fatal("merge replayed delivery")
+	}
+	if _, err = server.MergeOwnershipBatch(context.Background(), source, target, 0); err == nil {
+		t.Fatal("unbounded public batch allowed")
+	}
+}
