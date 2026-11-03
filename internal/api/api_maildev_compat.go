@@ -234,7 +234,7 @@ func (api *API) mailDevEmailHTML(c fiber.Ctx) error {
 		return mailDevError(c, http.StatusNotFound, "Email has no HTML content")
 	}
 	compat := maildev.FromEmail(email, api.mailServer.GetMailDir())
-	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
+	setEmailHTMLResponseHeaders(c)
 	return c.SendString(maildev.EmbedAttachmentURLs(email.HTML, api.basePathname, email.ID, compat.Attachments))
 }
 

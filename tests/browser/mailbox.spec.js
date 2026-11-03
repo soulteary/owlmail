@@ -58,6 +58,55 @@ test('sandboxed long HTML preview supports scrolling, widths and persisted prefe
     expect(remoteRequests).toEqual([]);
 });
 
+test('direct HTML view blocks remote resources while the preview keeps explicit opt-in', async ({ page, request, baseURL }) => {
+    const http = require('node:http');
+    const remoteHits = [];
+    const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+    const tracker = http.createServer((req, res) => {
+        remoteHits.push(req.url);
+        res.writeHead(200, { 'Content-Type': req.url === '/mail.css' ? 'text/css' : 'image/png' });
+        res.end(req.url === '/mail.css' ? 'h1 { color: blue; }' : pixel);
+    });
+    await new Promise(resolve => tracker.listen(0, '127.0.0.1', resolve));
+    let email;
+    try {
+        const remote = `http://127.0.0.1:${tracker.address().port}`;
+        execFileSync('python3', ['-c', `
+import smtplib, sys
+from email.message import EmailMessage
+m = EmailMessage()
+m['From'] = 'sender@example.test'
+m['To'] = 'reader@example.test'
+m['Subject'] = 'Direct HTML resource boundary'
+m.set_content('Plain fallback')
+m.add_alternative('<h1>HTML boundary</h1><link rel="stylesheet" href="'+sys.argv[1]+'/mail.css"><img alt="Remote pixel" src="'+sys.argv[1]+'/pixel"><img alt="Local asset" src="/preview/favicon.svg">', subtype='html')
+with smtplib.SMTP('127.0.0.1', 21025) as client:
+    client.send_message(m)
+`, remote]);
+        const listing = await (await request.get(new URL('api/v1/emails', baseURL).href)).json();
+        email = listing.emails.find(item => item.subject === 'Direct HTML resource boundary');
+        expect(email).toBeTruthy();
+        const response = await page.goto(new URL(`api/v1/emails/${email.id}/html`, baseURL).href);
+        expect(response.headers()['content-security-policy']).toContain("default-src 'none'");
+        await expect(page.locator('h1')).toHaveText('HTML boundary');
+        await expect.poll(() => page.getByAltText('Remote pixel').evaluate(node => node.complete && node.naturalWidth === 0)).toBe(true);
+        await expect.poll(() => page.getByAltText('Local asset').evaluate(node => node.naturalWidth)).toBeGreaterThan(0);
+        expect(remoteHits).toEqual([]);
+
+        await page.goto('./');
+        await page.locator('.email-item').filter({ hasText: 'Direct HTML resource boundary' }).click();
+        await expect(page.getByRole('button', { name: 'Load remote content', exact: true })).toBeVisible();
+        expect(remoteHits).toEqual([]);
+        await page.getByRole('button', { name: 'Load remote content', exact: true }).click();
+        await expect.poll(() => remoteHits).toContain('/pixel');
+        await expect.poll(() => remoteHits).toContain('/mail.css');
+    } finally {
+        if (email) await request.delete(new URL(`api/v1/emails/${email.id}`, baseURL).href);
+        await page.goto('about:blank');
+        await new Promise(resolve => tracker.close(resolve));
+    }
+});
+
 test('shortcuts respect text input and focused buttons', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('.email-item')).toHaveCount(1);

@@ -181,7 +181,7 @@ func (api *API) multiGet(c fiber.Ctx) error {
 			return multiMissing(c)
 		}
 		if strings.HasSuffix(c.Path(), "/html") {
-			c.Set("Content-Type", "text/html; charset=utf-8")
+			setEmailHTMLResponseHeaders(c)
 			return c.SendString(e.HTML)
 		}
 		return c.JSON(e)

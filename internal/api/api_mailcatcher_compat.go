@@ -180,7 +180,7 @@ func (api *API) mailCatcherHTML(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).SendString("Message format could not be rendered")
 	}
-	c.Set(fiber.HeaderContentType, "text/html; charset=utf-8")
+	setEmailHTMLResponseHeaders(c)
 	return c.SendString(body)
 }
 

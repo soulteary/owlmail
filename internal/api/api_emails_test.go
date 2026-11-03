@@ -429,6 +429,7 @@ func TestAPIGetEmailHTML(t *testing.T) {
 		t.Fatalf("Test request failed: %v", err)
 	}
 	defer func() { _ = resp.Body.Close() }()
+	assertEmailHTMLPolicy(t, resp)
 	body, _ := io.ReadAll(resp.Body)
 	_ = body
 
