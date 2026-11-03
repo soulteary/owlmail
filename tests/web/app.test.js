@@ -2103,3 +2103,35 @@ test('same-identity operation denial and authorized raw source preserve the sess
     const standalone = createHarness();
     assert.equal(await standalone.run("handleAPIResponse({ok:true,headers:{get:()=> 'text/plain'},text:async()=> 'original text'})"), 'original text');
 });
+
+test('multiuser polling adds bounded jitter without changing immediate refresh or backoff', async () => {
+    const h = createHarness({ multiuserMode: true, fetchImpl: async () => ({
+        ok: true, status: 200,
+        headers: { get: name => name === 'x-owlmail-identity' ? 'alice-marker' : 'application/json' },
+        json: async () => ({})
+    }) });
+    for (const failures of [0, 1, 2, 3, 4]) {
+        h.run(`multiuserPollFailures=${failures}`);
+        for (const [random, jitter] of [[0, 0], [0.5, 750], [1 - Number.EPSILON, 1500]]) {
+            h.run(`Math.random=()=>${random}`);
+            assert.equal(h.run('multiuserPollDelay()'), 15000 * (2 ** failures) + jitter);
+            assert.equal(h.run('multiuserPollDelay(true)'), 0);
+        }
+    }
+    h.run(`const pollDelays=[];setTimeout=(callback,delay)=>{pollDelays.push(delay);return pollDelays.length;};
+        multiuserPollFailures=0;Math.random=()=>0.5;startMultiuserPolling();`);
+    assert.deepEqual(Array.from(h.run('pollDelays')), [15750]);
+    h.run('document.hidden=true');
+    h.documentListeners.get('visibilitychange')();
+    assert.equal(h.run('multiuserPollTimer'), null);
+    assert.equal(h.run('pollDelays.length'), 1);
+    h.run('document.hidden=false');
+    h.documentListeners.get('visibilitychange')();
+    await new Promise(resolve => setTimeout(resolve, 0));
+    assert.deepEqual(Array.from(h.run('pollDelays')), [15750, 0]);
+    assert.equal(h.fetchRequests.length, 1);
+    assert.match(h.fetchRequests[0].url, /\/settings$/);
+    const standalone = createHarness();
+    standalone.run('startMultiuserPolling()');
+    assert.equal(standalone.run('multiuserPollTimer'), null);
+});

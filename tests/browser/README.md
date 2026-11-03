@@ -102,3 +102,9 @@ multiuser view. A same-identity authenticated `403` remains an operation error.
 Successful JSON API responses must have the `application/json` media type even
 when a login page incorrectly retains an identity header. Raw mail source keeps
 its explicit text format; standalone response and error behavior is preserved.
+
+Multiuser scheduled polling adds an independent uniform integer delay of 0–1500 ms
+on top of the existing 15-second interval (and its existing failure backoff).
+Foreground synchronization remains immediate after session validation; manual
+refresh and standalone behavior do not use jitter. No extra configuration is
+required. The maximum-in-flight and actual background-pause tests apply unchanged.

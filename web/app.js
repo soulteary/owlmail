@@ -3274,6 +3274,11 @@ function updateAutoRefreshLabel() {
     if (toggle) toggle.textContent = t(multiuserPollingEnabled ? 'autoRefreshOn' : 'autoRefreshOff');
 }
 
+// Spread foreground clients without delaying explicit foreground synchronization.
+function multiuserPollDelay(immediate = false) {
+    return immediate ? 0 : 15000 * (2 ** multiuserPollFailures) + Math.floor(Math.random() * 1501);
+}
+
 function startMultiuserPolling() {
     if (!MULTIUSER_MODE) return;
     const refreshButton = document.getElementById('refreshBtn');
@@ -3307,7 +3312,7 @@ function startMultiuserPolling() {
                 if (list && scroll !== undefined) list.scrollTop = scroll;
             }
             schedule();
-        }, immediate ? 0 : 15000 * (2 ** multiuserPollFailures));
+        }, multiuserPollDelay(immediate));
     }
     // A restored document must not display another session's cached mailbox.
     window.addEventListener('pageshow', event => {

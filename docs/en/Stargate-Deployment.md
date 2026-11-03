@@ -91,12 +91,14 @@ to another person, block capture for that address at the sending boundary and
 pause affected delivery. Preserve the old owner's history. Do not modify the live
 control database with ad hoc SQL or automatically transfer an existing binding.
 
-A future authority operation must check the expected route ID/revision, block the
-old route, create the new destination, and audit the change; dry-run and an explicit
-confirmation of source/target are required. There is currently no advertised
-online route-reassignment CLI. Until that operation is implemented and accepted,
-keep the address blocked or use a new address under a new verified binding. This
-limitation must not be hidden behind automatic login or a manual-history claim.
+Use the local [offline recipient-route workflow](Recipient-Route-Operations.md)
+for read-only inspection, exact plans, audited blocking and reassignment of future
+delivery to an existing personal mailbox. Apply requires stopped writers, the
+expected route ID/revision and the exact confirmation token, and refuses affected
+pending recovery work. A mistaken block can be explicitly resumed to the original
+owner with the same checks. Historical mail never moves. There is no online
+administration endpoint; this command does not enable gated multiuser serving or
+replace real upstream acceptance.
 
 ## Diagnostics and recovery
 
