@@ -62,6 +62,9 @@ func generate() error {
 	schemas["MailboxMutation"] = schema(object{"success": integer(), "failed": object{"type": "integer", "const": 0}, "failedIDs": object{"type": "array", "maxItems": 0, "items": object{"type": "string"}}, "total": integer(), "count": integer(), "code": constant("MAILBOX_UPDATED")}, "success", "failed", "failedIDs", "total", "count", "code")
 	capabilities := schema(object{"mcp": constant(false), "websocket": constant(false), "relay": constant(false), "webhooks": constant(false)}, "mcp", "websocket", "relay", "webhooks")
 	schemas["MultiuserSettings"] = schema(object{"mode": constant("multiuser"), "capabilities": capabilities, "refreshIntervalSeconds": object{"type": "integer", "const": 15}}, "mode", "capabilities", "refreshIntervalSeconds")
+	status := schema(object{"mailbox_state": object{"type": "string", "enum": []string{"ready", "recovering"}}, "delivery_state": object{"type": "string", "enum": []string{"bound", "verification_required", "conflict", "unbound"}}, "history_state": object{"type": "string", "enum": []string{"none", "retained", "merging", "complete"}}, "action": object{"type": "string", "enum": []string{"none", "verify_email", "contact_operator", "retry"}}}, "mailbox_state", "delivery_state", "history_state", "action")
+	status["description"] = "Current trusted identity and asserted address only. Unverified addresses never reveal route or pending-history existence. ready/unbound/none/none applies without an address or binding; ready/verification_required/none/verify_email applies to an unverified address; ready/conflict/none/contact_operator reports a blocked or unavailable binding without its owner; ready/bound/{none,retained,complete}/none reports an owned route; recovering/bound/merging/retry reports this identity's unfinished history merge. Unavailable authority returns 503, not a successful status."
+	schemas["PersonalMailboxStatus"] = status
 	schemas["DisabledOutgoing"] = schema(object{"enabled": constant(false)}, "enabled")
 	schemas["DisabledRelayJobs"] = schema(object{"jobs": object{"type": "array", "maxItems": 0, "items": object{}}, "more_possible": constant(false)}, "jobs", "more_possible")
 	schemas["DisabledWebhookDeliveries"] = schema(object{"enabled": constant(false), "deliveries": object{"type": "array", "maxItems": 0, "items": object{}}, "more_possible": constant(false)}, "enabled", "deliveries", "more_possible")
@@ -115,6 +118,7 @@ func generate() error {
 		}
 		paths[path] = item
 	}
+	paths["/me/mailbox"] = object{"get": object{"operationId": "getPersonalMailboxStatus", "summary": "Get personal mailbox delivery and history status", "tags": []string{"Settings"}, "description": "Read-only status for the current trusted identity. Contains no addresses, owner identifiers, message counts or global recovery information. Does not create or reassign routes. Unverified addresses cannot reveal pending history. Successful login middleware can initialize this identity before this read-only query.", "responses": object{"200": response("PersonalMailboxStatus"), "401": ref("responses", "Unauthorized"), "403": ref("responses", "Forbidden"), "503": ref("responses", "Unavailable")}}}
 	// Personal mutations intentionally have a different response from legacy APIResponse/BatchResult.
 	for _, endpoint := range []struct{ path, method string }{{"/emails", "delete"}, {"/emails/read", "patch"}, {"/emails/batch", "delete"}, {"/emails/batch/read", "patch"}, {"/emails/{id}", "delete"}, {"/emails/{id}/read", "patch"}} {
 		operation := obj(obj(paths[endpoint.path])[endpoint.method])

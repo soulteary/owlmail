@@ -31,11 +31,14 @@ test('real SMTP, synthetic trusted identity and browser mailbox isolation', asyn
     await identity(context, 'alice', false);
     await page.goto('/');
     await expect(page.locator('.email-item')).toHaveCount(0);
+    await expect(page.locator('#personalMailboxStatus')).toContainText('Verify your email');
+    expect(await (await request.get('/api/v1/me/mailbox')).json()).toEqual({ mailbox_state: 'ready', delivery_state: 'verification_required', history_state: 'none', action: 'verify_email' });
     await expect(page.locator('#webhookBtn')).not.toBeVisible();
     await identity(context, 'alice', true);
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await expect(page.locator('.email-item')).toHaveCount(1);
     await expect(page.locator('.email-item')).toContainText('Alice private notice');
+    await expect(page.locator('#personalMailboxStatus')).not.toBeVisible();
     await expect(page.locator('.email-item')).not.toContainText('Bob private notice');
     await page.locator('.email-item-open').click();
     await expect(page.locator('#emailDetail')).toContainText('Alice private notice');

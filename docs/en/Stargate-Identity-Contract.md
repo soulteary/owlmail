@@ -98,3 +98,6 @@ Production acceptance must also establish trusted-proxy isolation and stripping
 of client-supplied identity headers. Component tests with synthetic declarations
 cannot substitute for these upstream and deployment facts. See the
 [multiuser release-readiness checklist](Multiuser-Release-Readiness.md).
+
+For the recommended topology, rotation and operational limits, see the
+[deployment and operations contract](Stargate-Deployment.md).
