@@ -357,9 +357,10 @@ func setupStoragePolicy(cfg *config.Config) (mailserver.StoragePolicy, error) {
 	}, nil
 }
 
-// registerEventHandlers registers event handlers for the mail server
+// registerEventHandlers installs standalone content logging. Owned storage logs
+// internal message IDs instead, without publishing subjects or sender addresses.
 func registerEventHandlers(server *mailserver.MailServer) {
-	if server == nil {
+	if server == nil || server.RequiresOwnership() {
 		return
 	}
 
