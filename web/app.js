@@ -2270,6 +2270,7 @@ async function loadPersonalMailboxStatus(sequence) {
 let emailListRequestSequence = 0;
 let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
+let pendingMultiuserRefresh = null;
 function renderSessionExpiry() {
     const expired = MULTIUSER_MODE && multiuserAuthExpired;
     const notice = document.getElementById('sessionExpiredNotice');
@@ -2285,7 +2286,14 @@ function refreshMailbox() {
     return loadEmails();
 }
 async function loadEmails({ background = false } = {}) {
-    if (MULTIUSER_MODE && (multiuserAuthExpired || emailListActiveSequence !== null)) return;
+    if (MULTIUSER_MODE && multiuserAuthExpired) return;
+    if (MULTIUSER_MODE && emailListActiveSequence !== null) {
+        // Keep one request in flight, but never drop the latest user query.
+        emailListRequestSequence += 1;
+        pendingMultiuserRefresh = { background: pendingMultiuserRefresh
+            ? pendingMultiuserRefresh.background && background : background };
+        return;
+    }
     if (!background && mailboxRefreshTimer !== null) {
         clearTimeout(mailboxRefreshTimer);
         mailboxRefreshTimer = null;
@@ -2335,6 +2343,11 @@ async function loadEmails({ background = false } = {}) {
         if (emailListActiveSequence === sequence) {
             emailListActiveSequence = null;
             renderEmailList();
+            if (MULTIUSER_MODE && pendingMultiuserRefresh) {
+                const pending = pendingMultiuserRefresh;
+                pendingMultiuserRefresh = null;
+                if (!multiuserAuthExpired) await loadEmails(pending);
+            }
             if (mailboxRefreshAfterLoad) {
                 mailboxRefreshAfterLoad = false;
                 scheduleMailboxRefresh();

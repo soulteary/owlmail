@@ -2156,3 +2156,26 @@ test('expired sessions offer a localized one-click login reload without backgrou
     assert.equal(h.run('loginReloads'), 1);
     assert.equal(h.fetchRequests.length, 0);
 });
+
+test('multiuser refresh coalesces searches while discarding the old query response', async () => {
+    const pending = [], urls = [];
+    const trusted = data => ({ok:true,status:200,headers:{get:n=>n==='x-owlmail-identity'?'alice':'application/json'},json:async()=>data});
+    const h = createHarness({multiuserMode:true,fetchImpl:async url=>{
+        urls.push(url);
+        if (url.includes('/me/mailbox')) return trusted({mailbox_state:'ready'});
+        return new Promise(resolve=>pending.push(resolve));
+    }});
+    const loading = h.run('loadEmails({background:true})');
+    while (!pending.length) await new Promise(resolve=>setTimeout(resolve,0));
+    h.run("state.searchQuery='first';loadEmails();state.searchQuery='wanted';loadEmails()");
+    assert.equal(pending.length,1);
+    pending.shift()(trusted({previews:[{id:'old',subject:'old'}],total:1}));
+    while (!pending.length) await new Promise(resolve=>setTimeout(resolve,0));
+    assert.equal(h.run('state.emails.length'),0);
+    assert.match(urls.at(-1),/wanted/);
+    pending.shift()(trusted({previews:[{id:'wanted',subject:'wanted'}],total:1}));
+    await loading;
+    assert.deepEqual(Array.from(h.run('state.emails.map(e=>e.id)')),['wanted']);
+    assert.equal(h.run('emailListActiveSequence'),null);
+    assert.equal(urls.filter(url=>url.includes('/preview')).length,2);
+});
