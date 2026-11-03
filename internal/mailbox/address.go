@@ -49,5 +49,11 @@ func NormalizeAddress(value string) (string, error) {
 			}
 		}
 	}
-	return local + "@" + strings.ToLower(ascii), nil
+	canonical := local + "@" + strings.ToLower(ascii)
+	// IDNA can expand the domain. Every accepted result must remain a valid
+	// input when routing and account checks normalize the address again.
+	if len(canonical) > 254 {
+		return "", errors.New("invalid recipient address")
+	}
+	return canonical, nil
 }
