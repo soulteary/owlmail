@@ -294,5 +294,11 @@ func TestSchemaV1UpgradeAndReadOnlyAuthority(t *testing.T) {
 	}); !errors.Is(err, ErrReadOnly) {
 		t.Fatal(err)
 	}
+	if _, err = readonly.CleanupPendingBatch(context.Background(), time.Now(), time.Hour, time.Hour, "", func(context.Context, PendingRetention) (PendingRetentionResult, bool, error) {
+		t.Fatal("readonly retention batch callback ran")
+		return PendingRetentionResult{}, true, nil
+	}); !errors.Is(err, ErrReadOnly) {
+		t.Fatal(err)
+	}
 
 }

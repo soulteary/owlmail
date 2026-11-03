@@ -40,6 +40,7 @@ func startPendingCleanup(server *mailserver.MailServer, cfg *config.Config) erro
 	apply := func(ctx context.Context, item mailbox.PendingRetention) (mailbox.PendingRetentionResult, error) {
 		return server.RetainPending(ctx, item)
 	}
+	sweepNow := time.Now()
 	initial, cancel := context.WithTimeout(context.Background(), time.Minute)
 	err = control.RunPendingRetention(initial, apply)
 	if err == nil {
@@ -48,7 +49,7 @@ func startPendingCleanup(server *mailserver.MailServer, cfg *config.Config) erro
 		})
 	}
 	if err == nil {
-		err = control.CleanupPending(initial, time.Now(), retention, emptyRetention, apply)
+		err = control.CleanupPending(initial, sweepNow, retention, emptyRetention, apply)
 	}
 	cancel()
 	if err != nil {
@@ -60,14 +61,27 @@ func startPendingCleanup(server *mailserver.MailServer, cfg *config.Config) erro
 		defer close(worker.done)
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
-		mergeTicker := time.NewTicker(250 * time.Millisecond)
-		defer mergeTicker.Stop()
-		cursor := ""
+		maintenanceTicker := time.NewTicker(250 * time.Millisecond)
+		defer maintenanceTicker.Stop()
+		cursor, retentionCursor := "", ""
+		// Bound durable deletions and release authority/storage locks between
+		// batches. The deadline is cooperative, not a hard filesystem/lock SLA.
+		retainBatch := func() {
+			batchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			next, retentionErr := control.CleanupPendingBatch(batchCtx, sweepNow, retention, emptyRetention, retentionCursor, func(ctx context.Context, item mailbox.PendingRetention) (mailbox.PendingRetentionResult, bool, error) {
+				return server.RetainPendingBatch(ctx, item, 32)
+			})
+			cancel()
+			retentionCursor = next
+			if retentionErr != nil && ctx.Err() == nil {
+				common.Error("Pending mailbox retention batch failed: %v", retentionErr)
+			}
+		}
 		for {
 			select {
 			case <-ctx.Done():
 				return
-			case <-mergeTicker.C:
+			case <-maintenanceTicker.C:
 				batchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 				next, mergeErr := control.RunMergeBatch(batchCtx, "", cursor, func(ctx context.Context, item mailbox.Merge) (bool, error) {
 					return server.MergeOwnershipBatch(ctx, item.SourceID, item.TargetID, 32)
@@ -77,11 +91,10 @@ func startPendingCleanup(server *mailserver.MailServer, cfg *config.Config) erro
 				if mergeErr != nil && ctx.Err() == nil {
 					common.Error("Pending mailbox merge batch failed: %v", mergeErr)
 				}
+				retainBatch()
 			case now := <-ticker.C:
-				err := control.CleanupPending(ctx, now, retention, emptyRetention, apply)
-				if err != nil && ctx.Err() == nil {
-					common.Error("Pending mailbox maintenance failed: %v", err)
-				}
+				sweepNow = now
+				retainBatch()
 			}
 		}
 	}()
