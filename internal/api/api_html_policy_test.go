@@ -12,7 +12,7 @@ func assertEmailHTMLPolicy(t *testing.T, response *http.Response) {
 		t.Fatalf("HTML status %d", response.StatusCode)
 	}
 	policy := response.Header.Get("Content-Security-Policy")
-	if !strings.Contains(policy, "default-src 'none'") || !strings.HasPrefix(policy, "sandbox allow-popups allow-popups-to-escape-sandbox;") || strings.Contains(policy, "https:") || strings.Contains(policy, "http:") {
+	if !strings.Contains(policy, "default-src 'none'") || !strings.HasPrefix(policy, "sandbox allow-popups allow-popups-to-escape-sandbox allow-downloads;") || strings.Contains(policy, "https:") || strings.Contains(policy, "http:") {
 		t.Fatalf("HTML response permits remote or unsandboxed content: %q", policy)
 	}
 	if response.Header.Get("Referrer-Policy") != "no-referrer" || response.Header.Get("X-Content-Type-Options") != "nosniff" {

@@ -19,7 +19,7 @@ module.exports = defineConfig({
         launchOptions: process.env.CHROME_BIN ? { executablePath: process.env.CHROME_BIN } : {}
     },
     webServer: {
-        command: `"${binary}" -smtp 21025 -web 21080 -base-pathname /preview -mail-directory "${mailDir}"`,
+        command: `"${binary}" -smtp 21025 -web 21080 -base-pathname /preview -maildev-rest-compat -mailcatcher-rest-compat -mail-directory "${mailDir}"`,
         url: 'http://127.0.0.1:21080/preview/healthz',
         reuseExistingServer: false,
         timeout: 30000

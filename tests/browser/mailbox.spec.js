@@ -62,6 +62,7 @@ test('direct HTML view blocks remote resources while the preview keeps explicit 
     const http = require('node:http');
     const remoteHits = [];
     let destinationReferrer;
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><text>download fixture</text></svg>';
     const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
     const tracker = http.createServer((req, res) => {
         remoteHits.push(req.url);
@@ -86,10 +87,11 @@ m['From'] = 'sender@example.test'
 m['To'] = 'reader@example.test'
 m['Subject'] = 'Direct HTML resource boundary'
 m.set_content('Plain fallback')
-m.add_alternative('<h1>HTML boundary</h1><a href="'+sys.argv[1]+'/destination">Verification link</a><link rel="stylesheet" href="'+sys.argv[1]+'/mail.css"><img alt="Remote pixel" src="'+sys.argv[1]+'/pixel"><img alt="Local asset" src="/preview/favicon.svg">', subtype='html')
+m.add_alternative('<h1>HTML boundary</h1><a href="cid:download@example.test">Download SVG</a><a href="'+sys.argv[1]+'/destination">Verification link</a><link rel="stylesheet" href="'+sys.argv[1]+'/mail.css"><img alt="Remote pixel" src="'+sys.argv[1]+'/pixel"><img alt="Local asset" src="/preview/favicon.svg">', subtype='html')
+m.get_payload()[-1].add_related(sys.argv[2].encode('utf-8'), maintype='image', subtype='svg+xml', cid='<download@example.test>', filename='download.svg')
 with smtplib.SMTP('127.0.0.1', 21025) as client:
     client.send_message(m)
-`, remote]);
+`, remote, svg]);
         const listing = await (await request.get(new URL('api/v1/emails', baseURL).href)).json();
         email = listing.emails.find(item => item.subject === 'Direct HTML resource boundary');
         expect(email).toBeTruthy();
@@ -115,6 +117,19 @@ with smtplib.SMTP('127.0.0.1', 21025) as client:
             await destination.close();
         }
         remoteHits.length = 0;
+
+        for (const path of [`api/email/${email.id}/html`, `messages/${email.id}.html`]) {
+            await page.goto(new URL(path, baseURL).href);
+            const downloadStarted = page.waitForEvent('download');
+            await page.getByRole('link', { name: 'Download SVG', exact: true }).click();
+            const download = await downloadStarted;
+            const stream = await download.createReadStream();
+            const chunks = [];
+            for await (const chunk of stream) chunks.push(chunk);
+            expect(Buffer.concat(chunks).toString()).toBe(svg);
+            expect(await download.failure()).toBeNull();
+            expect(remoteHits).toEqual([]);
+        }
 
         await page.goto('./');
         await page.locator('.email-item').filter({ hasText: 'Direct HTML resource boundary' }).click();
