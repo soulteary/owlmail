@@ -31,3 +31,5 @@ python3 tests/container/multiuser.py --image owlmail:container-check \
 脚本仅清理本次唯一命名的容器和带本次标记的卷。Podman 可用 `--runtime podman --connection <连接名>`；测试结果必须明确实际 runtime，不能把 Podman 结果表述为 Docker 已验证。
 
 Gorge 继续使用现有 SMTP 适配器。正式接入时配置系统账号和受信 SMTP 证书，不需要逐用户 SMTP 密码，也不修改 Gorge 代码。
+
+完整的身份、代理、凭据轮换和地址重分配限制见[Stargate 接入与运维约束](../../docs/zh-CN/Stargate-Deployment.md)。
