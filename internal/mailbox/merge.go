@@ -144,6 +144,63 @@ func validateMergeVersion(ctx context.Context, db *sql.DB, item Merge, hasRetent
 	return nil
 }
 
+// RunMergeBatch advances one frozen journal in ID order. targetID scopes
+// request-driven work to its already-authorized personal mailbox; an empty target
+// is for the maintenance worker. afterID is a fairness cursor, never authority.
+// The returned ID advances even on a recoverable callback failure, so one broken
+// mailbox cannot starve others. An empty ID means the caller should wrap its cursor.
+// The callback reports complete only after every source message is durable.
+func (s *Store) RunMergeBatch(ctx context.Context, targetID, afterID string, apply func(context.Context, Merge) (bool, error)) (string, error) {
+	if s.readOnlySchema > 0 {
+		return "", ErrReadOnly
+	}
+	if apply == nil {
+		return "", errors.New("merge callback required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	query := `SELECT id,source_id,target_id FROM merge_journal WHERE state='pending' AND id>?`
+	args := []any{afterID}
+	if targetID != "" {
+		query += ` AND target_id=?`
+		args = append(args, targetID)
+	}
+	query += ` ORDER BY id LIMIT 1`
+	var item Merge
+	err := s.db.QueryRowContext(ctx, query, args...).Scan(&item.ID, &item.SourceID, &item.TargetID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if err = validateMerge(ctx, s.db, item); err != nil {
+		return item.ID, err
+	}
+	complete, err := apply(ctx, item)
+	if errors.Is(err, ErrQuotaExceeded) {
+		return item.ID, nil
+	}
+	if err != nil {
+		return item.ID, fmt.Errorf("apply mailbox merge %s: %w", item.ID, err)
+	}
+	if !complete {
+		return item.ID, nil
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return item.ID, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err = tx.ExecContext(ctx, `UPDATE mailbox SET state='merged',merged_into_id=? WHERE id=? AND state='pending' AND owner_identity_id IS NULL`, item.TargetID, item.SourceID); err != nil {
+		return item.ID, err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE merge_journal SET state='complete' WHERE id=? AND state='pending'`, item.ID); err != nil {
+		return item.ID, err
+	}
+	return item.ID, tx.Commit()
+}
+
 // validateControlState rejects inconsistent ownership even when SQLite's own
 // foreign-key and page checks pass. It runs on reopen before listeners start.
 func validateControlState(ctx context.Context, db *sql.DB) error {

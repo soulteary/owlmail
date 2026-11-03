@@ -12,6 +12,8 @@ let multiuserResponseIdentity = null;
 // Internationalization (i18n)
 const i18n = {
     'zh-CN': {
+        autoRefreshOn: '自动刷新：开',
+        autoRefreshOff: '自动刷新：关',
         title: 'OwlMail - 邮件开发测试工具',
         refresh: '刷新',
         markAllRead: '标记全部已读',
@@ -105,6 +107,8 @@ const i18n = {
         'CONFIG_UPDATED': '配置已更新'
     },
     'en': {
+        autoRefreshOn: 'Auto refresh: on',
+        autoRefreshOff: 'Auto refresh: off',
         title: 'OwlMail - Email Development Testing Tool',
         refresh: 'Refresh',
         markAllRead: 'Mark All Read',
@@ -225,6 +229,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration updated'
     },
     'de': {
+        autoRefreshOn: 'Automatisch aktualisieren: ein',
+        autoRefreshOff: 'Automatisch aktualisieren: aus',
         title: 'OwlMail - E-Mail-Entwicklungstest-Tool',
         refresh: 'Aktualisieren',
         markAllRead: 'Alle als gelesen markieren',
@@ -307,6 +313,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Konfiguration aktualisiert'
     },
     'it': {
+        autoRefreshOn: 'Aggiornamento automatico: attivo',
+        autoRefreshOff: 'Aggiornamento automatico: disattivato',
         title: 'OwlMail - Strumento di Test per lo Sviluppo Email',
         refresh: 'Aggiorna',
         markAllRead: 'Segna Tutto come Letto',
@@ -389,6 +397,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configurazione aggiornata'
     },
     'fr': {
+        autoRefreshOn: 'Actualisation automatique : activée',
+        autoRefreshOff: 'Actualisation automatique : désactivée',
         title: 'OwlMail - Outil de Test de Développement Email',
         refresh: 'Actualiser',
         markAllRead: 'Tout Marquer comme Lu',
@@ -471,6 +481,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration mise à jour'
     },
     'ko': {
+        autoRefreshOn: '자동 새로고침: 켜짐',
+        autoRefreshOff: '자동 새로고침: 꺼짐',
         title: 'OwlMail - 이메일 개발 테스트 도구',
         refresh: '새로고침',
         markAllRead: '모두 읽음으로 표시',
@@ -553,6 +565,8 @@ const i18n = {
         'CONFIG_UPDATED': '설정이 업데이트되었습니다'
     },
     'ja': {
+        autoRefreshOn: '自動更新：オン',
+        autoRefreshOff: '自動更新：オフ',
         title: 'OwlMail - メール開発テストツール',
         refresh: '更新',
         markAllRead: 'すべて既読にする',
@@ -855,8 +869,19 @@ function setLanguage(lang, renderDynamic = true) {
     writePreference('language', lang);
     document.documentElement.lang = lang;
     updateUI(renderDynamic);
+    updateAutoRefreshLabel();
     if (browserNotificationsInitialized) updateBrowserNotificationButton();
+    renderPersonalMailboxStatus();
 }
+
+// Personal mailbox messages contain no address or owner information.
+Object.assign(i18n["en"], {"mailboxVerifyEmail": "Verify your email with the sign-in service to receive mail here.", "mailboxBindingConflict": "This address cannot be linked. Contact the operator.", "mailboxHistoryRetained": "Older mail is kept separate until its ownership is confirmed. New mail arrives here.", "mailboxHistoryMerging": "Your earlier mail is being prepared. Refresh shortly.", "mailboxUnavailable": "The inbox is temporarily unavailable. Try refreshing.", "mailboxUnbound": "No receiving address is linked yet. Contact the operator."});
+Object.assign(i18n["zh-CN"], {"mailboxVerifyEmail": "请在登录服务中完成邮箱验证，以便在这里收信。", "mailboxBindingConflict": "此地址暂时无法绑定，请联系管理员。", "mailboxHistoryRetained": "旧邮件在确认归属前单独保留，新邮件会投递到这里。", "mailboxHistoryMerging": "正在准备历史邮件，请稍后刷新。", "mailboxUnavailable": "收件箱暂时不可用，请稍后刷新。", "mailboxUnbound": "尚未绑定收件地址，请联系管理员。"});
+Object.assign(i18n["de"], {"mailboxVerifyEmail": "Bestätigen Sie Ihre E-Mail-Adresse beim Anmeldedienst, um hier E-Mails zu empfangen.", "mailboxBindingConflict": "Diese Adresse kann nicht verknüpft werden. Wenden Sie sich an den Betreiber.", "mailboxHistoryRetained": "Ältere E-Mails bleiben bis zur Bestätigung der Zugehörigkeit getrennt. Neue E-Mails kommen hier an.", "mailboxHistoryMerging": "Ihre früheren E-Mails werden vorbereitet. Aktualisieren Sie in Kürze.", "mailboxUnavailable": "Der Posteingang ist vorübergehend nicht verfügbar. Bitte aktualisieren Sie später.", "mailboxUnbound": "Es ist noch keine Empfangsadresse verknüpft. Wenden Sie sich an den Betreiber."});
+Object.assign(i18n["it"], {"mailboxVerifyEmail": "Verifica il tuo indirizzo email nel servizio di accesso per ricevere messaggi qui.", "mailboxBindingConflict": "Non è possibile collegare questo indirizzo. Contatta il gestore.", "mailboxHistoryRetained": "I messaggi precedenti restano separati finché non viene confermata la titolarità. I nuovi messaggi arrivano qui.", "mailboxHistoryMerging": "Preparazione dei messaggi precedenti in corso. Aggiorna tra poco.", "mailboxUnavailable": "La posta in arrivo è temporaneamente indisponibile. Prova ad aggiornare.", "mailboxUnbound": "Nessun indirizzo di ricezione collegato. Contatta il gestore."});
+Object.assign(i18n["fr"], {"mailboxVerifyEmail": "Vérifiez votre adresse e-mail auprès du service de connexion pour recevoir des messages ici.", "mailboxBindingConflict": "Cette adresse ne peut pas être associée. Contactez l’administrateur.", "mailboxHistoryRetained": "Les anciens messages restent séparés jusqu’à confirmation de leur appartenance. Les nouveaux arrivent ici.", "mailboxHistoryMerging": "Vos anciens messages sont en cours de préparation. Actualisez dans un instant.", "mailboxUnavailable": "La boîte de réception est temporairement indisponible. Réessayez d’actualiser.", "mailboxUnbound": "Aucune adresse de réception n’est associée. Contactez l’administrateur."});
+Object.assign(i18n["ko"], {"mailboxVerifyEmail": "여기서 메일을 받으려면 로그인 서비스에서 이메일을 인증하세요.", "mailboxBindingConflict": "이 주소를 연결할 수 없습니다. 관리자에게 문의하세요.", "mailboxHistoryRetained": "소유권이 확인될 때까지 이전 메일은 별도로 보관됩니다. 새 메일은 여기로 도착합니다.", "mailboxHistoryMerging": "이전 메일을 준비하고 있습니다. 잠시 후 새로고침하세요.", "mailboxUnavailable": "받은편지함을 일시적으로 사용할 수 없습니다. 다시 새로고침하세요.", "mailboxUnbound": "연결된 수신 주소가 없습니다. 관리자에게 문의하세요."});
+Object.assign(i18n["ja"], {"mailboxVerifyEmail": "ここでメールを受信するには、ログインサービスでメールアドレスを確認してください。", "mailboxBindingConflict": "このアドレスは関連付けできません。管理者にお問い合わせください。", "mailboxHistoryRetained": "過去のメールは所有者が確認されるまで別に保管されます。新しいメールはここに届きます。", "mailboxHistoryMerging": "過去のメールを準備しています。しばらくしてから更新してください。", "mailboxUnavailable": "受信トレイを一時的に利用できません。もう一度更新してください。", "mailboxUnbound": "受信アドレスがまだ関連付けられていません。管理者にお問い合わせください。"});
 
 // Global State
 Object.assign(i18n["en"], {"relayWaiting": "Waiting for delivery status", "relayPaused": "Status waiting paused", "relayStopWait": "Stop waiting", "relayResumeWait": "Resume waiting", "relayWaitStopped": "Stopped waiting. The queued delivery continues; resume here or check Deliveries.", "relayWaitTimeout": "Waiting timed out. The queued delivery continues; resume here or check Deliveries."});
@@ -1375,26 +1400,35 @@ async function notifyBrowserForEmail(email) {
     }
 }
 
+// Validate every protected response, including raw source and inspection calls.
+function validateMultiuserResponse(response) {
+    if (!MULTIUSER_MODE) return;
+    const identity = response.headers.get('x-owlmail-identity');
+    if (multiuserAuthExpired || response.status === 401 || response.redirected ||
+        (response.ok && !identity) ||
+        (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
+        multiuserAuthExpired = true;
+        if (typeof clearPersonalMailboxStatus === 'function') clearPersonalMailboxStatus();
+        emailListRequestSequence += 1;
+        emailListActiveSequence = null;
+        mailboxRefreshAfterLoad = false;
+        if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
+        state.emails = [];
+        state.total = 0;
+        selectedMailIDs.clear();
+        clearEmailSelection('replace');
+        renderEmailList();
+        updateEmailCount();
+        if (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity && typeof window.location.reload === 'function') window.location.reload();
+        throw new Error('Identity changed or expired; sign in again.');
+    }
+    if (identity) multiuserResponseIdentity = identity;
+}
+
 // Helper function to handle API errors
 async function handleAPIResponse(response) {
+    validateMultiuserResponse(response);
     if (MULTIUSER_MODE) {
-        const identity = response.headers.get('x-owlmail-identity');
-        if (response.status === 401 || (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
-            multiuserAuthExpired = true;
-            emailListRequestSequence += 1;
-            emailListActiveSequence = null;
-            mailboxRefreshAfterLoad = false;
-            if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
-            state.emails = [];
-            state.total = 0;
-            selectedMailIDs.clear();
-            clearEmailSelection('replace');
-            renderEmailList();
-            updateEmailCount();
-            if (identity && typeof window.location.reload === 'function') window.location.reload();
-            throw new Error('Identity changed or expired; sign in again.');
-        }
-        if (identity) multiuserResponseIdentity = identity;
         if (response.ok) multiuserPollFailures = 0;
         else multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4);
     }
@@ -1461,6 +1495,7 @@ const API = {
 
     async getEmailSource(id, maximumBytes = EMAIL_SOURCE_INLINE_MAX_BYTES) {
         const response = await fetch(`${API_BASE}/emails/${id}/source`);
+        validateMultiuserResponse(response);
         if (!response.ok) return await handleAPIResponse(response);
         const contentLength = Number(response.headers.get('content-length'));
         if (Number.isFinite(contentLength) && contentLength > maximumBytes) {
@@ -2177,6 +2212,44 @@ function renderAttachments(attachments, emailId) {
 }
 
 // Action Functions
+let personalMailboxStatus = null;
+function clearPersonalMailboxStatus() {
+    personalMailboxStatus = null;
+    const notice = document.getElementById('personalMailboxStatus');
+    if (notice) { notice.textContent = ''; notice.hidden = true; }
+}
+function renderPersonalMailboxStatus() {
+    const notice = document.getElementById('personalMailboxStatus');
+    if (!notice) return;
+    let key = '';
+    if (MULTIUSER_MODE && personalMailboxStatus && !multiuserAuthExpired) {
+        if (personalMailboxStatus.mailbox_state === 'unavailable') key = 'mailboxUnavailable';
+        else if (personalMailboxStatus.delivery_state === 'verification_required') key = 'mailboxVerifyEmail';
+        else if (personalMailboxStatus.delivery_state === 'conflict') key = 'mailboxBindingConflict';
+        else if (personalMailboxStatus.history_state === 'merging') key = 'mailboxHistoryMerging';
+        else if (personalMailboxStatus.history_state === 'retained') key = 'mailboxHistoryRetained';
+        else if (personalMailboxStatus.delivery_state === 'unbound') key = 'mailboxUnbound';
+    }
+    notice.textContent = key ? t(key) : '';
+    notice.hidden = !key;
+}
+async function loadPersonalMailboxStatus(sequence) {
+    if (!MULTIUSER_MODE) return;
+    try {
+        const response = await fetch(`${API_BASE}/me/mailbox`);
+        const data = await handleAPIResponse(response);
+        if (sequence !== emailListRequestSequence || multiuserAuthExpired) return;
+        personalMailboxStatus = data;
+        renderPersonalMailboxStatus();
+    } catch (error) {
+        if (sequence === emailListRequestSequence && !multiuserAuthExpired) {
+            personalMailboxStatus = { mailbox_state: 'unavailable' };
+            renderPersonalMailboxStatus();
+        }
+        throw error;
+    }
+}
+
 let emailListRequestSequence = 0;
 let emailListActiveSequence = null;
 let mailboxRefreshAfterLoad = false;
@@ -2193,6 +2266,10 @@ async function loadEmails({ background = false } = {}) {
     renderEmailList();
     try {
         if (!background) showLoading('emailList');
+        if (MULTIUSER_MODE) {
+            await loadPersonalMailboxStatus(sequence);
+            if (sequence !== emailListRequestSequence || multiuserAuthExpired) return;
+        }
         const data = await API.getEmailPreviews(
             state.currentPage * state.pageSize,
             state.pageSize,
@@ -2891,6 +2968,7 @@ function updateEmailInspectionDisplay(tools) {
 }
 async function emailToolRequest(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
+    validateMultiuserResponse(response);
     if (!response.ok) throw new Error(parseAPIError(await response.text()));
     return response.json();
 }
@@ -3190,6 +3268,11 @@ function exportMailbox(selected) {
 }
 
 
+function updateAutoRefreshLabel() {
+    const toggle = document.getElementById('autoRefreshToggle');
+    if (toggle) toggle.textContent = t(multiuserPollingEnabled ? 'autoRefreshOn' : 'autoRefreshOff');
+}
+
 function startMultiuserPolling() {
     if (!MULTIUSER_MODE) return;
     const refreshButton = document.getElementById('refreshBtn');
@@ -3198,11 +3281,11 @@ function startMultiuserPolling() {
         toggle.id = 'autoRefreshToggle';
         toggle.className = 'btn btn-secondary';
         toggle.type = 'button';
-        toggle.textContent = 'Auto refresh: on';
+        toggle.textContent = t('autoRefreshOn');
         toggle.setAttribute('aria-pressed', 'true');
         toggle.addEventListener('click', () => {
             multiuserPollingEnabled = !multiuserPollingEnabled;
-            toggle.textContent = multiuserPollingEnabled ? 'Auto refresh: on' : 'Auto refresh: off';
+            updateAutoRefreshLabel();
             toggle.setAttribute('aria-pressed', String(multiuserPollingEnabled));
             if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
             multiuserPollTimer = null;
@@ -3225,10 +3308,29 @@ function startMultiuserPolling() {
             schedule();
         }, immediate ? 0 : 15000 * (2 ** multiuserPollFailures));
     }
+    // A restored document must not display another session's cached mailbox.
+    window.addEventListener('pageshow', event => {
+        if (!event.persisted) return;
+        multiuserAuthExpired = true;
+        if (typeof clearPersonalMailboxStatus === 'function') clearPersonalMailboxStatus();
+        state.emails = [];
+        state.total = 0;
+        selectedMailIDs.clear();
+        clearEmailSelection('replace');
+        renderEmailList();
+        updateEmailCount();
+        window.location.reload();
+    });
     document.addEventListener('visibilitychange', () => {
         if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
         multiuserPollTimer = null;
-        if (!document.hidden) schedule(true);
+        if (!document.hidden && !multiuserAuthExpired) {
+            // Validate the session before a resumed mailbox response can render.
+            fetch(`${API_BASE}/settings`, { cache: 'no-store' })
+                .then(handleAPIResponse)
+                .then(() => schedule(true))
+                .catch(() => { if (!multiuserAuthExpired) schedule(); });
+        }
     });
     schedule();
 }

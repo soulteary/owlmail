@@ -958,3 +958,9 @@ body.dark-theme .email-tools input:not([type="checkbox"]) { color: #eee; backgro
 .email-item-selection { float: left; padding-right: 8px; }
 .email-item-open { cursor: pointer; }
 .email-item-open:focus-visible { outline: 2px solid #3498db; outline-offset: 2px; }
+
+.personal-mailbox-status {
+    margin: 0.75rem 0 0;
+    font-size: 0.875rem;
+    line-height: 1.5;
+}

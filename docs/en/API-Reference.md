@@ -571,3 +571,24 @@ available in `headers`, and restoring EML files reconstructs the same field.
 `replyTo` identifies reply destinations; MailDev's `inReplyTo` is the separate
 `In-Reply-To` message identifier. Summary responses and search behavior are
 unchanged. The inbox detail view displays reply destinations as escaped text.
+
+## Gated multiuser mailbox status
+
+Normal release binaries still reject multiuser serving. For isolated integration
+acceptance, `GET /api/v1/me/mailbox` reports only the authenticated identity's
+current delivery state. It contains no address, owner ID, mail count, or global
+recovery information; an unverified address never reveals pending-history
+existence. The served multiuser OpenAPI documents the exact response combinations.
+
+- No asserted address: `ready / unbound / none / none`.
+- Unverified address: `ready / verification_required / none / verify_email`.
+- Blocked or conflicting binding: `ready / conflict / none / contact_operator`.
+- Owned route: `ready / bound / none|retained|complete / none`.
+- This identity's pending history merge: `recovering / bound / merging / retry`.
+
+The values above are `mailbox_state / delivery_state / history_state / action`.
+`retained` means an authorized prior binding left historical pending mail isolated;
+it does not grant access to that history. Authority failures return HTTP 503, not
+an apparently empty inbox. This status query does not create bindings, although
+the shared trusted-login middleware may initialize the caller's personal mailbox.
+Standalone routes and authentication are unchanged.
