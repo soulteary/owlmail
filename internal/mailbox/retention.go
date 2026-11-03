@@ -87,13 +87,8 @@ func (s *Store) runPendingRetentionLocked(ctx context.Context, apply func(contex
 		if err = ctx.Err(); err != nil {
 			return err
 		}
-		var valid int
-		err = s.db.QueryRowContext(ctx, `SELECT count(*) FROM mailbox m WHERE m.id=? AND m.state='pending' AND m.owner_identity_id IS NULL AND m.merged_into_id IS NULL AND m.retired_at IS NULL AND NOT EXISTS(SELECT 1 FROM merge_journal j WHERE j.source_id=m.id AND j.state='pending')`, item.MailboxID).Scan(&valid)
-		if err != nil {
+		if err = s.validateRetentionLocked(ctx, item); err != nil {
 			return err
-		}
-		if valid != 1 {
-			return errors.New("invalid pending retention ownership graph")
 		}
 		result, err := apply(ctx, item)
 		if err != nil {
@@ -102,43 +97,125 @@ func (s *Store) runPendingRetentionLocked(ctx context.Context, apply func(contex
 		if result.Deleted < 0 || result.Remaining < 0 {
 			return errors.New("invalid retention result")
 		}
-		tx, err := s.db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		var created int64
-		err = tx.QueryRowContext(ctx, `SELECT created_at FROM mailbox WHERE id=?`, item.MailboxID).Scan(&created)
-		retired := 0
-		if err == nil && result.Remaining == 0 && created <= item.EmptyBefore.Unix() {
-			// Pending routes may be recreated with a new mailbox on the next RCPT.
-			// Blocked routes remain as deny rules and must never be silently unblocked.
-			_, err = tx.ExecContext(ctx, `DELETE FROM recipient_route WHERE mailbox_id=? AND state='pending' AND NOT EXISTS(SELECT 1 FROM binding_audit a WHERE a.route_id=recipient_route.id)`, item.MailboxID)
-			if err == nil {
-				// A pending route referenced by historical audit cannot be deleted, so
-				// retain it as a blocked deny rule rather than allowing historical rebinding.
-				_, err = tx.ExecContext(ctx, `UPDATE recipient_route SET state='blocked',revision=revision+1 WHERE mailbox_id=? AND state='pending'`, item.MailboxID)
-			}
-			if err == nil {
-				_, err = tx.ExecContext(ctx, `UPDATE mailbox SET retired_at=? WHERE id=?`, time.Now().Unix(), item.MailboxID)
-				retired = 1
-			}
-		}
-		completed := time.Now().Unix()
-		if err == nil {
-			_, err = tx.ExecContext(ctx, `UPDATE retention_journal SET state='complete',completed_at=?,retired=? WHERE id=?`, completed, retired, item.ID)
-		}
-		if err == nil {
-			_, err = tx.ExecContext(ctx, `INSERT INTO retention_audit(id,journal_id,mailbox_id,cutoff,empty_before,completed_at,retired) VALUES(?,?,?,?,?,?,?)`, uuid.NewString(), item.ID, item.MailboxID, item.Cutoff.UnixNano(), item.EmptyBefore.UnixNano(), completed, retired)
-		}
-		if err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		if err = tx.Commit(); err != nil {
+		if err = s.completeRetentionLocked(ctx, item, result); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func (s *Store) validateRetentionLocked(ctx context.Context, item PendingRetention) error {
+	var valid int
+	err := s.db.QueryRowContext(ctx, `SELECT count(*) FROM mailbox m WHERE m.id=? AND m.state='pending' AND m.owner_identity_id IS NULL AND m.merged_into_id IS NULL AND m.retired_at IS NULL AND NOT EXISTS(SELECT 1 FROM merge_journal j WHERE j.source_id=m.id AND j.state='pending')`, item.MailboxID).Scan(&valid)
+	if err != nil {
+		return err
+	}
+	if valid != 1 {
+		return errors.New("invalid pending retention ownership graph")
+	}
+	return nil
+}
+
+func (s *Store) completeRetentionLocked(ctx context.Context, item PendingRetention, result PendingRetentionResult) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	var created int64
+	err = tx.QueryRowContext(ctx, `SELECT created_at FROM mailbox WHERE id=?`, item.MailboxID).Scan(&created)
+	retired := 0
+	if err == nil && result.Remaining == 0 && created <= item.EmptyBefore.Unix() {
+		// Pending routes may be recreated with a new mailbox on the next RCPT.
+		// Blocked routes remain as deny rules and must never be silently unblocked.
+		_, err = tx.ExecContext(ctx, `DELETE FROM recipient_route WHERE mailbox_id=? AND state='pending' AND NOT EXISTS(SELECT 1 FROM binding_audit a WHERE a.route_id=recipient_route.id)`, item.MailboxID)
+		if err == nil {
+			// A pending route referenced by historical audit cannot be deleted, so
+			// retain it as a blocked deny rule rather than allowing historical rebinding.
+			_, err = tx.ExecContext(ctx, `UPDATE recipient_route SET state='blocked',revision=revision+1 WHERE mailbox_id=? AND state='pending'`, item.MailboxID)
+		}
+		if err == nil {
+			_, err = tx.ExecContext(ctx, `UPDATE mailbox SET retired_at=? WHERE id=?`, time.Now().Unix(), item.MailboxID)
+			retired = 1
+		}
+	}
+	completed := time.Now().Unix()
+	if err == nil {
+		_, err = tx.ExecContext(ctx, `UPDATE retention_journal SET state='complete',completed_at=?,retired=? WHERE id=?`, completed, retired, item.ID)
+	}
+	if err == nil {
+		_, err = tx.ExecContext(ctx, `INSERT INTO retention_audit(id,journal_id,mailbox_id,cutoff,empty_before,completed_at,retired) VALUES(?,?,?,?,?,?,?)`, uuid.NewString(), item.ID, item.MailboxID, item.Cutoff.UnixNano(), item.EmptyBefore.UnixNano(), completed, retired)
+	}
+	if err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	if err = tx.Commit(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// CleanupPendingBatch advances at most one mailbox in ID order. afterID is a
+// fairness cursor, never authority. now identifies a sweep and must stay fixed
+// until the next configured cleanup interval. Existing interrupted journals keep
+// their original cutoffs. The callback runs under Store.mu, must be idempotent,
+// and reports complete only when all expired content has been durably removed.
+// A partial result leaves its journal pending, freezing claims and deliveries.
+// The returned mailbox ID advances even after failure, so one broken mailbox
+// cannot starve others. An empty ID tells the worker to wrap its cursor.
+func (s *Store) CleanupPendingBatch(ctx context.Context, now time.Time, retention, emptyRetention time.Duration, afterID string, apply func(context.Context, PendingRetention) (PendingRetentionResult, bool, error)) (string, error) {
+	if s.readOnlySchema > 0 {
+		return "", ErrReadOnly
+	}
+	if now.IsZero() || retention <= 0 || emptyRetention <= 0 || apply == nil {
+		return "", errors.New("positive pending retention limits required")
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cutoff, emptyBefore := now.Add(-retention), now.Add(-emptyRetention)
+	candidateBefore := cutoff
+	if emptyBefore.After(candidateBefore) {
+		candidateBefore = emptyBefore
+	}
+	// Selecting one candidate avoids planning/freezing the rest of the sweep.
+	// Pending journals participate even if their graph is invalid, so corruption
+	// is reported by validation instead of silently hidden by candidate filters.
+	var item PendingRetention
+	var cutoffNanos, emptyNanos int64
+	err := s.db.QueryRowContext(ctx, `SELECT mailbox_id,id,cutoff,empty_before FROM (
+ SELECT mailbox_id,id,cutoff,empty_before FROM retention_journal WHERE state='pending' AND mailbox_id>?
+ UNION ALL
+ SELECT m.id,'',?,? FROM mailbox m WHERE m.id>? AND m.state='pending' AND m.owner_identity_id IS NULL AND m.merged_into_id IS NULL AND m.retired_at IS NULL AND m.created_at<=?
+ AND NOT EXISTS(SELECT 1 FROM merge_journal j WHERE j.source_id=m.id AND j.state='pending')
+ AND NOT EXISTS(SELECT 1 FROM retention_journal j WHERE j.mailbox_id=m.id AND (j.state='pending' OR j.cutoff>=?))
+ ) ORDER BY mailbox_id LIMIT 1`, afterID, cutoff.UnixNano(), emptyBefore.UnixNano(), afterID, candidateBefore.Unix(), cutoff.UnixNano()).Scan(&item.MailboxID, &item.ID, &cutoffNanos, &emptyNanos)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	item.Cutoff, item.EmptyBefore = time.Unix(0, cutoffNanos).UTC(), time.Unix(0, emptyNanos).UTC()
+	if item.ID == "" {
+		item.ID = uuid.NewString()
+		if _, err = s.db.ExecContext(ctx, `INSERT INTO retention_journal(id,mailbox_id,state,cutoff,empty_before,created_at) VALUES(?,?,'pending',?,?,?)`, item.ID, item.MailboxID, cutoffNanos, emptyNanos, now.Unix()); err != nil {
+			return item.MailboxID, err
+		}
+	}
+	if err = s.validateRetentionLocked(ctx, item); err != nil {
+		return item.MailboxID, err
+	}
+	result, complete, err := apply(ctx, item)
+	if err != nil {
+		return item.MailboxID, fmt.Errorf("retain pending mailbox %s: %w", item.MailboxID, err)
+	}
+	if result.Deleted < 0 || result.Remaining < 0 {
+		return item.MailboxID, errors.New("invalid retention result")
+	}
+	if !complete {
+		return item.MailboxID, nil
+	}
+	return item.MailboxID, s.completeRetentionLocked(ctx, item, result)
 }
 
 // CleanupPending first completes interrupted cleanup, then schedules a new

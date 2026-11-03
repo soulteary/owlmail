@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/soulteary/owlmail/internal/mailbox"
+	"github.com/soulteary/owlmail/internal/types"
 )
 
 func TestPendingMaintenanceRunsAtStartupAndOnSchedule(t *testing.T) {
@@ -120,5 +125,66 @@ func TestPendingMergeProgressDoesNotWaitForRetentionInterval(t *testing.T) {
 	}
 	if err = server.Close(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A journal left by a failed online batch must continue on the short maintenance
+// tick, even when the next configured retention sweep is an hour away.
+func TestPendingRetentionBatchContinuesBeforeNextSweep(t *testing.T) {
+	cfg := multiuserComponentConfig(t)
+	cfg.PendingCleanupInterval = "1h"
+	server, err := createMailServer(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = server.Close() })
+	route, err := server.MailboxControl().EnsurePending(context.Background(), "main", "pending@example.com", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 65; i++ {
+		id := uuid.NewString()
+		if err = os.WriteFile(filepath.Join(cfg.MailDir, id+".eml"), []byte("Subject: expired\r\n\r\nbody"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		email := &types.Email{Subject: fmt.Sprintf("expired-%d", i), Text: "body", Ownership: &types.Ownership{MailboxID: route.MailboxID, TransactionID: uuid.NewString(), IngestAccountID: "gorge", MatchedRecipients: []string{"pending@example.com"}, RouteRevisions: []int64{1}}}
+		if err = server.SaveEmailToStore(id, false, &types.Envelope{To: []string{"pending@example.com"}}, email); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db, err := sql.Open("sqlite", cfg.ControlDatabase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = db.Close() }()
+	if _, err = db.Exec("PRAGMA busy_timeout=5000"); err != nil {
+		t.Fatal(err)
+	}
+	// Test-only recovery fixture: production writes this journal through the
+	// control authority before any deletion. A future cutoff avoids fake Date.
+	journal := uuid.NewString()
+	if _, err = db.Exec(`INSERT INTO retention_journal(id,mailbox_id,state,cutoff,empty_before,created_at) VALUES(?,?,'pending',?,?,?)`, journal, route.MailboxID, time.Now().Add(time.Hour).UnixNano(), time.Now().Add(-time.Hour).UnixNano(), time.Now().Unix()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tick := time.NewTicker(10 * time.Millisecond)
+	defer tick.Stop()
+	for {
+		var state string
+		if err = db.QueryRowContext(ctx, `SELECT state FROM retention_journal WHERE id=?`, journal).Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		if state == "complete" {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("pending batch waited for hourly sweep")
+		case <-tick.C:
+		}
+	}
+	if len(server.GetAllEmail()) != 0 {
+		t.Fatal("retention journal completed before all batches deleted")
 	}
 }
