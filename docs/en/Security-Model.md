@@ -93,6 +93,21 @@ Webhook and Relay receivers must tolerate duplicate delivery around crashes.
 Mandatory STARTTLS and SMTPS do not fall back to plaintext. Native v1 Relay job
 errors are bounded and do not expose raw downstream errors through status.
 
+## Owned mailbox diagnostics
+
+Ownership mode logs internal message IDs for save/restore/delete operations,
+not subjects or sender addresses. It does not register the standalone content
+event loggers. Invalid Date values and MIME/parser failures use a classification
+instead of quoting message content; routed SMTP staging/transaction failures
+record an internal transaction ID and phase, not raw reader or parser errors.
+Parser error unwrapping remains available to internal callers for `errors.Is/As`.
+
+This applies to server ownership mode, including startup parsing before sidecar
+ownership is attached. Standalone diagnostic behavior remains compatible. These
+guards are not a whole-system log audit or a redaction guarantee for unrelated
+applications, external proxies or operator-supplied files. The public multiuser
+serving gate remains closed pending actual deployment acceptance.
+
 ## Deployment checklist
 
 - Bind SMTP and Web ports to loopback or a private network.

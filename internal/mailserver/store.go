@@ -168,7 +168,11 @@ func (ms *MailServer) saveEmailToStore(id string, isRead bool, envelope *Envelop
 	}
 	ms.storeMutex.Unlock()
 
-	common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
+	if ms.requireOwnership {
+		common.Log("Saving owned email: id: %s", id)
+	} else {
+		common.Log("Saving email: %s, id: %s", parsedEmail.Subject, id)
+	}
 
 	// Notify asynchronous listeners only after the durable handoff and in-memory
 	// commit both succeed.
@@ -396,7 +400,11 @@ func (ms *MailServer) DeleteEmail(id string) error {
 	ms.deleteEmailFromRuntimeState(id)
 	ms.deletedMessages.Add(1)
 
-	common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
+	if ms.requireOwnership {
+		common.Log("Deleting owned email: id: %s", email.ID)
+	} else {
+		common.Log("Deleting email - %s, id: %s", email.Subject, email.ID)
+	}
 
 	// Emit delete event
 	if err := ms.emit("delete", email); err != nil {
@@ -746,7 +754,11 @@ func (ms *MailServer) backfillAllHeaders() {
 		msg, readErr := message.Read(file)
 		closeErr := file.Close()
 		if readErr != nil {
-			common.Verbose("Failed to parse headers for %s: %v", id, readErr)
+			if ms.requireOwnership {
+				common.Verbose("Failed to parse owned email headers: id: %s, class: message_parse", id)
+			} else {
+				common.Verbose("Failed to parse headers for %s: %v", id, readErr)
+			}
 			continue
 		}
 		if closeErr != nil {
@@ -768,6 +780,16 @@ func (ms *MailServer) backfillAllHeaders() {
 // store. This separation lets SMTP DATA finish all durable filesystem work
 // before the new-email event becomes visible.
 func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, saveAttachments bool, attachmentDir string) (*Email, *Envelope, error) {
+	email, envelope, err := ms.parseEmailMessageContent(id, r, s, saveAttachments, attachmentDir)
+	if err != nil && ms.requireOwnership {
+		// MIME parsers and reader errors may quote arbitrary message content.
+		// Keep error identity for callers while making ordinary logging safe.
+		err = &ownedMessageParseError{id: id, cause: err}
+	}
+	return email, envelope, err
+}
+
+func (ms *MailServer) parseEmailMessageContent(id string, r io.Reader, s *Session, saveAttachments bool, attachmentDir string) (*Email, *Envelope, error) {
 	msg, err := message.Read(r)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to parse email: %w", err)
@@ -822,7 +844,7 @@ func (ms *MailServer) parseEmailMessage(id string, r io.Reader, s *Session, save
 	}
 	// Parse date from headers
 	if email.Time, err = headers.Date(); err != nil {
-		email.Time = parseEmailDate(headers.Header)
+		email.Time = parseEmailDateForMode(headers.Header, id, ms.requireOwnership)
 	}
 
 	if email.Subject, err = headers.Subject(); err != nil {
@@ -1020,7 +1042,11 @@ func (ms *MailServer) LoadMailsFromDirectory() error {
 					loadErrors = append(loadErrors, fmt.Errorf("persist restored metadata for %s: %w", id, metadataErr))
 				}
 			}
-			common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
+			if ms.requireOwnership {
+				common.Verbose("Restored owned email: id: %s", id)
+			} else {
+				common.Verbose("Restored email: %s (id: %s)", email.Subject, id)
+			}
 		} else {
 			loadErr := parseErr
 			if loadErr == nil {

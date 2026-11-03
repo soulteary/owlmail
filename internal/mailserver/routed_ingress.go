@@ -100,7 +100,7 @@ func (r *routedIngress) consumeAttempt(kind, namespace, account string, limit in
 	}
 	err := r.options.Control.ConsumeAttempt(ctx, kind, namespace, account, limit, at)
 	if err != nil && !errors.Is(err, mailbox.ErrAttemptQuota) {
-		common.Error("Persist SMTP attempt quota: %v", err)
+		common.Error("Persist SMTP attempt quota failed: class: attempt_quota")
 	}
 	return err == nil
 }
@@ -175,7 +175,7 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 		if errors.As(err, &smtpErr) {
 			return smtpErr
 		}
-		common.Error("Stage routed SMTP DATA: %v", err)
+		common.Error("Stage routed SMTP DATA failed: transaction: %s, class: staging", txID)
 		return routedTemporary()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -261,7 +261,7 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 		// failure is an accepted-but-degraded commit, never permission to roll back
 		// or tell the sender that retrying is safe (same policy as accepted fences).
 		if err = syncDirectory(stage); err != nil {
-			common.Error("Sync routed commit marker directory: %v", err)
+			common.Error("Sync routed commit marker directory failed: transaction: %s, class: commit_sync", txID)
 		}
 		ms.publishRoutedCopies(copies)
 		if err = ms.ingressFault("after-commit", 0); err != nil {
@@ -270,7 +270,7 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 		// A committed journal is only garbage. Recovery must never recreate a
 		// later-deleted copy from it.
 		if err = os.RemoveAll(stage); err != nil {
-			common.Error("Clean committed routed journal: %v", err)
+			common.Error("Clean committed routed journal failed: transaction: %s, class: journal_cleanup", txID)
 		} else {
 			_ = syncDirectory(root)
 		}
@@ -282,10 +282,10 @@ func (ms *MailServer) storeRoutedIncoming(reader io.Reader, s *Session) error {
 			// until startup recovery can establish a clean authoritative state.
 			if cleanupErr := ms.rollbackRoutedJournal(stage); cleanupErr != nil {
 				ms.routedIngress.failed.Store(true)
-				common.Error("Rollback routed transaction: %v", cleanupErr)
+				common.Error("Rollback routed transaction failed: transaction: %s, class: rollback", txID)
 			}
 		}
-		common.Error("Routed SMTP submission failed: %v", err)
+		common.Error("Routed SMTP submission failed: transaction: %s, class: submission", txID)
 		return routedTemporary()
 	}
 	return nil

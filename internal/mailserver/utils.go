@@ -284,6 +284,10 @@ func sanitizeHTML(html string) string {
 // same fallback as any other bad header instead of letting a sender choose a
 // sentinel the storage layer means something else by.
 func parseEmailDate(headers message.Header) time.Time {
+	return parseEmailDateForMode(headers, "", false)
+}
+
+func parseEmailDateForMode(headers message.Header, id string, requireOwnership bool) time.Time {
 	dateStr := headers.Get("Date")
 	if dateStr == "" {
 		return time.Now()
@@ -342,7 +346,11 @@ func parseEmailDate(headers message.Header) time.Time {
 	}
 
 	// If all parsing attempts fail, return current time
-	common.Verbose("Failed to parse email date: %s, using current time", dateStr)
+	if requireOwnership {
+		common.Verbose("Email date fallback: id: %s, class: invalid_date", id)
+	} else {
+		common.Verbose("Failed to parse email date: %s, using current time", dateStr)
+	}
 	return time.Now()
 }
 
