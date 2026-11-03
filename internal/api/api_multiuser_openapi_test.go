@@ -118,6 +118,7 @@ func TestMultiuserActualJSONResponsesMatchContract(t *testing.T) {
 	}
 	for _, test := range []struct{ method, path, template, body string }{
 		{"GET", "/api/v1/settings", "/settings", ""},
+		{"GET", "/api/v1/me/mailbox", "/me/mailbox", ""},
 		{"GET", "/api/v1/settings/outgoing", "/settings/outgoing", ""},
 		{"GET", "/api/v1/relay-jobs", "/relay-jobs", ""},
 		{"GET", "/api/v1/webhook-deliveries", "/webhook-deliveries", ""},

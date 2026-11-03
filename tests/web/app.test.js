@@ -1998,3 +1998,48 @@ test('multiuser account switch clears old data even when the new mailbox returns
     assert.equal(h.run('state.emails.length'), 0);
     assert.equal(h.run('state.currentEmail'), null);
 });
+
+test('personal mailbox status explains safe actions in every supported language', () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run(`
+        const personalStatusNotice = document.createElement('p');
+        const personalStatusLookup = document.getElementById.bind(document);
+        document.getElementById = id => id === 'personalMailboxStatus' ? personalStatusNotice : personalStatusLookup(id);
+    `);
+    const cases = [
+        [{ mailbox_state: 'ready', delivery_state: 'verification_required', history_state: 'none' }, 'mailboxVerifyEmail'],
+        [{ mailbox_state: 'ready', delivery_state: 'conflict', history_state: 'none' }, 'mailboxBindingConflict'],
+        [{ mailbox_state: 'ready', delivery_state: 'bound', history_state: 'retained' }, 'mailboxHistoryRetained'],
+        [{ mailbox_state: 'recovering', delivery_state: 'bound', history_state: 'merging' }, 'mailboxHistoryMerging'],
+        [{ mailbox_state: 'unavailable' }, 'mailboxUnavailable'],
+        [{ mailbox_state: 'ready', delivery_state: 'unbound', history_state: 'none' }, 'mailboxUnbound']
+    ];
+    for (const locale of ['en', 'zh-CN', 'de', 'it', 'fr', 'ko', 'ja']) {
+        for (const [status, key] of cases) {
+            h.run(`currentLang=${JSON.stringify(locale)};personalMailboxStatus=${JSON.stringify(status)};renderPersonalMailboxStatus();`);
+            assert.equal(h.run('personalStatusNotice.hidden'), false);
+            assert.equal(h.run('personalStatusNotice.textContent'), h.run(`i18n[${JSON.stringify(locale)}][${JSON.stringify(key)}]`));
+        }
+    }
+    h.run("personalMailboxStatus={mailbox_state:'ready',delivery_state:'bound',history_state:'none'};renderPersonalMailboxStatus();");
+    assert.equal(h.run('personalStatusNotice.hidden'), true);
+    h.run("personalMailboxStatus={history_state:'retained'};multiuserAuthExpired=true;renderPersonalMailboxStatus();");
+    assert.equal(h.run('personalStatusNotice.hidden'), true);
+    assert.equal(h.run('personalStatusNotice.textContent'), '');
+    h.run('clearPersonalMailboxStatus();');
+    assert.equal(h.run('personalMailboxStatus'), null);
+});
+
+test('personal status refresh is absent in standalone and ignores stale responses', async () => {
+    const standalone = createHarness();
+    await standalone.run('loadPersonalMailboxStatus(0)');
+    assert.equal(standalone.fetchRequests.length, 0);
+    let resolve;
+    const h = createHarness({ multiuserMode: true, fetchImpl: () => new Promise(done => { resolve = done; }) });
+    const loading = h.run('loadPersonalMailboxStatus(0)');
+    h.run('emailListRequestSequence=1;');
+    resolve({ ok: true, status: 200, headers: { get: name => name.toLowerCase() === 'content-type' ? 'application/json' : name.toLowerCase() === 'x-owlmail-identity' ? 'a'.repeat(64) : null }, json: async () => ({ mailbox_state: 'ready', delivery_state: 'bound', history_state: 'retained', action: 'none' }) });
+    await loading;
+    assert.equal(h.run('personalMailboxStatus'), null);
+    assert.equal(new URL(h.fetchRequests[0].url).pathname, '/api/v1/me/mailbox');
+});
