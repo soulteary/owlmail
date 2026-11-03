@@ -340,3 +340,32 @@ test('proxy 403 and successful HTML with a stale identity marker clear all priva
         await expect(page.locator('#sessionExpiredNotice')).toBeHidden();
     }
 });
+
+test('search during an active refresh runs the latest query with automatic refresh off', async ({ page, context }) => {
+    const request = context.request;
+    await identity(context, 'alice', true);
+    await request.delete('/api/v1/emails');
+    await deliver(request, 'alice', 'Queued wanted');
+    await deliver(request, 'alice', 'Other query');
+    await page.goto('/');
+    await expect(page.locator('.email-item')).toHaveCount(2);
+    await page.getByRole('button', { name: 'Auto refresh: on' }).click();
+    await context.addCookies([{name:'fixture-delay-ms',value:'500',url:'http://127.0.0.1:21180/'}]);
+    const requests = [];
+    let active = 0, maximum = 0;
+    page.on('request', r => { if (r.url().includes('/emails/preview')) {requests.push(r.url()); maximum=Math.max(maximum,++active);} });
+    page.on('requestfinished', r => {if(r.url().includes('/emails/preview'))active--;});
+    const started = page.waitForRequest(r => r.url().includes('/emails/preview'));
+    await page.getByRole('button', {name:'Refresh',exact:true}).click();
+    await started;
+    await page.locator('#searchInput').fill('missing');
+    await page.locator('#searchInput').press('Enter');
+    await page.locator('#searchInput').fill('wanted');
+    await page.locator('#searchInput').press('Enter');
+    await expect(page.locator('.email-item')).toHaveCount(1);
+    await expect(page.locator('.email-item')).toContainText('Queued wanted');
+    expect(requests).toHaveLength(2);
+    expect(requests.at(-1)).toContain('wanted');
+    expect(maximum).toBe(1);
+    await expect(page.getByRole('button',{name:'Auto refresh: off'})).toBeVisible();
+});
