@@ -155,6 +155,7 @@ func TestMailDevRESTFacadeContractAndReadSideEffect(t *testing.T) {
 	}
 
 	resp = compatRequest(t, api, http.MethodGet, "/api/email/mail-1/html", nil, "")
+	assertEmailHTMLPolicy(t, resp)
 	assertContentType(t, resp, "text/html")
 	htmlBody, _ := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()

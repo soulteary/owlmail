@@ -61,7 +61,7 @@ func (api *API) getEmailHTML(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusNotFound).JSON(ErrorResponse(ErrorCodeEmailNotFound, "Email not found"))
 	}
-	c.Set("Content-Type", "text/html; charset=utf-8")
+	setEmailHTMLResponseHeaders(c)
 	return c.SendString(html)
 }
 

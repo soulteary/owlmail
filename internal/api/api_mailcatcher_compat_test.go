@@ -126,6 +126,7 @@ func TestMailCatcherRESTFacadeContract(t *testing.T) {
 	}
 
 	resp = mailCatcherRequest(t, api, http.MethodGet, "/messages/mail-1.html")
+	assertEmailHTMLPolicy(t, resp)
 	htmlBody, err := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 	if err != nil || !strings.Contains(string(htmlBody), url.PathEscape("folder/logo?theme#1@example.test")) {
