@@ -96,3 +96,9 @@ a persisted `pageshow` clears the view and reloads the document. The regression
 suite uses real browser requests with intercepted proxy-style responses; its
 persisted-page test dispatches the lifecycle event and does not certify that a
 particular browser actually admitted the document into its back-forward cache.
+
+A proxy `403` without the protected server identity marker also expires the
+multiuser view. A same-identity authenticated `403` remains an operation error.
+Successful JSON API responses must have the `application/json` media type even
+when a login page incorrectly retains an identity header. Raw mail source keeps
+its explicit text format; standalone response and error behavior is preserved.

@@ -2075,3 +2075,31 @@ test('any authentication expiry clears the previous personal mailbox notice', as
     assert.equal(h.run('expiredStatusNotice.hidden'), true);
     assert.equal(h.run('expiredStatusNotice.textContent'), '');
 });
+
+test('multiuser proxy denial and non-JSON success clear private state despite stale identity headers', async () => {
+    for (const response of [
+        { status: 403, ok: false, marker: null, type: 'text/html' },
+        { status: 200, ok: true, marker: 'alice-marker', type: 'text/html' }
+    ]) {
+        const h = createHarness({ multiuserMode: true });
+        h.run("multiuserResponseIdentity='alice-marker';state.emails=[{id:'private'}];state.currentEmail={id:'private'};personalMailboxStatus={history_state:'retained'};");
+        const input = JSON.stringify(response);
+        await assert.rejects(h.run(`handleAPIResponse((r=>({...r,headers:{get:n=>n==='x-owlmail-identity'?r.marker:r.type}}))(${input}))`), /expired/);
+        assert.equal(h.run('state.emails.length'), 0);
+        assert.equal(h.run('state.currentEmail'), null);
+        assert.equal(h.run('personalMailboxStatus'), null);
+        assert.equal(h.run('multiuserAuthExpired'), true);
+    }
+});
+
+test('same-identity operation denial and authorized raw source preserve the session', async () => {
+    const h = createHarness({ multiuserMode: true });
+    h.run("multiuserResponseIdentity='alice-marker';state.emails=[{id:'private'}]");
+    await assert.rejects(h.run(`handleAPIResponse({status:403,ok:false,headers:{get:n=>n==='x-owlmail-identity'?'alice-marker':'application/json'},json:async()=>({message:'Operation denied'})})`), /Operation denied/);
+    assert.equal(h.run('multiuserAuthExpired'), false);
+    assert.equal(h.run('state.emails.length'), 1);
+    h.run("validateMultiuserResponse({status:200,ok:true,headers:{get:n=>n==='x-owlmail-identity'?'alice-marker':'text/plain'}})");
+    assert.equal(h.run('multiuserAuthExpired'), false);
+    const standalone = createHarness();
+    assert.equal(await standalone.run("handleAPIResponse({ok:true,headers:{get:()=> 'text/plain'},text:async()=> 'original text'})"), 'original text');
+});

@@ -1401,11 +1401,12 @@ async function notifyBrowserForEmail(email) {
 }
 
 // Validate every protected response, including raw source and inspection calls.
-function validateMultiuserResponse(response) {
+function validateMultiuserResponse(response, expectsJSON = false) {
     if (!MULTIUSER_MODE) return;
     const identity = response.headers.get('x-owlmail-identity');
-    if (multiuserAuthExpired || response.status === 401 || response.redirected ||
-        (response.ok && !identity) ||
+    const mediaType = (response.headers.get('content-type') || '').split(';', 1)[0].trim().toLowerCase();
+    if (multiuserAuthExpired || response.status === 401 || (response.status === 403 && !identity) || response.redirected ||
+        (response.ok && (!identity || (expectsJSON && mediaType !== 'application/json'))) ||
         (identity && multiuserResponseIdentity && identity !== multiuserResponseIdentity)) {
         multiuserAuthExpired = true;
         if (typeof clearPersonalMailboxStatus === 'function') clearPersonalMailboxStatus();
@@ -1427,7 +1428,7 @@ function validateMultiuserResponse(response) {
 
 // Helper function to handle API errors
 async function handleAPIResponse(response) {
-    validateMultiuserResponse(response);
+    validateMultiuserResponse(response, true);
     if (MULTIUSER_MODE) {
         if (response.ok) multiuserPollFailures = 0;
         else multiuserPollFailures = Math.min(multiuserPollFailures + 1, 4);
@@ -2968,7 +2969,7 @@ function updateEmailInspectionDisplay(tools) {
 }
 async function emailToolRequest(path, options) {
     const response = await fetch(`${API_BASE}${path}`, options);
-    validateMultiuserResponse(response);
+    validateMultiuserResponse(response, true);
     if (!response.ok) throw new Error(parseAPIError(await response.text()));
     return response.json();
 }
