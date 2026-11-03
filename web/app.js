@@ -12,6 +12,8 @@ let multiuserResponseIdentity = null;
 // Internationalization (i18n)
 const i18n = {
     'zh-CN': {
+        autoRefreshOn: '自动刷新：开',
+        autoRefreshOff: '自动刷新：关',
         title: 'OwlMail - 邮件开发测试工具',
         refresh: '刷新',
         markAllRead: '标记全部已读',
@@ -105,6 +107,8 @@ const i18n = {
         'CONFIG_UPDATED': '配置已更新'
     },
     'en': {
+        autoRefreshOn: 'Auto refresh: on',
+        autoRefreshOff: 'Auto refresh: off',
         title: 'OwlMail - Email Development Testing Tool',
         refresh: 'Refresh',
         markAllRead: 'Mark All Read',
@@ -225,6 +229,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration updated'
     },
     'de': {
+        autoRefreshOn: 'Automatisch aktualisieren: ein',
+        autoRefreshOff: 'Automatisch aktualisieren: aus',
         title: 'OwlMail - E-Mail-Entwicklungstest-Tool',
         refresh: 'Aktualisieren',
         markAllRead: 'Alle als gelesen markieren',
@@ -307,6 +313,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Konfiguration aktualisiert'
     },
     'it': {
+        autoRefreshOn: 'Aggiornamento automatico: attivo',
+        autoRefreshOff: 'Aggiornamento automatico: disattivato',
         title: 'OwlMail - Strumento di Test per lo Sviluppo Email',
         refresh: 'Aggiorna',
         markAllRead: 'Segna Tutto come Letto',
@@ -389,6 +397,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configurazione aggiornata'
     },
     'fr': {
+        autoRefreshOn: 'Actualisation automatique : activée',
+        autoRefreshOff: 'Actualisation automatique : désactivée',
         title: 'OwlMail - Outil de Test de Développement Email',
         refresh: 'Actualiser',
         markAllRead: 'Tout Marquer comme Lu',
@@ -471,6 +481,8 @@ const i18n = {
         'CONFIG_UPDATED': 'Configuration mise à jour'
     },
     'ko': {
+        autoRefreshOn: '자동 새로고침: 켜짐',
+        autoRefreshOff: '자동 새로고침: 꺼짐',
         title: 'OwlMail - 이메일 개발 테스트 도구',
         refresh: '새로고침',
         markAllRead: '모두 읽음으로 표시',
@@ -553,6 +565,8 @@ const i18n = {
         'CONFIG_UPDATED': '설정이 업데이트되었습니다'
     },
     'ja': {
+        autoRefreshOn: '自動更新：オン',
+        autoRefreshOff: '自動更新：オフ',
         title: 'OwlMail - メール開発テストツール',
         refresh: '更新',
         markAllRead: 'すべて既読にする',
@@ -855,6 +869,7 @@ function setLanguage(lang, renderDynamic = true) {
     writePreference('language', lang);
     document.documentElement.lang = lang;
     updateUI(renderDynamic);
+    updateAutoRefreshLabel();
     if (browserNotificationsInitialized) updateBrowserNotificationButton();
     renderPersonalMailboxStatus();
 }
@@ -3253,6 +3268,11 @@ function exportMailbox(selected) {
 }
 
 
+function updateAutoRefreshLabel() {
+    const toggle = document.getElementById('autoRefreshToggle');
+    if (toggle) toggle.textContent = t(multiuserPollingEnabled ? 'autoRefreshOn' : 'autoRefreshOff');
+}
+
 function startMultiuserPolling() {
     if (!MULTIUSER_MODE) return;
     const refreshButton = document.getElementById('refreshBtn');
@@ -3261,11 +3281,11 @@ function startMultiuserPolling() {
         toggle.id = 'autoRefreshToggle';
         toggle.className = 'btn btn-secondary';
         toggle.type = 'button';
-        toggle.textContent = 'Auto refresh: on';
+        toggle.textContent = t('autoRefreshOn');
         toggle.setAttribute('aria-pressed', 'true');
         toggle.addEventListener('click', () => {
             multiuserPollingEnabled = !multiuserPollingEnabled;
-            toggle.textContent = multiuserPollingEnabled ? 'Auto refresh: on' : 'Auto refresh: off';
+            updateAutoRefreshLabel();
             toggle.setAttribute('aria-pressed', String(multiuserPollingEnabled));
             if (multiuserPollTimer !== null) clearTimeout(multiuserPollTimer);
             multiuserPollTimer = null;
