@@ -104,6 +104,7 @@ func (api *API) setupMultiuserRoutes() {
 	app.Get(api.route("/api/v1/openapi.json"), api.getOpenAPIJSON)
 	app.Get(api.route("/api/v1/openapi.yaml"), api.getOpenAPIYAML)
 	app.Get(api.route("/api/v1/settings"), settings)
+	app.Get(api.route("/api/v1/me/mailbox"), api.multiMailboxStatus)
 	app.Get(api.route("/api/v1/settings/outgoing"), func(c fiber.Ctx) error { return c.JSON(fiber.Map{"enabled": false}) })
 	app.Get(api.route("/api/v1/relay-jobs"), func(c fiber.Ctx) error { return c.JSON(fiber.Map{"jobs": []any{}, "more_possible": false}) })
 	app.Get(api.route("/api/v1/webhook-deliveries"), func(c fiber.Ctx) error {
