@@ -30,7 +30,7 @@ import (
 
 // API represents the REST API server
 type API struct {
-	multiuserClaims sync.Map
+	multiuserClaims claimCache
 
 	multiuser *MultiuserOptions
 
