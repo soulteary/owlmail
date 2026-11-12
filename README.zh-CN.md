@@ -254,7 +254,7 @@ Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览�
 
 从 [Releases](https://github.com/soulteary/owlmail/releases)下载适合平台的二进制，将文件重命名为 `owlmail`，Unix 平台执行 `chmod +x owlmail`。本文的 `./owlmail` 表示这个下载或本地构建的文件。
 
-也可以使用 Go 1.27.3+ 安装此版本：
+也可以使用 Go 1.27.4+ 安装此版本：
 
 ```bash
 go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
