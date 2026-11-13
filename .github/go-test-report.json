@@ -1,24 +1,24 @@
 {
   "schema_version": "1.0",
   "tests": {
-    "total": 1058,
-    "passed": 1055,
+    "total": 1110,
+    "passed": 1107,
     "failed": 0,
     "skipped": 3
   },
   "coverage": {
-    "covered_statements": 11240,
-    "total_statements": 14161,
-    "percentage": 79.37,
+    "covered_statements": 11687,
+    "total_statements": 14644,
+    "percentage": 79.81,
     "threshold": 0
   },
   "packages": [
     {
       "name": "cmd/owlmail",
       "status": "pass",
-      "tests": 93,
+      "tests": 97,
       "failed": 0,
-      "coverage": 69.17
+      "coverage": 69.9
     },
     {
       "name": "examples/faults",
@@ -44,9 +44,9 @@
     {
       "name": "internal/api",
       "status": "pass",
-      "tests": 261,
+      "tests": 269,
       "failed": 0,
-      "coverage": 87.98
+      "coverage": 88.18
     },
     {
       "name": "internal/attachmentstore",
@@ -86,9 +86,9 @@
     {
       "name": "internal/mailbox",
       "status": "pass",
-      "tests": 26,
+      "tests": 54,
       "failed": 0,
-      "coverage": 75.73
+      "coverage": 79.53
     },
     {
       "name": "internal/maildev",
@@ -107,16 +107,16 @@
     {
       "name": "internal/mailserver",
       "status": "pass",
-      "tests": 329,
+      "tests": 341,
       "failed": 0,
-      "coverage": 78.85
+      "coverage": 79.38
     },
     {
       "name": "internal/mcpserver",
       "status": "pass",
       "tests": 19,
       "failed": 0,
-      "coverage": 83.49
+      "coverage": 83.69
     },
     {
       "name": "internal/outgoing",
@@ -165,7 +165,7 @@
       "status": "pass",
       "tests": 1,
       "failed": 0,
-      "coverage": 95
+      "coverage": 95.12
     },
     {
       "name": "scripts/license-bundle",
