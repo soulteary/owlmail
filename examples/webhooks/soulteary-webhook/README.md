@@ -1,19 +1,19 @@
 # OwlMail + `soulteary/webhook`
 
-Version-pinned commands target 0.14.0; use them after the release workflow makes artifacts available. See the [release notes](../../../docs/en/Release-0.14.0.md).
+Version-pinned commands target 0.15.0; use them after the release workflow makes artifacts available. See the [release notes](../../../docs/en/Release-0.15.0.md).
 
 This runnable example sends each new OwlMail message to
 [`soulteary/webhook`](https://github.com/soulteary/webhook), verifies the exact
 request body with HMAC-SHA256, maps JSON fields into command environment
 variables, and runs `print-email.sh`.
 
-The Compose demo intentionally pins both released components: OwlMail `0.14.0`
+The Compose demo intentionally pins both released components: OwlMail `0.15.0`
 and WebHook `runner-7.3.4`. This keeps the example reproducible instead of rebuilding
 OwlMail from a moving `main` branch.
 
 The `runner` variant is required: the hook executes `/bin/sh` through `print-email.sh`, and its healthcheck uses BusyBox `wget`. The unprefixed/core 7.3.4 image has neither shell nor wget. Both mounted files must remain readable, and `print-email.sh` executable, by UID/GID 65532.
 
-Upgrading an existing demo keeps the same HMAC secret, hook mapping and loopback ports. Stop the old stack before recreating it. If a mail volume was added, back it up completely before the OwlMail 0.13 upgrade and read the [durable Relay upgrade/rollback notes](../../../docs/en/Release-0.14.0.md#upgrade-compatibility-and-rollback). Outbound delivery remains at least once.
+Upgrading an existing demo keeps the same HMAC secret, hook mapping and loopback ports. Stop the old stack before recreating it. If a mail volume was added, back it up completely before the OwlMail 0.13 upgrade and read the [durable Relay upgrade/rollback notes](../../../docs/en/Release-0.15.0.md#upgrade-compatibility-and-rollback). Outbound delivery remains at least once.
 
 ## Files
 

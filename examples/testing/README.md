@@ -1,6 +1,6 @@
 # Integration testing examples
 
-Version-pinned commands target 0.14.0; use them after the release workflow makes artifacts available. See the [release notes](../../docs/en/Release-0.14.0.md).
+Version-pinned commands target 0.15.0; use them after the release workflow makes artifacts available. See the [release notes](../../docs/en/Release-0.15.0.md).
 
 These dependency-free examples send one uniquely addressed SMTP message, poll
 the OwlMail native v1 API with a bounded deadline, assert its content, and
@@ -12,7 +12,7 @@ delete only that message.
 docker compose -f examples/testing/compose.yaml up -d --wait
 ```
 
-The Compose profile pins OwlMail 0.14.0 and publishes both ports on loopback.
+The Compose profile pins OwlMail 0.15.0 and publishes both ports on loopback.
 For exact CI reproducibility, replace the image tag with the release manifest
 digest.
 

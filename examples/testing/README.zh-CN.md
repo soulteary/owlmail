@@ -1,6 +1,6 @@
 # 集成测试示例
 
-固定版本命令面向 0.14.0，请在发布工作流提供制品后使用，见[发布说明](../../docs/zh-CN/Release-0.14.0.md)。
+固定版本命令面向 0.15.0，请在发布工作流提供制品后使用，见[发布说明](../../docs/zh-CN/Release-0.15.0.md)。
 
 这些零依赖示例会发送一封使用唯一收件人的 SMTP 邮件，在有界截止时间内轮询
 OwlMail 原生 v1 API，断言内容，并且只删除这一封邮件。
@@ -11,7 +11,7 @@ OwlMail 原生 v1 API，断言内容，并且只删除这一封邮件。
 docker compose -f examples/testing/compose.yaml up -d --wait
 ```
 
-Compose 固定 OwlMail 0.14.0，并只在 loopback 发布两个端口。需要严格可复现的 CI
+Compose 固定 OwlMail 0.15.0，并只在 loopback 发布两个端口。需要严格可复现的 CI
 应把镜像标签替换为发布 manifest digest。
 
 ## 运行示例

@@ -10,6 +10,7 @@ Nous fournissons actuellement des mises à jour de sécurité pour les versions 
 
 | Version | Prise en charge |
 |---------|-----------------|
+| 0.15.x | ✅ Oui |
 | 0.14.x (Alpha) | Preview; multiuser gate CLOSED |
 | 0.13.x | ✅ Oui |
 | 0.12.x | ✅ Oui |
