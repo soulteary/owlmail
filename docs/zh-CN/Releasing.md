@@ -1,7 +1,7 @@
 # 发布流程
 
 本文面向 OwlMail 维护者。每个发布版本由签名或附注的语义化版本标签标识，例如
-`v0.14.0`。GitHub Release 二进制与容器镜像必须从同一个标签构建。
+`v0.15.0`。GitHub Release 二进制与容器镜像必须从同一个标签构建。
 
 ## 事实来源
 
@@ -32,7 +32,7 @@
 - [ ] 多架构 Docker 构建成功。
 - [ ] 使用持久数据进行升级冒烟测试前，已备份完整邮件目录。
 
-对于 0.14.0，还需要确认浏览器 `Origin` 校验在 Web、API、WebSocket 与 MCP 各界面
+对于 0.15.0，还需要确认浏览器 `Origin` 校验在 Web、API、WebSocket 与 MCP 各界面
 上都经过验证（包括文档化的 `*` 关闭开关），SMTPS 监听无法绑定的配置会直接启动失败
 而不是静默继续，模糊测试种子语料可干净重放，并且所有当前版本示例均由 `VERSION`
 派生或已在打标签前完成更新。
@@ -41,7 +41,7 @@
 
 更新本地 `main`，记录准确提交，然后创建一个附注标签：
 
-下方以 `v0.14.0` 演示命令语法；执行前应确认所选版本尚未发布，且 `VERSION`
+下方以 `v0.15.0` 演示命令语法；执行前应确认所选版本尚未发布，且 `VERSION`
 与中英文发布说明一致。
 
 ```bash
@@ -49,8 +49,8 @@ git switch main
 git pull --ff-only
 git status --short
 git rev-parse HEAD
-git tag -a v0.14.0 -m "OwlMail v0.14.0"
-git push origin v0.14.0
+git tag -a v0.15.0 -m "OwlMail v0.15.0"
+git push origin v0.15.0
 ```
 
 不要移动或复用已经发布的标签。如需修正，应创建新的补丁版本。
@@ -59,7 +59,7 @@ git push origin v0.14.0
 上执行，使 OIDC 身份与标签绑定：
 
 ```bash
-gh workflow run release.yml --ref v0.14.0 -f version=v0.14.0
+gh workflow run release.yml --ref v0.15.0 -f version=v0.15.0
 ```
 
 工作流会拒绝引用和请求版本不一致的手动运行，然后检出该标签再构建。发布文件
@@ -145,18 +145,18 @@ curl --fail http://localhost:11080/api/v1/version
 
 ## 验证容器发布
 
-稳定版 `v0.14.0` 的发布工作流完成后，检查精确镜像标签 `0.14.0`、两个目标架构及适用的稳定别名 `0.14`、`0`、`latest` 是否指向发布摘要。`v0.14.0-alpha.1` 等预发布不能移动稳定别名。`main` 与 `sha-*` 仍为开发快照。
+稳定版 `v0.15.0` 的发布工作流完成后，检查精确镜像标签 `0.15.0`、两个目标架构及适用的稳定别名 `0.15`、`0`、`latest` 是否指向发布摘要。`v0.14.0-alpha.1` 等预发布不能移动稳定别名。`main` 与 `sha-*` 仍为开发快照。
 
 ```bash
-docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.14.0
+docker buildx imagetools inspect ghcr.io/soulteary/owlmail:0.15.0
 cosign verify \
   --certificate-identity-regexp '^https://github.com/soulteary/owlmail/.github/workflows/release.yml@refs/tags/v' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/soulteary/owlmail:0.14.0
+  ghcr.io/soulteary/owlmail:0.15.0
 docker run --rm \
   -p 127.0.0.1:11025:1025 \
   -p 127.0.0.1:11080:1080 \
-  ghcr.io/soulteary/owlmail:0.14.0
+  ghcr.io/soulteary/owlmail:0.15.0
 ```
 
 确认清单包含 `linux/amd64` 与 `linux/arm64`，再对容器重复健康、版本和 SMTP
@@ -165,13 +165,13 @@ provenance、Cosign 签名，以及明确的 OCI 来源、修订、版本和 MIT
 
 ## 发布后检查
 
-- [ ] 仅在获准发布后，GitHub 才将 `v0.14.0` 标记为稳定版；预发布保持独立。
+- [ ] 仅在获准发布后，GitHub 才将 `v0.15.0` 标记为稳定版；预发布保持独立。
 - [ ] 策划版说明显示在自动生成的 PR 列表之前。
 - [ ] 所有二进制、SBOM、校验和、签名包与 GitHub Attestation 均可下载或发现，
   并通过校验。
 - [ ] 容器版本标签和移动标签指向预期清单。
 - [ ] 已记录正式多架构清单的 digest，供精确部署使用。
 - [ ] 发布镜像的 Cosign 签名与 OCI Attestation 通过验证。
-- [ ] 使用文档要求的 Go 版本执行 `@v0.14.0` 安装成功。
+- [ ] 使用文档要求的 Go 版本执行 `@v0.15.0` 安装成功。
 - [ ] README 与发布说明中的安装命令均可解析。
 - [ ] 所有发布失败或已知限制均已补充到发布正文与变更日志。

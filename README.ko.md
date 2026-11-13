@@ -1,6 +1,6 @@
 # OwlMail
 
-> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
+> OwlMail 0.15.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 > 🦉 개발자, CI 파이프라인, 자동화 및 코딩 Agent를 위한 셀프 호스팅 AI 네이티브 이메일 테스트 게이트웨이.
@@ -59,9 +59,9 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
   [sendmail 가이드](./docs/ko/Sendmail.md)를 사용할 수 있습니다. 소스 및 브라우저
   테스트는 Bun을 사용하지만 배포 바이너리에는 런타임이 필요하지 않습니다.
 
-## OwlMail 0.14.0
+## OwlMail 0.15.0
 
-`v0.14.0`은 독립 실행을 지원합니다. 커서 기반 전달 테스트, 본문 및 첨부 검증, 전달 기록과 확인 후 재시도, 명령 팔레트, 오프라인 진단, 설정을 반영하는 상태 검사와 SMTP-only를 제공합니다. [0.14.0 릴리스 노트](./docs/en/Release-0.14.0.md) · [이전 버전 0.13.0](./docs/en/Release-0.13.0.md).
+`v0.15.0`은 독립 실행을 지원합니다. 커서 기반 전달 테스트, 본문 및 첨부 검증, 전달 기록과 확인 후 재시도, 명령 팔레트, 오프라인 진단, 설정을 반영하는 상태 검사와 SMTP-only를 제공합니다. [0.15.0 릴리스 노트](./docs/en/Release-0.15.0.md) · [이전 버전 0.14.0](./docs/en/Release-0.14.0.md).
 
 > [!IMPORTANT]
 > OwlMail은 개발, 테스트, CI 및 신뢰할 수 있는 내부 네트워크용입니다. 공개 운영
@@ -75,7 +75,7 @@ OwlMail은 애플리케이션 이메일이 실제 받은 편지함에 도착하�
 
 ```bash
 # Clone repository
-git clone --branch v0.14.0 --depth 1 https://github.com/soulteary/owlmail.git
+git clone --branch v0.15.0 --depth 1 https://github.com/soulteary/owlmail.git
 cd owlmail
 
 # Build
@@ -88,7 +88,7 @@ go build -o owlmail ./cmd/owlmail
 #### Install with Go
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.15.0
 owlmail
 ```
 
@@ -129,8 +129,8 @@ export MAILDEV_WEB_PORT=1080
 OwlMail을 사용하는 가장 쉬운 방법은 GitHub Container Registry에서 사전 빌드된 이미지를 가져오는 것입니다:
 
 ```bash
-# 0.14.0 릴리스 가져오기
-docker pull ghcr.io/soulteary/owlmail:0.14.0
+# 0.15.0 릴리스 가져오기
+docker pull ghcr.io/soulteary/owlmail:0.15.0
 
 # 정확한 커밋 이미지 가져오기 (예시)
 docker pull ghcr.io/soulteary/owlmail:sha-8d3445d
@@ -141,11 +141,11 @@ docker run -d \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
   --name owlmail \
-  ghcr.io/soulteary/owlmail:0.14.0
+  ghcr.io/soulteary/owlmail:0.15.0
 ```
 
 **사용 가능한 태그:**
-- `0.14.0` — exact release version. The successful stable release workflow also maintains eligible `0.14`, `0`, and `latest` aliases.
+- `0.15.0` — exact release version. The successful stable release workflow also maintains eligible `0.15`, `0`, and `latest` aliases.
 - `sha-<commit>` - 특정 짧은 커밋 SHA의 이미지(예: `sha-8d3445d`)
 - `main` - 최신 `main` 빌드를 가리키는 이동 태그
 - `latest` - 최신 안정 릴리스를 가리키는 이동 별칭이며 `main` 빌드로 갱신되지 않음
@@ -196,11 +196,11 @@ docker buildx build \
 
 ## 📖 Configuration Options
 
-이 표는 `-disable-web`을 포함한 OwlMail 0.14.0의 설정입니다. [버전 선택](./README.md#choose-a-version)과 [설정 참조](./docs/en/Configuration-Reference.md)를 확인하세요.
+이 표는 `-disable-web`을 포함한 OwlMail 0.15.0의 설정입니다. [버전 선택](./README.md#choose-a-version)과 [설정 참조](./docs/en/Configuration-Reference.md)를 확인하세요.
 
 ### Command Line Arguments
 
-OwlMail 0.14.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
+OwlMail 0.15.0: `-smtp 0` and `-web 0` select OS-assigned ports; `-smtps-port 0` still disables SMTPS. See the [operations guide](docs/en/Operations.md#os-selected-ports-for-parallel-tests) for discovery and probes.
 
 | Argument | Environment Variable | Default | Description |
 |----------|---------------------|---------|-------------|
@@ -712,7 +712,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📚 Related Documentation
 
-- [OwlMail 0.14.0 릴리스 노트](./docs/en/Release-0.14.0.md) ([中文](./docs/zh-CN/Release-0.14.0.md))
+- [OwlMail 0.15.0 릴리스 노트](./docs/en/Release-0.15.0.md) ([中文](./docs/zh-CN/Release-0.15.0.md))
 - [통합 테스트, CI 및 AI Agent](./docs/en/Integration-Testing.md) ([中文](./docs/zh-CN/Integration-Testing.md))
 - [MCP 참조](./docs/en/MCP-Reference.md), [아키텍처](./docs/en/Architecture.md), [보안 모델](./docs/en/Security-Model.md)
 - [실행 가능한 테스트 예제](./examples/testing/README.md)
@@ -737,4 +737,4 @@ If this project helps you, please give it a Star ⭐!
 
 **OwlMail** — 개발, CI, 자동화 및 AI Agent를 위한 셀프 호스팅 이메일 테스트 게이트웨이. 🦉
 
-Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).
+Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).

@@ -1,17 +1,17 @@
 # OwlMail + `soulteary/webhook`
 
-固定版本命令面向 0.14.0，请在发布工作流提供制品后使用，见[发布说明](../../../docs/zh-CN/Release-0.14.0.md)。
+固定版本命令面向 0.15.0，请在发布工作流提供制品后使用，见[发布说明](../../../docs/zh-CN/Release-0.15.0.md)。
 
 这个可运行示例会把 OwlMail 新邮件发送到
 [`soulteary/webhook`](https://github.com/soulteary/webhook)，使用 HMAC-SHA256
 校验完整请求体，把 JSON 字段映射为命令环境变量，并执行 `print-email.sh`。
 
-Compose 示例固定使用已经发布的 OwlMail `0.14.0` 和 WebHook `runner-7.3.4`，避免从
+Compose 示例固定使用已经发布的 OwlMail `0.15.0` 和 WebHook `runner-7.3.4`，避免从
 持续变化的 `main` 分支重新构建 OwlMail，使示例更容易复现和长期维护。
 
 本例必须使用 `runner` 变体：`print-email.sh` 需要 `/bin/sh`，健康检查需要 BusyBox `wget`；无前缀/core 7.3.4 不含这些程序。挂载文件须可被 UID/GID 65532 读取，`print-email.sh` 须保留执行权限。
 
-升级既有 demo 时保留同一 HMAC 密钥、字段映射和 loopback 端口，先停旧栈再重建。若添加了邮件卷，升级 OwlMail 0.13 前备份完整目录，并阅读[持久 Relay 升级与回退说明](../../../docs/zh-CN/Release-0.14.0.md)；出站投递仍是至少一次。
+升级既有 demo 时保留同一 HMAC 密钥、字段映射和 loopback 端口，先停旧栈再重建。若添加了邮件卷，升级 OwlMail 0.13 前备份完整目录，并阅读[持久 Relay 升级与回退说明](../../../docs/zh-CN/Release-0.15.0.md)；出站投递仍是至少一次。
 
 ## 文件说明
 

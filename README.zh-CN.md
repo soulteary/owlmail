@@ -1,6 +1,6 @@
 # OwlMail
 
-> OwlMail 0.14.0 默认支持单机运行。正常二进制保留多人启动门禁，正常二进制和容器镜像不包含测试 fixture 可执行入口；制品可用性和核验结果以发布工作流为准。
+> OwlMail 0.15.0 默认支持单机运行。正常二进制保留多人启动门禁，正常二进制和容器镜像不包含测试 fixture 可执行入口；制品可用性和核验结果以发布工作流为准。
 
 
 在本地捕获应用邮件，检查内容、链接与附件，并在 CI 和 AI Agent 中验证发信流程。
@@ -33,12 +33,12 @@ OwlMail 以一个内嵌 Web 界面的 Go 可执行文件运行，提供 Docker �
 
 ## 选择版本
 
-下面的 Docker 快速开始使用 **0.14.0**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
+下面的 Docker 快速开始使用 **0.15.0**，可以直接体验邮件捕获、浏览器验证、cursor 测试、只读 MCP 和投递诊断。
 
-下文的完整工作流均已包含在 **0.14.0**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.14.0 发布说明](docs/zh-CN/Release-0.14.0.md)和[上一版 0.13.0](docs/zh-CN/Release-0.13.0.md)。
+下文的完整工作流均已包含在 **0.15.0**。固定 CI 环境使用明确的发布版本或镜像 digest；`main` 是移动的开发标签；`latest` 跟随最新稳定版本。参见 [0.15.0 发布说明](docs/zh-CN/Release-0.15.0.md)和[上一版 0.14.0](docs/zh-CN/Release-0.14.0.md)。
 
 
-0.14.0 保留独立收件箱基础设施及其门禁，正常二进制的多人模式仍关闭；单机保留现有 Relay、Reply-To、MIME/CID 与随机端口；配置方式见[随机端口与地址发现](docs/en/Operations.md#os-selected-ports-for-parallel-tests)。
+0.15.0 在直接打开邮件 HTML 视图时阻止远程资源，要求 Go 1.27.4 并更新 Fiber 至 v3.7.0；正常二进制的多人模式仍关闭，单机保留现有 Relay、Reply-To、MIME/CID 与随机端口；配置方式见[随机端口与地址发现](docs/en/Operations.md#os-selected-ports-for-parallel-tests)。
 
 ## 快速开始：收到第一封邮件
 
@@ -49,7 +49,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.14.0
+  ghcr.io/soulteary/owlmail:0.15.0
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -257,7 +257,7 @@ Agent 可以返回注册邮件是否到达、正文中的验证链接及浏览�
 也可以使用 Go 1.27.4+ 安装此版本：
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.15.0
 owlmail -mail-directory ./mail
 ```
 
@@ -332,7 +332,7 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 ## 文档与反馈
 
-- [0.14.0 发布说明](docs/zh-CN/Release-0.14.0.md) · [上一版 0.13.0 发布说明](docs/zh-CN/Release-0.13.0.md)
+- [0.15.0 发布说明](docs/zh-CN/Release-0.15.0.md) · [上一版 0.14.0 发布说明](docs/zh-CN/Release-0.14.0.md)
 - [集成测试](docs/zh-CN/Integration-Testing.md) · [Sendmail 兼容 CLI](docs/zh-CN/Sendmail.md)
 - [配置参考](docs/zh-CN/Configuration-Reference.md)
 - [API 与 OpenAPI](docs/zh-CN/API-Reference.md)
@@ -347,4 +347,4 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 
 [MIT](LICENSE)。感谢 [MailDev](https://github.com/maildev/maildev) 的启发，以及 Go SMTP / MIME、Fiber 和 WebSocket 等上游项目。
 
-Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).
+Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).

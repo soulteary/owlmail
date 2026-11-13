@@ -6,6 +6,47 @@ All notable changes to OwlMail are documented in this file. The format follows
 
 ## [Unreleased]
 
+## [0.15.0] - 2026-11-13
+
+### Added
+
+- Add `GET /api/v1/me/mailbox` to the multiuser API and a translated inbox notice that explain why a personal inbox is empty: an unverified email, a conflicting address route, or older mail retained under `explicit-history`. The status returns no addresses, owner IDs or message counts, and control-store failures return 503.
+- Add the offline `recipient-route` command to inspect, block, reassign and resume future recipient routing. Applying a change requires the expected route revision, a reason, a stopped-writer declaration and the exact plan token, and records operator audit evidence in the same transaction. It adds no listener or online admin route, and does not create identities, change mailbox owners or move history.
+
+### Security
+
+- Block remote images and styles when an email's HTML API URL is opened directly, in the standalone, multiuser, MailDev and MailCatcher HTML views. Links open without an opener or referrer, CID attachment links still download, and the preview's explicit remote-content opt-in is unchanged.
+- Keep message subjects and supplied content out of diagnostics when the server requires mailbox ownership: restore, deletion, invalid Date/MIME and routed SMTP errors log internal IDs and failure classifications only. Standalone logging is unchanged.
+
+### Fixed
+
+- Refuse a second control-store writer: every writable open holds an exclusive lock on a persistent `<database>.writer-lock` sidecar until close. Read-only inspection takes no lock. Earlier binaries and raw SQL do not honor the lock and must still be stopped before upgrades or offline changes.
+- Encode control database paths as SQLite file URIs so path punctuation is not read as DSN query syntax and Windows drive paths open as absolute paths.
+- Reject proxy login redirects, protected responses without the server identity marker, markerless 403 responses and non-JSON successful API responses in the multiuser UI. The private list, detail and status notice are cleared, polling stops, and the Refresh button becomes an explicit localized login reload. Same-identity 403 responses remain operation errors.
+- Keep the latest search, filter or pagination change made during an active multiuser mailbox refresh instead of dropping it or rendering the previous response under the new query.
+- Add 0–1500 ms of jitter to scheduled multiuser polling and failure backoff; manual refresh and standalone polling are unchanged.
+- Translate the multiuser automatic-refresh control in all seven languages and keep its toggle state when the language changes.
+- Limit the multiuser claim cache to 4,096 subjects with least-recently-used eviction; evicted subjects repeat the existing idempotent binding path.
+- Advance live mailbox merge recovery only for the authenticated identity and in batches of at most 32 messages, so a large or failed merge for another mailbox no longer delays or fails an unrelated login. Startup recovery is unchanged.
+- Process online pending-mailbox retention one mailbox and at most 32 expired messages per batch, releasing the control and storage locks between batches.
+- Reserve message slots and raw-size lower bounds for every target inbox of a routed SMTP transaction before preparing any copy, and stop at the first quota refusal.
+- Apply the 254-byte recipient address limit after IDNA normalization, so login no longer persists an address that SMTP delivery rejects.
+
+### Changed
+
+- Require Go 1.27.4; the build image is `golang:1.27.4-alpine3.24`.
+- Update github.com/gofiber/fiber/v3 from v3.6.1 to v3.7.0, github.com/emersion/go-smtp from v0.25.0 to v0.25.1, modernc.org/sqlite from v1.61.1 to v1.62.0, github.com/soulteary/cli-kit from v1.9.3 to v1.9.4, health-kit/v4 from v4.0.5 to v4.0.7, logger-kit/v3 from v3.0.4 to v3.0.6, version-kit/v4 from v4.0.3 to v4.0.5, and the AWS SDK modules aws-sdk-go-v2 from v1.47.5 to v1.47.7, config from v1.33.12 to v1.33.15, credentials from v1.20.12 to v1.20.15 and service/s3 from v1.114.6 to v1.114.8.
+- Document Stargate deployment and credential operations and recipient-route operations in English and Chinese, and the control-store writer lock in English.
+
+### Tests
+
+- Run the writer-lock and recipient-route safety tests natively on Linux, macOS and Windows in CI.
+- Cover queued multiuser search, invalid proxy responses and direct HTML views in a real browser, and queued filters, pagination and session expiry in the web unit tests.
+
+### Release scope
+
+- Normal binaries retain the multiuser startup gate. The multiuser changes above apply to gated components and were validated with synthetic trusted identities; a deployed Stargate identity contract remains unaccepted.
+
 ## [0.14.0] - 2026-11-03
 
 ### Changed
@@ -686,7 +727,8 @@ release. The original tag and image remain unchanged.
 Earlier release notes remain available on the
 [GitHub Releases page](https://github.com/soulteary/owlmail/releases).
 
-[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/soulteary/owlmail/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/soulteary/owlmail/compare/v0.14.0...v0.15.0
 [0.14.0]: https://github.com/soulteary/owlmail/compare/v0.13.0...v0.14.0
 [0.14.0-alpha.1]: https://github.com/soulteary/owlmail/compare/v0.13.0...v0.14.0-alpha.1
 [0.13.0]: https://github.com/soulteary/owlmail/compare/v0.12.0...v0.13.0

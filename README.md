@@ -1,6 +1,6 @@
 # OwlMail
 
-> OwlMail 0.14.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
+> OwlMail 0.15.0 supports standalone operation by default. Normal binaries retain the multiuser startup gate; test fixtures are not linked into release binaries or normal container images. Artifact availability and verification follow the release workflow.
 
 
 Capture application email locally, inspect its content and attachments, and verify delivery in CI and coding-agent workflows.
@@ -33,11 +33,11 @@ OwlMail runs as a single Go executable with an embedded Web UI. Docker images su
 
 ## Choose a version
 
-The Docker quick start below uses **0.14.0** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
+The Docker quick start below uses **0.15.0** for SMTP capture, browser verification, cursor-based tests, read-only MCP, and delivery diagnostics.
 
-All workflows below are available in **0.14.0**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.14.0 release notes](docs/en/Release-0.14.0.md) and [the previous 0.13.0 release](docs/en/Release-0.13.0.md).
+All workflows below are available in **0.15.0**. Pin a release or image digest for repeatable CI; `main` is a moving development tag; `latest` follows the newest stable release. See [0.15.0 release notes](docs/en/Release-0.15.0.md) and [the previous 0.14.0 release](docs/en/Release-0.14.0.md).
 
-Version 0.14.0 retains gated isolated-mailbox infrastructure. Production multiuser mode remains closed; standalone retains the existing Relay, Reply-To, MIME/CID and dynamic-port behavior. See [dynamic-port discovery](docs/en/Operations.md#os-selected-ports-for-parallel-tests).
+Version 0.15.0 blocks remote resources in directly opened email HTML views, requires Go 1.27.4 and updates Fiber to v3.7.0. Production multiuser mode remains closed; standalone retains the existing Relay, Reply-To, MIME/CID and dynamic-port behavior. See [dynamic-port discovery](docs/en/Operations.md#os-selected-ports-for-parallel-tests).
 
 ## Quick start: receive your first email
 
@@ -48,7 +48,7 @@ docker run -d --name owlmail \
   -p 127.0.0.1:1025:1025 \
   -p 127.0.0.1:1080:1080 \
   -v owlmail-data:/app/mail \
-  ghcr.io/soulteary/owlmail:0.14.0
+  ghcr.io/soulteary/owlmail:0.15.0
 
 curl --fail --silent --retry 10 --retry-connrefused --retry-delay 1 \
   --max-time 2 --output /dev/null http://127.0.0.1:1080/readyz
@@ -256,7 +256,7 @@ Download a platform binary from [Releases](https://github.com/soulteary/owlmail/
 Alternatively, install this version with Go 1.27.4+:
 
 ```bash
-go install github.com/soulteary/owlmail/cmd/owlmail@v0.14.0
+go install github.com/soulteary/owlmail/cmd/owlmail@v0.15.0
 owlmail -mail-directory ./mail
 ```
 
@@ -331,7 +331,7 @@ See the [security model](docs/en/Security-Model.md).
 
 ## Documentation and feedback
 
-- [0.14.0 release notes](docs/en/Release-0.14.0.md) · [Previous 0.13.0 release notes](docs/en/Release-0.13.0.md)
+- [0.15.0 release notes](docs/en/Release-0.15.0.md) · [Previous 0.14.0 release notes](docs/en/Release-0.14.0.md)
 - [Integration testing](docs/en/Integration-Testing.md) · [Sendmail-compatible CLI](docs/en/Sendmail.md)
 - [Configuration reference](docs/en/Configuration-Reference.md)
 - [API and OpenAPI](docs/en/API-Reference.md)
@@ -346,4 +346,4 @@ Include your version or commit, startup method, redacted configuration, error ou
 
 [MIT](LICENSE). Inspired by [MailDev](https://github.com/maildev/maildev), and built on upstream Go SMTP / MIME, Fiber, and WebSocket projects.
 
-Previous release: [OwlMail 0.13.0](docs/en/Release-0.13.0.md).
+Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
