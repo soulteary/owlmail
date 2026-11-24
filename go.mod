@@ -13,7 +13,7 @@ require (
 	github.com/getkin/kin-openapi v0.153.0
 	github.com/gofiber/fiber/v3 v3.7.0
 	github.com/google/uuid v1.6.0
-	github.com/gorilla/websocket v1.5.3
+	github.com/gorilla/websocket v1.5.4-0.20240701034025-d67f41855da4
 	github.com/microcosm-cc/bluemonday v1.0.27
 	github.com/modelcontextprotocol/go-sdk v1.8.0
 	github.com/redis/go-redis/v9 v9.24.0
