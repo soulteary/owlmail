@@ -44,7 +44,10 @@ func TestEphemeralHTTPPortAndOrigins(t *testing.T) {
 			defer func() {
 				_ = api.Close()
 				select {
-				case <-result:
+				case err := <-result:
+					if err != nil {
+						t.Errorf("test server stopped with an error: %v", err)
+					}
 				case <-time.After(5 * time.Second):
 					t.Error("HTTP shutdown timeout")
 				}

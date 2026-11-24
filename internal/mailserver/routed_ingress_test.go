@@ -140,7 +140,10 @@ func TestRoutedSMTPImplicitTLSAndRecoveryAfterDeletion(t *testing.T) {
 	_ = listener.Close()
 	_ = server.Close()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil && !errors.Is(err, net.ErrClosed) {
+			t.Errorf("SMTP listener stopped with an error: %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("SMTP did not close")
 	}

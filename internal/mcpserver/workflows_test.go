@@ -3,6 +3,7 @@ package mcpserver
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http/httptest"
 	"sort"
@@ -262,7 +263,9 @@ func TestWorkflowInputBoundsAndProtocolSessionLimit(t *testing.T) {
 		t.Fatalf("per-session protocol limit result = %#v, error = %v", second, err)
 	}
 	cancel()
-	<-firstFinished
+	if err := <-firstFinished; !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancelled wait error = %v, want context cancellation", err)
+	}
 	waitForWaiterCount(t, service, 0)
 }
 

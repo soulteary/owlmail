@@ -42,7 +42,10 @@ func startUnifiedSMTP(t *testing.T, server *mailserver.MailServer) func() {
 			t.Errorf("SMTP shutdown: %v", err)
 		}
 		select {
-		case <-result:
+		case err := <-result:
+			if err != nil {
+				t.Errorf("test server stopped with an error: %v", err)
+			}
 		case <-time.After(5 * time.Second):
 			t.Error("SMTP shutdown timed out")
 		}

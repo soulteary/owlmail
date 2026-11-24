@@ -115,7 +115,10 @@ func TestMailDevCIDSMTPAttachmentRoundTrip(t *testing.T) {
 				t.Fatal(err)
 			}
 			select {
-			case <-finished:
+			case err := <-finished:
+				if err != nil {
+					t.Errorf("test server stopped with an error: %v", err)
+				}
 			case <-time.After(5 * time.Second):
 				t.Fatal("SMTP shutdown timeout")
 			}

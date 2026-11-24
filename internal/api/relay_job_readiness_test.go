@@ -31,7 +31,12 @@ func TestDurableRelayHTTPReadinessFailsAndRecoversWhileLivenessStaysHealthy(t *t
 	receiver.Domain = "localhost"
 	receiverDone := make(chan error, 1)
 	go func() { receiverDone <- receiver.Serve(listener) }()
-	defer func() { _ = receiver.Close(); <-receiverDone }()
+	defer func() {
+		_ = receiver.Close()
+		if err := <-receiverDone; err != nil {
+			t.Errorf("SMTP receiver stopped with an error: %v", err)
+		}
+	}()
 	server, err := mailserver.NewMailServerWithOptions(0, "127.0.0.1", t.TempDir(), mailserver.ServerOptions{
 		AllowEphemeralPort: true, RuntimeReadiness: true,
 		OutgoingConfig: &outgoing.OutgoingConfig{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port, TLSMode: outgoing.TLSModePlain},

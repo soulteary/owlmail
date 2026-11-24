@@ -63,7 +63,12 @@ func TestSMTPFailuresAtProtocolStages(t *testing.T) {
 			server.WriteTimeout = time.Second
 			done := make(chan error, 1)
 			go func() { done <- server.Serve(listener) }()
-			defer func() { _ = server.Close(); <-done }()
+			defer func() {
+				_ = server.Close()
+				if err := <-done; err != nil {
+					t.Errorf("SMTP test server stopped with an error: %v", err)
+				}
+			}()
 			for n := 1; n <= 2; n++ {
 				err = clientsmtp.SendMail(listener.Addr().String(), nil, "sender@example.test", []string{"recipient@example.test"}, []byte("Subject: test\r\n\r\nhello\r\n"))
 				if n == 1 && (err == nil || !strings.Contains(err.Error(), "451")) {

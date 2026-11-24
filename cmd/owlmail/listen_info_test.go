@@ -54,7 +54,10 @@ func TestListenInfoDynamicStartupAndProbe(t *testing.T) {
 					return
 				}
 				select {
-				case <-result:
+				case err := <-result:
+					if err != nil {
+						t.Errorf("test server stopped with an error: %v", err)
+					}
 				case <-time.After(5 * time.Second):
 					t.Error("servers did not stop")
 				}
@@ -86,7 +89,10 @@ func TestListenInfoDynamicStartupAndProbe(t *testing.T) {
 				t.Fatal(err)
 			}
 			select {
-			case <-result:
+			case err := <-result:
+				if err != nil {
+					t.Errorf("test server stopped with an error: %v", err)
+				}
 				stopped = true
 			case <-time.After(5 * time.Second):
 				t.Fatal("server owner did not stop")

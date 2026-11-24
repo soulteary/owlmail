@@ -117,7 +117,10 @@ func (d *backupDeployment) stop(t *testing.T) {
 	}
 	if d.done != nil {
 		select {
-		case <-d.done:
+		case err := <-d.done:
+			if err != nil {
+				t.Errorf("SMTP backup deployment stopped with an error: %v", err)
+			}
 		case <-time.After(10 * time.Second):
 			t.Fatal("SMTP stop timeout")
 		}

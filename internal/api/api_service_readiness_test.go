@@ -59,7 +59,10 @@ func TestReadinessRequiresSMTPAndStorageWhileLivenessStaysIndependent(t *testing
 	check("/readyz", 503)
 	check("/healthz", 200)
 	select {
-	case <-finished:
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("listener shutdown timeout")
 	}
@@ -172,7 +175,10 @@ func TestHTTPAndRuntimeReadinessAgreeOnOutgoingTransport(t *testing.T) {
 	}
 	_ = server.Close()
 	select {
-	case <-finished:
+	case err := <-finished:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("shutdown timeout")
 	}
