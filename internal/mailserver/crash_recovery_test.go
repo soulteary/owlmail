@@ -319,7 +319,11 @@ func killProcessAtBoundary(t *testing.T, root, point string) processCrashCheckpo
 		if !waited {
 			_ = command.Process.Kill()
 			select {
-			case <-done:
+			case err := <-done:
+				var exitErr *exec.ExitError
+				if err != nil && !errors.As(err, &exitErr) {
+					t.Errorf("wait for killed crash child: %v", err)
+				}
 			case <-time.After(5 * time.Second):
 				t.Error("crash child did not terminate")
 			}

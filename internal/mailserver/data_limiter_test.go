@@ -312,7 +312,9 @@ func startDataProtocolServers(t *testing.T, server *MailServer) (plainAddress, s
 	t.Cleanup(func() {
 		_ = server.Close()
 		for index := 0; index < 2; index++ {
-			<-done
+			if err := <-done; err != nil {
+				t.Errorf("test server stopped with an error: %v", err)
+			}
 		}
 	})
 	return plainListener.Addr().String(), tlsListener.Addr().String()
@@ -449,7 +451,9 @@ func TestMessageSizeFailureReleasesDataSlot(t *testing.T) {
 	go func() { done <- server.smtpServer.Serve(listener) }()
 	defer func() {
 		_ = server.Close()
-		<-done
+		if err := <-done; err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	}()
 
 	client, err := smtp.Dial(listener.Addr().String())
@@ -518,7 +522,9 @@ func TestClientAbortAndServerCloseReleaseDataSlot(t *testing.T) {
 			}
 			_ = client.Close()
 			_ = server.Close()
-			<-done
+			if err := <-done; err != nil {
+				t.Errorf("test server stopped with an error: %v", err)
+			}
 		})
 	}
 }

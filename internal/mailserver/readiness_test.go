@@ -69,7 +69,10 @@ func TestServiceReadinessTracksListenersStorageAndShutdown(t *testing.T) {
 		t.Fatalf("closed state: %v %+v", ready, health)
 	}
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("listener did not stop")
 	}

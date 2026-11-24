@@ -1124,7 +1124,9 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 		case err := <-apiWait:
 			if err != nil {
 				_ = server.Close()
-				<-smtpResult
+				if smtpErr := <-smtpResult; smtpErr != nil {
+					common.Log("SMTP server stopped with an error: %v", smtpErr)
+				}
 				return err
 			}
 			// SMTP-only setup returns immediately; SMTP owns the remaining lifetime.
@@ -1134,7 +1136,9 @@ func startServers(server *mailserver.MailServer, cfg *config.Config) error {
 			// Join the API owner even if SMTP stops during API initialization.
 			// No startup callbacks may outlive the combined server lifetime.
 			if apiWait != nil {
-				<-apiWait
+				if apiErr := <-apiWait; apiErr != nil {
+					common.Log("API server stopped with an error: %v", apiErr)
+				}
 			}
 			if err != nil {
 				return describeServerStartError(err)

@@ -33,7 +33,10 @@ func TestEphemeralSMTPPorts(t *testing.T) {
 		t.Cleanup(func() {
 			_ = server.Close()
 			select {
-			case <-result:
+			case err := <-result:
+				if err != nil {
+					t.Errorf("test server stopped with an error: %v", err)
+				}
 			case <-time.After(5 * time.Second):
 				t.Error("SMTP did not stop")
 			}
@@ -121,7 +124,10 @@ func TestEphemeralSMTPCompatibilityAndConcurrentAddressReads(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("shutdown timeout")
 	}

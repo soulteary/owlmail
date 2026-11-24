@@ -157,7 +157,12 @@ func TestAutomaticRelayDurablePromotionAndSubmittedTombstone(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("SMTP startup timeout")
 	}
-	defer func() { _ = destination.Close(); <-result }()
+	defer func() {
+		_ = destination.Close()
+		if err := <-result; err != nil {
+			t.Errorf("SMTP destination stopped with an error: %v", err)
+		}
+	}()
 	directory := t.TempDir()
 	source := automaticTestServer(t, directory, true)
 	if err := source.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: destination.GetPort(), AutoRelay: true}); err != nil {
@@ -299,7 +304,12 @@ func TestAutomaticRelayStandaloneDynamicEnableStartsRecovery(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatal("SMTP bind timeout")
 		}
-		t.Cleanup(func() { _ = server.Close(); <-result })
+		t.Cleanup(func() {
+			_ = server.Close()
+			if err := <-result; err != nil {
+				t.Errorf("SMTP test server stopped with an error: %v", err)
+			}
+		})
 		return server
 	}
 	destination, source := start(), start()

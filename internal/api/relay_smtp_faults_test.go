@@ -57,7 +57,12 @@ func TestRelayQueueRecoversSMTP4xxButDoesNotRetry5xx(t *testing.T) {
 			receiver.WriteTimeout = time.Second
 			done := make(chan error, 1)
 			go func() { done <- receiver.Serve(listener) }()
-			defer func() { _ = receiver.Close(); <-done }()
+			defer func() {
+				_ = receiver.Close()
+				if err := <-done; err != nil {
+					t.Errorf("SMTP receiver stopped with an error: %v", err)
+				}
+			}()
 			api, server, dir := setupTestAPI(t)
 			defer func() { _ = server.Close() }()
 			if err = server.SetOutgoingConfig(&outgoing.OutgoingConfig{Host: "127.0.0.1", Port: listener.Addr().(*net.TCPAddr).Port}); err != nil {

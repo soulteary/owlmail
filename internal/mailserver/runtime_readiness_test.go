@@ -221,7 +221,10 @@ func TestRuntimeCleanupFailureDoesNotPreventSMTPLiveness(t *testing.T) {
 		t.Fatal(err)
 	}
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(3 * time.Second):
 		t.Fatal("listener did not stop")
 	}

@@ -634,7 +634,10 @@ func TestListenWithReadyStartsNoSMTPSListenerWhenPortIsZero(t *testing.T) {
 		t.Fatalf("Close failed: %v", err)
 	}
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ListenWithReady did not return after Close")
 	}
@@ -671,7 +674,10 @@ func TestCloseBeforeServeRegistersListenerStillStopsListen(t *testing.T) {
 	}
 
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("ListenWithReady did not return when Close ran before Serve registered the listener")
 	}
@@ -712,7 +718,10 @@ func TestCloseReleasesSMTPSPortBoundByListen(t *testing.T) {
 		t.Fatalf("Close failed: %v", err)
 	}
 	select {
-	case <-result:
+	case err := <-result:
+		if err != nil {
+			t.Errorf("test server stopped with an error: %v", err)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("ListenWithReady did not return after Close")
 	}
@@ -754,7 +763,9 @@ func TestListenWithReadyLogsSMTPSOnlyAfterBinding(t *testing.T) {
 	if err := server.Close(); err != nil {
 		t.Fatalf("Close failed: %v", err)
 	}
-	<-result
+	if err := <-result; err != nil {
+		t.Errorf("test server stopped with an error: %v", err)
+	}
 
 	logged := captured.String()
 	if want := "SMTPS Server running at 127.0.0.1:" + strconv.Itoa(smtpsPort); !strings.Contains(logged, want) {

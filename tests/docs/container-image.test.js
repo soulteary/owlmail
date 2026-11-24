@@ -9,13 +9,13 @@ const goMod = fs.readFileSync(path.join(root, "go.mod"), "utf8");
 const workflow = fs.readFileSync(path.join(root, ".github/workflows/docker.yml"), "utf8");
 
 function builderStage() {
-  const pin = dockerfile.match(/^FROM golang:(\d+\.\d+\.\d+)-alpine(\d+\.\d+) AS builder$/m);
+  const pin = dockerfile.match(/^FROM golang:(\d+\.\d+\.\d+)-alpine(\d+\.\d+)@sha256:[a-f0-9]{64} AS builder$/m);
   assert.ok(pin, "the Dockerfile builder stage is not pinned to golang:<x.y.z>-alpine<x.y>");
   return { go: pin[1], alpine: pin[2] };
 }
 
 function runtimeAlpine() {
-  const pin = dockerfile.match(/^FROM alpine:(\d+\.\d+)\.\d+$/m);
+  const pin = dockerfile.match(/^FROM alpine:(\d+\.\d+)\.\d+@sha256:[a-f0-9]{64}$/m);
   assert.ok(pin, "the Dockerfile runtime stage is not pinned to alpine:<x.y.z>");
   return pin[1];
 }

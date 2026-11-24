@@ -267,7 +267,10 @@ func startSMTPAuthTestServer(t *testing.T, authConfig *SMTPAuthConfig) (*MailSer
 	t.Cleanup(func() {
 		_ = server.Close()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Errorf("SMTP test server stopped with an error: %v", err)
+			}
 		case <-time.After(2 * time.Second):
 			t.Error("SMTP test server did not stop")
 		}
@@ -306,7 +309,10 @@ func startSMTPAuthTLSTestServer(t *testing.T, authConfig *SMTPAuthConfig, implic
 	t.Cleanup(func() {
 		_ = server.Close()
 		select {
-		case <-done:
+		case err := <-done:
+			if err != nil {
+				t.Errorf("SMTP TLS test server stopped with an error: %v", err)
+			}
 		case <-time.After(2 * time.Second):
 			t.Error("SMTP TLS test server did not stop")
 		}

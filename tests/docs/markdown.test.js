@@ -745,9 +745,9 @@ test("release workflow preserves supply-chain evidence", () => {
   for (const marker of [
     "id-token: write",
     "attestations: write",
-    "anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c",
+    "anchore/sbom-action@dfcb83b97731532d72be422cbc51ee64adb6fd56",
     "actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8",
-    "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6",
+    "sigstore/cosign-installer@881c63bd87e38389154debd8331404ce7ca8a3ab",
     "subject-checksums: checksums.txt",
     "checksums.txt.sigstore.json",
     "sbom: true",
@@ -1079,5 +1079,5 @@ test("browser and documentation tests use the pinned Bun runner", () => {
     );
   }
 
-  assert.equal(fs.readFileSync(path.join(root, ".bun-version"), "utf8").trim(), "1.4.0");
+  assert.equal(fs.readFileSync(path.join(root, ".bun-version"), "utf8").trim(), "1.4.5");
 });
