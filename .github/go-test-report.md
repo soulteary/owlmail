@@ -8,14 +8,14 @@
 | Passed | 1107 |
 | Failed | 0 |
 | Skipped | 3 |
-| Coverage | 79.81% |
+| Coverage | 79.80% |
 | Threshold | 0.00% |
 
 ### Packages
 
 | Package | Status | Tests | Failed | Coverage |
 | --- | --- | --- | --- | --- |
-| cmd/owlmail | pass | 97 | 0 | 69.90% |
+| cmd/owlmail | pass | 97 | 0 | 69.80% |
 | examples/faults | pass | 3 | 0 | 55.08% |
 | examples/testing/go | pass | 5 | 0 | N/A |
 | examples/webhooks/receiver | pass | 7 | 0 | 78.85% |
@@ -34,7 +34,7 @@
 | internal/relay | pass | 42 | 0 | 77.46% |
 | internal/sendmail | pass | 11 | 0 | 80.49% |
 | internal/types | pass | 6 | 0 | N/A |
-| internal/webhook | pass | 50 | 0 | 76.59% |
+| internal/webhook | pass | 50 | 0 | 76.68% |
 | openapi | pass | 4 | 0 | 71.43% |
 | openapi/generate | pass | 1 | 0 | 95.12% |
 | scripts/license-bundle | pass | 8 | 0 | 50.81% |
