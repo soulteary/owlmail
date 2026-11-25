@@ -745,3 +745,5 @@ Wenn dieses Projekt Ihnen hilft, geben Sie bitte einen Star ⭐!
 **OwlMail** — ein selbst gehostetes E-Mail-Test-Gateway für Entwicklung, CI, Automatisierung und AI Agents. 🦉
 
 Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
+
+Previous release: [0.15.0](./docs/en/Release-0.15.0.md).

@@ -348,3 +348,5 @@ OwlMail 面向开发、CI 和受控测试网络。它保存完整邮件，可能
 [MIT](LICENSE)。感谢 [MailDev](https://github.com/maildev/maildev) 的启发，以及 Go SMTP / MIME、Fiber 和 WebSocket 等上游项目。
 
 Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
+
+Previous release: [0.15.0](docs/zh-CN/Release-0.15.0.md).

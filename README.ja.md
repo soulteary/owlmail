@@ -739,3 +739,5 @@ If this project helps you, please give it a Star ⭐!
 **OwlMail** — 開発、CI、自動化、AI Agent のためのセルフホスト型メールテストゲートウェイ。🦉
 
 Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
+
+Previous release: [0.15.0](./docs/en/Release-0.15.0.md).

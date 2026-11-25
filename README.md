@@ -347,3 +347,5 @@ Include your version or commit, startup method, redacted configuration, error ou
 [MIT](LICENSE). Inspired by [MailDev](https://github.com/maildev/maildev), and built on upstream Go SMTP / MIME, Fiber, and WebSocket projects.
 
 Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
+
+Previous release: [0.15.0](docs/en/Release-0.15.0.md).

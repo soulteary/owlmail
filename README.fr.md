@@ -745,3 +745,5 @@ If this project helps you, please give it a Star ⭐!
 **OwlMail** — une passerelle de test d’e-mails auto-hébergée pour le développement, la CI, l’automatisation et les agents AI. 🦉
 
 Previous release: [OwlMail 0.14.0](docs/en/Release-0.14.0.md).
+
+Previous release: [0.15.0](./docs/en/Release-0.15.0.md).

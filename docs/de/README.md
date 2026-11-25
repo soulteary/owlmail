@@ -40,7 +40,7 @@ in eigenen Verzeichnissen organisiert.
 
 ### Veröffentlichungen
 
-- **[Versionshinweise 0.15.0](../en/Release-0.15.0.md) · [0.14.0 release notes](../en/Release-0.14.0.md)** (English, [中文](../zh-CN/Release-0.15.0.md))
+- **[Versionshinweise 0.15.1](../en/Release-0.15.1.md) · [0.14.0 release notes](../en/Release-0.14.0.md)** (English, [中文](../zh-CN/Release-0.15.1.md))
 - **[Versionshinweise 0.9.0](../en/Release-0.9.0.md)** (English, [中文](../zh-CN/Release-0.9.0.md))
 - **[Veröffentlichungsprozess](../en/Releasing.md)** (English, [中文](../zh-CN/Releasing.md))
 
@@ -67,3 +67,5 @@ Hinweise stehen im [Beitragsleitfaden](../../.github/CONTRIBUTING.de.md).
 Weitere Informationen finden Sie im [Haupt-README](../../README.de.md).
 
 Previous release: [OwlMail 0.14.0](../en/Release-0.14.0.md).
+
+Previous release: [0.15.0](../en/Release-0.15.0.md).
